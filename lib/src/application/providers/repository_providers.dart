@@ -1,12 +1,27 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/repository/channel_repository.dart'; // Deze import is nu correct!
 import '../../data/providers/m3u_provider.dart';
-import '../../data/providers/stalker_provider.dart';
-import '../../data/repositories/channel_repository.dart';
+import 'stalker_provider.dart';
 
 /// Provides a singleton instance of Dio for network requests.
-final dioProvider = Provider<Dio>((ref) => Dio());
+final dioProvider = Provider<Dio>((ref) {
+  final dio = Dio();
+
+  // Add a LogInterceptor to print all network traffic to the console.
+  // This is the best way to verify if a network request is being sent at all.
+  // It will show the request URL, headers, and the full response or error.
+  dio.interceptors.add(LogInterceptor(
+    requestHeader: true,
+    requestBody: true,
+    responseHeader: true,
+    responseBody: true,
+    error: true,
+  ));
+
+  return dio;
+});
 
 /// Provides a singleton instance of our M3uProvider implementation.
 /// In a real app, you would have a way to switch this to XtreamProvider etc.
@@ -26,5 +41,5 @@ final stalkerProvider = Provider<StalkerProvider>((ref) {
 final channelRepositoryProvider = Provider<ChannelRepository>((ref) {
   // We are now temporarily hardcoding the StalkerProvider for testing.
   // Later, this will be dynamic based on user's selected account.
-  return ChannelRepository(provider: ref.watch(stalkerProvider));
+  return ChannelRepository(ref.watch(stalkerProvider));
 });

@@ -1,28 +1,19 @@
 import '../../core/api/iprovider.dart';
 import '../../core/models/models.dart';
 
-/// The ChannelRepository is the single source of truth for channel data.
+/// A repository that handles channel-related data operations.
 ///
-/// It abstracts away the data source (network or local cache) from the UI.
-/// The UI will ask this repository for channels, and the repository decides
-/// where to get them from.
+/// It uses a specific [IProvider] (like StalkerProvider or M3uProvider)
+/// to fetch data, abstracting the data source from the UI and application layers.
 class ChannelRepository {
   final IProvider _provider;
-  // TODO: Add a local database service (e.g., IsarService) here.
 
-  ChannelRepository({required IProvider provider}) : _provider = provider;
+  ChannelRepository(this._provider);
 
-  /// Fetches live channels.
-  ///
-  /// In a full implementation, this would first check a local database cache.
-  /// If the cache is stale or empty, it would then call the [_provider]
-  /// to fetch from the network and update the cache.
-  Future<List<Channel>> getLiveChannels(Credentials credentials) async {
-    // 1. (Later) Check local database for channels associated with these credentials.
-    // 2. If cache is valid, return cached channels.
-
-    // 3. For now, always fetch from the network.
-    await _provider.signIn(credentials);
-    return await _provider.fetchLiveChannels();
+  /// Fetches a list of live channels from the current provider.
+  Future<List<Channel>> fetchLiveChannels() {
+    // Delegate the call to the injected provider.
+    return _provider.fetchLiveChannels();
   }
 }
+

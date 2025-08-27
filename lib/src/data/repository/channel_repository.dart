@@ -1,61 +1,55 @@
-import 'package:dio/dio.dart';
+import 'dart:developer' as developer;
 
-import '../providers/m3u_provider.dart';
-import '../providers/stalker_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../application/providers/api_provider.dart';
 import '../../core/api/iprovider.dart';
-import '../../core/models/models.dart';
-import '../utils/stalker_url_resolver.dart';
+import '../../core/models/channel.dart';
+import '../datasources/channel_local_data_source.dart';
 
-/// A repository that handles channel-related data operations.
-///
-/// This repository is stateful: it holds the current provider instance
-/// which is created after a successful `signIn`.
+part 'channel_repository.g.dart';
+
+/// The repository is the single source of truth for channel data.
+/// It abstracts the data source (local or remote) from the rest of the app.
 class ChannelRepository {
-  final Dio _dio;
-  IProvider? _provider; // Internal provider instance, initially null.
+  final IProvider _remoteProvider;
+  final ChannelLocalDataSource _localDataSource;
 
-  ChannelRepository(this._dio);
+  ChannelRepository(this._remoteProvider, this._localDataSource);
 
-  /// Creates and stores a provider instance using the given credentials.
-  /// This method determines which provider to use based on the type of credentials.
-  Future<void> signIn(Credentials credentials) async {
-    if (credentials is StalkerCredentials) {
-      // Use the resolver to find the correct base URL
-      final resolver = StalkerUrlResolver(_dio);
-      final resolvedBaseUrl = await resolver.resolve(credentials.baseUrl);
-
-      _provider = StalkerProvider(
-        dio: _dio,
-        baseUrl: resolvedBaseUrl,
-        macAddress: credentials.macAddress,
-      );
-    } else if (credentials is M3uCredentials) {
-      _provider = M3uProvider(
-        dio: _dio,
-        m3uUrl: credentials.m3uUrl,
-      );
-    } else {
-      throw ArgumentError('Unsupported credentials type: ${credentials.runtimeType}');
+  /// Fetches the list of live TV channels.
+  ///
+  /// It first attempts to load channels from the local Hive database.
+  /// If the database is empty, it fetches the channels from the remote provider,
+  /// saves them to the local database for future use, and then returns them.
+  Future<List<Channel>> getLiveChannels({bool forceRefresh = false}) async {
+    // The 'forceRefresh' logic is now primarily handled by invalidating the
+    // provider that calls this method. We keep the parameter for direct calls.
+    if (!forceRefresh) {
+      final localChannels = _localDataSource.getChannels();
+      if (localChannels.isNotEmpty) {
+        developer.log('Returning ${localChannels.length} channels from cache.',
+            name: 'ChannelRepository');
+        return localChannels;
+      }
     }
 
-    // Optional: You could add a check here to see if the provider can connect
-    // before considering the sign-in successful. For example, by fetching a token.
-  }
+    // If local database is empty or refresh is forced, fetch from remote.
+    developer.log('Cache is empty or refresh is forced. Fetching from remote.',
+        name: 'ChannelRepository');
+    final remoteChannels = await _remoteProvider.fetchLiveChannels();
 
-  /// Signs out the current user by clearing the active provider.
-  Future<void> signOut() async {
-    _provider = null;
-    // In a real app, you might also clear any stored tokens or user data here.
-  }
+    // Save the fetched channels to the local database for next time.
+    await _localDataSource.saveChannels(remoteChannels);
 
-  /// Fetches a list of live channels from the current provider.
-  Future<List<Channel>> fetchLiveChannels() {
-    // Assign the provider to a local variable to allow type promotion.
-    final currentProvider = _provider;
-    if (currentProvider == null) {
-      return Future.error(
-          StateError('You must call signIn() before fetching channels.'));
-    }
-    return currentProvider.fetchLiveChannels();
+    return remoteChannels;
   }
+}
+
+@riverpod
+ChannelRepository channelRepository(ChannelRepositoryRef ref) {
+  // Watch the apiProviderProvider to get the correct remote data source.
+  final remoteProvider = ref.watch(stalkerApiProvider);
+  final localDataSource = ref.watch(channelLocalDataSourceProvider);
+  return ChannelRepository(remoteProvider, localDataSource);
 }

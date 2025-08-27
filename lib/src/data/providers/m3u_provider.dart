@@ -1,99 +1,120 @@
-import 'package:dio/dio.dart';
 import 'dart:developer' as developer;
 
+import 'package:dio/dio.dart';
+
 import '../../core/api/iprovider.dart';
-import '../../core/models/models.dart';
+import '../../core/models/channel.dart';
 
 /// An implementation of [IProvider] for M3U playlists.
+///
+/// This provider fetches an M3U playlist from a given URL and parses it
+/// to extract channel information.
 class M3uProvider implements IProvider {
   final Dio _dio;
-  final String _m3uUrl; // The URL to the .m3u file
+  final String _m3uUrl;
 
-  M3uProvider({
-    required Dio dio,
-    required String m3uUrl,
-  })  : _dio = dio,
+  M3uProvider({required Dio dio, required String m3uUrl})
+      : _dio = dio,
         _m3uUrl = m3uUrl;
 
   @override
   Future<List<Channel>> fetchLiveChannels() async {
+    developer.log('Fetching M3U playlist from: $_m3uUrl', name: 'M3uProvider');
     try {
-      final response = await _dio.get<String>(_m3uUrl);
-      final m3uContent = response.data;
+      final response = await _dio.get<String>(
+        _m3uUrl,
+        options: Options(responseType: ResponseType.plain),
+      );
 
-      if (m3uContent == null || !m3uContent.trim().startsWith('#EXTM3U')) {
-        throw const FormatException('Invalid M3U file format.');
+      if (response.data == null || response.data!.trim().isEmpty) {
+        throw Exception('Received an empty M3U playlist.');
       }
 
-      return _parseM3uContent(m3uContent);
+      return _parseM3UContent(response.data!);
     } catch (e, stackTrace) {
-      developer.log(
-        'Error fetching or parsing M3U file',
-        error: e,
-        stackTrace: stackTrace,
-        name: 'M3uProvider',
-      );
+      developer.log('Error fetching or parsing M3U playlist',
+          error: e, stackTrace: stackTrace, name: 'M3uProvider');
       rethrow;
     }
   }
 
-  List<Channel> _parseM3uContent(String content) {
-    final channels = <Channel>[];
-    final lines = content.split('\n');
+  /// Parses the M3U playlist content into a list of [Channel] objects.
+  List<Channel> _parseM3UContent(String content) {
+    final List<Channel> channels = [];
+    final lines = content.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty);
+    final iterator = lines.iterator;
 
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i].trim().startsWith('#EXTINF:')) {
-        final infoLine = lines[i];
-        // Ensure there is a next line for the URL
-        if (i + 1 < lines.length) {
-          final urlLine = lines[i + 1].trim();
-          if (urlLine.isNotEmpty && !urlLine.startsWith('#')) {
-            // Extract attributes
-            final name = _getAttribute(infoLine, 'name') ?? 'Unnamed Channel';
-            final logo = _getAttribute(infoLine, 'tvg-logo');
-            final group = _getAttribute(infoLine, 'group-title') ?? 'General';
-            // Use tvg-id for both id and epgId. Fallback to name if tvg-id is missing.
-            final id = _getAttribute(infoLine, 'tvg-id') ?? name;
+    while (iterator.moveNext()) {
+      final line = iterator.current;
+      if (line.startsWith('#EXTINF:')) {
+        try {
+          // The next line should be the stream URL
+          if (iterator.moveNext()) {
+            final streamUrl = iterator.current;
+            // Ensure the next line is a valid URL before processing
+            if (Uri.tryParse(streamUrl)?.isAbsolute ?? false) {
+              final attributes = _extractAttributes(line);
+              final name = attributes['title'] ?? 'Unnamed Channel';
+              final tvgId = attributes['tvg-id'];
 
-            channels.add(
-              Channel(
-                id: id,
-                name: name,
-                logoUrl: logo,
-                streamUrl: urlLine,
-                group: group,
-                epgId: id,
-              ),
-            );
-            // Increment i to skip the URL line in the next iteration
-            i++;
+              channels.add(
+                Channel(
+                  // Use tvg-id for a more stable unique ID if available,
+                  // otherwise fall back to the stream URL.
+                  id: (tvgId != null && tvgId.isNotEmpty) ? tvgId : streamUrl,
+                  name: name,
+                  logoUrl: attributes['tvg-logo'] ?? '',
+                  streamUrl: streamUrl,
+                  group: attributes['group-title'] ?? 'Uncategorized',
+                  // Use tvg-id for EPG mapping, fall back to name if not present.
+                  epgId: tvgId ?? name,
+                ),
+              );
+            } else {
+              developer.log('Skipping invalid URL: $streamUrl', name: 'M3uProvider');
+            }
           }
+        } catch (e, stackTrace) {
+          developer.log('Failed to parse M3U line: "$line"',
+              error: e, stackTrace: stackTrace, name: 'M3uProvider');
+          // Continue to the next line
         }
       }
     }
+    developer.log('Parsed ${channels.length} channels from M3U playlist.',
+        name: 'M3uProvider');
     return channels;
   }
 
-  /// Extracts an attribute value from an #EXTINF line.
-  /// e.g., #EXTINF:-1 tvg-id="id1" group-title="News",Channel 1
-  String? _getAttribute(String line, String key) {
-    // Handle the channel name, which is typically after the last comma.
-    if (key == 'name') {
-      final commaIndex = line.lastIndexOf(',');
-      if (commaIndex != -1) {
-        return line.substring(commaIndex + 1).trim();
+  /// Extracts key-value attributes and the title from an #EXTINF line.
+  Map<String, String> _extractAttributes(String extinfLine) {
+    final attributes = <String, String>{};
+
+    // Regex to find key="value" pairs.
+    final regex = RegExp(r'(\w+-?\w+)="([^"]*)"');
+    regex.allMatches(extinfLine).forEach((match) {
+      final key = match.group(1);
+      final value = match.group(2);
+      if (key != null && value != null) {
+        attributes[key] = value;
       }
-      // Some M3U files use tvg-name
-      return _getAttribute(line, 'tvg-name');
+    });
+
+    // The title is typically the last part of the line, after the final comma.
+    final lastCommaIndex = extinfLine.lastIndexOf(',');
+    if (lastCommaIndex != -1 && lastCommaIndex < extinfLine.length - 1) {
+      attributes['title'] = extinfLine.substring(lastCommaIndex + 1).trim();
     }
 
-    // Handle other attributes like tvg-id, tvg-logo, group-title
-    final regExp = RegExp('$key="(.*?)"', caseSensitive: false);
-    final match = regExp.firstMatch(line);
-    if (match != null && match.group(1) != null) {
-      return match.group(1)!.trim();
+    // A common fallback for the name is the 'tvg-name' attribute.
+    // This also handles cases where the title might be empty.
+    if (attributes['title']?.isEmpty ?? true) {
+      final tvgName = attributes['tvg-name'];
+      if (tvgName != null) {
+        attributes['title'] = tvgName;
+      }
     }
-    return null;
+
+    return attributes;
   }
 }
-

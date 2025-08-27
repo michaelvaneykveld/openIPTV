@@ -1,11 +1,20 @@
-import 'package:meta/meta.dart';
+import 'package:hive/hive.dart';
 
 import 'credentials.dart';
 
-/// Represents the credentials needed to connect to an M3U source.
-@immutable
+part 'm3u_credentials.g.dart';
+
+/// Vertegenwoordigt de inloggegevens voor een M3U-playlist provider.
+/// Deze klasse is ontworpen om opgeslagen te worden in Hive.
+@HiveType(typeId: 1)
 class M3uCredentials extends Credentials {
+  /// De URL van de M3U-afspeellijst.
+  @HiveField(2)
   final String m3uUrl;
 
-  const M3uCredentials({required this.m3uUrl});
+  M3uCredentials({
+    required super.id,
+    required super.name,
+    required this.m3uUrl,
+  });
 }

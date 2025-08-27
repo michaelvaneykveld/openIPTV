@@ -68,15 +68,14 @@ class StalkerProvider implements IProvider {
       return [];
     }
 
+    // Parse the raw JSON directly into the app's domain models.
     return channelListData.whereType<Map<String, dynamic>>().map((item) {
       final id = item['id']?.toString() ?? '';
       final name = item['name']?.toString() ?? 'Unnamed Channel';
       final logoUrl = item['logo']?.toString();
       final cmd = item['cmd']?.toString() ?? '';
-
       final parts = cmd.split(' ');
       final streamUrl = parts.isNotEmpty ? parts.last : '';
-
       return Channel(
         id: id,
         name: name,
@@ -88,3 +87,4 @@ class StalkerProvider implements IProvider {
     }).toList();
   }
 }
+

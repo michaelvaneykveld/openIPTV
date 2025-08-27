@@ -1,0 +1,17 @@
+# Handle line endings automatically for text files
+# and prevent normalization for binary files.
+* text=auto
+
+# These files should always have LF line endings to avoid issues
+# with scripts and tools across different platforms.
+*.dart text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+pubspec.lock text eol=lf
+
+# These are binary files and should not be modified.
+*.png binary
+*.jpg binary
+*.ico binary
+

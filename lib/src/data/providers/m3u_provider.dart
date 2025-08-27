@@ -1,105 +1,99 @@
 import 'package:dio/dio.dart';
+import 'dart:developer' as developer;
+
 import '../../core/api/iprovider.dart';
 import '../../core/models/models.dart';
 
-/// A simple resolver for M3U that just returns the already known URL.
-class _M3uStreamResolver implements StreamUrlResolver {
-  final Map<String, String> _streamUrls;
-
-  _M3uStreamResolver(this._streamUrls);
-
-  @override
-  Future<String> resolveStreamUrl(String itemId, {Map<String, dynamic>? options}) async {
-    final url = _streamUrls[itemId];
-    if (url == null) {
-      throw Exception('Stream URL for item ID $itemId not found.');
-    }
-    return url;
-  }
-}
-
-/// An implementation of [IProvider] for parsing and handling M3U playlists.
+/// An implementation of [IProvider] for M3U playlists.
 class M3uProvider implements IProvider {
   final Dio _dio;
-  M3uCredentials? _credentials;
-  List<Channel> _channels = [];
-  late final Map<String, String> _streamUrls = {};
+  final String _m3uUrl; // The URL to the .m3u file
 
-  M3uProvider({Dio? dio}) : _dio = dio ?? Dio();
-
-  @override
-  Future<void> signIn(Credentials credentials) async {
-    if (credentials is! M3uCredentials) {
-      throw ArgumentError('Invalid credentials type provided for M3uProvider.');
-    }
-    _credentials = credentials;
-    // Reset state
-    _channels = [];
-    _streamUrls.clear();
-    // Immediately fetch channels to validate the M3U file.
-    await fetchLiveChannels();
-  }
+  M3uProvider({
+    required Dio dio,
+    required String m3uUrl,
+  })  : _dio = dio,
+        _m3uUrl = m3uUrl;
 
   @override
   Future<List<Channel>> fetchLiveChannels() async {
-    if (_credentials == null) {
-      throw StateError('You must sign in before fetching channels.');
+    try {
+      final response = await _dio.get<String>(_m3uUrl);
+      final m3uContent = response.data;
+
+      if (m3uContent == null || !m3uContent.trim().startsWith('#EXTM3U')) {
+        throw const FormatException('Invalid M3U file format.');
+      }
+
+      return _parseM3uContent(m3uContent);
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error fetching or parsing M3U file',
+        error: e,
+        stackTrace: stackTrace,
+        name: 'M3uProvider',
+      );
+      rethrow;
     }
-    if (_channels.isNotEmpty) {
-      return _channels;
-    }
+  }
 
-    final response = await _dio.get<String>(_credentials!.m3uUrl);
-    final m3uContent = response.data;
+  List<Channel> _parseM3uContent(String content) {
+    final channels = <Channel>[];
+    final lines = content.split('\n');
 
-    if (m3uContent == null || !m3uContent.startsWith('#EXTM3U')) {
-      throw Exception('Invalid or empty M3U file.');
-    }
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i].trim().startsWith('#EXTINF:')) {
+        final infoLine = lines[i];
+        // Ensure there is a next line for the URL
+        if (i + 1 < lines.length) {
+          final urlLine = lines[i + 1].trim();
+          if (urlLine.isNotEmpty && !urlLine.startsWith('#')) {
+            // Extract attributes
+            final name = _getAttribute(infoLine, 'name') ?? 'Unnamed Channel';
+            final logo = _getAttribute(infoLine, 'tvg-logo');
+            final group = _getAttribute(infoLine, 'group-title') ?? 'General';
+            // Use tvg-id for both id and epgId. Fallback to name if tvg-id is missing.
+            final id = _getAttribute(infoLine, 'tvg-id') ?? name;
 
-    final lines = m3uContent.split('\n');
-    final List<Channel> parsedChannels = [];
-    
-    // Regex to capture attributes from the #EXTINF line
-    final extinfRegex = RegExp(r'#EXTINF:-1(?: +(.*?))?,(.*)');
-    final attributeRegex = RegExp(r'([a-zA-Z0-9_-]+)="([^"]*)"');
-
-    for (int i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('#EXTINF')) {
-        final match = extinfRegex.firstMatch(lines[i]);
-        if (match != null && i + 1 < lines.length) {
-          final attributesString = match.group(1) ?? '';
-          final channelName = match.group(2)?.trim() ?? 'Unknown Channel';
-          final attributes = { for (var m in attributeRegex.allMatches(attributesString)) m.group(1)!: m.group(2)! };
-          
-          final streamUrl = lines[i + 1].trim();
-          final channelId = attributes['tvg-id'] ?? channelName;
-
-          parsedChannels.add(Channel(
-            id: channelId,
-            name: channelName,
-            logoUrl: attributes['tvg-logo'],
-            group: attributes['group-title'] ?? 'Uncategorized',
-            epgId: attributes['tvg-id'] ?? '',
-          ));
-          _streamUrls[channelId] = streamUrl;
+            channels.add(
+              Channel(
+                id: id,
+                name: name,
+                logoUrl: logo,
+                streamUrl: urlLine,
+                group: group,
+                epgId: id,
+              ),
+            );
+            // Increment i to skip the URL line in the next iteration
+            i++;
+          }
         }
       }
     }
-    _channels = parsedChannels;
-    return _channels;
+    return channels;
   }
 
-  @override
-  StreamUrlResolver get resolver => _M3uStreamResolver(_streamUrls);
+  /// Extracts an attribute value from an #EXTINF line.
+  /// e.g., #EXTINF:-1 tvg-id="id1" group-title="News",Channel 1
+  String? _getAttribute(String line, String key) {
+    // Handle the channel name, which is typically after the last comma.
+    if (key == 'name') {
+      final commaIndex = line.lastIndexOf(',');
+      if (commaIndex != -1) {
+        return line.substring(commaIndex + 1).trim();
+      }
+      // Some M3U files use tvg-name
+      return _getAttribute(line, 'tvg-name');
+    }
 
-  // For the MVP, these are not yet implemented for M3U.
-  @override
-  Future<List<Category>> fetchCategories() async => throw UnimplementedError('M3U provider does not support VOD/Series categories.');
-  @override
-  Future<List<VodItem>> fetchVod({Category? category}) async => throw UnimplementedError('M3U provider does not support VOD.');
-  @override
-  Future<List<Series>> fetchSeries({Category? category}) async => throw UnimplementedError('M3U provider does not support Series.');
-  @override
-  Future<List<EpgEvent>> fetchEpg(String channelId, DateTime from, DateTime to) async => throw UnimplementedError('EPG fetching is not implemented in this provider. Use a separate EPG parser.');
+    // Handle other attributes like tvg-id, tvg-logo, group-title
+    final regExp = RegExp('$key="(.*?)"', caseSensitive: false);
+    final match = regExp.firstMatch(line);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!.trim();
+    }
+    return null;
+  }
 }
 

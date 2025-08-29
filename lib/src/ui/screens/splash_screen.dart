@@ -21,7 +21,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   Future<void> _initializeApp() async {
     try {
       final apiProvider = ref.read(stalkerApiProvider);
-      await apiProvider.syncAllDataIfNeeded();
+      // TODO: Implement a proper data synchronization strategy
+      // await apiProvider.syncAllDataIfNeeded();
       
       // Navigate to the home screen on success.
       // Ensure you have a route named '/home' in your GoRouter configuration.

@@ -2,7 +2,7 @@ import 'dart:developer' as developer;
 import 'dart:convert'; // Added for jsonDecode
 import 'package:dio/dio.dart';
 import 'package:openiptv/src/core/api/iprovider.dart';
-import 'package:openiptv/src/core/models/channel.dart';
+import 'package:openiptv/src/core/models/models.dart';
 import 'package:openiptv/src/data/datasources/secure_storage_interface.dart'; // Import the new interface
 // Import Credential model
 
@@ -120,5 +120,11 @@ class StalkerApiProvider implements IProvider {
       developer.log(e.toString(), name: 'StalkerApiProvider');
       return [];
     }
+  }
+
+  @override
+  Future<List<Genre>> getGenres() async {
+    // TODO: Implement actual genre fetching for Stalker
+    return [];
   }
 }

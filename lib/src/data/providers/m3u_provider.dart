@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
-import '../../core/models/channel.dart';
+import '../../core/models/models.dart';
 
 /// An implementation of [IProvider] for M3U playlists.
 ///
@@ -116,5 +116,12 @@ class M3uProvider implements IProvider {
     }
 
     return attributes;
+  }
+
+  @override
+  Future<List<Genre>> getGenres() async {
+    // M3U playlists don't typically have a separate genre list.
+    // Genres are usually extracted from the 'group-title' attribute of each channel.
+    return [];
   }
 }

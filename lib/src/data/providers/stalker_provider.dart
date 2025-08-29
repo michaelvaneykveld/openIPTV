@@ -4,7 +4,7 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
-import '../../core/models/channel.dart';
+import '../../core/models/models.dart';
 
 /// An implementation of [IProvider] for Stalker Portals.
 ///
@@ -139,5 +139,11 @@ class StalkerProvider implements IProvider {
         epgId: item['xmltv_id']?.toString() ?? id,
       );
     }).toList();
+  }
+
+  @override
+  Future<List<Genre>> getGenres() async {
+    final genres = await _fetchGenres();
+    return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
   }
 }

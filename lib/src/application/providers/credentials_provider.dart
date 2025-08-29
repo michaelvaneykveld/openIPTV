@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openiptv/src/data/datasources/windows_secure_storage.dart';
 import 'package:openiptv/src/data/datasources/secure_storage_interface.dart'; // Import the new interface
@@ -15,7 +16,8 @@ SecureStorageInterface flutterSecureStorage(Ref ref) { // Change return type
   if (Platform.isWindows) {
     return const WindowsSecureStorage();
   } else {
-    return const FlutterSecureStorageWrapper(FlutterSecureStorage()); // Use the wrapper
+    final storage = FlutterSecureStorage();
+    return FlutterSecureStorageWrapper(storage); // Use the wrapper
   }
 }
 

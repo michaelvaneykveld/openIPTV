@@ -7,7 +7,7 @@ part of 'credentials_provider.dart';
 // **************************************************************************
 
 String _$flutterSecureStorageHash() =>
-    r'76bdaa67f88ef5eca46c81c34d62787aee22130f';
+    r'0af3e6ad10d078d22a805382440a8869c5fd0466';
 
 /// See also [flutterSecureStorage].
 @ProviderFor(flutterSecureStorage)

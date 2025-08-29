@@ -1,10 +1,11 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../application/providers/api_provider.dart';
 import '../../core/api/iprovider.dart';
-import '../../core/models/channel.dart';
+import '../../core/models/models.dart';
 import '../datasources/channel_local_data_source.dart';
 
 part 'channel_repository.g.dart';
@@ -43,6 +44,10 @@ class ChannelRepository {
     await _localDataSource.saveChannels(remoteChannels);
 
     return remoteChannels;
+  }
+
+  Future<List<Genre>> getGenres() async {
+    return await _remoteProvider.getGenres();
   }
 }
 

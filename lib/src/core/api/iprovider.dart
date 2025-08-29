@@ -5,4 +5,5 @@ import '../models/models.dart';
 /// Each provider (e.g., Stalker, M3U) must implement this interface.
 abstract class IProvider {
   Future<List<Channel>> fetchLiveChannels();
+  Future<List<Genre>> getGenres();
 }

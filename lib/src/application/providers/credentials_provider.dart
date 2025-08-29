@@ -14,7 +14,7 @@ SecureStorageInterface flutterSecureStorage(Ref ref) {
 
 @riverpod
 CredentialsLocalDataSource credentialsLocalDataSource(Ref ref) {
-  return CredentialsLocalDataSource(ref.watch(flutterSecureStorageProvider));
+  return CredentialsLocalDataSourceImpl(ref.watch(flutterSecureStorageProvider));
 }
 
 @riverpod

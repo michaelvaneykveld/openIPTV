@@ -38,10 +38,24 @@ final _routerProvider = Provider<GoRouter>((ref) {
       final isLoggedIn = savedCredentials.isNotEmpty; // Check if any credentials exist
 
       final loggingIn = state.matchedLocation == '/login';
-      if (!isLoggedIn) return loggingIn ? null : '/login';
 
-      if (loggingIn) return '/';
+      // If not logged in, always go to login screen (unless already there)
+      if (!isLoggedIn) {
+        return loggingIn ? null : '/login';
+      }
 
+      // If logged in, and trying to go to login screen, don't redirect.
+      // This allows the user to explicitly go to the login screen even if logged in (e.g., for logout).
+      if (loggingIn) {
+        return null; // Allow navigation to /login
+      }
+
+      // If logged in and trying to go to root, allow it.
+      if (state.matchedLocation == '/') {
+        return null; // Allow navigation to /
+      }
+
+      // Otherwise, no redirect needed.
       return null;
     },
   );

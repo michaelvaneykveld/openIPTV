@@ -33,9 +33,8 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await ref.read(stalkerApiProvider).logout();
-              await ref.read(credentialsRepositoryProvider).deleteAllCredentials();
               if (context.mounted) {
-                context.go('/');
+                context.go('/login');
               }
             },
           ),

@@ -5,9 +5,9 @@ import 'package:openiptv/src/data/datasources/secure_storage_interface.dart';
 import 'package:openiptv/src/core/models/credential.dart'; // Import Credential model
 
 class FlutterSecureStorageWrapper implements SecureStorageInterface {
-  final FlutterSecureStorage _storage;
+  final FlutterSecureStorage storage;
 
-  const FlutterSecureStorageWrapper(this._storage);
+  const FlutterSecureStorageWrapper({required this.storage});
 
   static const _credentialsListKey = 'saved_credentials_list';
   static const _tokenKey = 'stalker_token'; // Assuming token is still stored separately
@@ -16,7 +16,7 @@ class FlutterSecureStorageWrapper implements SecureStorageInterface {
   Future<String?> read({required String key}) async {
     // If the key is for the token, read it directly
     if (key == _tokenKey) {
-      return await _storage.read(key: key);
+      return await storage.read(key: key);
     }
     // For other keys, we might need to rethink if they are still used individually.
     // For now, assume individual keys are for token only.
@@ -27,7 +27,7 @@ class FlutterSecureStorageWrapper implements SecureStorageInterface {
   Future<void> write({required String key, required String? value}) async {
     // If the key is for the token, write it directly
     if (key == _tokenKey) {
-      await _storage.write(key: key, value: value);
+      await storage.write(key: key, value: value);
     }
     // For other keys, we might need to rethink if they are still used individually.
   }
@@ -36,20 +36,20 @@ class FlutterSecureStorageWrapper implements SecureStorageInterface {
   Future<void> delete({required String key}) async {
     // If the key is for the token, delete it directly
     if (key == _tokenKey) {
-      await _storage.delete(key: key);
+      await storage.delete(key: key);
     }
     // For other keys, we might need to rethink if they are still used individually.
   }
 
   @override
   Future<void> deleteAll() async {
-    await _storage.deleteAll();
+    await storage.deleteAll();
   }
 
   @override
   Future<List<Credential>> getCredentialsList() async {
     try {
-      final String? credentialsJsonString = await _storage.read(key: _credentialsListKey);
+      final String? credentialsJsonString = await storage.read(key: _credentialsListKey);
       developer.log('FlutterSecureStorageWrapper: Raw data read: $credentialsJsonString', name: 'FlutterSecureStorageWrapper');
       if (credentialsJsonString == null || credentialsJsonString.isEmpty) {
         return [];
@@ -68,7 +68,7 @@ class FlutterSecureStorageWrapper implements SecureStorageInterface {
       final List<Map<String, dynamic>> jsonList = credentials.map((c) => c.toJson()).toList();
       final String credentialsJsonString = json.encode(jsonList);
       developer.log('FlutterSecureStorageWrapper: Raw data written: $credentialsJsonString', name: 'FlutterSecureStorageWrapper');
-      await _storage.write(key: _credentialsListKey, value: credentialsJsonString);
+      await storage.write(key: _credentialsListKey, value: credentialsJsonString);
     } catch (e) {
       print('Error saving credentials list to FlutterSecureStorage: $e');
     }

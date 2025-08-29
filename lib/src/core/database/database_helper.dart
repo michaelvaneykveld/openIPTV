@@ -63,7 +63,8 @@ class DatabaseHelper {
   static const columnChannelUseHttpTmpLink = 'use_http_tmp_link';
   static const columnChannelMonitoringStatus = 'monitoring_status';
   static const columnChannelEnableMonitoring = 'enable_monitoring';
-  static const columnChannelEnableWowzaLoadBalancing = 'enable_wowza_load_balancing';
+  static const columnChannelEnableWowzaLoadBalancing =
+      'enable_wowza_load_balancing';
   static const columnChannelCorrectTime = 'correct_time';
   static const columnChannelNimbleDvr = 'nimble_dvr';
   static const columnChannelModified = 'modified';
@@ -88,7 +89,6 @@ class DatabaseHelper {
   static const columnCmdNginxSecureLink = 'nginx_secure_link';
   static const columnCmdFlussonicTmpLink = 'flussonic_tmp_link';
 
-
   // make this a singleton class
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -103,17 +103,22 @@ class DatabaseHelper {
   }
 
   // this opens the database (and creates it if it doesn't exist)
-  _initDatabase() async {
+  Future<Database> _initDatabase() async {
     final documentsDirectory = await getApplicationDocumentsDirectory();
     final path = join(documentsDirectory.path, _databaseName);
-    return await openDatabase(path,
-        version: _databaseVersion,
-        onCreate: _onCreate);
+    return await openDatabase(
+      path,
+      version: _databaseVersion,
+      onCreate: _onCreate,
+    );
   }
 
   // SQL code to create the database table
   Future _onCreate(Database db, int version) async {
-    developer.log('DatabaseHelper: Creating database tables...', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Creating database tables...',
+      name: 'DatabaseHelper',
+    );
     await db.execute('''
           CREATE TABLE $tableGenres (
             $columnGenreId TEXT PRIMARY KEY,
@@ -124,7 +129,10 @@ class DatabaseHelper {
             $columnGenreNumber INTEGER
           )
           ''');
-    developer.log('DatabaseHelper: Table $tableGenres created.', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Table $tableGenres created.',
+      name: 'DatabaseHelper',
+    );
     await db.execute('''
           CREATE TABLE $tableVodCategories (
             $columnVodCategoryId TEXT PRIMARY KEY,
@@ -133,7 +141,10 @@ class DatabaseHelper {
             $columnVodCategoryCensored INTEGER
           )
           ''');
-    developer.log('DatabaseHelper: Table $tableVodCategories created.', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Table $tableVodCategories created.',
+      name: 'DatabaseHelper',
+    );
     await db.execute('''
           CREATE TABLE $tableChannels (
             $columnChannelId TEXT PRIMARY KEY,
@@ -184,7 +195,10 @@ class DatabaseHelper {
             FOREIGN KEY ($columnChannelGenreId) REFERENCES $tableGenres ($columnGenreId)
           )
           ''');
-    developer.log('DatabaseHelper: Table $tableChannels created.', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Table $tableChannels created.',
+      name: 'DatabaseHelper',
+    );
     await db.execute('''
           CREATE TABLE $tableChannelCmds (
             $columnCmdId TEXT PRIMARY KEY,
@@ -204,11 +218,17 @@ class DatabaseHelper {
             FOREIGN KEY ($columnCmdChannelId) REFERENCES $tableChannels ($columnChannelId) ON DELETE CASCADE
           )
           ''');
-    developer.log('DatabaseHelper: Table $tableChannelCmds created.', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Table $tableChannelCmds created.',
+      name: 'DatabaseHelper',
+    );
   }
 
   Future<void> clearAllData() async {
-    developer.log('DatabaseHelper: Clearing all data...', name: 'DatabaseHelper');
+    developer.log(
+      'DatabaseHelper: Clearing all data...',
+      name: 'DatabaseHelper',
+    );
     final db = await instance.database;
     await db.transaction((txn) async {
       await txn.delete(tableChannelCmds);

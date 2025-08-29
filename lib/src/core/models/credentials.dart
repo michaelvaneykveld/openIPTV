@@ -1,17 +1,16 @@
-import 'package:hive/hive.dart';
-
-/// Dit is de abstracte basisklasse voor alle soorten inloggegevens.
-/// Het definieert de gemeenschappelijke velden die elke credential-type zal hebben.
-/// De subklassen (M3uCredentials, StalkerCredentials) zullen de specifieke
-/// HiveType-annotaties krijgen.
+/// This is the abstract base class for all types of credentials.
+/// It defines the common fields that every credential type will have.
 abstract class Credentials {
-  /// Een unieke identificatie voor de credential, kan de URL of een eigen naam zijn.
-  @HiveField(0)
+  /// A unique identification for the credential, can be the URL or a custom name.
   final String id;
 
-  /// Een gebruiksvriendelijke naam voor deze IPTV-dienst.
-  @HiveField(1)
+  /// A user-friendly name for this IPTV service.
   final String name;
 
-  Credentials({required this.id, required this.name});
+  /// The type of credential (e.g., 'm3u', 'stalker').
+  final String type;
+
+  Credentials({required this.id, required this.name, required this.type});
+
+  Map<String, dynamic> toJson();
 }

@@ -68,7 +68,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final macAddress = _macAddressController.text;
 
       if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
-        portalUrl = 'http://' + portalUrl;
+        portalUrl = 'http://$portalUrl';
       }
 
       // Sanitize portalUrl: remove '/c/' if present

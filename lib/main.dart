@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:hive_flutter/hive_flutter.dart';
+
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/presentation/screens/login_screen.dart';
 
-import 'src/core/models/channel.dart';
 import 'src/ui/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  Hive.registerAdapter(ChannelAdapter());
-  await Hive.openBox<Channel>('channels');
+  
 
   runApp(
     const ProviderScope(

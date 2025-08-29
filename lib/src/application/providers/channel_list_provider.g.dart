@@ -6,7 +6,7 @@ part of 'channel_list_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$channelListHash() => r'17fc55fbbcef60c66dd27646946d866926f25182';
+String _$channelListHash() => r'e566cfe5c35c0abe8e5a284b9a628120f069c4dd';
 
 /// A provider that fetches and provides the list of channels.
 ///
@@ -19,12 +19,15 @@ String _$channelListHash() => r'17fc55fbbcef60c66dd27646946d866926f25182';
 final channelListProvider = AutoDisposeFutureProvider<List<Channel>>.internal(
   channelList,
   name: r'channelListProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$channelListHash,
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$channelListHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef ChannelListRef = AutoDisposeFutureProviderRef<List<Channel>>;
 // ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

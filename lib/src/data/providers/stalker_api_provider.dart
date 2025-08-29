@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:openiptv/src/core/api/iprovider.dart';
 import 'package:openiptv/src/core/models/channel.dart';
 import 'package:openiptv/src/data/datasources/secure_storage_interface.dart'; // Import the new interface
-import 'package:openiptv/src/core/models/credential.dart'; // Import Credential model
+// Import Credential model
 
 class StalkerApiProvider implements IProvider {
   final Dio _dio;
@@ -89,7 +89,7 @@ class StalkerApiProvider implements IProvider {
 
       // throw Exception('Channel Fetch URL: \${response.requestOptions.uri.toString()}'); // Temporary: to get the URL
 
-      developer.log('Channel Fetch URL: ' + response.requestOptions.uri.toString(), name: 'StalkerApiProvider');
+      developer.log('Channel Fetch URL: ${response.requestOptions.uri}', name: 'StalkerApiProvider');
 
       if (response.data == null || response.data.toString().isEmpty) {
         developer.log('Raw channel response: (empty)', name: 'StalkerApiProvider');

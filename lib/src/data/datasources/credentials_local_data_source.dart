@@ -1,7 +1,9 @@
 import 'dart:developer' as developer;
 
-import 'package:hive_flutter/hive_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
+import 'package:openiptv/src/data/providers/flutter_secure_storage_provider.dart';
 
 import '../../core/models/credentials.dart';
 import '../../core/models/m3u_credentials.dart';
@@ -9,37 +11,46 @@ import '../../core/models/stalker_credentials.dart';
 
 part 'credentials_local_data_source.g.dart';
 
-/// Manages the storage and retrieval of IPTV provider credentials using Hive.
+/// Manages the storage and retrieval of IPTV provider credentials using FlutterSecureStorage.
 class CredentialsLocalDataSource {
-  static const String _boxName = 'credentials';
+  final FlutterSecureStorage _secureStorage;
+  static const String _credentialsKey = 'credentials';
 
-  /// Opens the Hive box for credentials.
-  /// This must be called before any other method.
-  static Future<void> openBox() async {
-    // We need to register all subtypes of Credentials before opening the box.
-    if (!Hive.isAdapterRegistered(M3uCredentialsAdapter().typeId)) {
-      Hive.registerAdapter(M3uCredentialsAdapter());
-    }
-    if (!Hive.isAdapterRegistered(StalkerCredentialsAdapter().typeId)) {
-      Hive.registerAdapter(StalkerCredentialsAdapter());
-    }
-    await Hive.openBox<Credentials>(_boxName);
-  }
-
-  /// Returns the Hive box for credentials.
-  Box<Credentials> get _credentialsBox => Hive.box<Credentials>(_boxName);
+  CredentialsLocalDataSource(this._secureStorage);
 
   /// Saves a new set of credentials to the local database.
   Future<void> saveCredentials(Credentials credentials) async {
     developer.log('Saving credentials with id: ${credentials.id}',
         name: 'CredentialsLocalDataSource');
-    await _credentialsBox.put(credentials.id, credentials);
+    
+    List<Credentials> currentCredentials = await getCredentials();
+    currentCredentials.removeWhere((c) => c.id == credentials.id);
+    currentCredentials.add(credentials);
+
+    final String encodedJson = json.encode(currentCredentials.map((c) => c.toJson()).toList());
+    await _secureStorage.write(key: _credentialsKey, value: encodedJson);
   }
 
   /// Retrieves all saved credentials from the local database.
-  List<Credentials> getCredentials() {
-    final credentials = _credentialsBox.values.toList();
-    developer.log('Retrieved ${credentials.length} credentials from local database.',
+  Future<List<Credentials>> getCredentials() async {
+    String? credentialsJson = await _secureStorage.read(key: _credentialsKey);
+    if (credentialsJson == null || credentialsJson.isEmpty) {
+      developer.log('No credentials found in secure storage.', name: 'CredentialsLocalDataSource');
+      return [];
+    }
+
+    final List<dynamic> decodedList = json.decode(credentialsJson);
+    final List<Credentials> credentials = decodedList.map((json) {
+      if (json['type'] == 'm3u') {
+        return M3uCredentials.fromJson(json);
+      } else if (json['type'] == 'stalker') {
+        return StalkerCredentials.fromJson(json);
+      } else {
+        throw Exception('Unknown credential type');
+      }
+    }).toList();
+
+    developer.log('Retrieved ${credentials.length} credentials from secure storage.',
         name: 'CredentialsLocalDataSource');
     return credentials;
   }
@@ -48,11 +59,15 @@ class CredentialsLocalDataSource {
   Future<void> deleteCredentials(String id) async {
     developer.log('Deleting credentials with id: $id',
         name: 'CredentialsLocalDataSource');
-    await _credentialsBox.delete(id);
+    List<Credentials> currentCredentials = await getCredentials();
+    currentCredentials.removeWhere((c) => c.id == id);
+
+    final String encodedJson = json.encode(currentCredentials.map((c) => c.toJson()).toList());
+    await _secureStorage.write(key: _credentialsKey, value: encodedJson);
   }
 }
 
 @riverpod
 CredentialsLocalDataSource credentialsLocalDataSource(
         CredentialsLocalDataSourceRef ref) =>
-    CredentialsLocalDataSource();
+    CredentialsLocalDataSource(ref.watch(flutterSecureStorageProvider));

@@ -11,7 +11,7 @@ part 'channel_list_provider.g.dart';
 /// The UI can watch this provider to get the channel list asynchronously
 /// and handle loading/error states.
 @riverpod
-Future<List<Channel>> channelList(ChannelListRef ref) {
+Future<List<Channel>> channelList(Ref ref) {
   final repository = ref.watch(channelRepositoryProvider);
   // The forceRefresh parameter is now handled by invalidating the provider.
   return repository.getLiveChannels();

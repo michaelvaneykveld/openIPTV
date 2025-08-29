@@ -7,58 +7,64 @@ part of 'credentials_provider.dart';
 // **************************************************************************
 
 String _$flutterSecureStorageHash() =>
-    r'7489db3b9309e8888e08aa1ffb05f4782f216f10';
+    r'76bdaa67f88ef5eca46c81c34d62787aee22130f';
 
 /// See also [flutterSecureStorage].
 @ProviderFor(flutterSecureStorage)
 final flutterSecureStorageProvider =
     AutoDisposeProvider<SecureStorageInterface>.internal(
-  flutterSecureStorage,
-  name: r'flutterSecureStorageProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$flutterSecureStorageHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      flutterSecureStorage,
+      name: r'flutterSecureStorageProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$flutterSecureStorageHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
-typedef FlutterSecureStorageRef
-    = AutoDisposeProviderRef<SecureStorageInterface>;
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef FlutterSecureStorageRef =
+    AutoDisposeProviderRef<SecureStorageInterface>;
 String _$credentialsLocalDataSourceHash() =>
-    r'ddf1bcd0577dfbd4007c26eb794d041fbd900f07';
+    r'22ab46f557f0cb9e0e33ba030a55bc858d84219c';
 
 /// See also [credentialsLocalDataSource].
 @ProviderFor(credentialsLocalDataSource)
 final credentialsLocalDataSourceProvider =
     AutoDisposeProvider<CredentialsLocalDataSource>.internal(
-  credentialsLocalDataSource,
-  name: r'credentialsLocalDataSourceProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$credentialsLocalDataSourceHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      credentialsLocalDataSource,
+      name: r'credentialsLocalDataSourceProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$credentialsLocalDataSourceHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
-typedef CredentialsLocalDataSourceRef
-    = AutoDisposeProviderRef<CredentialsLocalDataSource>;
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef CredentialsLocalDataSourceRef =
+    AutoDisposeProviderRef<CredentialsLocalDataSource>;
 String _$credentialsRepositoryHash() =>
-    r'281674e565e9de8725f3a8bc4856191735f96bdc';
+    r'cb3f777c991714fa192004dfb2b464ff0d89da1b';
 
 /// See also [credentialsRepository].
 @ProviderFor(credentialsRepository)
 final credentialsRepositoryProvider =
     AutoDisposeProvider<CredentialsRepository>.internal(
-  credentialsRepository,
-  name: r'credentialsRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$credentialsRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
+      credentialsRepository,
+      name: r'credentialsRepositoryProvider',
+      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+          ? null
+          : _$credentialsRepositoryHash,
+      dependencies: null,
+      allTransitiveDependencies: null,
+    );
 
-typedef CredentialsRepositoryRef
-    = AutoDisposeProviderRef<CredentialsRepository>;
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef CredentialsRepositoryRef =
+    AutoDisposeProviderRef<CredentialsRepository>;
 // ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

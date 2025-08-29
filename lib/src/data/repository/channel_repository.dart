@@ -47,7 +47,7 @@ class ChannelRepository {
 }
 
 @riverpod
-ChannelRepository channelRepository(ChannelRepositoryRef ref) {
+ChannelRepository channelRepository(Ref ref) {
   // Watch the apiProviderProvider to get the correct remote data source.
   final remoteProvider = ref.watch(stalkerApiProvider);
   final localDataSource = ref.watch(channelLocalDataSourceProvider);

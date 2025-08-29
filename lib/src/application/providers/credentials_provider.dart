@@ -11,20 +11,20 @@ import 'package:openiptv/src/data/repository/credentials_repository.dart';
 part 'credentials_provider.g.dart';
 
 @riverpod
-SecureStorageInterface flutterSecureStorage(FlutterSecureStorageRef ref) { // Change return type
+SecureStorageInterface flutterSecureStorage(Ref ref) { // Change return type
   if (Platform.isWindows) {
     return const WindowsSecureStorage();
   } else {
-    return FlutterSecureStorageWrapper(const FlutterSecureStorage()); // Use the wrapper
+    return const FlutterSecureStorageWrapper(FlutterSecureStorage()); // Use the wrapper
   }
 }
 
 @riverpod
-CredentialsLocalDataSource credentialsLocalDataSource(CredentialsLocalDataSourceRef ref) {
-  return CredentialsLocalDataSourceImpl(ref.watch(flutterSecureStorageProvider));
+CredentialsLocalDataSource credentialsLocalDataSource(Ref ref) {
+  return CredentialsLocalDataSource(ref.watch(flutterSecureStorageProvider));
 }
 
 @riverpod
-CredentialsRepository credentialsRepository(CredentialsRepositoryRef ref) {
+CredentialsRepository credentialsRepository(Ref ref) {
   return CredentialsRepositoryImpl(localDataSource: ref.watch(credentialsLocalDataSourceProvider));
 }

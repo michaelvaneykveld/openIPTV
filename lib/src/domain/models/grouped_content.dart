@@ -1,36 +1,41 @@
-import 'package:flutter/foundation.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
 
-part 'grouped_content.freezed.dart';
 
-@freezed
-class GroupedContent with _$GroupedContent {
-  const factory GroupedContent({
-    required List<MainCategory> categories,
-  }) = _GroupedContent;
+class GroupedContent {
+  final List<MainCategory> categories;
+
+  const GroupedContent({
+    required this.categories,
+  });
 }
 
-@freezed
-class MainCategory with _$MainCategory {
-  const factory MainCategory({
-    required String name,
-    required List<SubCategory> subCategories,
-  }) = _MainCategory;
+class MainCategory {
+  final String name;
+  final List<SubCategory> subCategories;
+
+  const MainCategory({
+    required this.name,
+    required this.subCategories,
+  });
 }
 
-@freezed
-class SubCategory with _$SubCategory {
-  const factory SubCategory({
-    required String name,
-    required List<PlayableItem> items,
-  }) = _SubCategory;
+class SubCategory {
+  final String name;
+  final List<PlayableItem> items;
+
+  const SubCategory({
+    required this.name,
+    required this.items,
+  });
 }
 
-@freezed
-class PlayableItem with _$PlayableItem {
-  const factory PlayableItem({
-    required String id,
-    required String name,
-    String? logoUrl,
-  }) = _PlayableItem;
+class PlayableItem {
+  final String id;
+  final String name;
+  final String? logoUrl;
+
+  const PlayableItem({
+    required this.id,
+    required this.name,
+    this.logoUrl,
+  });
 }

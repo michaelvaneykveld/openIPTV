@@ -96,19 +96,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     itemCount: _selectedSubCategory!.items.length,
                     itemBuilder: (context, index) {
                       final item = _selectedSubCategory!.items[index];
-                      String name = '';
-                      String logoUrl = '';
-
-                      item.when(
-                        channel: (channel) {
-                          name = channel.name;
-                          logoUrl = channel.logo ?? '';
-                        },
-                        vod: (vod) {
-                          name = vod.name;
-                          logoUrl = vod.logo ?? '';
-                        },
-                      );
+                      String name = item.name;
+                      String logoUrl = item.logoUrl ?? '';
 
                       return Card(
                         child: Column(

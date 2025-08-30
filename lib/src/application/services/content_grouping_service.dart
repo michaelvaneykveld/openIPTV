@@ -53,7 +53,7 @@ class ContentGroupingService {
     // 4. Process Live TV and Radio genres
     for (final genre in allGenres) {
       final channelsForGenre = (channelsByGenre[genre.id] ?? [])
-          .map((c) => PlayableItem.channel(c))
+          .map((c) => PlayableItem(id: c.id, name: c.name, logoUrl: c.logo))
           .toList();
 
       if (channelsForGenre.isEmpty) continue;
@@ -71,7 +71,7 @@ class ContentGroupingService {
     // 5. Process VOD categories into Movies and Series
     for (final vodCategory in allVodCategories) {
       final contentForCategory = (vodContentByCategory[vodCategory.id] ?? [])
-          .map((v) => PlayableItem.vod(v))
+          .map((v) => PlayableItem(id: v.id, name: v.name, logoUrl: v.logo))
           .toList();
 
       if (contentForCategory.isEmpty) continue;

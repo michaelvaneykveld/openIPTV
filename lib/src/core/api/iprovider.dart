@@ -6,4 +6,8 @@ import '../models/models.dart';
 abstract class IProvider {
   Future<List<Channel>> fetchLiveChannels();
   Future<List<Genre>> getGenres();
+  Future<List<VodCategory>> fetchVodCategories();
+  Future<List<VodContent>> fetchVodContent(String categoryId);
+  Future<List<Genre>> fetchRadioGenres();
+  Future<List<Channel>> fetchRadioChannels(String genreId);
 }

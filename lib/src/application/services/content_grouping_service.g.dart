@@ -1,29 +1,30 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'flutter_secure_storage_provider.dart';
+part of 'content_grouping_service.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$flutterSecureStorageHash() =>
-    r'c18a14fdf4fcaadc7f294f69c7c77eb241e41a92';
+String _$contentGroupingServiceHash() =>
+    r'bb2ee386cc998d6514c7ff38b7520ac3aae68f55';
 
-/// See also [flutterSecureStorage].
-@ProviderFor(flutterSecureStorage)
-final flutterSecureStorageProvider =
-    AutoDisposeProvider<FlutterSecureStorage>.internal(
-      flutterSecureStorage,
-      name: r'flutterSecureStorageProvider',
+/// See also [contentGroupingService].
+@ProviderFor(contentGroupingService)
+final contentGroupingServiceProvider =
+    AutoDisposeProvider<ContentGroupingService>.internal(
+      contentGroupingService,
+      name: r'contentGroupingServiceProvider',
       debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
           ? null
-          : _$flutterSecureStorageHash,
+          : _$contentGroupingServiceHash,
       dependencies: null,
       allTransitiveDependencies: null,
     );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef FlutterSecureStorageRef = AutoDisposeProviderRef<FlutterSecureStorage>;
+typedef ContentGroupingServiceRef =
+    AutoDisposeProviderRef<ContentGroupingService>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

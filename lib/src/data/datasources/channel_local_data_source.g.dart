@@ -7,7 +7,7 @@ part of 'channel_local_data_source.dart';
 // **************************************************************************
 
 String _$channelLocalDataSourceHash() =>
-    r'e835eae121a47a1dbc1b8575835f678f184c2519';
+    r'773bc6b101ff26cd944cd38911a3ac1e6b13f050';
 
 /// See also [channelLocalDataSource].
 @ProviderFor(channelLocalDataSource)

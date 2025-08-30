@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'dart:developer' as developer;
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
-import 'package:openiptv/src/core/models/credential.dart'; // Import Credential model
+import 'package:openiptv/src/core/models/credentials.dart'; // Import Credentials model (plural)
+import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Import StalkerCredentials
+import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Import M3uCredentials
 
 // Custom TextInputFormatter for MAC address
 class MacAddressInputFormatter extends TextInputFormatter {
@@ -32,7 +34,7 @@ class MacAddressInputFormatter extends TextInputFormatter {
 }
 
 // Provider for saved credentials
-final savedCredentialsProvider = FutureProvider<List<Credential>>((ref) async {
+final savedCredentialsProvider = FutureProvider<List<Credentials>>((ref) async {
   final credentialsRepository = ref.watch(credentialsRepositoryProvider);
   return credentialsRepository.getSavedCredentials();
 });
@@ -78,12 +80,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       developer.log('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress', name: 'LoginScreen');
 
-      final token = await stalkerApi.login(portalUrl, macAddress);
+      final success = await stalkerApi.login(portalUrl, macAddress);
 
-      if (token != null) {
-        final credentialsRepository = ref.read(credentialsRepositoryProvider);
-        // Save the newly logged-in credential
-        await credentialsRepository.saveCredential(Credential(portalUrl: portalUrl, macAddress: macAddress));
+      if (success) {
+        // No need to save credential here, it's handled within stalkerApi.login
         // Invalidate the provider to refresh the list of saved credentials
         ref.invalidate(savedCredentialsProvider);
 
@@ -109,9 +109,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Future<void> _deleteCredential(Credential credential) async {
+  Future<void> _deleteCredential(Credentials credential) async {
     final credentialsRepository = ref.read(credentialsRepositoryProvider);
-    await credentialsRepository.deleteCredential(credential);
+    await credentialsRepository.deleteCredential(credential.id); // Use credential.id for deletion
     ref.invalidate(savedCredentialsProvider); // Refresh the list
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -200,14 +200,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     itemCount: credentials.length,
                     itemBuilder: (context, index) {
                       final credential = credentials[index];
+                      String displayUrl = '';
+                      String displayMac = '';
+
+                      if (credential is StalkerCredentials) {
+                        displayUrl = credential.baseUrl;
+                        displayMac = credential.macAddress;
+                      } else if (credential is M3uCredentials) {
+                        displayUrl = credential.m3uUrl; // Changed to m3uUrl
+                        displayMac = 'N/A'; // M3U doesn't have MAC address
+                      }
+
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8.0),
                         child: ListTile(
-                          title: Text(credential.portalUrl),
-                          subtitle: Text(credential.macAddress),
+                          title: Text(displayUrl),
+                          subtitle: Text(displayMac),
                           onTap: () {
-                            _portalUrlController.text = credential.portalUrl;
-                            _macAddressController.text = credential.macAddress;
+                            if (credential is StalkerCredentials) {
+                              _portalUrlController.text = credential.baseUrl;
+                              _macAddressController.text = credential.macAddress;
+                            } else if (credential is M3uCredentials) {
+                              _portalUrlController.text = credential.m3uUrl; // Changed to m3uUrl
+                              _macAddressController.text = ''; // Clear MAC for M3U
+                            }
                             // Optionally, trigger login automatically or let user click login button
                             // _login();
                           },

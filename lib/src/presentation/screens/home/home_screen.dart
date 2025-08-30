@@ -1,91 +1,144 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'dart:developer' as developer;
+import 'package:openiptv/src/application/services/content_grouping_service.dart';
+import 'package:openiptv/src/domain/models/grouped_content.dart';
 
-import '../../../core/models/channel.dart';
-import '../../../application/providers/channel_list_provider.dart';
-
-
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    developer.log('HomeScreen build method called.', name: 'UI-Lifecycle');
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
 
-    final channelsAsyncValue = ref.watch(channelListProvider);
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  MainCategory? _selectedMainCategory;
+  SubCategory? _selectedSubCategory;
 
-    developer.log('channelListProvider state: $channelsAsyncValue', name: 'UI-State');
-
-    // Group channels by the 'group' property
-    final groupedChannels = channelsAsyncValue.asData?.value.fold<Map<String, List<Channel>>>(
-      {},
-      (map, channel) {
-        map.putIfAbsent(channel.group, () => []).add(channel);
-        return map;
-      },
-    );
+  @override
+  Widget build(BuildContext context) {
+    final groupedContentAsyncValue = ref.watch(contentGroupingServiceProvider).getGroupedContent();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('openIPTV'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              developer.log('Refreshing channel list...', name: 'UI-Action');
-              ref.invalidate(channelListProvider);
-            },
-          ),
-        ],
       ),
-      body: channelsAsyncValue.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) {
-          developer.log(
-            'An error occurred in channelListProvider',
-            name: 'UI-Error',
-            error: error,
-            stackTrace: stackTrace,
-          );
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                'Failed to load channels:\n$error',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          );
-        },
-        data: (channels) {
-          if (channels.isEmpty) {
-            return const Center(child: Text('No channels found.'));
+      body: FutureBuilder<GroupedContent>(
+        future: groupedContentAsyncValue,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.categories.isEmpty) {
+            return const Center(child: Text('No content found.'));
           }
-          // Render the grouped list
-          return ListView.builder(
-            itemCount: groupedChannels?.keys.length ?? 0,
-            itemBuilder: (context, index) {
-              final group = groupedChannels?.keys.elementAt(index);
-              final groupChannels = groupedChannels?[group] ?? [];
-              return ExpansionTile(
-                title: Text(group ?? 'Uncategorized'),
-                children: groupChannels.map((channel) => ListTile(
-                  leading: channel.logoUrl != null && channel.logoUrl!.isNotEmpty
-                      ? Image.network(
-                          channel.logoUrl!,
-                          width: 40, // Set a fixed width for logos
-                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.tv),
-                        )
-                      : const Icon(Icons.tv),
-                  title: Text(channel.name),
-                  onTap: () {
-                    // TODO: Implement channel playback
-                    developer.log('Tapped on channel: ${channel.name}', name: 'UI-Action');
+
+          final groupedContent = snapshot.data!;
+
+          return Row(
+            children: [
+              // Column 1: Main Categories
+              SizedBox(
+                width: 200,
+                child: ListView.builder(
+                  itemCount: groupedContent.categories.length,
+                  itemBuilder: (context, index) {
+                    final mainCategory = groupedContent.categories[index];
+                    return ListTile(
+                      title: Text(mainCategory.name),
+                      selected: _selectedMainCategory == mainCategory,
+                      onTap: () {
+                        setState(() {
+                          _selectedMainCategory = mainCategory;
+                          _selectedSubCategory = null; // Reset sub-category selection
+                        });
+                      },
+                    );
                   },
-                )).toList(),
-              );
-            },
+                ),
+              ),
+              const VerticalDivider(width: 1),
+
+              // Column 2: Sub Categories
+              if (_selectedMainCategory != null)
+                SizedBox(
+                  width: 250,
+                  child: ListView.builder(
+                    itemCount: _selectedMainCategory!.subCategories.length,
+                    itemBuilder: (context, index) {
+                      final subCategory = _selectedMainCategory!.subCategories[index];
+                      return ListTile(
+                        title: Text(subCategory.name),
+                        selected: _selectedSubCategory == subCategory,
+                        onTap: () {
+                          setState(() {
+                            _selectedSubCategory = subCategory;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              const VerticalDivider(width: 1),
+
+              // Column 3: Playable Items
+              if (_selectedSubCategory != null)
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 150,
+                      childAspectRatio: 2 / 3,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: _selectedSubCategory!.items.length,
+                    itemBuilder: (context, index) {
+                      final item = _selectedSubCategory!.items[index];
+                      String name = '';
+                      String logoUrl = '';
+
+                      item.when(
+                        channel: (channel) {
+                          name = channel.name;
+                          logoUrl = channel.logo ?? '';
+                        },
+                        vod: (vod) {
+                          name = vod.name;
+                          logoUrl = vod.logo ?? '';
+                        },
+                      );
+
+                      return Card(
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: logoUrl.isNotEmpty
+                                  ? Image.network(
+                                      logoUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) => 
+                                        const Center(child: Icon(Icons.tv)),
+                                    )
+                                  : const Center(child: Icon(Icons.tv)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(8.0),
+                              child: Text(
+                                name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
           );
         },
       ),

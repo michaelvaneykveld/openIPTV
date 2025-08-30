@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
-import '../../core/models/models.dart';
+import '../../core/models/models.dart'; // Ensure models.dart is imported for VodCategory, VodContent, Genre, Channel
 
 /// An implementation of [IProvider] for M3U playlists.
 ///
@@ -63,7 +63,7 @@ class M3uProvider implements IProvider {
                   // otherwise fall back to the stream URL.
                   id: (tvgId != null && tvgId.isNotEmpty) ? tvgId : streamUrl,
                   name: name,
-                  logoUrl: attributes['tvg-logo'] ?? '',
+                  logo: attributes['tvg-logo'] ?? '',
                   streamUrl: streamUrl,
                   group: attributes['group-title'] ?? 'Uncategorized',
                   // Use tvg-id for EPG mapping, fall back to name if not present.
@@ -91,7 +91,7 @@ class M3uProvider implements IProvider {
     final attributes = <String, String>{};
 
     // Regex to find key="value" pairs.
-    final regex = RegExp(r'(\w+-?\w+)="([^"]*)"');
+    final regex = RegExp(r'(\w+-?\w+)=\"([^\"]*)\"');
     regex.allMatches(extinfLine).forEach((match) {
       final key = match.group(1);
       final value = match.group(2);
@@ -122,6 +122,26 @@ class M3uProvider implements IProvider {
   Future<List<Genre>> getGenres() async {
     // M3U playlists don't typically have a separate genre list.
     // Genres are usually extracted from the 'group-title' attribute of each channel.
+    return [];
+  }
+
+  @override
+  Future<List<VodCategory>> fetchVodCategories() async {
+    return [];
+  }
+
+  @override
+  Future<List<VodContent>> fetchVodContent(String categoryId) async {
+    return [];
+  }
+
+  @override
+  Future<List<Genre>> fetchRadioGenres() async {
+    return [];
+  }
+
+  @override
+  Future<List<Channel>> fetchRadioChannels(String genreId) async {
     return [];
   }
 }

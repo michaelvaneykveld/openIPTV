@@ -4,11 +4,26 @@ import 'package:go_router/go_router.dart';
 
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/presentation/screens/login_screen.dart';
-
-import 'src/ui/home_screen.dart';
+import 'package:openiptv/src/ui/home_screen.dart';
+import 'package:openiptv/src/core/database/database_helper.dart';
+import 'package:openiptv/src/data/stalker_api_service.dart';
+import 'package:openiptv/src/data/stalker_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize DatabaseHelper
+  final databaseHelper = DatabaseHelper.instance;
+
+  // Initialize StalkerApiService with a base URL
+  // IMPORTANT: Replace with your actual Stalker Portal base URL
+  final stalkerApiService = StalkerApiService('http://your-stalker-portal-url.com'); 
+
+  // Initialize StalkerRepository
+  final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper);
+
+  // Trigger data synchronization
+  await stalkerRepository.synchronizeData();
   
 
   runApp(

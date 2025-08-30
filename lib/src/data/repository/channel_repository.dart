@@ -27,7 +27,7 @@ class ChannelRepository {
     // The 'forceRefresh' logic is now primarily handled by invalidating the
     // provider that calls this method. We keep the parameter for direct calls.
     if (!forceRefresh) {
-      final localChannels = _localDataSource.getChannels();
+      final localChannels = await _localDataSource.getChannelsAsync(); // Changed to getChannelsAsync
       if (localChannels.isNotEmpty) {
         developer.log('Returning ${localChannels.length} channels from cache.',
             name: 'ChannelRepository');

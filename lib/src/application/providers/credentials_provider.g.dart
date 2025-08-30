@@ -7,7 +7,7 @@ part of 'credentials_provider.dart';
 // **************************************************************************
 
 String _$flutterSecureStorageHash() =>
-    r'cc0dfb92a4755a325000bab4d64ab5de9911630f';
+    r'56b74909630df09c58ff09da7e12a4e4b811576a';
 
 /// See also [flutterSecureStorage].
 @ProviderFor(flutterSecureStorage)
@@ -27,7 +27,7 @@ final flutterSecureStorageProvider =
 typedef FlutterSecureStorageRef =
     AutoDisposeProviderRef<SecureStorageInterface>;
 String _$credentialsLocalDataSourceHash() =>
-    r'22ab46f557f0cb9e0e33ba030a55bc858d84219c';
+    r'051f95502895d56594f9f7b564e602d8294a65da';
 
 /// See also [credentialsLocalDataSource].
 @ProviderFor(credentialsLocalDataSource)

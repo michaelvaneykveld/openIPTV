@@ -120,7 +120,7 @@ class StalkerProvider implements IProvider {
     return channelListData.whereType<Map<String, dynamic>>().map((item) {
       final id = item['id']?.toString() ?? '';
       final name = item['name']?.toString() ?? 'Unnamed Channel';
-      final logoUrl = item['logo']?.toString();
+      final logo = item['logo']?.toString(); // Changed logoUrl to logo
       final cmd = item['cmd']?.toString() ?? '';
       final parts = cmd.split(' ');
       final streamUrl = parts.isNotEmpty ? parts.last : '';
@@ -132,7 +132,7 @@ class StalkerProvider implements IProvider {
       return Channel(
         id: id,
         name: name,
-        logoUrl: logoUrl,
+        logo: logo, // Changed logoUrl to logo
         streamUrl: streamUrl,
         group: groupName,
         // Use the 'xmltv_id' for EPG mapping if available, otherwise fall back to the channel ID.
@@ -145,5 +145,164 @@ class StalkerProvider implements IProvider {
   Future<List<Genre>> getGenres() async {
     final genres = await _fetchGenres();
     return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
+  }
+
+  @override
+  Future<List<VodCategory>> fetchVodCategories() async {
+    try {
+      final url =
+          '$_baseUrl/server/load.php?type=vod&action=get_categories&mac=$_macAddress';
+      developer.log('Fetching Stalker VOD categories from: $url', name: 'StalkerProvider');
+
+      final response = await _dio.get<String>(
+        url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      if (response.data == null || response.data!.trim().isEmpty) {
+        throw Exception('Received an empty response from the server for VOD categories.');
+      }
+
+      final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
+      final List<dynamic>? categoriesData = jsonResponse['js']?['data'];
+
+      if (categoriesData == null || categoriesData.isEmpty) {
+        developer.log('VOD categories list is empty or not in the expected format.', name: 'StalkerProvider');
+        return [];
+      }
+
+      return categoriesData.map((item) => VodCategory.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e, stackTrace) {
+      developer.log('Error fetching VOD categories',
+          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<VodContent>> fetchVodContent(String categoryId) async {
+    try {
+      final url =
+          '$_baseUrl/server/load.php?type=vod&action=get_content&category_id=$categoryId&mac=$_macAddress';
+      developer.log('Fetching Stalker VOD content from: $url', name: 'StalkerProvider');
+
+      final response = await _dio.get<String>(
+        url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      if (response.data == null || response.data!.trim().isEmpty) {
+        throw Exception('Received an empty response from the server for VOD content.');
+      }
+
+      final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
+      final List<dynamic>? contentData = jsonResponse['js']?['data'];
+
+      if (contentData == null || contentData.isEmpty) {
+        developer.log('VOD content list is empty or not in the expected format.', name: 'StalkerProvider');
+        return [];
+      }
+
+      return contentData.map((item) => VodContent.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e, stackTrace) {
+      developer.log('Error fetching VOD content',
+          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<Genre>> fetchRadioGenres() async {
+    try {
+      final url =
+          '$_baseUrl/server/load.php?type=radio&action=get_genres&mac=$_macAddress';
+      developer.log('Fetching Stalker Radio genres from: $url', name: 'StalkerProvider');
+
+      final response = await _dio.get<String>(
+        url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      if (response.data == null || response.data!.trim().isEmpty) {
+        throw Exception('Received an empty response from the server for Radio genres.');
+      }
+
+      final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
+      final List<dynamic>? genreListData = jsonResponse['js']?['data'];
+
+      if (genreListData == null || genreListData.isEmpty) {
+        developer.log('Radio genre list is empty or not in the expected format.', name: 'StalkerProvider');
+        return [];
+      }
+
+      return genreListData.map((item) => Genre.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e, stackTrace) {
+      developer.log('Error fetching Radio genres',
+          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<Channel>> fetchRadioChannels(String genreId) async {
+    try {
+      final url =
+          '$_baseUrl/server/load.php?type=radio&action=get_all_channels&genre=$genreId&mac=$_macAddress';
+      developer.log('Fetching Stalker Radio channels from: $url', name: 'StalkerProvider');
+
+      final response = await _dio.get<String>(
+        url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      if (response.data == null || response.data!.trim().isEmpty) {
+        throw Exception('Received an empty response from the server for Radio channels.');
+      }
+
+      final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
+      final List<dynamic>? channelListData = jsonResponse['js']?['data'];
+
+      if (channelListData == null || channelListData.isEmpty) {
+        developer.log('Radio channel list is empty or not in the expected format.', name: 'StalkerProvider');
+        return [];
+      }
+
+      // For radio channels, we might not have genre mapping readily available in the same way as live TV.
+      // Assuming radio channels also have 'logo', 'cmd' (for streamUrl), 'xmltv_id' (for epgId)
+      return channelListData.whereType<Map<String, dynamic>>().map((item) {
+        final id = item['id']?.toString() ?? '';
+        final name = item['name']?.toString() ?? 'Unnamed Radio Channel';
+        final logo = item['logo']?.toString();
+        final cmd = item['cmd']?.toString() ?? '';
+        final parts = cmd.split(' ');
+        final streamUrl = parts.isNotEmpty ? parts.last : '';
+        final epgId = item['xmltv_id']?.toString() ?? id;
+
+        return Channel(
+          id: id,
+          name: name,
+          logo: logo,
+          streamUrl: streamUrl,
+          group: genreId, // Use the requested genreId as the group for radio channels
+          epgId: epgId,
+        );
+      }).toList();
+    } catch (e, stackTrace) {
+      developer.log('Error fetching Radio channels',
+          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      rethrow;
+    }
   }
 }

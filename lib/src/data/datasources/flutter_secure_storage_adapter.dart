@@ -1,12 +1,16 @@
 import 'dart:convert';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:openiptv/src/data/datasources/secure_storage_interface.dart';
-import 'package:openiptv/src/core/models/credential.dart';
 
-/// Concrete implementatie die FlutterSecureStorage gebruikt
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:openiptv/src/core/models/credentials.dart';
+import 'package:openiptv/src/core/models/m3u_credentials.dart';
+import 'package:openiptv/src/core/models/stalker_credentials.dart';
+import 'secure_storage_interface.dart';
+
+/// Concrete implementatie van SecureStorageInterface
+/// die FlutterSecureStorage gebruikt. Werkt cross-platform.
 class FlutterSecureStorageAdapter implements SecureStorageInterface {
   final FlutterSecureStorage _storage;
-  static const String _credentialsListKey = 'saved_credentials_list';
+  static const String _credentialsListKey = 'credentials_list';
 
   FlutterSecureStorageAdapter() : _storage = const FlutterSecureStorage();
 
@@ -26,31 +30,36 @@ class FlutterSecureStorageAdapter implements SecureStorageInterface {
   }
 
   @override
-  Future<void> deleteAll() async {
-    await _storage.deleteAll();
+  Future<void> saveCredentials(Credentials credentials) async {
+    final List<Credentials> currentCredentials = await getCredentialsList();
+    // Remove existing credential with the same ID to avoid duplicates
+    currentCredentials.removeWhere((c) => c.id == credentials.id);
+    currentCredentials.add(credentials);
+    final List<Map<String, dynamic>> jsonList = currentCredentials.map((c) => c.toJson()).toList();
+    await _storage.write(key: _credentialsListKey, value: jsonEncode(jsonList));
   }
 
   @override
-  Future<List<Credential>> getCredentialsList() async {
-    print('Attempting to read credentials from storage...');
+  Future<List<Credentials>> getCredentialsList() async {
     final String? credentialsJson = await _storage.read(key: _credentialsListKey);
-    if (credentialsJson == null || credentialsJson.isEmpty) {
-      print('No credentials found in storage.');
+    if (credentialsJson == null) {
       return [];
     }
-    print('Credentials JSON read from storage: $credentialsJson');
-    final List<dynamic> decodedList = json.decode(credentialsJson);
-    final List<Credential> credentials = decodedList.map((json) => Credential.fromJson(json as Map<String, dynamic>)).toList();
-    print('Decoded credentials: $credentials');
-    return credentials;
+    final List<dynamic> jsonList = jsonDecode(credentialsJson) as List<dynamic>;
+    return jsonList.map((json) {
+      final type = json['type'] as String;
+      if (type == 'stalker') {
+        return StalkerCredentials.fromJson(json as Map<String, dynamic>);
+      } else if (type == 'm3u') {
+        return M3uCredentials.fromJson(json as Map<String, dynamic>);
+      } else {
+        throw Exception('Unknown credential type: $type');
+      }
+    }).toList();
   }
 
   @override
-  Future<void> saveCredentialsList(List<Credential> credentials) async {
-    print('Attempting to save credentials to storage: $credentials');
-    final String encodedJson = json.encode(credentials.map((c) => c.toJson()).toList());
-    print('Encoded credentials JSON for saving: $encodedJson');
-    await _storage.write(key: _credentialsListKey, value: encodedJson);
-    print('Credentials saved to storage.');
+  Future<void> clearAllCredentials() async {
+    await _storage.delete(key: _credentialsListKey);
   }
 }

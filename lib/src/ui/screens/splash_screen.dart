@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:openiptv/src/application/providers/api_providers.dart';
+
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -20,7 +20,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   Future<void> _initializeApp() async {
     try {
-      final apiProvider = ref.read(stalkerApiProvider);
+      
       // TODO: Implement a proper data synchronization strategy
       // await apiProvider.syncAllDataIfNeeded();
       

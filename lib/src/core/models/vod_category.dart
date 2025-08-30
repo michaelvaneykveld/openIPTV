@@ -1,34 +1,15 @@
+import 'package:freezed_annotation/freezed_annotation.dart';
 
-import 'package:openiptv/src/core/database/database_helper.dart';
+part 'vod_category.freezed.dart';
+part 'vod_category.g.dart';
 
-class VodCategory {
-  final String id;
-  final String title;
-  final String? alias;
-  final int? censored;
+@freezed
+abstract class VodCategory with _$VodCategory {
+  const factory VodCategory({
+    required String id,
+    required String title,
+  }) = _VodCategory;
 
-  VodCategory({
-    required this.id,
-    required this.title,
-    this.alias,
-    this.censored,
-  });
-
-  factory VodCategory.fromJson(Map<String, dynamic> json) {
-    return VodCategory(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      alias: json['alias'] as String?,
-      censored: json['censored'] as int?,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      DatabaseHelper.columnVodCategoryId: id,
-      DatabaseHelper.columnVodCategoryTitle: title,
-      DatabaseHelper.columnVodCategoryAlias: alias,
-      DatabaseHelper.columnVodCategoryCensored: censored,
-    };
-  }
+  factory VodCategory.fromJson(Map<String, dynamic> json) =>
+      _$VodCategoryFromJson(json);
 }

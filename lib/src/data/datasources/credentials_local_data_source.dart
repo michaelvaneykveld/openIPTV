@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
@@ -69,5 +70,5 @@ class CredentialsLocalDataSource {
 
 @riverpod
 CredentialsLocalDataSource credentialsLocalDataSource(
-        CredentialsLocalDataSourceRef ref) =>
+        Ref ref) =>
     CredentialsLocalDataSource(ref.watch(flutterSecureStorageProvider));

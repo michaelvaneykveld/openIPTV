@@ -7,7 +7,7 @@ part of 'credentials_local_data_source.dart';
 // **************************************************************************
 
 String _$credentialsLocalDataSourceHash() =>
-    r'57e98334e0327543c94f5ed307ec3357bc66dc2e';
+    r'dbfc361f22abd660ef0589af28533651973aa89f';
 
 /// See also [credentialsLocalDataSource].
 @ProviderFor(credentialsLocalDataSource)

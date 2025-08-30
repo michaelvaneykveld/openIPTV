@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
-import 'package:openiptv/src/application/providers/credentials_provider.dart';
 
 import '../application/providers/channel_list_provider.dart';
 import '../core/models/channel.dart';
@@ -88,9 +87,9 @@ class HomeScreen extends ConsumerWidget {
             ),
             // List of channels in the group
             ...channelsInGroup.map((channel) => ListTile(
-                  leading: channel.logoUrl != null
+                  leading: channel.logo != null
                       ? Image.network(
-                          channel.logoUrl!,
+                          channel.logo!,
                           width: 40,
                           height: 40,
                           fit: BoxFit.contain,
@@ -118,7 +117,7 @@ class HomeScreen extends ConsumerWidget {
   Map<String, List<Channel>> _groupChannels(List<Channel> channels) {
     final Map<String, List<Channel>> grouped = {};
     for (final channel in channels) {
-      (grouped[channel.group] ??= []).add(channel);
+      (grouped[channel.group ?? 'Uncategorized'] ??= []).add(channel);
     }
     return grouped;
   }

@@ -5,6 +5,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:openiptv/src/data/datasources/local/credentials_local_data_source.dart';
 import 'package:openiptv/src/data/repository/credentials_repository.dart';
 
+import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Added import
+import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Added import
+
 part 'credentials_provider.g.dart';
 
 @riverpod
@@ -22,4 +25,20 @@ CredentialsRepository credentialsRepository(Ref ref) {
   return CredentialsRepositoryImpl(
     localDataSource: ref.watch(credentialsLocalDataSourceProvider),
   );
+}
+
+@riverpod
+Future<String?> portalId(Ref ref) async {
+  final credentialsRepository = ref.watch(credentialsRepositoryProvider);
+  final savedCredentials = await credentialsRepository.getSavedCredentials();
+
+  if (savedCredentials.isNotEmpty) {
+    final activeCredential = savedCredentials.first;
+    if (activeCredential is StalkerCredentials) {
+      return activeCredential.baseUrl;
+    } else if (activeCredential is M3uCredentials) {
+      return activeCredential.m3uUrl;
+    }
+  }
+  return null; // No portalId found
 }

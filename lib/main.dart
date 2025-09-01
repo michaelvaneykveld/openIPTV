@@ -8,6 +8,7 @@ import 'package:openiptv/src/ui/home_screen.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/data/stalker_api_service.dart';
 import 'package:openiptv/src/data/stalker_repository.dart';
+import 'package:openiptv/src/application/services/channel_sync_service.dart'; // Added import
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +24,11 @@ Future<void> main() async {
   // Initialize StalkerRepository
   final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper, portalUrl);
 
+  // Initialize ChannelSyncService
+  final channelSyncService = ChannelSyncService(stalkerRepository);
+
   // Trigger data synchronization
-  await stalkerRepository.synchronizeData(portalUrl);
+  await channelSyncService.syncChannels(portalUrl);
   
 
   runApp(

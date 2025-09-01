@@ -2,13 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
-import 'package:openiptv/src/application/providers/credentials_provider.dart'; // Added import
-import 'package:openiptv/src/core/models/credentials.dart'; // Added import
-import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Added import
-import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Added import
 
 import '../application/providers/channel_list_provider.dart';
 import '../core/models/channel.dart';
+import 'package:openiptv/src/application/providers/credentials_provider.dart'; // Added import for portalIdProvider
 
 /// The main screen of the application, displaying the list of channels.
 class HomeScreen extends ConsumerWidget {
@@ -16,32 +13,13 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final credentialsRepository = ref.watch(credentialsRepositoryProvider);
+    final portalIdAsyncValue = ref.watch(portalIdProvider);
 
-    return FutureBuilder<List<Credentials>>(
-      future: credentialsRepository.getSavedCredentials(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error loading credentials: ${snapshot.error}'));
-        } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('No credentials found. Please log in.'));
+    return portalIdAsyncValue.when(
+      data: (portalId) {
+        if (portalId == null) {
+          return const Center(child: Text('Portal URL not found. Please log in.'));
         }
-
-        // Assuming the first credential is the active one for now.
-        // In a real app, you'd have a way to select the active portal.
-        final activeCredential = snapshot.data!.first;
-        String portalId;
-
-        if (activeCredential is StalkerCredentials) {
-          portalId = activeCredential.baseUrl;
-        } else if (activeCredential is M3uCredentials) {
-          portalId = activeCredential.m3uUrl;
-        } else {
-          return const Center(child: Text('Unsupported credential type.'));
-        }
-
         // Watch the channelListProvider to get the state of the channel list.
         final channelsAsyncValue = ref.watch(channelListProvider(portalId));
 
@@ -83,6 +61,8 @@ class HomeScreen extends ConsumerWidget {
           ),
         );
       },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, stack) => Center(child: Text('Error loading portal ID: ${err.toString()}')),
     );
   }
 

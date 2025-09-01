@@ -66,5 +66,22 @@ final credentialsRepositoryProvider =
 // ignore: unused_element
 typedef CredentialsRepositoryRef =
     AutoDisposeProviderRef<CredentialsRepository>;
+String _$portalIdHash() => r'5da95c0fa8b04ee8edb261a1d1f6088fb5d19bc1';
+
+/// See also [portalId].
+@ProviderFor(portalId)
+final portalIdProvider = AutoDisposeFutureProvider<String?>.internal(
+  portalId,
+  name: r'portalIdProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$portalIdHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef PortalIdRef = AutoDisposeFutureProviderRef<String?>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

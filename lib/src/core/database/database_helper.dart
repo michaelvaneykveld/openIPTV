@@ -104,6 +104,15 @@ class DatabaseHelper {
   static const columnVodContentDuration = 'duration';
   static const columnVodContentCategoryId = 'category_id';
 
+  // EPG Table
+  static const tableEpg = 'epg';
+  static const columnEpgId = 'id';
+  static const columnEpgChannelId = 'channel_id';
+  static const columnEpgStart = 'start';
+  static const columnEpgStop = 'stop';
+  static const columnEpgTitle = 'title';
+  static const columnEpgDescription = 'description';
+
   // make this a singleton class
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -258,6 +267,21 @@ class DatabaseHelper {
     appLogger.d(
       'DatabaseHelper: Table $tableVodContent created.',
     );
+    await db.execute('''
+          CREATE TABLE $tableEpg (
+            $columnEpgId TEXT,
+            $columnEpgChannelId TEXT,
+            $columnEpgStart INTEGER,
+            $columnEpgStop INTEGER,
+            $columnEpgTitle TEXT,
+            $columnEpgDescription TEXT,
+            $columnPortalId TEXT NOT NULL,
+            PRIMARY KEY ($columnEpgId, $columnPortalId)
+          )
+          ''');
+    appLogger.d(
+      'DatabaseHelper: Table $tableEpg created.',
+    );
   }
 
   Future<void> clearAllData(String portalId) async {
@@ -266,11 +290,12 @@ class DatabaseHelper {
     );
     final db = await instance.database;
     await db.transaction((txn) async {
-      await txn.delete(tableChannelCmds, where: '$columnCmdChannelId IN (SELECT $columnChannelId FROM $tableChannels WHERE $columnPortalId = ?)', whereArgs: [portalId]);
-      await txn.delete(tableChannels, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableGenres, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodCategories, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodContent, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableChannelCmds, where: '\$columnCmdChannelId IN (SELECT \$columnChannelId FROM \$tableChannels WHERE \$columnPortalId = ?)', whereArgs: [portalId]);
+      await txn.delete(tableChannels, where: '\$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableGenres, where: '\$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodCategories, where: '\$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodContent, where: '\$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableEpg, where: '\$columnPortalId = ?', whereArgs: [portalId]); // Added EPG table to clear
     });
     appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
   }
@@ -293,7 +318,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> genres = await db.query(
         tableGenres,
-        where: '$columnPortalId = ?',
+        where: '\$columnPortalId = ?',
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${genres.length} genres for portal: $portalId');
@@ -309,7 +334,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> genres = await db.query(
         tableGenres,
-        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        where: '\$columnGenreId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
       if (genres.isNotEmpty) {
@@ -319,7 +344,7 @@ class DatabaseHelper {
       appLogger.d('Genre with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting genre with id $id for portal $portalId: $e');
+      appLogger.e('Error getting genre with id \$id for portal \$portalId: \$e');
       return null;
     }
   }
@@ -331,13 +356,13 @@ class DatabaseHelper {
       final rowsAffected = await db.update(
         tableGenres,
         genre,
-        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        where: '\$columnGenreId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for genre with id: $id for portal: $portalId');
+      appLogger.d('Updated \$rowsAffected rows for genre with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating genre with id ${genre[columnGenreId]} for portal $portalId: $e');
+      appLogger.e('Error updating genre with id \${genre[columnGenreId]} for portal \$portalId: \$e');
       return 0; // Indicate no rows affected due to error
     }
   }
@@ -347,13 +372,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableGenres,
-        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        where: '\$columnGenreId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for genre with id: $id for portal: $portalId');
+      appLogger.d('Deleted \$rowsAffected rows for genre with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting genre with id $id for portal $portalId: $e');
+      appLogger.e('Error deleting genre with id \$id for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -376,7 +401,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodCategories = await db.query(
         tableVodCategories,
-        where: '$columnPortalId = ?',
+        where: '\$columnPortalId = ?',
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${vodCategories.length} VOD categories for portal: $portalId');
@@ -392,7 +417,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodCategories = await db.query(
         tableVodCategories,
-        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        where: '\$columnVodCategoryId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
       if (vodCategories.isNotEmpty) {
@@ -402,7 +427,7 @@ class DatabaseHelper {
       appLogger.d('VOD category with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD category with id $id for portal $portalId: $e');
+      appLogger.e('Error getting VOD category with id \$id for portal \$portalId: \$e');
       return null;
     }
   }
@@ -414,13 +439,13 @@ class DatabaseHelper {
       final rowsAffected = await db.update(
         tableVodCategories,
         vodCategory,
-        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        where: '\$columnVodCategoryId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD category with id: $id for portal: $portalId');
+      appLogger.d('Updated \$rowsAffected rows for VOD category with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD category with id ${vodCategory[columnVodCategoryId]} for portal $portalId: $e');
+      appLogger.e('Error updating VOD category with id \${vodCategory[columnVodCategoryId]} for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -430,13 +455,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableVodCategories,
-        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        where: '\$columnVodCategoryId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD category with id: $id for portal: $portalId');
+      appLogger.d('Deleted \$rowsAffected rows for VOD category with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD category with id $id for portal $portalId: $e');
+      appLogger.e('Error deleting VOD category with id \$id for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -459,7 +484,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> channels = await db.query(
         tableChannels,
-        where: '$columnPortalId = ?',
+        where: '\$columnPortalId = ?',
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${channels.length} channels for portal: $portalId');
@@ -475,7 +500,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> channels = await db.query(
         tableChannels,
-        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        where: '\$columnChannelId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
       if (channels.isNotEmpty) {
@@ -485,7 +510,7 @@ class DatabaseHelper {
       appLogger.d('Channel with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting channel with id $id for portal $portalId: $e');
+      appLogger.e('Error getting channel with id \$id for portal \$portalId: \$e');
       return null;
     }
   }
@@ -497,13 +522,13 @@ class DatabaseHelper {
       final rowsAffected = await db.update(
         tableChannels,
         channel,
-        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        where: '\$columnChannelId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel with id: $id for portal: $portalId');
+      appLogger.d('Updated \$rowsAffected rows for channel with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel with id ${channel[columnChannelId]} for portal $portalId: $e');
+      appLogger.e('Error updating channel with id \${channel[columnChannelId]} for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -513,13 +538,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableChannels,
-        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        where: '\$columnChannelId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for channel with id: $id for portal: $portalId');
+      appLogger.d('Deleted \$rowsAffected rows for channel with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting channel with id $id for portal $portalId: $e');
+      appLogger.e('Error deleting channel with id \$id for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -542,7 +567,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
         tableChannelCmds,
-        where: '$columnPortalId = ?',
+        where: '\$columnPortalId = ?',
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${channelCmds.length} channel commands for portal: $portalId');
@@ -558,7 +583,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
         tableChannelCmds,
-        where: '$columnCmdId = ? AND $columnPortalId = ?',
+        where: '\$columnCmdId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
       if (channelCmds.isNotEmpty) {
@@ -568,7 +593,7 @@ class DatabaseHelper {
       appLogger.d('Channel command with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting channel command with id $id for portal $portalId: $e');
+      appLogger.e('Error getting channel command with id \$id for portal \$portalId: \$e');
       return null;
     }
   }
@@ -580,13 +605,13 @@ class DatabaseHelper {
       final rowsAffected = await db.update(
         tableChannelCmds,
         channelCmd,
-        where: '$columnCmdId = ? AND $columnPortalId = ?',
+        where: '\$columnCmdId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel command with id: $id for portal: $portalId');
+      appLogger.d('Updated \$rowsAffected rows for channel command with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel command with id ${channelCmd[columnCmdId]} for portal $portalId: $e');
+      appLogger.e('Error updating channel command with id \${channelCmd[columnCmdId]} for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -596,13 +621,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
         tableChannelCmds,
-        where: '$columnCmdChannelId = ? AND $columnPortalId = ?',
+        where: '\$columnCmdChannelId = ? AND \$columnPortalId = ?',
         whereArgs: [channelId, portalId],
       );
       appLogger.d('Retrieved ${channelCmds.length} channel commands for channel $channelId for portal: $portalId.');
       return channelCmds;
     } catch (e) {
-      appLogger.e('Error getting channel commands for channel $channelId for portal $portalId: $e');
+      appLogger.e('Error getting channel commands for channel $channelId for portal $portalId: \$e');
       return [];
     }
   }
@@ -625,13 +650,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
         tableVodContent,
-        where: '$columnPortalId = ?',
+        where: '\$columnPortalId = ?',
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${vodContent.length} VOD content items for portal: $portalId.');
       return vodContent;
     } catch (e) {
-      appLogger.e('Error getting all VOD content for portal $portalId: $e');
+      appLogger.e('Error getting all VOD content for portal $portalId: \$e');
       return [];
     }
   }
@@ -641,13 +666,13 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
         tableVodContent,
-        where: '$columnVodContentCategoryId = ? AND $columnPortalId = ?',
+        where: '\$columnVodContentCategoryId = ? AND \$columnPortalId = ?',
         whereArgs: [categoryId, portalId],
       );
       appLogger.d('Retrieved ${vodContent.length} VOD content items for category $categoryId for portal: $portalId.');
       return vodContent;
     } catch (e) {
-      appLogger.e('Error getting VOD content for category $categoryId for portal $portalId: $e');
+      appLogger.e('Error getting VOD content for category $categoryId for portal $portalId: \$e');
       return [];
     }
   }
@@ -657,7 +682,7 @@ class DatabaseHelper {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
         tableVodContent,
-        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        where: '\$columnVodContentId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
       if (vodContent.isNotEmpty) {
@@ -667,7 +692,7 @@ class DatabaseHelper {
       appLogger.d('VOD content with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD content with id $id for portal $portalId: $e');
+      appLogger.e('Error getting VOD content with id \$id for portal \$portalId: \$e');
       return null;
     }
   }
@@ -679,13 +704,13 @@ class DatabaseHelper {
       final rowsAffected = await db.update(
         tableVodContent,
         vodContent,
-        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        where: '\$columnVodContentId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD content with id: $id for portal: $portalId');
+      appLogger.d('Updated \$rowsAffected rows for VOD content with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD content with id ${vodContent[columnVodContentId]} for portal $portalId: $e');
+      appLogger.e('Error updating VOD content with id \${vodContent[columnVodContentId]} for portal \$portalId: \$e');
       return 0;
     }
   }
@@ -695,14 +720,41 @@ class DatabaseHelper {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableVodContent,
-        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        where: '\$columnVodContentId = ? AND \$columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD content with id: $id for portal: $portalId');
+      appLogger.d('Deleted \$rowsAffected rows for VOD content with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD content with id $id for portal $portalId: $e');
+      appLogger.e('Error deleting VOD content with id \$id for portal \$portalId: \$e');
       return 0;
     }
+  }
+
+  // --- CRUD Operations for EPG ---
+  Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, String portalId) async {
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      for (final programme in programmes) {
+        await txn.insert(
+          tableEpg,
+          {...programme, columnPortalId: portalId},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+    appLogger.d('Inserted \${programmes.length} EPG programmes for portal: \$portalId');
+  }
+
+  Future<List<Map<String, dynamic>>> getEpgForChannel(String channelId, String portalId) async {
+    final db = await instance.database;
+    final maps = await db.query(
+      tableEpg,
+      where: '\$columnEpgChannelId = ? AND \$columnPortalId = ?',
+      whereArgs: [channelId, portalId],
+      orderBy: '\$columnEpgStart ASC',
+    );
+    appLogger.d('Retrieved \${maps.length} EPG programmes for channel \$channelId and portal: \$portalId');
+    return maps;
   }
 }

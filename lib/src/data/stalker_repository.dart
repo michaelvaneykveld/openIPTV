@@ -50,7 +50,7 @@ class StalkerRepository {
         for (var program in epgPrograms) {
           program.portalId = int.parse(portalId);
         }
-        await saveEpgPrograms(epgPrograms, portalId);
+        await this._saveEpgPrograms(epgPrograms, portalId);
       } catch (e) {
         appLogger.e("Could not fetch EPG for channel ${channel.id}", e);
       }
@@ -58,7 +58,7 @@ class StalkerRepository {
     appLogger.d('EPG data synchronized.');
   }
 
-  Future<void> saveEpgPrograms(List<EpgProgramme> epgPrograms, String portalId) async {
+  Future<void> _saveEpgPrograms(List<EpgProgramme> epgPrograms, String portalId) async {
     final programsAsMaps = epgPrograms.map((p) => p.toMap()).toList();
     await _databaseHelper.insertEpgProgrammes(programsAsMaps, portalId);
   }

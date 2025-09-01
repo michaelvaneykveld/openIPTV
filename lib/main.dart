@@ -15,15 +15,16 @@ Future<void> main() async {
   // Initialize DatabaseHelper
   final databaseHelper = DatabaseHelper.instance;
 
-  // Initialize StalkerApiService with a base URL
+  // Define the portal URL (which will also serve as the portalId)
   // IMPORTANT: Replace with your actual Stalker Portal base URL
-  final stalkerApiService = StalkerApiService('http://your-stalker-portal-url.com'); 
+  final portalUrl = 'http://your-stalker-portal-url.com'; 
+  final stalkerApiService = StalkerApiService(portalUrl); 
 
   // Initialize StalkerRepository
-  final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper);
+  final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper, portalUrl);
 
   // Trigger data synchronization
-  await stalkerRepository.synchronizeData();
+  await stalkerRepository.synchronizeData(portalUrl);
   
 
   runApp(

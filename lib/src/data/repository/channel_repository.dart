@@ -23,11 +23,11 @@ class ChannelRepository {
   /// It first attempts to load channels from the local Hive database.
   /// If the database is empty, it fetches the channels from the remote provider,
   /// saves them to the local database for future use, and then returns them.
-  Future<List<Channel>> getLiveChannels({bool forceRefresh = false}) async {
+  Future<List<Channel>> getLiveChannels(String portalId, {bool forceRefresh = false}) async {
     // The 'forceRefresh' logic is now primarily handled by invalidating the
     // provider that calls this method. We keep the parameter for direct calls.
     if (!forceRefresh) {
-      final localChannels = await _localDataSource.getChannelsAsync(); // Changed to getChannelsAsync
+      final localChannels = await _localDataSource.getChannelsAsync(portalId); // Changed to getChannelsAsync
       if (localChannels.isNotEmpty) {
         developer.log('Returning ${localChannels.length} channels from cache.',
             name: 'ChannelRepository');
@@ -41,7 +41,7 @@ class ChannelRepository {
     final remoteChannels = await _remoteProvider.fetchLiveChannels();
 
     // Save the fetched channels to the local database for next time.
-    await _localDataSource.saveChannels(remoteChannels);
+    await _localDataSource.saveChannels(remoteChannels, portalId);
 
     return remoteChannels;
   }

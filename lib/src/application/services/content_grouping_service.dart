@@ -16,13 +16,13 @@ class ContentGroupingService {
 
   ContentGroupingService(this._dbHelper);
 
-  Future<GroupedContent> getGroupedContent() async {
+  Future<GroupedContent> getGroupedContent(String portalId) async {
     // 1. Fetch all data from the database in parallel
     final futures = [
-      _dbHelper.getAllGenres(),
-      _dbHelper.getAllChannels(),
-      _dbHelper.getAllVodCategories(),
-      _dbHelper.getAllVodContent(),
+      _dbHelper.getAllGenres(portalId),
+      _dbHelper.getAllChannels(portalId),
+      _dbHelper.getAllVodCategories(portalId),
+      _dbHelper.getAllVodContent(portalId),
     ];
 
     final results = await Future.wait(futures);

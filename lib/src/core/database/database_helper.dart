@@ -7,6 +7,8 @@ class DatabaseHelper {
   static const _databaseName = "OpenIPTV.db";
   static const _databaseVersion = 1;
 
+  static const columnPortalId = 'portal_id';
+
   // Genres Table
   static const tableGenres = 'genres';
   static const columnGenreId = 'id';
@@ -133,12 +135,14 @@ class DatabaseHelper {
     );
     await db.execute('''
           CREATE TABLE $tableGenres (
-            $columnGenreId TEXT PRIMARY KEY,
+            $columnGenreId TEXT,
+            $columnPortalId TEXT NOT NULL,
             $columnGenreTitle TEXT,
             $columnGenreAlias TEXT,
             $columnGenreCensored INTEGER,
             $columnGenreModified TEXT,
-            $columnGenreNumber INTEGER
+            $columnGenreNumber INTEGER,
+            PRIMARY KEY ($columnGenreId, $columnPortalId)
           )
           ''');
     appLogger.d(
@@ -146,10 +150,12 @@ class DatabaseHelper {
     );
     await db.execute('''
           CREATE TABLE $tableVodCategories (
-            $columnVodCategoryId TEXT PRIMARY KEY,
+            $columnVodCategoryId TEXT,
+            $columnPortalId TEXT NOT NULL,
             $columnVodCategoryTitle TEXT,
             $columnVodCategoryAlias TEXT,
-            $columnVodCategoryCensored INTEGER
+            $columnVodCategoryCensored INTEGER,
+            PRIMARY KEY ($columnVodCategoryId, $columnPortalId)
           )
           ''');
     appLogger.d(
@@ -157,7 +163,8 @@ class DatabaseHelper {
     );
     await db.execute('''
           CREATE TABLE $tableChannels (
-            $columnChannelId TEXT PRIMARY KEY,
+            $columnChannelId TEXT,
+            $columnPortalId TEXT NOT NULL,
             $columnChannelName TEXT,
             $columnChannelNumber TEXT,
             $columnChannelLogo TEXT,
@@ -202,7 +209,8 @@ class DatabaseHelper {
             $columnChannelNginxSecureLink TEXT,
             $columnChannelOpen INTEGER,
             $columnChannelUseLoadBalancing INTEGER,
-            FOREIGN KEY ($columnChannelGenreId) REFERENCES $tableGenres ($columnGenreId)
+            PRIMARY KEY ($columnChannelId, $columnPortalId),
+            FOREIGN KEY ($columnChannelGenreId, $columnPortalId) REFERENCES $tableGenres ($columnGenreId, $columnPortalId)
           )
           ''');
     appLogger.d(
@@ -232,7 +240,8 @@ class DatabaseHelper {
     );
     await db.execute('''
           CREATE TABLE $tableVodContent (
-            $columnVodContentId TEXT PRIMARY KEY,
+            $columnVodContentId TEXT,
+            $columnPortalId TEXT NOT NULL,
             $columnVodContentName TEXT,
             $columnVodContentCmd TEXT,
             $columnVodContentLogo TEXT,
@@ -242,7 +251,8 @@ class DatabaseHelper {
             $columnVodContentActors TEXT,
             $columnVodContentDuration TEXT,
             $columnVodContentCategoryId TEXT,
-            FOREIGN KEY ($columnVodContentCategoryId) REFERENCES $tableVodCategories ($columnVodCategoryId) ON DELETE CASCADE
+            PRIMARY KEY ($columnVodContentId, $columnPortalId),
+            FOREIGN KEY ($columnVodContentCategoryId, $columnPortalId) REFERENCES $tableVodCategories ($columnVodCategoryId, $columnPortalId)
           )
           ''');
     appLogger.d(
@@ -250,427 +260,448 @@ class DatabaseHelper {
     );
   }
 
-  Future<void> clearAllData() async {
+  Future<void> clearAllData(String portalId) async {
     appLogger.d(
-      'DatabaseHelper: Clearing all data...',
+      'DatabaseHelper: Clearing data for portal: $portalId...',
     );
     final db = await instance.database;
     await db.transaction((txn) async {
-      await txn.delete(tableChannelCmds);
-      await txn.delete(tableChannels);
-      await txn.delete(tableGenres);
-      await txn.delete(tableVodCategories);
+      await txn.delete(tableChannelCmds, where: '$columnCmdChannelId IN (SELECT $columnChannelId FROM $tableChannels WHERE $columnPortalId = ?)', whereArgs: [portalId]);
+      await txn.delete(tableChannels, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableGenres, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodCategories, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodContent, where: '$columnPortalId = ?', whereArgs: [portalId]);
     });
-    appLogger.d('DatabaseHelper: All data cleared.');
+    appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
   }
 
   // --- CRUD Operations for Genres ---
-  Future<int> insertGenre(Map<String, dynamic> genre) async {
+  Future<int> insertGenre(Map<String, dynamic> genre, String portalId) async {
     try {
       final db = await instance.database;
-      final id = await db.insert(tableGenres, genre, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted genre with id: $id');
+      final id = await db.insert(tableGenres, {...genre, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d('Inserted genre with id: $id for portal: $portalId');
       return id;
     } catch (e) {
-      appLogger.e('Error inserting genre: $e');
+      appLogger.e('Error inserting genre for portal $portalId: $e');
       return -1; // Indicate error
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllGenres() async {
-    try {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> genres = await db.query(tableGenres);
-      appLogger.d('Retrieved ${genres.length} genres.');
-      return genres;
-    } catch (e) {
-      appLogger.e('Error getting all genres: $e');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>?> getGenre(String id) async {
+  Future<List<Map<String, dynamic>>> getAllGenres(String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> genres = await db.query(
         tableGenres,
-        where: '$columnGenreId = ?',
-        whereArgs: [id],
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      appLogger.d('Retrieved ${genres.length} genres for portal: $portalId');
+      return genres;
+    } catch (e) {
+      appLogger.e('Error getting all genres for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getGenre(String id, String portalId) async {
+    try {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> genres = await db.query(
+        tableGenres,
+        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
       if (genres.isNotEmpty) {
-        appLogger.d('Retrieved genre with id: $id');
+        appLogger.d('Retrieved genre with id: $id for portal: $portalId');
         return genres.first;
       }
-      appLogger.d('Genre with id: $id not found.');
+      appLogger.d('Genre with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting genre with id $id: $e');
+      appLogger.e('Error getting genre with id $id for portal $portalId: $e');
       return null;
     }
   }
 
-  Future<int> updateGenre(Map<String, dynamic> genre) async {
+  Future<int> updateGenre(Map<String, dynamic> genre, String portalId) async {
     try {
       final db = await instance.database;
       final id = genre[columnGenreId];
       final rowsAffected = await db.update(
         tableGenres,
         genre,
-        where: '$columnGenreId = ?',
-        whereArgs: [id],
+        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for genre with id: $id');
+      appLogger.d('Updated $rowsAffected rows for genre with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating genre with id ${genre[columnGenreId]}: $e');
+      appLogger.e('Error updating genre with id ${genre[columnGenreId]} for portal $portalId: $e');
       return 0; // Indicate no rows affected due to error
     }
   }
 
-  Future<int> deleteGenre(String id) async {
+  Future<int> deleteGenre(String id, String portalId) async {
     try {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableGenres,
-        where: '$columnGenreId = ?',
-        whereArgs: [id],
+        where: '$columnGenreId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for genre with id: $id');
+      appLogger.d('Deleted $rowsAffected rows for genre with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting genre with id $id: $e');
+      appLogger.e('Error deleting genre with id $id for portal $portalId: $e');
       return 0;
     }
   }
 
   // --- CRUD Operations for VOD Categories ---
-  Future<int> insertVodCategory(Map<String, dynamic> vodCategory) async {
+  Future<int> insertVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
     try {
       final db = await instance.database;
-      final id = await db.insert(tableVodCategories, vodCategory, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted VOD category with id: $id');
+      final id = await db.insert(tableVodCategories, {...vodCategory, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d('Inserted VOD category with id: $id for portal: $portalId');
       return id;
     } catch (e) {
-      appLogger.e('Error inserting VOD category: $e');
+      appLogger.e('Error inserting VOD category for portal $portalId: $e');
       return -1;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllVodCategories() async {
-    try {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> vodCategories = await db.query(tableVodCategories);
-      appLogger.d('Retrieved ${vodCategories.length} VOD categories.');
-      return vodCategories;
-    } catch (e) {
-      appLogger.e('Error getting all VOD categories: $e');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>?> getVodCategory(String id) async {
+  Future<List<Map<String, dynamic>>> getAllVodCategories(String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodCategories = await db.query(
         tableVodCategories,
-        where: '$columnVodCategoryId = ?',
-        whereArgs: [id],
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      appLogger.d('Retrieved ${vodCategories.length} VOD categories for portal: $portalId');
+      return vodCategories;
+    } catch (e) {
+      appLogger.e('Error getting all VOD categories for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getVodCategory(String id, String portalId) async {
+    try {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> vodCategories = await db.query(
+        tableVodCategories,
+        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
       if (vodCategories.isNotEmpty) {
-        appLogger.d('Retrieved VOD category with id: $id');
+        appLogger.d('Retrieved VOD category with id: $id for portal: $portalId');
         return vodCategories.first;
       }
-      appLogger.d('VOD category with id: $id not found.');
+      appLogger.d('VOD category with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD category with id $id: $e');
+      appLogger.e('Error getting VOD category with id $id for portal $portalId: $e');
       return null;
     }
   }
 
-  Future<int> updateVodCategory(Map<String, dynamic> vodCategory) async {
+  Future<int> updateVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
     try {
       final db = await instance.database;
       final id = vodCategory[columnVodCategoryId];
       final rowsAffected = await db.update(
         tableVodCategories,
         vodCategory,
-        where: '$columnVodCategoryId = ?',
-        whereArgs: [id],
+        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD category with id: $id');
+      appLogger.d('Updated $rowsAffected rows for VOD category with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD category with id ${vodCategory[columnVodCategoryId]}: $e');
+      appLogger.e('Error updating VOD category with id ${vodCategory[columnVodCategoryId]} for portal $portalId: $e');
       return 0;
     }
   }
 
-  Future<int> deleteVodCategory(String id) async {
+  Future<int> deleteVodCategory(String id, String portalId) async {
     try {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableVodCategories,
-        where: '$columnVodCategoryId = ?',
-        whereArgs: [id],
+        where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD category with id: $id');
+      appLogger.d('Deleted $rowsAffected rows for VOD category with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD category with id $id: $e');
+      appLogger.e('Error deleting VOD category with id $id for portal $portalId: $e');
       return 0;
     }
   }
 
   // --- CRUD Operations for Channels ---
-  Future<int> insertChannel(Map<String, dynamic> channel) async {
+  Future<int> insertChannel(Map<String, dynamic> channel, String portalId) async {
     try {
       final db = await instance.database;
-      final id = await db.insert(tableChannels, channel, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted channel with id: $id');
+      final id = await db.insert(tableChannels, {...channel, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d('Inserted channel with id: $id for portal: $portalId');
       return id;
     } catch (e) {
-      appLogger.e('Error inserting channel: $e');
+      appLogger.e('Error inserting channel for portal $portalId: $e');
       return -1;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllChannels() async {
-    try {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> channels = await db.query(tableChannels);
-      appLogger.d('Retrieved ${channels.length} channels.');
-      return channels;
-    } catch (e) {
-      appLogger.e('Error getting all channels: $e');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>?> getChannel(String id) async {
+  Future<List<Map<String, dynamic>>> getAllChannels(String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> channels = await db.query(
         tableChannels,
-        where: '$columnChannelId = ?',
-        whereArgs: [id],
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      appLogger.d('Retrieved ${channels.length} channels for portal: $portalId');
+      return channels;
+    } catch (e) {
+      appLogger.e('Error getting all channels for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getChannel(String id, String portalId) async {
+    try {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> channels = await db.query(
+        tableChannels,
+        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
       if (channels.isNotEmpty) {
-        appLogger.d('Retrieved channel with id: $id');
+        appLogger.d('Retrieved channel with id: $id for portal: $portalId');
         return channels.first;
       }
-      appLogger.d('Channel with id: $id not found.');
+      appLogger.d('Channel with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting channel with id $id: $e');
+      appLogger.e('Error getting channel with id $id for portal $portalId: $e');
       return null;
     }
   }
 
-  Future<int> updateChannel(Map<String, dynamic> channel) async {
+  Future<int> updateChannel(Map<String, dynamic> channel, String portalId) async {
     try {
       final db = await instance.database;
       final id = channel[columnChannelId];
       final rowsAffected = await db.update(
         tableChannels,
         channel,
-        where: '$columnChannelId = ?',
-        whereArgs: [id],
+        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel with id: $id');
+      appLogger.d('Updated $rowsAffected rows for channel with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel with id ${channel[columnChannelId]}: $e');
+      appLogger.e('Error updating channel with id ${channel[columnChannelId]} for portal $portalId: $e');
       return 0;
     }
   }
 
-  Future<int> deleteChannel(String id) async {
+  Future<int> deleteChannel(String id, String portalId) async {
     try {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableChannels,
-        where: '$columnChannelId = ?',
-        whereArgs: [id],
+        where: '$columnChannelId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for channel with id: $id');
+      appLogger.d('Deleted $rowsAffected rows for channel with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting channel with id $id: $e');
+      appLogger.e('Error deleting channel with id $id for portal $portalId: $e');
       return 0;
     }
   }
 
   // --- CRUD Operations for Channel CMDS ---
-  Future<int> insertChannelCmd(Map<String, dynamic> channelCmd) async {
+  Future<int> insertChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
     try {
       final db = await instance.database;
-      final id = await db.insert(tableChannelCmds, channelCmd, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted channel command with id: $id');
+      final id = await db.insert(tableChannelCmds, {...channelCmd, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d('Inserted channel command with id: $id for portal: $portalId');
       return id;
     } catch (e) {
-      appLogger.e('Error inserting channel command: $e');
+      appLogger.e('Error inserting channel command for portal $portalId: $e');
       return -1;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllChannelCmds() async {
-    try {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> channelCmds = await db.query(tableChannelCmds);
-      appLogger.d('Retrieved ${channelCmds.length} channel commands.');
-      return channelCmds;
-    } catch (e) {
-      appLogger.e('Error getting all channel commands: $e');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>?> getChannelCmd(String id) async {
+  Future<List<Map<String, dynamic>>> getAllChannelCmds(String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
         tableChannelCmds,
-        where: '$columnCmdId = ?',
-        whereArgs: [id],
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      appLogger.d('Retrieved ${channelCmds.length} channel commands for portal: $portalId');
+      return channelCmds;
+    } catch (e) {
+      appLogger.e('Error getting all channel commands for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getChannelCmd(String id, String portalId) async {
+    try {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> channelCmds = await db.query(
+        tableChannelCmds,
+        where: '$columnCmdId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
       if (channelCmds.isNotEmpty) {
-        appLogger.d('Retrieved channel command with id: $id');
+        appLogger.d('Retrieved channel command with id: $id for portal: $portalId');
         return channelCmds.first;
       }
-      appLogger.d('Channel command with id: $id not found.');
+      appLogger.d('Channel command with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting channel command with id $id: $e');
+      appLogger.e('Error getting channel command with id $id for portal $portalId: $e');
       return null;
     }
   }
 
-  Future<int> updateChannelCmd(Map<String, dynamic> channelCmd) async {
+  Future<int> updateChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
     try {
       final db = await instance.database;
       final id = channelCmd[columnCmdId];
       final rowsAffected = await db.update(
         tableChannelCmds,
         channelCmd,
-        where: '$columnCmdId = ?',
-        whereArgs: [id],
+        where: '$columnCmdId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel command with id: $id');
+      appLogger.d('Updated $rowsAffected rows for channel command with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel command with id ${channelCmd[columnCmdId]}: $e');
+      appLogger.e('Error updating channel command with id ${channelCmd[columnCmdId]} for portal $portalId: $e');
       return 0;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getChannelCmdsForChannel(String channelId) async {
+  Future<List<Map<String, dynamic>>> getChannelCmdsForChannel(String channelId, String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
         tableChannelCmds,
-        where: '$columnCmdChannelId = ?',
-        whereArgs: [channelId],
+        where: '$columnCmdChannelId = ? AND $columnPortalId = ?',
+        whereArgs: [channelId, portalId],
       );
-      appLogger.d('Retrieved ${channelCmds.length} channel commands for channel $channelId.');
+      appLogger.d('Retrieved ${channelCmds.length} channel commands for channel $channelId for portal: $portalId.');
       return channelCmds;
     } catch (e) {
-      appLogger.e('Error getting channel commands for channel $channelId: $e');
+      appLogger.e('Error getting channel commands for channel $channelId for portal $portalId: $e');
       return [];
     }
   }
 
   // --- CRUD Operations for VOD Content ---
-  Future<int> insertVodContent(Map<String, dynamic> vodContent) async {
+  Future<int> insertVodContent(Map<String, dynamic> vodContent, String portalId) async {
     try {
       final db = await instance.database;
-      final id = await db.insert(tableVodContent, vodContent, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted VOD content with id: $id');
+      final id = await db.insert(tableVodContent, {...vodContent, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d('Inserted VOD content with id: $id for portal: $portalId');
       return id;
     } catch (e) {
-      appLogger.e('Error inserting VOD content: $e');
+      appLogger.e('Error inserting VOD content for portal $portalId: $e');
       return -1;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllVodContent() async {
-    try {
-      final db = await instance.database;
-      final List<Map<String, dynamic>> vodContent = await db.query(tableVodContent);
-      appLogger.d('Retrieved ${vodContent.length} VOD content items.');
-      return vodContent;
-    } catch (e) {
-      appLogger.e('Error getting all VOD content: $e');
-      return [];
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> getVodContentByCategoryId(String categoryId) async {
+  Future<List<Map<String, dynamic>>> getAllVodContent(String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
         tableVodContent,
-        where: '$columnVodContentCategoryId = ?',
-        whereArgs: [categoryId],
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
       );
-      appLogger.d('Retrieved ${vodContent.length} VOD content items for category $categoryId.');
+      appLogger.d('Retrieved ${vodContent.length} VOD content items for portal: $portalId.');
       return vodContent;
     } catch (e) {
-      appLogger.e('Error getting VOD content for category $categoryId: $e');
+      appLogger.e('Error getting all VOD content for portal $portalId: $e');
       return [];
     }
   }
 
-  Future<Map<String, dynamic>?> getVodContent(String id) async {
+  Future<List<Map<String, dynamic>>> getVodContentByCategoryId(String categoryId, String portalId) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
         tableVodContent,
-        where: '$columnVodContentId = ?',
-        whereArgs: [id],
+        where: '$columnVodContentCategoryId = ? AND $columnPortalId = ?',
+        whereArgs: [categoryId, portalId],
+      );
+      appLogger.d('Retrieved ${vodContent.length} VOD content items for category $categoryId for portal: $portalId.');
+      return vodContent;
+    } catch (e) {
+      appLogger.e('Error getting VOD content for category $categoryId for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getVodContent(String id, String portalId) async {
+    try {
+      final db = await instance.database;
+      final List<Map<String, dynamic>> vodContent = await db.query(
+        tableVodContent,
+        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
       if (vodContent.isNotEmpty) {
-        appLogger.d('Retrieved VOD content with id: $id');
+        appLogger.d('Retrieved VOD content with id: $id for portal: $portalId');
         return vodContent.first;
       }
-      appLogger.d('VOD content with id: $id not found.');
+      appLogger.d('VOD content with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD content with id $id: $e');
+      appLogger.e('Error getting VOD content with id $id for portal $portalId: $e');
       return null;
     }
   }
 
-  Future<int> updateVodContent(Map<String, dynamic> vodContent) async {
+  Future<int> updateVodContent(Map<String, dynamic> vodContent, String portalId) async {
     try {
       final db = await instance.database;
       final id = vodContent[columnVodContentId];
       final rowsAffected = await db.update(
         tableVodContent,
         vodContent,
-        where: '$columnVodContentId = ?',
-        whereArgs: [id],
+        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD content with id: $id');
+      appLogger.d('Updated $rowsAffected rows for VOD content with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD content with id ${vodContent[columnVodContentId]}: $e');
+      appLogger.e('Error updating VOD content with id ${vodContent[columnVodContentId]} for portal $portalId: $e');
       return 0;
     }
   }
 
-  Future<int> deleteVodContent(String id) async {
+  Future<int> deleteVodContent(String id, String portalId) async {
     try {
       final db = await instance.database;
       final rowsAffected = await db.delete(
         tableVodContent,
-        where: '$columnVodContentId = ?',
-        whereArgs: [id],
+        where: '$columnVodContentId = ? AND $columnPortalId = ?',
+        whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD content with id: $id');
+      appLogger.d('Deleted $rowsAffected rows for VOD content with id: $id for portal: $portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD content with id $id: $e');
+      appLogger.e('Error deleting VOD content with id $id for portal $portalId: $e');
       return 0;
     }
   }

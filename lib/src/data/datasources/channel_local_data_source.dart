@@ -17,13 +17,13 @@ class ChannelLocalDataSource {
     throw UnimplementedError('getChannels must be asynchronous');
   }
 
-  Future<List<Channel>> getChannelsAsync() async {
-    final List<Map<String, dynamic>> channelMaps = await _dbHelper.getAllChannels();
+  Future<List<Channel>> getChannelsAsync(String portalId) async {
+    final List<Map<String, dynamic>> channelMaps = await _dbHelper.getAllChannels(portalId);
     final List<Channel> channels = [];
 
     for (var channelMap in channelMaps) {
       final Channel channel = Channel.fromJson(channelMap);
-      final List<Map<String, dynamic>> cmdMaps = await _dbHelper.getChannelCmdsForChannel(channel.id);
+      final List<Map<String, dynamic>> cmdMaps = await _dbHelper.getChannelCmdsForChannel(channel.id, portalId);
       final List<ChannelCmd> cmds = cmdMaps.map((cmdMap) => ChannelCmd.fromJson(cmdMap, channelId: channel.id)).toList();
       
       // Create a new Channel object with cmds populated
@@ -79,15 +79,15 @@ class ChannelLocalDataSource {
     return channels;
   }
 
-  Future<void> saveChannels(List<Channel> channels) async {
+  Future<void> saveChannels(List<Channel> channels, String portalId) async {
     // Clear existing data before saving new data
-    await _dbHelper.clearAllData(); // This clears all tables, might need to be more specific
+    await _dbHelper.clearAllData(portalId); // This clears all tables, might need to be more specific
 
     for (var channel in channels) {
-      await _dbHelper.insertChannel(channel.toMap());
+      await _dbHelper.insertChannel(channel.toMap(), portalId);
       if (channel.cmds != null) {
         for (var cmd in channel.cmds!) {
-          await _dbHelper.insertChannelCmd(cmd.toMap());
+          await _dbHelper.insertChannelCmd(cmd.toMap(), portalId);
         }
       }
     }

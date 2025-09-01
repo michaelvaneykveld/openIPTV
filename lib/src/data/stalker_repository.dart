@@ -1,4 +1,6 @@
 import 'package:openiptv/src/core/database/database_helper.dart';
+import 'package:openiptv/src/data/models.dart';
+import 'package:openiptv/src/data/models/epg_programme.dart';
 import 'package:openiptv/src/data/stalker_api_service.dart';
 import 'package:openiptv/utils/app_logger.dart';
 
@@ -38,5 +40,35 @@ class StalkerRepository {
     appLogger.d('VOD Categories and Content synchronized.');
 
     appLogger.d('Data synchronization complete.');
+
+    // Fetch and store EPG data for all channels
+    final allChannelsMaps = await _databaseHelper.getAllChannels(portalId);
+    final allChannels = allChannelsMaps.map((e) => Channel.fromJson(e)).toList();
+    for (var channel in allChannels) {
+      try {
+        final epgPrograms = await _apiService.getEpgInfo(channel.id, 24);
+        for (var program in epgPrograms) {
+          program.portalId = int.parse(portalId);
+        }
+        await saveEpgPrograms(epgPrograms, portalId);
+      } catch (e) {
+        appLogger.e("Could not fetch EPG for channel ${channel.id}", e);
+      }
+    }
+    appLogger.d('EPG data synchronized.');
+  }
+
+  Future<void> saveEpgPrograms(List<EpgProgramme> epgPrograms, String portalId) async {
+    final programsAsMaps = epgPrograms.map((p) => p.toMap()).toList();
+    await _databaseHelper.insertEpgProgrammes(programsAsMaps, portalId);
+  }
+
+  Future<List<EpgProgramme>> getEpgForChannel(String channelId, String portalId) async {
+    final List<Map<String, dynamic>> epgMaps = await _databaseHelper.getEpgForChannel(channelId, portalId);
+    return epgMaps.map((map) {
+      final program = EpgProgramme.fromJson(map);
+      program.portalId = int.parse(portalId);
+      return program;
+    }).toList();
   }
 }

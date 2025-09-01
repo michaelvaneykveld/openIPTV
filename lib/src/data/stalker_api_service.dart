@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:openiptv/utils/app_logger.dart';
 import 'package:openiptv/src/data/models.dart';
+import 'package:openiptv/src/data/models/epg_programme.dart';
 
 class StalkerApiService {
   final Dio _dio;
@@ -130,6 +131,31 @@ class StalkerApiService {
       return [];
     } on DioException catch (e) {
       appLogger.e('Error getting VOD content for category $categoryId', error: e);
+      return [];
+    }
+  }
+
+  Future<List<EpgProgramme>> getEpgInfo(String chId, int period) async {
+    try {
+      final response = await _dio.get(
+        '$_baseUrl/stalker_portal/server/load.php',
+        queryParameters: {
+          'type': 'itv',
+          'action': 'get_epg_info',
+          'ch_id': chId,
+          'period': period,
+          'JsHttpRequest': '1-xml',
+        },
+      );
+      appLogger.d('Get EPG info response for channel $chId, period $period: ${response.data}');
+      if (response.data is Map && response.data['js'] is List) {
+        return (response.data['js'] as List)
+            .map((e) => EpgProgramme.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return [];
+    } on DioException catch (e) {
+      appLogger.e('Error getting EPG info for channel $chId, period $period', error: e);
       return [];
     }
   }

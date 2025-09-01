@@ -47,12 +47,13 @@ class StalkerRepository {
     for (var channel in allChannels) {
       try {
         final epgPrograms = await _apiService.getEpgInfo(channel.id, 24);
+        appLogger.d('Fetched \${epgPrograms.length} EPG programs for channel \${channel.id}.'); // Added log
         for (var program in epgPrograms) {
           program.portalId = int.parse(portalId);
         }
-        await this._saveEpgPrograms(epgPrograms, portalId);
+        await _saveEpgPrograms(epgPrograms, portalId); // Removed this.
       } catch (e) {
-        appLogger.e("Could not fetch EPG for channel ${channel.id}", e);
+        appLogger.e("Could not fetch EPG for channel \${channel.id}", e);
       }
     }
     appLogger.d('EPG data synchronized.');

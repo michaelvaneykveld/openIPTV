@@ -135,7 +135,7 @@ class StalkerApiService {
     }
   }
 
-  Future<List<EpgProgramme>> getEpgInfo(String chId, int period) async {
+  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
     try {
       final response = await _dio.get(
         '$_baseUrl/stalker_portal/server/load.php',

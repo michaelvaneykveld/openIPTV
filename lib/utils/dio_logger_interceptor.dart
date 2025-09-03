@@ -21,13 +21,11 @@ class DioLoggerInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
-    appLogger.e('DIO Error: ${err.requestOptions.method} ${err.requestOptions.uri}');
-    appLogger.e('Error Type: ${err.type}');
-    appLogger.e('Error Message: ${err.message}');
-    if (err.response != null) {
-      appLogger.e('Error Response Status: ${err.response?.statusCode}');
-      appLogger.e('Error Response Data: ${err.response?.data}');
-    }
+    appLogger.e(
+      'DIO Error on ${err.requestOptions.method} ${err.requestOptions.uri}',
+      error: err,
+      stackTrace: err.stackTrace,
+    );
     super.onError(err, handler);
   }
 }

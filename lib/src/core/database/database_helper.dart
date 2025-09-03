@@ -726,13 +726,13 @@ class DatabaseHelper {
       appLogger.d('Deleted \$rowsAffected rows for VOD content with id: \$id for portal: \$portalId');
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD content with id \$id for portal \$portalId: \$e');
+      appLogger.e('Error deleting VOD content with id $id for portal $portalId', error: e);
       return 0;
     }
   }
 
   // --- CRUD Operations for EPG ---
-  Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, String portalId) async {
+  Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, {required String portalId}) async {
     final db = await instance.database;
     await db.transaction((txn) async {
       for (final programme in programmes) {

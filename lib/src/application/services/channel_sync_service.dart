@@ -12,8 +12,8 @@ class ChannelSyncService {
       // The synchronizeData method in StalkerRepository already handles fetching and saving.
       await _stalkerRepository.synchronizeData(portalId);
       appLogger.d('ChannelSyncService: Channel synchronization complete for portal: $portalId');
-    } catch (e) {
-      appLogger.e('ChannelSyncService: Error during channel synchronization for portal $portalId: $e');
+    } catch (e, stackTrace) {
+      appLogger.e('ChannelSyncService: Error during channel synchronization for portal $portalId', error: e, stackTrace: stackTrace);
     }
   }
 }

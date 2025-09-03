@@ -101,14 +101,14 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
     // TODO: Implement Series and Radio population if data sources become available
     // For now, Films will contain all VOD content.
 
-  } catch (e) {
-    appLogger.e('Error building navigation tree: $e');
+  } catch (e, stackTrace) {
+    appLogger.e('Error building navigation tree', error: e, stackTrace: stackTrace);
     // Return an empty tree or a tree with an error node if desired
     return [
       TreeNode(
         title: 'Error loading data',
         type: 'error',
-        data: e.toString(),
+        data: '$e\n$stackTrace',
       )
     ];
   }

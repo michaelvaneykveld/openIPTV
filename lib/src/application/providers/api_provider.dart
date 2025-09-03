@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/data/providers/stalker_api_provider.dart';
+import 'package:openiptv/src/data/xtream_api_service.dart'; // New import
 import 'package:openiptv/utils/dio_logger_interceptor.dart'; // Added this import
 
 part 'api_provider.g.dart';
@@ -17,4 +18,10 @@ Dio dio(Ref ref) {
 @riverpod
 StalkerApiProvider stalkerApi(Ref ref) {
   return StalkerApiProvider(ref.watch(dioProvider), ref.watch(flutterSecureStorageProvider));
+}
+
+@riverpod
+XtreamApiService xtreamApi(Ref ref) {
+  // Base URL will be provided at the call site (login screen)
+  return XtreamApiService(''); // Placeholder base URL
 }

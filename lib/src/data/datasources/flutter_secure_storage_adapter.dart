@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openiptv/src/core/models/credentials.dart';
 import 'package:openiptv/src/core/models/m3u_credentials.dart';
 import 'package:openiptv/src/core/models/stalker_credentials.dart';
+import 'package:openiptv/src/core/models/xtream_credentials.dart'; // New import
 import 'secure_storage_interface.dart';
 
 /// Concrete implementatie van SecureStorageInterface
@@ -52,6 +53,8 @@ class FlutterSecureStorageAdapter implements SecureStorageInterface {
         return StalkerCredentials.fromJson(json as Map<String, dynamic>);
       } else if (type == 'm3u') {
         return M3uCredentials.fromJson(json as Map<String, dynamic>);
+      } else if (type == 'xtream') {
+        return XtreamCredentials.fromJson(json as Map<String, dynamic>);
       } else {
         throw Exception('Unknown credential type: $type');
       }

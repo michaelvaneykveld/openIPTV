@@ -9,7 +9,7 @@ class StalkerRepository {
   final DatabaseHelper _databaseHelper;
   final String portalId;
 
-  StalkerRepository(this._apiService, this._databaseHelper, this.portalId);
+  StalkerRepository(StalkerApiService apiService, DatabaseHelper databaseHelper, this.portalId) : _apiService = apiService, _databaseHelper = databaseHelper;
 
   Future<void> synchronizeData(String portalId) async {
     appLogger.d('Starting data synchronization for portal: $portalId...');
@@ -46,22 +46,19 @@ class StalkerRepository {
     final allChannels = allChannelsMaps.map((e) => Channel.fromJson(e)).toList();
     for (var channel in allChannels) {
       try {
-        final epgPrograms = await _apiService.getEpgInfo(channel.id, 24);
+        final epgPrograms = await _apiService.getEpgInfo(chId: channel.id, period: 24);
         appLogger.d('Fetched \${epgPrograms.length} EPG programs for channel \${channel.id}.'); // Added log
-        for (var program in epgPrograms) {
-          program.portalId = int.parse(portalId);
-        }
-        await _saveEpgPrograms(epgPrograms, portalId); // Removed this.
-      } catch (e) {
-        appLogger.e("Could not fetch EPG for channel \${channel.id}", e);
+        await _saveEpgPrograms(epgPrograms, portalId: portalId); // Call to save EPG programs
+      } catch (e, stackTrace) {
+        appLogger.e("Could not fetch EPG for channel ${channel.id}", error: e, stackTrace: stackTrace);
       }
     }
     appLogger.d('EPG data synchronized.');
   }
 
-  Future<void> _saveEpgPrograms(List<EpgProgramme> epgPrograms, String portalId) async {
+  Future<void> _saveEpgPrograms(List<EpgProgramme> epgPrograms, {required String portalId}) async {
     final programsAsMaps = epgPrograms.map((p) => p.toMap()).toList();
-    await _databaseHelper.insertEpgProgrammes(programsAsMaps, portalId);
+    await _databaseHelper.insertEpgProgrammes(programsAsMaps, portalId: portalId);
   }
 
   Future<List<EpgProgramme>> getEpgForChannel(String channelId, String portalId) async {

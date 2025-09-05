@@ -7,10 +7,6 @@ import 'dart:io' show Platform;
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/presentation/screens/login_screen.dart';
 import 'package:openiptv/src/ui/home_screen.dart';
-import 'package:openiptv/src/core/database/database_helper.dart';
-import 'package:openiptv/src/data/stalker_api_service.dart';
-import 'package:openiptv/src/data/stalker_repository.dart';
-import 'package:openiptv/src/application/services/channel_sync_service.dart'; // Added import
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

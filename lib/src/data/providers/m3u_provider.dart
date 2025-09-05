@@ -1,5 +1,4 @@
-import 'dart:developer' as developer;
-
+import 'package:openiptv/utils/app_logger.dart';
 import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
@@ -19,7 +18,7 @@ class M3uProvider implements IProvider {
 
   @override
   Future<List<Channel>> fetchLiveChannels() async {
-    developer.log('Fetching M3U playlist from: $_m3uUrl', name: 'M3uProvider');
+    appLogger.d('Fetching M3U playlist from: $_m3uUrl');
     try {
       final response = await _dio.get<String>(
         _m3uUrl,
@@ -32,8 +31,8 @@ class M3uProvider implements IProvider {
 
       return _parseM3UContent(response.data!);
     } catch (e, stackTrace) {
-      developer.log('Error fetching or parsing M3U playlist',
-          error: e, stackTrace: stackTrace, name: 'M3uProvider');
+      appLogger.e('Error fetching or parsing M3U playlist',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -71,18 +70,17 @@ class M3uProvider implements IProvider {
                 ),
               );
             } else {
-              developer.log('Skipping invalid URL: $streamUrl', name: 'M3uProvider');
+              appLogger.w('Skipping invalid URL: $streamUrl');
             }
           }
         } catch (e, stackTrace) {
-          developer.log('Failed to parse M3U line: "$line"',
-              error: e, stackTrace: stackTrace, name: 'M3uProvider');
+          appLogger.e('Failed to parse M3U line: "$line"',
+              error: e, stackTrace: stackTrace);
           // Continue to the next line
         }
       }
     }
-    developer.log('Parsed ${channels.length} channels from M3U playlist.',
-        name: 'M3uProvider');
+    appLogger.d('Parsed ${channels.length} channels from M3U playlist.');
     return channels;
   }
 

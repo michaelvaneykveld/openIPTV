@@ -1,5 +1,4 @@
-import 'dart:developer' as developer;
-
+import 'package:openiptv/utils/app_logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -21,8 +20,7 @@ class CredentialsLocalDataSource {
 
   /// Saves a new set of credentials to the local database.
   Future<void> saveCredentials(Credentials credentials) async {
-    developer.log('Saving credentials with id: ${credentials.id}',
-        name: 'CredentialsLocalDataSource');
+    appLogger.d('Saving credentials with id: ${credentials.id}');
     
     List<Credentials> currentCredentials = await getCredentials();
     currentCredentials.removeWhere((c) => c.id == credentials.id);
@@ -36,7 +34,7 @@ class CredentialsLocalDataSource {
   Future<List<Credentials>> getCredentials() async {
     String? credentialsJson = await _secureStorage.read(key: _credentialsKey);
     if (credentialsJson == null || credentialsJson.isEmpty) {
-      developer.log('No credentials found in secure storage.', name: 'CredentialsLocalDataSource');
+      appLogger.d('No credentials found in secure storage.');
       return [];
     }
 
@@ -51,15 +49,13 @@ class CredentialsLocalDataSource {
       }
     }).toList();
 
-    developer.log('Retrieved ${credentials.length} credentials from secure storage.',
-        name: 'CredentialsLocalDataSource');
+    appLogger.d('Retrieved ${credentials.length} credentials from secure storage.');
     return credentials;
   }
 
   /// Deletes a specific set of credentials from the local database using its ID.
   Future<void> deleteCredentials(String id) async {
-    developer.log('Deleting credentials with id: $id',
-        name: 'CredentialsLocalDataSource');
+    appLogger.d('Deleting credentials with id: $id');
     List<Credentials> currentCredentials = await getCredentials();
     currentCredentials.removeWhere((c) => c.id == id);
 

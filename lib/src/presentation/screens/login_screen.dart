@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'dart:developer' as developer;
+import 'package:openiptv/utils/app_logger.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/core/models/credentials.dart'; // Import Credentials model (plural)
@@ -107,7 +107,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       } catch (e) {
         // Ignore parsing errors, the user might still be typing
-        developer.log('Error parsing Xtream URL: $e', name: 'LoginScreen');
+        appLogger.w('Error parsing Xtream URL: $e');
       }
     }
   }
@@ -131,7 +131,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       } catch (e) {
         // Ignore parsing errors, the user might still be typing
-        developer.log('Error parsing M3U URL: $e', name: 'LoginScreen');
+        appLogger.w('Error parsing M3U URL: $e');
       }
     }
   }
@@ -171,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         portalUrl = portalUrl.replaceAll('/c/', '/');
       }
 
-      developer.log('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress', name: 'LoginScreen');
+      appLogger.d('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress');
 
       final success = await stalkerApi.login(portalUrl, macAddress);
 
@@ -224,7 +224,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Create an instance of XtreamApiService with the provided URL
     final xtreamApi = XtreamApiService(xtreamUrl);
 
-    developer.log('Attempting Xtream login with URL: $xtreamUrl, Username: $xtreamUsername', name: 'LoginScreen');
+    appLogger.d('Attempting Xtream login with URL: $xtreamUrl, Username: $xtreamUsername');
 
     final success = await xtreamApi.login(xtreamUsername, xtreamPassword);
 

@@ -1,4 +1,4 @@
-import 'dart:developer' as developer;
+import 'package:openiptv/utils/app_logger.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -29,15 +29,13 @@ class ChannelRepository {
     if (!forceRefresh) {
       final localChannels = await _localDataSource.getChannelsAsync(portalId); // Changed to getChannelsAsync
       if (localChannels.isNotEmpty) {
-        developer.log('Returning ${localChannels.length} channels from cache.',
-            name: 'ChannelRepository');
+        appLogger.d('Returning ${localChannels.length} channels from cache.');
         return localChannels;
       }
     }
 
     // If local database is empty or refresh is forced, fetch from remote.
-    developer.log('Cache is empty or refresh is forced. Fetching from remote.',
-        name: 'ChannelRepository');
+    appLogger.d('Cache is empty or refresh is forced. Fetching from remote.');
     final remoteChannels = await _remoteProvider.fetchLiveChannels();
 
     // Save the fetched channels to the local database for next time.

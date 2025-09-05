@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
+import 'package:openiptv/utils/app_logger.dart';
 
 import 'package:dio/dio.dart';
 
@@ -31,14 +31,12 @@ class StalkerProvider implements IProvider {
     try {
       // Step 1: Fetch the genre mapping first.
       final genreMap = await _fetchGenres();
-      developer.log('Successfully fetched ${genreMap.length} genres.',
-          name: 'StalkerProvider');
+      appLogger.d('Successfully fetched ${genreMap.length} genres.');
 
       // Step 2: Fetch all channels.
       final url =
           '$_baseUrl/server/load.php?type=itv&action=get_all_channels&mac=$_macAddress';
-      developer.log('Fetching Stalker channels from: $url',
-          name: 'StalkerProvider');
+      appLogger.d('Fetching Stalker channels from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -51,8 +49,8 @@ class StalkerProvider implements IProvider {
       // Step 3: Parse channels using the genre map.
       return _parseChannelsFromJson(response.data.toString(), genreMap);
     } catch (e, stackTrace) {
-      developer.log('Error in fetchLiveChannels sequence',
-          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      appLogger.e('Error in fetchLiveChannels sequence',
+          error: e, stackTrace: stackTrace);
       // Re-throw the exception to be caught by the repository and UI layers.
       rethrow;
     }
@@ -63,7 +61,7 @@ class StalkerProvider implements IProvider {
   Future<Map<String, String>> _fetchGenres() async {
     final url =
         '$_baseUrl/server/load.php?type=itv&action=get_genres&mac=$_macAddress';
-    developer.log('Fetching Stalker genres from: $url', name: 'StalkerProvider');
+    appLogger.d('Fetching Stalker genres from: $url');
 
     final response = await _dio.get<String>(
       url,
@@ -81,7 +79,7 @@ class StalkerProvider implements IProvider {
     final List<dynamic>? genreListData = jsonResponse['js'];
 
     if (genreListData == null || genreListData.isEmpty) {
-      developer.log('Genre list is empty or not in the expected format.', name: 'StalkerProvider');
+      appLogger.w('Genre list is empty or not in the expected format.');
       return {};
     }
 
@@ -111,8 +109,7 @@ class StalkerProvider implements IProvider {
 
     final channelListData = jsData['data'];
     if (channelListData == null || channelListData is! List) {
-      developer.log("No 'data' list found in JSON. Returning empty channel list.",
-          name: 'StalkerProvider');
+      appLogger.w("No 'data' list found in JSON. Returning empty channel list.");
       return [];
     }
 
@@ -152,7 +149,7 @@ class StalkerProvider implements IProvider {
     try {
       final url =
           '$_baseUrl/server/load.php?type=vod&action=get_categories&mac=$_macAddress';
-      developer.log('Fetching Stalker VOD categories from: $url', name: 'StalkerProvider');
+      appLogger.d('Fetching Stalker VOD categories from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -170,14 +167,14 @@ class StalkerProvider implements IProvider {
       final List<dynamic>? categoriesData = jsonResponse['js']?['data'];
 
       if (categoriesData == null || categoriesData.isEmpty) {
-        developer.log('VOD categories list is empty or not in the expected format.', name: 'StalkerProvider');
+        appLogger.w('VOD categories list is empty or not in the expected format.');
         return [];
       }
 
       return categoriesData.map((item) => VodCategory.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e, stackTrace) {
-      developer.log('Error fetching VOD categories',
-          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      appLogger.e('Error fetching VOD categories',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -187,7 +184,7 @@ class StalkerProvider implements IProvider {
     try {
       final url =
           '$_baseUrl/server/load.php?type=vod&action=get_content&category_id=$categoryId&mac=$_macAddress';
-      developer.log('Fetching Stalker VOD content from: $url', name: 'StalkerProvider');
+      appLogger.d('Fetching Stalker VOD content from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -205,14 +202,14 @@ class StalkerProvider implements IProvider {
       final List<dynamic>? contentData = jsonResponse['js']?['data'];
 
       if (contentData == null || contentData.isEmpty) {
-        developer.log('VOD content list is empty or not in the expected format.', name: 'StalkerProvider');
+        appLogger.w('VOD content list is empty or not in the expected format.');
         return [];
       }
 
       return contentData.map((item) => VodContent.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e, stackTrace) {
-      developer.log('Error fetching VOD content',
-          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      appLogger.e('Error fetching VOD content',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -222,7 +219,7 @@ class StalkerProvider implements IProvider {
     try {
       final url =
           '$_baseUrl/server/load.php?type=radio&action=get_genres&mac=$_macAddress';
-      developer.log('Fetching Stalker Radio genres from: $url', name: 'StalkerProvider');
+      appLogger.d('Fetching Stalker Radio genres from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -240,14 +237,14 @@ class StalkerProvider implements IProvider {
       final List<dynamic>? genreListData = jsonResponse['js']?['data'];
 
       if (genreListData == null || genreListData.isEmpty) {
-        developer.log('Radio genre list is empty or not in the expected format.', name: 'StalkerProvider');
+        appLogger.w('Radio genre list is empty or not in the expected format.');
         return [];
       }
 
       return genreListData.map((item) => Genre.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e, stackTrace) {
-      developer.log('Error fetching Radio genres',
-          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      appLogger.e('Error fetching Radio genres',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
@@ -257,7 +254,7 @@ class StalkerProvider implements IProvider {
     try {
       final url =
           '$_baseUrl/server/load.php?type=radio&action=get_all_channels&genre=$genreId&mac=$_macAddress';
-      developer.log('Fetching Stalker Radio channels from: $url', name: 'StalkerProvider');
+      appLogger.d('Fetching Stalker Radio channels from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -275,7 +272,7 @@ class StalkerProvider implements IProvider {
       final List<dynamic>? channelListData = jsonResponse['js']?['data'];
 
       if (channelListData == null || channelListData.isEmpty) {
-        developer.log('Radio channel list is empty or not in the expected format.', name: 'StalkerProvider');
+        appLogger.w('Radio channel list is empty or not in the expected format.');
         return [];
       }
 
@@ -300,8 +297,8 @@ class StalkerProvider implements IProvider {
         );
       }).toList();
     } catch (e, stackTrace) {
-      developer.log('Error fetching Radio channels',
-          error: e, stackTrace: stackTrace, name: 'StalkerProvider');
+      appLogger.e('Error fetching Radio channels',
+          error: e, stackTrace: stackTrace);
       rethrow;
     }
   }

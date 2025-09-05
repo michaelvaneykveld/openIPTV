@@ -1,5 +1,5 @@
 import 'package:dio/dio.dart';
-import 'dart:developer' as developer;
+import 'package:openiptv/utils/app_logger.dart';
 
 /// A utility class to find the correct base API URL for a Stalker portal
 /// from user-provided input.
@@ -16,8 +16,7 @@ class StalkerUrlResolver {
   /// Returns the correct base URL (e.g., `http://portal.example.com:8080`) if found.
   /// Throws an [Exception] if no working endpoint can be found.
   Future<String> resolve(String userInputUrl) async {
-    developer.log('Attempting to resolve Stalker URL: $userInputUrl',
-        name: 'StalkerUrlResolver');
+    appLogger.d('Attempting to resolve Stalker URL: $userInputUrl');
 
     // 1. Normalize the URL
     String normalizedUrl = userInputUrl.trim();
@@ -54,12 +53,12 @@ class StalkerUrlResolver {
         );
         // A valid endpoint will return JSON (even a JSON error), not HTML.
         if (response.data != null && !response.data!.trim().toLowerCase().startsWith('<!doctype html')) {
-          developer.log('Found working Stalker API at: $baseUrl', name: 'StalkerUrlResolver');
+          appLogger.d('Found working Stalker API at: $baseUrl');
           return baseUrl;
         }
       } catch (e) {
         // Log the error for debugging purposes and try the next path.
-        developer.log('Test for path "$path" failed. Error: $e', name: 'StalkerUrlResolver');
+        appLogger.w('Test for path "$path" failed. Error: $e');
       }
     }
 

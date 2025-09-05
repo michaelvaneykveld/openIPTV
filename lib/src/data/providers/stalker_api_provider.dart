@@ -1,5 +1,4 @@
-import 'dart:developer' as developer;
-
+import 'package:openiptv/utils/app_logger.dart';
 import 'package:dio/dio.dart';
 import 'package:openiptv/src/core/api/iprovider.dart';
 import 'package:openiptv/src/core/models/models.dart';
@@ -33,17 +32,15 @@ class StalkerApiProvider implements IProvider {
           responseData['js']['token'] != null) {
         final token = responseData['js']['token'] as String;
         await _secureStorage.write(key: _tokenKey, value: token);
-        developer.log('Handshake successful, token received.',
-            name: 'StalkerApiProvider');
+        appLogger.d('Handshake successful, token received.');
         return token;
       } else {
-        developer.log(
-            'Handshake failed. Status code: ${response.statusCode}, data: ${response.data}',
-            name: 'StalkerApiProvider');
+        appLogger.e(
+            'Handshake failed. Status code: ${response.statusCode}, data: ${response.data}');
         throw Exception('Failed to perform handshake');
       }
     } catch (e) {
-      developer.log('Error during handshake: $e', name: 'StalkerApiProvider');
+      appLogger.e('Error during handshake: $e');
       return null;
     }
   }
@@ -101,17 +98,14 @@ class StalkerApiProvider implements IProvider {
         options: _getAuthOptions(token!, macAddress),
       );
 
-      developer.log('Channel Fetch URL: ${response.requestOptions.uri}',
-          name: 'StalkerApiProvider');
+      appLogger.d('Channel Fetch URL: ${response.requestOptions.uri}');
 
       if (response.data == null || response.data.toString().isEmpty) {
-        developer.log('Raw channel response: (empty)',
-            name: 'StalkerApiProvider');
+        appLogger.d('Raw channel response: (empty)');
         return [];
       }
 
-      developer.log('Raw channel response: ${response.data}',
-          name: 'StalkerApiProvider');
+      appLogger.d('Raw channel response: ${response.data}');
 
       final Map<String, dynamic> responseData = response.data;
 
@@ -126,8 +120,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch channels');
       }
     } catch (e) {
-      developer.log('Error fetching live channels: $e',
-          name: 'StalkerApiProvider');
+      appLogger.e('Error fetching live channels: $e');
       return [];
     }
   }
@@ -165,7 +158,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch genres');
       }
     } catch (e) {
-      developer.log('Error fetching genres: $e', name: 'StalkerApiProvider');
+      appLogger.e('Error fetching genres: $e');
       return [];
     }
   }
@@ -205,8 +198,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch VOD categories');
       }
     } catch (e) {
-      developer.log('Error fetching VOD categories: $e',
-          name: 'StalkerApiProvider');
+      appLogger.e('Error fetching VOD categories: $e');
       return [];
     }
   }
@@ -247,8 +239,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch VOD content');
       }
     } catch (e) {
-      developer.log('Error fetching VOD content: $e',
-          name: 'StalkerApiProvider');
+      appLogger.e('Error fetching VOD content: $e');
       return [];
     }
   }
@@ -286,8 +277,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch radio genres');
       }
     } catch (e) {
-      developer.log('Error fetching radio genres: $e',
-          name: 'StalkerApiProvider');
+      appLogger.e('Error fetching radio genres: $e');
       return [];
     }
   }
@@ -328,8 +318,7 @@ class StalkerApiProvider implements IProvider {
         throw Exception('Failed to fetch radio channels');
       }
     } catch (e) {
-      developer.log('Error fetching radio channels: $e',
-          name: 'StalkerApiProvider');
+      appLogger.e('Error fetching radio channels: $e');
       return [];
     }
   }
@@ -346,7 +335,7 @@ class StalkerApiProvider implements IProvider {
       }
       return false;
     } catch (e) {
-      developer.log('Login failed: $e', name: 'StalkerApiProvider');
+      appLogger.e('Login failed: $e');
       return false;
     }
   }
@@ -354,6 +343,6 @@ class StalkerApiProvider implements IProvider {
   Future<void> logout() async {
     await _secureStorage.delete(key: _tokenKey);
     await _secureStorage.clearAllCredentials();
-    developer.log('Logged out and cleared credentials.', name: 'StalkerApiProvider');
+    appLogger.d('Logged out and cleared credentials.');
   }
 }

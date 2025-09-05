@@ -290,12 +290,12 @@ class DatabaseHelper {
     );
     final db = await instance.database;
     await db.transaction((txn) async {
-      await txn.delete(tableChannelCmds, where: '\$columnCmdChannelId IN (SELECT \$columnChannelId FROM \$tableChannels WHERE \$columnPortalId = ?)', whereArgs: [portalId]);
-      await txn.delete(tableChannels, where: '\$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableGenres, where: '\$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodCategories, where: '\$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodContent, where: '\$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableEpg, where: '\$columnPortalId = ?', whereArgs: [portalId]); // Added EPG table to clear
+      await txn.delete(tableChannelCmds, where: '$columnCmdChannelId IN (SELECT $columnChannelId FROM $tableChannels WHERE $columnPortalId = ?)', whereArgs: [portalId]);
+      await txn.delete(tableChannels, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableGenres, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodCategories, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableVodContent, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableEpg, where: '$columnPortalId = ?', whereArgs: [portalId]); // Added EPG table to clear
     });
     appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
   }

@@ -49,6 +49,7 @@ dependencies:
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
   collection: ^1.19.1
+  file_picker: ^8.0.3
 
 
 dev_dependencies:

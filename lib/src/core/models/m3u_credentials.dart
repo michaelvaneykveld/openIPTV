@@ -4,11 +4,15 @@ import 'credentials.dart';
 class M3uCredentials extends Credentials {
   /// The URL of the M3U playlist.
   final String m3uUrl;
+  final String? username;
+  final String? password;
 
   M3uCredentials({
     required super.id,
     required super.name,
     required this.m3uUrl,
+    this.username,
+    this.password,
   }) : super(type: 'm3u'); // Add type for serialization
 
   factory M3uCredentials.fromJson(Map<String, dynamic> json) {
@@ -16,6 +20,8 @@ class M3uCredentials extends Credentials {
       id: json['id'] as String,
       name: json['name'] as String,
       m3uUrl: json['m3uUrl'] as String,
+      username: json['username'] as String?,
+      password: json['password'] as String?,
     );
   }
 
@@ -26,6 +32,8 @@ class M3uCredentials extends Credentials {
       'name': name,
       'm3uUrl': m3uUrl,
       'type': type, // Include type for deserialization
+      'username': username,
+      'password': password,
     };
   }
 }

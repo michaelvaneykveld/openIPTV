@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'dart:io' show Platform;
 
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/presentation/screens/login_screen.dart';
@@ -13,22 +15,29 @@ import 'package:openiptv/src/application/services/channel_sync_service.dart'; //
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  if (Platform.isWindows || Platform.isLinux) {
+    // Initialize FFI
+    sqfliteFfiInit();
+    // Change the default factory
+    databaseFactory = databaseFactoryFfi;
+  }
+
   // Initialize DatabaseHelper
-  final databaseHelper = DatabaseHelper.instance;
+  // final databaseHelper = DatabaseHelper.instance;
 
   // Define the portal URL (which will also serve as the portalId)
   // IMPORTANT: Replace with your actual Stalker Portal base URL
-  final portalUrl = 'http://your-stalker-portal-url.com'; 
-  final stalkerApiService = StalkerApiService(portalUrl); 
+  // final portalUrl = 'http://your-stalker-portal-url.com'; 
+  // final stalkerApiService = StalkerApiService(portalUrl); 
 
   // Initialize StalkerRepository
-  final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper, portalUrl);
+  // final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper, portalUrl);
 
   // Initialize ChannelSyncService
-  final channelSyncService = ChannelSyncService(stalkerRepository);
+  // final channelSyncService = ChannelSyncService(stalkerRepository);
 
   // Trigger data synchronization
-  await channelSyncService.syncChannels(portalUrl);
+  // await channelSyncService.syncChannels(portalUrl);
   
 
   runApp(

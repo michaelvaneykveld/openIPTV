@@ -10,6 +10,9 @@ import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Import St
 import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Import M3uCredentials
 import 'package:openiptv/src/core/models/xtream_credentials.dart'; // Import XtreamCredentials
 import 'package:openiptv/src/data/xtream_api_service.dart'; // Import XtreamApiService
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
+
 
 // Custom TextInputFormatter for MAC address
 class MacAddressInputFormatter extends TextInputFormatter {
@@ -57,11 +60,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _xtreamUrlController = TextEditingController();
   final _xtreamUsernameController = TextEditingController();
   final _xtreamPasswordController = TextEditingController();
+  final _m3uUrlController = TextEditingController();
+  final _m3uUsernameController = TextEditingController();
+  final _m3uPasswordController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _xtreamUrlController.addListener(_parseXtreamUrl);
+    _m3uUrlController.addListener(_parseM3uUrl);
   }
 
   @override
@@ -72,6 +79,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _xtreamUrlController.dispose();
     _xtreamUsernameController.dispose();
     _xtreamPasswordController.dispose();
+    _m3uUrlController.removeListener(_parseM3uUrl);
+    _m3uUrlController.dispose();
+    _m3uUsernameController.dispose();
+    _m3uPasswordController.dispose();
     super.dispose();
   }
 
@@ -98,6 +109,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // Ignore parsing errors, the user might still be typing
         developer.log('Error parsing Xtream URL: $e', name: 'LoginScreen');
       }
+    }
+  }
+
+  void _parseM3uUrl() {
+    final text = _m3uUrlController.text;
+    if (text.contains('username=') && text.contains('password=')) {
+      try {
+        final uri = Uri.parse(text);
+        final username = uri.queryParameters['username'];
+        final password = uri.queryParameters['password'];
+
+        if (username != null && password != null) {
+          // This avoids getting into a loop
+          _m3uUrlController.removeListener(_parseM3uUrl);
+          setState(() {
+            _m3uUsernameController.text = username;
+            _m3uPasswordController.text = password;
+          });
+          _m3uUrlController.addListener(_parseM3uUrl);
+        }
+      } catch (e) {
+        // Ignore parsing errors, the user might still be typing
+        developer.log('Error parsing M3U URL: $e', name: 'LoginScreen');
+      }
+    }
+  }
+
+  Future<void> _pickM3uFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['m3u', 'm3u8'],
+    );
+
+    if (result != null) {
+      File file = File(result.files.single.path!);
+      setState(() {
+        _m3uUrlController.text = file.path;
+      });
+    } else {
+      // User canceled the picker
     }
   }
 
@@ -197,6 +248,59 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Xtream login failed. Please check your credentials and try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _m3uLogin() async {
+    final m3uUrl = _m3uUrlController.text.trim();
+    final m3uUsername = _m3uUsernameController.text.trim();
+    final m3uPassword = _m3uPasswordController.text.trim();
+
+    if (m3uUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter an M3U URL or pick a file.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // For M3U, we just save the URL. No API call needed for login.
+      final credentialsRepository = ref.read(credentialsRepositoryProvider);
+      final newCredential = M3uCredentials(
+        id: m3uUrl, // Using URL as ID for simplicity
+        name: 'M3U: $m3uUrl', // User-friendly name
+        m3uUrl: m3uUrl,
+        username: m3uUsername.isNotEmpty ? m3uUsername : null,
+        password: m3uPassword.isNotEmpty ? m3uPassword : null,
+      );
+      await credentialsRepository.saveCredential(newCredential);
+      ref.invalidate(savedCredentialsProvider);
+
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('M3U login failed: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -334,6 +438,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const Divider(),
               const SizedBox(height: 16),
               Text(
+                'M3U Login',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 16),
+              Form(
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _m3uUrlController,
+                      decoration: const InputDecoration(
+                        labelText: 'M3U URL or File Path',
+                        hintText: 'http://... or /path/to/playlist.m3u',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _m3uUsernameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Username (optional)',
+                        hintText: 'your_username',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _m3uPasswordController,
+                      decoration: const InputDecoration(
+                        labelText: 'Password (optional)',
+                        hintText: 'your_password',
+                      ),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _pickM3uFile,
+                      icon: const Icon(Icons.folder_open),
+                      label: const Text('Pick M3U File'),
+                    ),
+                    const SizedBox(height: 32),
+                    ElevatedButton(
+                      onPressed: _m3uLogin,
+                      child: const Text('M3U Login'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              Text(
                 'Saved Logins',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
@@ -350,40 +503,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     itemBuilder: (context, index) {
                       final credential = credentials[index];
                       String displayUrl = '';
-                      String displayMac = '';
+                      String displayInfo = '';
 
                       if (credential is StalkerCredentials) {
                         displayUrl = credential.baseUrl;
-                        displayMac = credential.macAddress;
+                        displayInfo = 'MAC: ${credential.macAddress}';
                       } else if (credential is M3uCredentials) {
-                        displayUrl = credential.m3uUrl; // Changed to m3uUrl
-                        displayMac = 'N/A'; // M3U doesn't have MAC address
+                        displayUrl = credential.m3uUrl;
+                        displayInfo = 'Type: M3U';
                       } else if (credential is XtreamCredentials) {
-                        final xtreamCred = credential; // Explicit cast
-                        displayUrl = xtreamCred.url;
-                        displayMac = xtreamCred.username; // Display username for Xtream
+                        displayUrl = credential.url;
+                        displayInfo = 'User: ${credential.username}';
                       }
 
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8.0),
                         child: ListTile(
                           title: Text(displayUrl),
-                          subtitle: Text(displayMac),
+                          subtitle: Text(displayInfo),
                           onTap: () {
                             if (credential is StalkerCredentials) {
                               _portalUrlController.text = credential.baseUrl;
                               _macAddressController.text = credential.macAddress;
                             } else if (credential is M3uCredentials) {
-                              _portalUrlController.text = credential.m3uUrl; // Changed to m3uUrl
-                              _macAddressController.text = ''; // Clear MAC for M3U
+                              _m3uUrlController.text = credential.m3uUrl;
+                              _m3uUsernameController.text = credential.username ?? '';
+                              _m3uPasswordController.text = credential.password ?? '';
                             } else if (credential is XtreamCredentials) {
-                              final xtreamCred = credential; // Explicit cast
-                              _xtreamUrlController.text = xtreamCred.url;
-                              _xtreamUsernameController.text = xtreamCred.username;
-                              _xtreamPasswordController.text = xtreamCred.password;
+                              _xtreamUrlController.text = credential.url;
+                              _xtreamUsernameController.text = credential.username;
+                              _xtreamPasswordController.text = credential.password;
                             }
-                            // Optionally, trigger login automatically or let user click login button
-                            // _login();
                           },
                           trailing: IconButton(
                             icon: const Icon(Icons.delete),

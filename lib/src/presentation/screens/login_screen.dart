@@ -329,176 +329,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final savedCredentialsAsyncValue = ref.watch(savedCredentialsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Login to Stalker Portal'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView( // Use SingleChildScrollView for scrollability
-          child: Column(
-            children: [
-              Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _portalUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Portal URL',
-                        hintText: 'portal.example.com',
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a portal URL';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _macAddressController,
-                      decoration: const InputDecoration(
-                        labelText: 'MAC Address',
-                        hintText: '00:1A:79:12:34:56',
-                      ),
-                      inputFormatters: [
-                        MacAddressInputFormatter(),
-                      ],
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a MAC address';
-                        }
-                        final macRegex = RegExp(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$');
-                        if (!macRegex.hasMatch(value)) {
-                          return 'Please enter a valid MAC address';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
-                    _isLoading
-                        ? const CircularProgressIndicator()
-                        : ElevatedButton(
-                            onPressed: _login,
-                            child: const Text('Login'),
-                          ),
-                  ],
-                ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Login'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Stalker'),
+              Tab(text: 'Xtream'),
+              Tab(text: 'M3U'),
+            ],
+          ),
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildStalkerLogin(),
+                  _buildXtreamLogin(),
+                  _buildM3uLogin(),
+                ],
               ),
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              Text(
-                'Xtream Login',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 16),
-              Form(
-                // No GlobalKey for now, as validation is not yet implemented for Xtream
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _xtreamUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'URL',
-                        hintText: 'http://your-xtream-url.com',
-                      ),
-                      // No validator for now
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _xtreamUsernameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Username',
-                        hintText: 'your_username',
-                      ),
-                      // No validator for now
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _xtreamPasswordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        hintText: 'your_password',
-                      ),
-                      obscureText: true, // Hide password
-                      // No validator for now
-                    ),
-                    const SizedBox(height: 32),
-                    // New Xtream Login Button (will add _xtreamLogin method later)
-                    ElevatedButton(
-                      onPressed: _xtreamLogin,
-                      child: const Text('Xtream Login'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              Text(
-                'M3U Login',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 16),
-              Form(
-                child: Column(
-                  children: [
-                    TextFormField(
-                      controller: _m3uUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'M3U URL or File Path',
-                        hintText: 'http://... or /path/to/playlist.m3u',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _m3uUsernameController,
-                      decoration: const InputDecoration(
-                        labelText: 'Username (optional)',
-                        hintText: 'your_username',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _m3uPasswordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Password (optional)',
-                        hintText: 'your_password',
-                      ),
-                      obscureText: true,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _pickM3uFile,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text('Pick M3U File'),
-                    ),
-                    const SizedBox(height: 32),
-                    ElevatedButton(
-                      onPressed: _m3uLogin,
-                      child: const Text('M3U Login'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-              const Divider(),
-              const SizedBox(height: 16),
-              Text(
+            ),
+            const Divider(),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
                 'Saved Logins',
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
-              const SizedBox(height: 16),
-              savedCredentialsAsyncValue.when(
+            ),
+            Expanded(
+              child: savedCredentialsAsyncValue.when(
                 data: (credentials) {
                   if (credentials.isEmpty) {
-                    return const Text('No saved logins.');
+                    return const Center(child: Text('No saved logins.'));
                   }
                   return ListView.builder(
-                    shrinkWrap: true, // Important for nested ListView in SingleChildScrollView
-                    physics: const NeverScrollableScrollPhysics(), // Disable ListView's own scrolling
                     itemCount: credentials.length,
                     itemBuilder: (context, index) {
                       final credential = credentials[index];
@@ -544,11 +413,158 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     },
                   );
                 },
-                loading: () => const CircularProgressIndicator(),
-                error: (err, stack) => Text('Error loading saved logins: ${err.toString()}'),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(child: Text('Error loading saved logins: ${err.toString()}')),
               ),
-            ],
-          ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStalkerLogin() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _portalUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Portal URL',
+                hintText: 'portal.example.com',
+              ),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a portal URL';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _macAddressController,
+              decoration: const InputDecoration(
+                labelText: 'MAC Address',
+                hintText: '00:1A:79:12:34:56',
+              ),
+              inputFormatters: [
+                MacAddressInputFormatter(),
+              ],
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter a MAC address';
+                }
+                final macRegex = RegExp(r'^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$');
+                if (!macRegex.hasMatch(value)) {
+                  return 'Please enter a valid MAC address';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 32),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : ElevatedButton(
+                    onPressed: _login,
+                    child: const Text('Login'),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildXtreamLogin() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        // No GlobalKey for now, as validation is not yet implemented for Xtream
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _xtreamUrlController,
+              decoration: const InputDecoration(
+                labelText: 'URL',
+                hintText: 'http://your-xtream-url.com',
+              ),
+              // No validator for now
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _xtreamUsernameController,
+              decoration: const InputDecoration(
+                labelText: 'Username',
+                hintText: 'your_username',
+              ),
+              // No validator for now
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _xtreamPasswordController,
+              decoration: const InputDecoration(
+                labelText: 'Password',
+                hintText: 'your_password',
+              ),
+              obscureText: true, // Hide password
+              // No validator for now
+            ),
+            const SizedBox(height: 32),
+            // New Xtream Login Button (will add _xtreamLogin method later)
+            ElevatedButton(
+              onPressed: _xtreamLogin,
+              child: const Text('Xtream Login'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildM3uLogin() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Form(
+        child: Column(
+          children: [
+            TextFormField(
+              controller: _m3uUrlController,
+              decoration: const InputDecoration(
+                labelText: 'M3U URL or File Path',
+                hintText: 'http://... or /path/to/playlist.m3u',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _m3uUsernameController,
+              decoration: const InputDecoration(
+                labelText: 'Username (optional)',
+                hintText: 'your_username',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _m3uPasswordController,
+              decoration: const InputDecoration(
+                labelText: 'Password (optional)',
+                hintText: 'your_password',
+              ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _pickM3uFile,
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Pick M3U File'),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: _m3uLogin,
+              child: const Text('M3U Login'),
+            ),
+          ],
         ),
       ),
     );

@@ -51,7 +51,7 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _portalUrlController = TextEditingController();
   final _macAddressController = TextEditingController(text: '00:1A:79:');
@@ -65,15 +65,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _m3uUsernameController = TextEditingController();
   final _m3uPasswordController = TextEditingController();
 
+  TabController? _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _xtreamUrlController.addListener(_parseXtreamUrl);
     _m3uUrlController.addListener(_parseM3uUrl);
   }
 
   @override
   void dispose() {
+    _tabController?.dispose();
     _portalUrlController.dispose();
     _macAddressController.dispose();
     _xtreamUrlController.removeListener(_parseXtreamUrl);
@@ -92,6 +96,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (text.contains('get.php') && text.contains('username=') && text.contains('password=')) {
       try {
         final uri = Uri.parse(text);
+        if (uri.queryParameters['type'] == 'm3u') {
+          _m3uUrlController.text = text;
+          _tabController?.animateTo(2);
+          return;
+        }
+
         final username = uri.queryParameters['username'];
         final password = uri.queryParameters['password'];
         final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
@@ -317,104 +327,106 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final savedCredentialsAsyncValue = ref.watch(savedCredentialsProvider);
 
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Login'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Stalker'),
-              Tab(text: 'Xtream'),
-              Tab(text: 'M3U'),
-            ],
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Login'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Stalker'),
+            Tab(text: 'Xtream'),
+            Tab(text: 'M3U'),
+          ],
         ),
-        body: Column(
-          children: [
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildStalkerLogin(),
-                  _buildXtreamLogin(),
-                  _buildM3uLogin(),
-                ],
-              ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildStalkerLogin(),
+                _buildXtreamLogin(),
+                _buildM3uLogin(),
+              ],
             ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            const Divider(),
+          ),
+          if (_errorMessage != null)
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(
-                'Saved Logins',
-                style: Theme.of(context).textTheme.headlineSmall,
+                _errorMessage!,
+                style: const TextStyle(color: Colors.red),
               ),
             ),
-            Expanded(
-              child: savedCredentialsAsyncValue.when(
-                data: (credentials) {
-                  if (credentials.isEmpty) {
-                    return const Center(child: Text('No saved logins.'));
-                  }
-                  return ListView.builder(
-                    itemCount: credentials.length,
-                    itemBuilder: (context, index) {
-                      final credential = credentials[index];
-                      String displayUrl = '';
-                      String displayInfo = '';
+          const Divider(),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+              'Saved Logins',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+          ),
+          Expanded(
+            child: savedCredentialsAsyncValue.when(
+              data: (credentials) {
+                if (credentials.isEmpty) {
+                  return const Center(child: Text('No saved logins.'));
+                }
+                return ListView.builder(
+                  itemCount: credentials.length,
+                  itemBuilder: (context, index) {
+                    final credential = credentials[index];
+                    String displayUrl = '';
+                    String displayInfo = '';
 
-                      if (credential is StalkerCredentials) {
-                        displayUrl = credential.baseUrl;
-                        displayInfo = 'MAC: ${credential.macAddress}';
-                      } else if (credential is M3uCredentials) {
-                        displayUrl = credential.m3uUrl;
-                        displayInfo = 'Type: M3U';
-                      } else if (credential is XtreamCredentials) {
-                        displayUrl = credential.url;
-                        displayInfo = 'User: ${credential.username}';
-                      }
+                    if (credential is StalkerCredentials) {
+                      displayUrl = credential.baseUrl;
+                      displayInfo = 'MAC: ${credential.macAddress}';
+                    } else if (credential is M3uCredentials) {
+                      displayUrl = credential.m3uUrl;
+                      displayInfo = 'Type: M3U';
+                    } else if (credential is XtreamCredentials) {
+                      displayUrl = credential.url;
+                      displayInfo = 'User: ${credential.username}';
+                    }
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: ListTile(
-                          title: Text(displayUrl),
-                          subtitle: Text(displayInfo),
-                          onTap: () {
-                            if (credential is StalkerCredentials) {
-                              _portalUrlController.text = credential.baseUrl;
-                              _macAddressController.text = credential.macAddress;
-                            } else if (credential is M3uCredentials) {
-                              _m3uUrlController.text = credential.m3uUrl;
-                              _m3uUsernameController.text = credential.username ?? '';
-                              _m3uPasswordController.text = credential.password ?? '';
-                            } else if (credential is XtreamCredentials) {
-                              _xtreamUrlController.text = credential.url;
-                              _xtreamUsernameController.text = credential.username;
-                              _xtreamPasswordController.text = credential.password;
-                            }
-                          },
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _deleteCredential(credential),
-                          ),
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: ListTile(
+                        title: Text(displayUrl),
+                        subtitle: Text(displayInfo),
+                        onTap: () {
+                          if (credential is StalkerCredentials) {
+                            _portalUrlController.text = credential.baseUrl;
+                            _macAddressController.text = credential.macAddress;
+                            _tabController?.animateTo(0);
+                          } else if (credential is M3uCredentials) {
+                            _m3uUrlController.text = credential.m3uUrl;
+                            _m3uUsernameController.text = credential.username ?? '';
+                            _m3uPasswordController.text = credential.password ?? '';
+                            _tabController?.animateTo(2);
+                          } else if (credential is XtreamCredentials) {
+                            _xtreamUrlController.text = credential.url;
+                            _xtreamUsernameController.text = credential.username;
+                            _xtreamPasswordController.text = credential.password;
+                            _tabController?.animateTo(1);
+                          }
+                        },
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete),
+                          onPressed: () => _deleteCredential(credential),
                         ),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, stack) => Center(child: Text('Error loading saved logins: ${err.toString()}')),
-              ),
+                      ),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error loading saved logins: ${err.toString()}')),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

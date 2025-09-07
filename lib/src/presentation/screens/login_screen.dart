@@ -56,6 +56,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _portalUrlController = TextEditingController();
   final _macAddressController = TextEditingController(text: '00:1A:79:');
   bool _isLoading = false;
+  String? _errorMessage;
 
   final _xtreamUrlController = TextEditingController();
   final _xtreamUsernameController = TextEditingController();
@@ -156,42 +157,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() {
         _isLoading = true;
+        _errorMessage = null;
       });
 
-      final stalkerApi = ref.read(stalkerApiProvider);
-      String portalUrl = _portalUrlController.text;
-      final macAddress = _macAddressController.text;
+      try {
+        final stalkerApi = ref.read(stalkerApiProvider);
+        String portalUrl = _portalUrlController.text;
+        final macAddress = _macAddressController.text;
 
-      if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
-        portalUrl = 'http://$portalUrl';
-      }
-
-      // Sanitize portalUrl: remove '/c/' if present
-      if (portalUrl.contains('/c/')) {
-        portalUrl = portalUrl.replaceAll('/c/', '/');
-      }
-
-      appLogger.d('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress');
-
-      final success = await stalkerApi.login(portalUrl, macAddress);
-
-      if (success) {
-        // No need to save credential here, it's handled within stalkerApi.login
-        // Invalidate the provider to refresh the list of saved credentials
-        ref.invalidate(savedCredentialsProvider);
-
-        if (mounted) {
-          context.go('/');
+        if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
+          portalUrl = 'http://$portalUrl';
         }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Login failed. Please check your credentials and try again.'),
-              backgroundColor: Colors.red,
-            ),
-          );
+
+        // Sanitize portalUrl: remove '/c/' if present
+        if (portalUrl.contains('/c/')) {
+          portalUrl = portalUrl.replaceAll('/c/', '/');
         }
+
+        appLogger.d('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress');
+
+        final success = await stalkerApi.login(portalUrl, macAddress);
+
+        if (success) {
+          ref.invalidate(savedCredentialsProvider);
+          if (mounted) {
+            context.go('/');
+          }
+        } else {
+          setState(() {
+            _errorMessage = 'Login failed. Please check your credentials and try again.';
+          });
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = e.toString();
+        });
       }
 
       if(mounted) {
@@ -208,50 +208,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final xtreamPassword = _xtreamPasswordController.text.trim();
 
     if (xtreamUrl.isEmpty || xtreamUsername.isEmpty || xtreamPassword.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all Xtream login fields.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _errorMessage = 'Please fill in all Xtream login fields.';
+      });
       return;
     }
 
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
-    // Create an instance of XtreamApiService with the provided URL
-    final xtreamApi = XtreamApiService(xtreamUrl);
+    try {
+      final xtreamApi = XtreamApiService(xtreamUrl);
+      appLogger.d('Attempting Xtream login with URL: $xtreamUrl, Username: $xtreamUsername');
+      final success = await xtreamApi.login(xtreamUsername, xtreamPassword);
 
-    appLogger.d('Attempting Xtream login with URL: $xtreamUrl, Username: $xtreamUsername');
-
-    final success = await xtreamApi.login(xtreamUsername, xtreamPassword);
-
-    if (success) {
-      final credentialsRepository = ref.read(credentialsRepositoryProvider);
-      final newCredential = XtreamCredentials(
-        id: xtreamUrl, // Using URL as ID for simplicity
-        name: 'Xtream: $xtreamUsername', // User-friendly name
-        url: xtreamUrl,
-        username: xtreamUsername,
-        password: xtreamPassword,
-      );
-      await credentialsRepository.saveCredential(newCredential);
-      ref.invalidate(savedCredentialsProvider);
-
-      if (mounted) {
-        context.go('/');
-      }
-    } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Xtream login failed. Please check your credentials and try again.'),
-            backgroundColor: Colors.red,
-          ),
+      if (success) {
+        final credentialsRepository = ref.read(credentialsRepositoryProvider);
+        final newCredential = XtreamCredentials(
+          id: xtreamUrl,
+          name: 'Xtream: $xtreamUsername',
+          url: xtreamUrl,
+          username: xtreamUsername,
+          password: xtreamPassword,
         );
+        await credentialsRepository.saveCredential(newCredential);
+        ref.invalidate(savedCredentialsProvider);
+
+        if (mounted) {
+          context.go('/');
+        }
+      } else {
+        setState(() {
+          _errorMessage = 'Xtream login failed. Please check your credentials and try again.';
+        });
       }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+      });
     }
 
     if (mounted) {
@@ -267,25 +263,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final m3uPassword = _m3uPasswordController.text.trim();
 
     if (m3uUrl.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter an M3U URL or pick a file.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      setState(() {
+        _errorMessage = 'Please enter an M3U URL or pick a file.';
+      });
       return;
     }
 
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
 
     try {
-      // For M3U, we just save the URL. No API call needed for login.
       final credentialsRepository = ref.read(credentialsRepositoryProvider);
       final newCredential = M3uCredentials(
-        id: m3uUrl, // Using URL as ID for simplicity
-        name: 'M3U: $m3uUrl', // User-friendly name
+        id: m3uUrl,
+        name: 'M3U: $m3uUrl',
         m3uUrl: m3uUrl,
         username: m3uUsername.isNotEmpty ? m3uUsername : null,
         password: m3uPassword.isNotEmpty ? m3uPassword : null,
@@ -297,14 +290,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('M3U login failed: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      setState(() {
+        _errorMessage = e.toString();
+      });
     }
 
     if (mounted) {
@@ -316,8 +304,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _deleteCredential(Credentials credential) async {
     final credentialsRepository = ref.read(credentialsRepositoryProvider);
-    await credentialsRepository.deleteCredential(credential.id); // Use credential.id for deletion
-    ref.invalidate(savedCredentialsProvider); // Refresh the list
+    await credentialsRepository.deleteCredential(credential.id);
+    ref.invalidate(savedCredentialsProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Credential deleted.')),
@@ -353,6 +341,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ],
               ),
             ),
+            if (_errorMessage != null)
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Text(
+                  _errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
             const Divider(),
             Padding(
               padding: const EdgeInsets.all(8.0),
@@ -481,7 +477,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Form(
-        // No GlobalKey for now, as validation is not yet implemented for Xtream
         child: Column(
           children: [
             TextFormField(
@@ -490,7 +485,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 labelText: 'URL',
                 hintText: 'http://your-xtream-url.com',
               ),
-              // No validator for now
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -499,7 +493,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 labelText: 'Username',
                 hintText: 'your_username',
               ),
-              // No validator for now
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -508,11 +501,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 labelText: 'Password',
                 hintText: 'your_password',
               ),
-              obscureText: true, // Hide password
-              // No validator for now
+              obscureText: true,
             ),
             const SizedBox(height: 32),
-            // New Xtream Login Button (will add _xtreamLogin method later)
             ElevatedButton(
               onPressed: _xtreamLogin,
               child: const Text('Xtream Login'),
@@ -562,7 +553,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _m3uLogin,
-              child: const Text('M3U Login'),
+              child: const Text('Login with M3U'),
             ),
           ],
         ),

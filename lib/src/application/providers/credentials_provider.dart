@@ -8,6 +8,8 @@ import 'package:openiptv/src/data/repository/credentials_repository.dart';
 import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Added import
 import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Added import
 
+import 'package:openiptv/src/core/models/xtream_credentials.dart';
+
 part 'credentials_provider.g.dart';
 
 @riverpod
@@ -38,6 +40,8 @@ Future<String?> portalId(Ref ref) async {
       return activeCredential.baseUrl;
     } else if (activeCredential is M3uCredentials) {
       return activeCredential.m3uUrl;
+    } else if (activeCredential is XtreamCredentials) {
+      return activeCredential.url;
     }
   }
   return null; // No portalId found

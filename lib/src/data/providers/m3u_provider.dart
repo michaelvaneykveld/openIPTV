@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
 import '../../core/models/models.dart'; // Ensure models.dart is imported for VodCategory, VodContent, Genre, Channel
+import '../../core/models/epg_programme.dart';
 
 /// An implementation of [IProvider] for M3U playlists.
 ///
@@ -140,6 +141,16 @@ class M3uProvider implements IProvider {
 
   @override
   Future<List<Channel>> fetchRadioChannels(String genreId) async {
+    return [];
+  }
+
+  @override
+  Future<List<Channel>> getAllChannels(String genreId) async {
+    return [];
+  }
+
+  @override
+  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
     return [];
   }
 }

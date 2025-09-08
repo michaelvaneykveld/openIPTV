@@ -6,17 +6,13 @@ class XtreamCredentials extends Credentials {
   final String password;
 
   XtreamCredentials({
-    required super.id,
-    required super.name,
     required this.url,
     required this.username,
     required this.password,
-  }) : super(type: 'xtream');
+  }) : super(id: '$url-$username', name: 'Xtream: $username', type: 'xtream');
 
   factory XtreamCredentials.fromJson(Map<String, dynamic> json) {
     return XtreamCredentials(
-      id: json['id'] as String,
-      name: json['name'] as String,
       url: json['url'] as String,
       username: json['username'] as String,
       password: json['password'] as String,

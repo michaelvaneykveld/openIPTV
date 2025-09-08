@@ -2,6 +2,7 @@ import 'package:openiptv/utils/app_logger.dart';
 import 'package:dio/dio.dart';
 import 'package:openiptv/src/core/api/iprovider.dart';
 import 'package:openiptv/src/core/models/models.dart';
+import 'package:openiptv/src/core/models/epg_programme.dart';
 import 'package:openiptv/src/data/datasources/secure_storage_interface.dart';
 
 class StalkerApiProvider implements IProvider {
@@ -159,6 +160,47 @@ class StalkerApiProvider implements IProvider {
       }
     } catch (e) {
       appLogger.e('Error fetching genres: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<List<Channel>> getAllChannels(String genreId) async {
+    try {
+      final savedCredentials = await _secureStorage.getCredentialsList();
+      if (savedCredentials.isEmpty) {
+        throw Exception('No saved credentials found. Please log in.');
+      }
+      final StalkerCredentials stalkerCredentials = savedCredentials.first as StalkerCredentials;
+      final portalUrl = stalkerCredentials.baseUrl.replaceAll(RegExp(r'/$'), '');
+      final macAddress = stalkerCredentials.macAddress;
+
+      final token = await _getAuthenticatedToken();
+
+      final response = await _dio.get(
+        '$portalUrl/stalker_portal/server/load.php',
+        queryParameters: {
+          'type': 'itv',
+          'action': 'get_all_channels',
+          'genre': genreId,
+        },
+        options: _getAuthOptions(token!, macAddress),
+      );
+
+      final Map<String, dynamic> responseData = response.data;
+
+      if (response.statusCode == 200 &&
+          responseData['js'] != null &&
+          responseData['js']['data'] != null) {
+        final channelsData = responseData['js']['data'] as List;
+        return channelsData
+            .map((channelData) => Channel.fromJson(channelData))
+            .toList();
+      } else {
+        throw Exception('Failed to fetch channels');
+      }
+    } catch (e) {
+      appLogger.e('Error fetching channels for genre $genreId: $e');
       return [];
     }
   }
@@ -323,6 +365,46 @@ class StalkerApiProvider implements IProvider {
     }
   }
 
+  @override
+  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
+    try {
+      final savedCredentials = await _secureStorage.getCredentialsList();
+      if (savedCredentials.isEmpty) {
+        throw Exception('No saved credentials found. Please log in.');
+      }
+      final StalkerCredentials stalkerCredentials = savedCredentials.first as StalkerCredentials;
+      final portalUrl = stalkerCredentials.baseUrl.replaceAll(RegExp(r'/$'), '');
+      final macAddress = stalkerCredentials.macAddress;
+
+      final token = await _getAuthenticatedToken();
+
+      final response = await _dio.get(
+        '$portalUrl/stalker_portal/server/load.php',
+        queryParameters: {
+          'type': 'epg',
+          'action': 'get_epg_info',
+          'ch_id': chId,
+          'period': period,
+        },
+        options: _getAuthOptions(token!, macAddress),
+      );
+
+      final Map<String, dynamic> responseData = response.data;
+
+      if (response.statusCode == 200 &&
+          responseData['js'] != null &&
+          responseData['js']['data'] != null) {
+        final epgData = responseData['js']['data'] as List;
+        return epgData.map((epgData) => EpgProgramme.fromJson(epgData)).toList();
+      } else {
+        throw Exception('Failed to fetch EPG info');
+      }
+    } catch (e) {
+      appLogger.e('Error fetching EPG for channel $chId: $e');
+      return [];
+    }
+  }
+
   // Implement login and logout methods
   Future<bool> login(String portalUrl, String macAddress) async {
     try {
@@ -330,7 +412,7 @@ class StalkerApiProvider implements IProvider {
       if (token != null) {
         // Save credentials after successful login
         await _secureStorage.saveCredentials(
-            StalkerCredentials(id: portalUrl, name: 'Stalker Portal', baseUrl: portalUrl, macAddress: macAddress));
+            StalkerCredentials(baseUrl: portalUrl, macAddress: macAddress));
         return true;
       }
       return false;

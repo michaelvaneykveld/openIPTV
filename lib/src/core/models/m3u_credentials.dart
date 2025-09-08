@@ -8,17 +8,13 @@ class M3uCredentials extends Credentials {
   final String? password;
 
   M3uCredentials({
-    required super.id,
-    required super.name,
     required this.m3uUrl,
     this.username,
     this.password,
-  }) : super(type: 'm3u'); // Add type for serialization
+  }) : super(id: '$m3uUrl-${username ?? ''}', name: 'M3U: ${username ?? m3uUrl}', type: 'm3u');
 
   factory M3uCredentials.fromJson(Map<String, dynamic> json) {
     return M3uCredentials(
-      id: json['id'] as String,
-      name: json['name'] as String,
       m3uUrl: json['m3uUrl'] as String,
       username: json['username'] as String?,
       password: json['password'] as String?,

@@ -1,26 +1,33 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openiptv/src/application/providers/api_provider.dart';
+import 'package:openiptv/src/core/api/iprovider.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
-import 'package:openiptv/src/data/models.dart';
-import 'package:openiptv/src/data/models/epg_programme.dart';
-import 'package:openiptv/src/data/stalker_api_service.dart';
+import 'package:openiptv/src/core/models/models.dart';
+import 'package:openiptv/src/core/models/epg_programme.dart';
 import 'package:openiptv/utils/app_logger.dart';
 
-class StalkerRepository {
-  final StalkerApiService _apiService;
-  final DatabaseHelper _databaseHelper;
-  final String portalId;
+final stalkerRepositoryProvider = Provider<StalkerRepository>((ref) {
+  final provider = ref.watch(stalkerApiProvider);
+  final databaseHelper = DatabaseHelper.instance;
+  return StalkerRepository(provider, databaseHelper);
+});
 
-  StalkerRepository(StalkerApiService apiService, DatabaseHelper databaseHelper, this.portalId) : _apiService = apiService, _databaseHelper = databaseHelper;
+class StalkerRepository {
+  final IProvider _provider;
+  final DatabaseHelper _databaseHelper;
+
+  StalkerRepository(this._provider, this._databaseHelper);
 
   Future<void> synchronizeData(String portalId) async {
     appLogger.d('Starting data synchronization for portal: $portalId...');
     await _databaseHelper.clearAllData(portalId); // Clear existing data for this portal before syncing
 
     // Fetch and store Genres
-    final genres = await _apiService.getGenres();
+    final genres = await _provider.getGenres();
     for (var genre in genres) {
       await _databaseHelper.insertGenre(genre.toMap(), portalId);
       // For each genre, fetch and store its channels
-      final channels = await _apiService.getAllChannels(genre.id);
+      final channels = await _provider.getAllChannels(genre.id);
       for (var channel in channels) {
         await _databaseHelper.insertChannel(channel.toMap(), portalId);
       }
@@ -28,11 +35,11 @@ class StalkerRepository {
     appLogger.d('Genres and Channels synchronized.');
 
     // Fetch and store VOD Categories
-    final vodCategories = await _apiService.getVodCategories();
+    final vodCategories = await _provider.fetchVodCategories();
     for (var category in vodCategories) {
-      await _databaseHelper.insertVodCategory(category.toMap(), portalId);
+      await _databaseHelper.insertVodCategory(category.toJson(), portalId);
       // For each VOD category, fetch and store its content
-      final vodContent = await _apiService.getVodContent(category.id);
+      final vodContent = await _provider.fetchVodContent(category.id);
       for (var content in vodContent) {
         await _databaseHelper.insertVodContent(content.toMap(), portalId);
       }
@@ -46,7 +53,7 @@ class StalkerRepository {
     final allChannels = allChannelsMaps.map((e) => Channel.fromJson(e)).toList();
     for (var channel in allChannels) {
       try {
-        final epgPrograms = await _apiService.getEpgInfo(chId: channel.id, period: 24);
+        final epgPrograms = await _provider.getEpgInfo(chId: channel.id, period: 24);
         appLogger.d('Fetched \${epgPrograms.length} EPG programs for channel \${channel.id}.'); // Added log
         await _saveEpgPrograms(epgPrograms, portalId: portalId); // Call to save EPG programs
       } catch (e, stackTrace) {

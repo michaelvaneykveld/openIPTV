@@ -12,6 +12,8 @@ import 'package:openiptv/src/core/models/xtream_credentials.dart'; // Import Xtr
 import 'package:openiptv/src/data/xtream_api_service.dart'; // Import XtreamApiService
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'package:openiptv/src/application/services/channel_sync_service.dart';
+import 'package:openiptv/src/core/exceptions/api_exceptions.dart'; // New import
 
 
 // Custom TextInputFormatter for MAC address
@@ -189,6 +191,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         final success = await stalkerApi.login(portalUrl, macAddress);
 
         if (success) {
+          final credentialsRepository = ref.read(credentialsRepositoryProvider);
+          final newCredential = StalkerCredentials(
+            baseUrl: portalUrl,
+            macAddress: macAddress,
+          );
+          await credentialsRepository.saveCredential(newCredential);
+          final channelSyncService = ref.read(channelSyncServiceProvider);
+          await channelSyncService.syncChannels(newCredential.id);
           ref.invalidate(savedCredentialsProvider);
           if (mounted) {
             context.go('/');
@@ -237,13 +247,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       if (success) {
         final credentialsRepository = ref.read(credentialsRepositoryProvider);
         final newCredential = XtreamCredentials(
-          id: xtreamUrl,
-          name: 'Xtream: $xtreamUsername',
           url: xtreamUrl,
           username: xtreamUsername,
           password: xtreamPassword,
         );
         await credentialsRepository.saveCredential(newCredential);
+        final channelSyncService = ref.read(channelSyncServiceProvider);
+        await channelSyncService.syncChannels(newCredential.id);
         ref.invalidate(savedCredentialsProvider);
 
         if (mounted) {
@@ -254,6 +264,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
           _errorMessage = 'Xtream login failed. Please check your credentials and try again.';
         });
       }
+    } on InvalidApiResponseException catch (e) {
+      setState(() {
+        _errorMessage = 'Xtream login failed: Unexpected API response format. Please ensure you are using the correct Xtream API base URL, not an M3U download link. Error: ${e.message}';
+      });
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
@@ -287,13 +301,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     try {
       final credentialsRepository = ref.read(credentialsRepositoryProvider);
       final newCredential = M3uCredentials(
-        id: m3uUrl,
-        name: 'M3U: $m3uUrl',
         m3uUrl: m3uUrl,
         username: m3uUsername.isNotEmpty ? m3uUsername : null,
         password: m3uPassword.isNotEmpty ? m3uPassword : null,
       );
       await credentialsRepository.saveCredential(newCredential);
+      final channelSyncService = ref.read(channelSyncServiceProvider);
+      await channelSyncService.syncChannels(newCredential.id);
       ref.invalidate(savedCredentialsProvider);
 
       if (mounted) {
@@ -532,12 +546,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       child: Form(
         child: Column(
           children: [
-            TextFormField(
-              controller: _m3uUrlController,
-              decoration: const InputDecoration(
-                labelText: 'M3U URL or File Path',
-                hintText: 'http://... or /path/to/playlist.m3u',
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _m3uUrlController,
+                    decoration: const InputDecoration(
+                      labelText: 'M3U URL',
+                      hintText: 'http://... or /path/to/playlist.m3u',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _pickM3uFile,
+                  icon: const Icon(Icons.folder_open),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -556,16 +580,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
               ),
               obscureText: true,
             ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _pickM3uFile,
-              icon: const Icon(Icons.folder_open),
-              label: const Text('Pick M3U File'),
-            ),
             const SizedBox(height: 32),
             ElevatedButton(
               onPressed: _m3uLogin,
-              child: const Text('Login with M3U'),
+              child: const Text('Login'),
             ),
           ],
         ),

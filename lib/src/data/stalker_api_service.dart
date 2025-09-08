@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:openiptv/utils/app_logger.dart';
-import 'package:openiptv/src/data/models.dart';
-import 'package:openiptv/src/data/models/epg_programme.dart';
+import 'package:openiptv/src/core/models/models.dart';
+import 'package:openiptv/src/core/models/epg_programme.dart';
 
 class StalkerApiService {
   final Dio _dio;

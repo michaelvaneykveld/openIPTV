@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
-import 'package:openiptv/src/data/models.dart';
+import 'package:openiptv/src/core/models/models.dart';
 import 'package:openiptv/utils/app_logger.dart';
 
 // Define a data structure for a tree node

@@ -11,16 +11,12 @@ class StalkerCredentials extends Credentials {
   final String macAddress;
 
   StalkerCredentials({
-    required super.id,
-    required super.name,
     required this.baseUrl,
     required this.macAddress,
-  }) : super(type: 'stalker'); // Add type for serialization
+  }) : super(id: '$baseUrl-$macAddress', name: 'Stalker: $macAddress', type: 'stalker');
 
   factory StalkerCredentials.fromJson(Map<String, dynamic> json) {
     return StalkerCredentials(
-      id: json['id'] as String,
-      name: json['name'] as String,
       baseUrl: json['baseUrl'] as String,
       macAddress: json['macAddress'] as String,
     );

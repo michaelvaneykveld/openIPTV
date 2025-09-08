@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 
 import '../../core/api/iprovider.dart';
 import '../../core/models/models.dart';
+import '../../core/models/epg_programme.dart';
 
 /// An implementation of [IProvider] for Stalker Portals.
 ///
@@ -30,7 +31,7 @@ class StalkerProvider implements IProvider {
   Future<List<Channel>> fetchLiveChannels() async {
     try {
       // Step 1: Fetch the genre mapping first.
-      final genreMap = await _fetchGenres();
+      final genreMap = await _fetchGenres('itv');
       appLogger.d('Successfully fetched ${genreMap.length} genres.');
 
       // Step 2: Fetch all channels.
@@ -58,9 +59,9 @@ class StalkerProvider implements IProvider {
 
   /// Fetches the list of genres to map genre IDs to human-readable names.
   /// Returns a Map where the key is the genre ID and the value is the genre title.
-  Future<Map<String, String>> _fetchGenres() async {
+  Future<Map<String, String>> _fetchGenres(String type) async {
     final url =
-        '$_baseUrl/server/load.php?type=itv&action=get_genres&mac=$_macAddress';
+        '$_baseUrl/server/load.php?type=$type&action=get_genres&mac=$_macAddress';
     appLogger.d('Fetching Stalker genres from: $url');
 
     final response = await _dio.get<String>(
@@ -140,7 +141,7 @@ class StalkerProvider implements IProvider {
 
   @override
   Future<List<Genre>> getGenres() async {
-    final genres = await _fetchGenres();
+    final genres = await _fetchGenres('itv');
     return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
   }
 
@@ -216,10 +217,17 @@ class StalkerProvider implements IProvider {
 
   @override
   Future<List<Genre>> fetchRadioGenres() async {
+    final genres = await _fetchGenres('radio');
+    return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
+  }
+
+  @override
+  Future<List<Channel>> fetchRadioChannels(String genreId) async {
     try {
+      final genreMap = await _fetchGenres('radio');
       final url =
-          '$_baseUrl/server/load.php?type=radio&action=get_genres&mac=$_macAddress';
-      appLogger.d('Fetching Stalker Radio genres from: $url');
+          '$_baseUrl/server/load.php?type=radio&action=get_all_channels&genre=$genreId&mac=$_macAddress';
+      appLogger.d('Fetching Stalker radio channels from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -229,32 +237,44 @@ class StalkerProvider implements IProvider {
         ),
       );
 
-      if (response.data == null || response.data!.trim().isEmpty) {
-        throw Exception('Received an empty response from the server for Radio genres.');
-      }
-
-      final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
-      final List<dynamic>? genreListData = jsonResponse['js']?['data'];
-
-      if (genreListData == null || genreListData.isEmpty) {
-        appLogger.w('Radio genre list is empty or not in the expected format.');
-        return [];
-      }
-
-      return genreListData.map((item) => Genre.fromJson(item as Map<String, dynamic>)).toList();
+      return _parseChannelsFromJson(response.data.toString(), genreMap);
     } catch (e, stackTrace) {
-      appLogger.e('Error fetching Radio genres',
+      appLogger.e('Error in fetchRadioChannels sequence',
           error: e, stackTrace: stackTrace);
       rethrow;
     }
   }
 
   @override
-  Future<List<Channel>> fetchRadioChannels(String genreId) async {
+  Future<List<Channel>> getAllChannels(String genreId) async {
+    try {
+      final genreMap = await _fetchGenres('itv');
+      final url =
+          '$_baseUrl/server/load.php?type=itv&action=get_all_channels&genre=$genreId&mac=$_macAddress';
+      appLogger.d('Fetching Stalker channels from: $url');
+
+      final response = await _dio.get<String>(
+        url,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+
+      return _parseChannelsFromJson(response.data.toString(), genreMap);
+    } catch (e, stackTrace) {
+      appLogger.e('Error in getAllChannels sequence',
+          error: e, stackTrace: stackTrace);
+      rethrow;
+    }
+  }
+
+    @override
+  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
     try {
       final url =
-          '$_baseUrl/server/load.php?type=radio&action=get_all_channels&genre=$genreId&mac=$_macAddress';
-      appLogger.d('Fetching Stalker Radio channels from: $url');
+          '$_baseUrl/server/load.php?type=epg&action=get_epg_info&ch_id=$chId&period=$period&mac=$_macAddress';
+      appLogger.d('Fetching Stalker EPG info from: $url');
 
       final response = await _dio.get<String>(
         url,
@@ -265,40 +285,20 @@ class StalkerProvider implements IProvider {
       );
 
       if (response.data == null || response.data!.trim().isEmpty) {
-        throw Exception('Received an empty response from the server for Radio channels.');
+        throw Exception('Received an empty response from the server for EPG info.');
       }
 
       final Map<String, dynamic> jsonResponse = jsonDecode(response.data!);
-      final List<dynamic>? channelListData = jsonResponse['js']?['data'];
+      final List<dynamic>? epgData = jsonResponse['js']?['data'];
 
-      if (channelListData == null || channelListData.isEmpty) {
-        appLogger.w('Radio channel list is empty or not in the expected format.');
+      if (epgData == null || epgData.isEmpty) {
+        appLogger.w('EPG data is empty or not in the expected format.');
         return [];
       }
 
-      // For radio channels, we might not have genre mapping readily available in the same way as live TV.
-      // Assuming radio channels also have 'logo', 'cmd' (for streamUrl), 'xmltv_id' (for epgId)
-      return channelListData.whereType<Map<String, dynamic>>().map((item) {
-        final id = item['id']?.toString() ?? '';
-        final name = item['name']?.toString() ?? 'Unnamed Radio Channel';
-        final logo = item['logo']?.toString();
-        final cmd = item['cmd']?.toString() ?? '';
-        final parts = cmd.split(' ');
-        final streamUrl = parts.isNotEmpty ? parts.last : '';
-        final epgId = item['xmltv_id']?.toString() ?? id;
-
-        return Channel(
-          id: id,
-          name: name,
-          logo: logo,
-          streamUrl: streamUrl,
-          group: genreId, // Use the requested genreId as the group for radio channels
-          epgId: epgId,
-        );
-      }).toList();
+      return epgData.map((item) => EpgProgramme.fromJson(item as Map<String, dynamic>)).toList();
     } catch (e, stackTrace) {
-      appLogger.e('Error fetching Radio channels',
-          error: e, stackTrace: stackTrace);
+      appLogger.e('Error fetching EPG info', error: e, stackTrace: stackTrace);
       rethrow;
     }
   }

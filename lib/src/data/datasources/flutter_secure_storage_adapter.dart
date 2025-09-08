@@ -33,8 +33,6 @@ class FlutterSecureStorageAdapter implements SecureStorageInterface {
   @override
   Future<void> saveCredentials(Credentials credentials) async {
     final List<Credentials> currentCredentials = await getCredentialsList();
-    // Remove existing credential with the same ID to avoid duplicates
-    currentCredentials.removeWhere((c) => c.id == credentials.id);
     currentCredentials.add(credentials);
     final List<Map<String, dynamic>> jsonList = currentCredentials.map((c) => c.toJson()).toList();
     await _storage.write(key: _credentialsListKey, value: jsonEncode(jsonList));

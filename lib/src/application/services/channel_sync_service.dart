@@ -1,5 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/src/data/stalker_repository.dart';
 import 'package:openiptv/utils/app_logger.dart';
+
+final channelSyncServiceProvider = Provider<ChannelSyncService>((ref) {
+  final stalkerRepository = ref.watch(stalkerRepositoryProvider);
+  return ChannelSyncService(stalkerRepository);
+});
 
 class ChannelSyncService {
   final StalkerRepository _stalkerRepository;

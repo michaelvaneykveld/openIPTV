@@ -31,7 +31,7 @@ class ContentGroupingService {
         .map((e) => Genre.fromJson(e))
         .toList();
     final allChannels = (results[1])
-        .map((e) => Channel.fromJson(e))
+        .map((e) => Channel.fromStalkerJson(e))
         .toList();
     final allVodCategories = (results[2])
         .map((e) => VodCategory.fromJson(e))

@@ -303,6 +303,7 @@ class DatabaseHelper {
   // --- CRUD Operations for Genres ---
   Future<int> insertGenre(Map<String, dynamic> genre, String portalId) async {
     try {
+      appLogger.d('Inserting genre: $genre for portal: $portalId');
       final db = await instance.database;
       final id = await db.insert(tableGenres, {...genre, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted genre with id: $id for portal: $portalId');
@@ -322,6 +323,9 @@ class DatabaseHelper {
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${genres.length} genres for portal: $portalId');
+      if (genres.isNotEmpty) {
+        appLogger.d('First genre: ${genres.first}');
+      }
       return genres;
     } catch (e) {
       appLogger.e('Error getting all genres for portal $portalId', error: e);
@@ -351,6 +355,7 @@ class DatabaseHelper {
 
   Future<int> updateGenre(Map<String, dynamic> genre, String portalId) async {
     try {
+      appLogger.d('Updating genre: $genre for portal: $portalId');
       final db = await instance.database;
       final id = genre[columnGenreId];
       final rowsAffected = await db.update(
@@ -386,6 +391,7 @@ class DatabaseHelper {
   // --- CRUD Operations for VOD Categories ---
   Future<int> insertVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
     try {
+      appLogger.d('Inserting VOD category: $vodCategory for portal: $portalId');
       final db = await instance.database;
       final id = await db.insert(tableVodCategories, {...vodCategory, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted VOD category with id: $id for portal: $portalId');
@@ -405,6 +411,9 @@ class DatabaseHelper {
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${vodCategories.length} VOD categories for portal: $portalId');
+      if (vodCategories.isNotEmpty) {
+        appLogger.d('First VOD category: ${vodCategories.first}');
+      }
       return vodCategories;
     } catch (e) {
       appLogger.e('Error getting all VOD categories for portal $portalId: $e');
@@ -434,6 +443,7 @@ class DatabaseHelper {
 
   Future<int> updateVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
     try {
+      appLogger.d('Updating VOD category: $vodCategory for portal: $portalId');
       final db = await instance.database;
       final id = vodCategory[columnVodCategoryId];
       final rowsAffected = await db.update(
@@ -469,6 +479,7 @@ class DatabaseHelper {
   // --- CRUD Operations for Channels ---
   Future<int> insertChannel(Map<String, dynamic> channel, String portalId) async {
     try {
+      appLogger.d('Inserting channel: $channel for portal: $portalId');
       final db = await instance.database;
       final id = await db.insert(tableChannels, {...channel, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted channel with id: $id for portal: $portalId');
@@ -488,6 +499,9 @@ class DatabaseHelper {
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${channels.length} channels for portal: $portalId');
+      if (channels.isNotEmpty) {
+        appLogger.d('First channel: ${channels.first}');
+      }
       return channels;
     } catch (e) {
       appLogger.e('Error getting all channels for portal $portalId: $e');
@@ -517,6 +531,7 @@ class DatabaseHelper {
 
   Future<int> updateChannel(Map<String, dynamic> channel, String portalId) async {
     try {
+      appLogger.d('Updating channel: $channel for portal: $portalId');
       final db = await instance.database;
       final id = channel[columnChannelId];
       final rowsAffected = await db.update(
@@ -552,6 +567,7 @@ class DatabaseHelper {
   // --- CRUD Operations for Channel CMDS ---
   Future<int> insertChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
     try {
+      appLogger.d('Inserting channel command: $channelCmd for portal: $portalId');
       final db = await instance.database;
       final id = await db.insert(tableChannelCmds, {...channelCmd, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted channel command with id: $id for portal: $portalId');
@@ -571,6 +587,9 @@ class DatabaseHelper {
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${channelCmds.length} channel commands for portal: $portalId');
+      if (channelCmds.isNotEmpty) {
+        appLogger.d('First channel command: ${channelCmds.first}');
+      }
       return channelCmds;
     } catch (e) {
       appLogger.e('Error getting all channel commands for portal $portalId: $e');
@@ -600,6 +619,7 @@ class DatabaseHelper {
 
   Future<int> updateChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
     try {
+      appLogger.d('Updating channel command: $channelCmd for portal: $portalId');
       final db = await instance.database;
       final id = channelCmd[columnCmdId];
       final rowsAffected = await db.update(
@@ -625,6 +645,9 @@ class DatabaseHelper {
         whereArgs: [channelId, portalId],
       );
       appLogger.d('Retrieved ${channelCmds.length} channel commands for channel $channelId for portal: $portalId.');
+      if (channelCmds.isNotEmpty) {
+        appLogger.d('First channel command for channel $channelId: ${channelCmds.first}');
+      }
       return channelCmds;
     } catch (e) {
       appLogger.e('Error getting channel commands for channel $channelId for portal $portalId: $e');
@@ -635,6 +658,7 @@ class DatabaseHelper {
   // --- CRUD Operations for VOD Content ---
   Future<int> insertVodContent(Map<String, dynamic> vodContent, String portalId) async {
     try {
+      appLogger.d('Inserting VOD content: $vodContent for portal: $portalId');
       final db = await instance.database;
       final id = await db.insert(tableVodContent, {...vodContent, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted VOD content with id: $id for portal: $portalId');
@@ -654,6 +678,9 @@ class DatabaseHelper {
         whereArgs: [portalId],
       );
       appLogger.d('Retrieved ${vodContent.length} VOD content items for portal: $portalId.');
+      if (vodContent.isNotEmpty) {
+        appLogger.d('First VOD content: ${vodContent.first}');
+      }
       return vodContent;
     } catch (e) {
       appLogger.e('Error getting all VOD content for portal $portalId: $e');
@@ -670,6 +697,9 @@ class DatabaseHelper {
         whereArgs: [categoryId, portalId],
       );
       appLogger.d('Retrieved ${vodContent.length} VOD content items for category $categoryId for portal: $portalId.');
+      if (vodContent.isNotEmpty) {
+        appLogger.d('First VOD content for category $categoryId: ${vodContent.first}');
+      }
       return vodContent;
     } catch (e) {
       appLogger.e('Error getting VOD content for category $categoryId for portal $portalId: $e');
@@ -699,6 +729,7 @@ class DatabaseHelper {
 
   Future<int> updateVodContent(Map<String, dynamic> vodContent, String portalId) async {
     try {
+      appLogger.d('Updating VOD content: $vodContent for portal: $portalId');
       final db = await instance.database;
       final id = vodContent[columnVodContentId];
       final rowsAffected = await db.update(
@@ -734,6 +765,10 @@ class DatabaseHelper {
   // --- CRUD Operations for EPG ---
   Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, {required String portalId}) async {
     final db = await instance.database;
+    appLogger.d('Inserting ${programmes.length} EPG programmes for portal: $portalId');
+    if (programmes.isNotEmpty) {
+      appLogger.d('First EPG programme: ${programmes.first}');
+    }
     await db.transaction((txn) async {
       for (final programme in programmes) {
         await txn.insert(
@@ -755,6 +790,9 @@ class DatabaseHelper {
       orderBy: '$columnEpgStart ASC',
     );
     appLogger.d('Retrieved ${maps.length} EPG programmes for channel $channelId and portal: $portalId');
+    if (maps.isNotEmpty) {
+      appLogger.d('First EPG programme for channel $channelId: ${maps.first}');
+    }
     return maps;
   }
 }

@@ -116,26 +116,10 @@ class StalkerProvider implements IProvider {
 
     // Parse the raw JSON directly into the app's domain models.
     return channelListData.whereType<Map<String, dynamic>>().map((item) {
-      final id = item['id']?.toString() ?? '';
-      final name = item['name']?.toString() ?? 'Unnamed Channel';
-      final logo = item['logo']?.toString(); // Changed logoUrl to logo
-      final cmd = item['cmd']?.toString() ?? '';
-      final parts = cmd.split(' ');
-      final streamUrl = parts.isNotEmpty ? parts.last : '';
-
-      // Use the genre map to find the group name.
       final genreId = item['tv_genre_id']?.toString() ?? '';
       final groupName = genreMap[genreId] ?? 'Uncategorized';
-
-      return Channel(
-        id: id,
-        name: name,
-        logo: logo, // Changed logoUrl to logo
-        streamUrl: streamUrl,
-        group: groupName,
-        // Use the 'xmltv_id' for EPG mapping if available, otherwise fall back to the channel ID.
-        epgId: item['xmltv_id']?.toString() ?? id,
-      );
+      item['group_title'] = groupName;
+      return Channel.fromStalkerJson(item);
     }).toList();
   }
 
@@ -296,7 +280,7 @@ class StalkerProvider implements IProvider {
         return [];
       }
 
-      return epgData.map((item) => EpgProgramme.fromJson(item as Map<String, dynamic>)).toList();
+      return epgData.map((item) => EpgProgramme.fromStalkerJson(item as Map<String, dynamic>)).toList();
     } catch (e, stackTrace) {
       appLogger.e('Error fetching EPG info', error: e, stackTrace: stackTrace);
       rethrow;

@@ -1,3 +1,4 @@
+import 'package:openiptv/utils/app_logger.dart';
 
 class EpgProgramme {
   final String id;
@@ -18,8 +19,8 @@ class EpgProgramme {
     this.portalId,
   });
 
-  factory EpgProgramme.fromJson(Map<String, dynamic> json) {
-    return EpgProgramme(
+  factory EpgProgramme.fromStalkerJson(Map<String, dynamic> json) {
+    final programme = EpgProgramme(
       id: json['id'],
       title: json['name'],
       description: json['descr'],
@@ -27,6 +28,18 @@ class EpgProgramme {
       end: DateTime.fromMillisecondsSinceEpoch(json['stop_timestamp'] * 1000),
       channelId: json['channel_id'],
     );
+    _logEpgProgrammeDifferences(programme, 'Stalker');
+    return programme;
+  }
+
+  static void _logEpgProgrammeDifferences(EpgProgramme programme, String type) {
+    appLogger.d('[$type] EPG Programme created: ${programme.title}');
+    appLogger.d('[$type] ID: ${programme.id}');
+    appLogger.d('[$type] Title: ${programme.title}');
+    appLogger.d('[$type] Description: ${programme.description}');
+    appLogger.d('[$type] Start: ${programme.start}');
+    appLogger.d('[$type] End: ${programme.end}');
+    appLogger.d('[$type] Channel ID: ${programme.channelId}');
   }
 
   Map<String, dynamic> toMap() {

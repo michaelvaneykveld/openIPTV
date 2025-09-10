@@ -50,7 +50,7 @@ class StalkerRepository {
 
     // Fetch and store EPG data for all channels
     final allChannelsMaps = await _databaseHelper.getAllChannels(portalId);
-    final allChannels = allChannelsMaps.map((e) => Channel.fromJson(e)).toList();
+    final allChannels = allChannelsMaps.map((e) => Channel.fromStalkerJson(e)).toList();
     for (var channel in allChannels) {
       try {
         final epgPrograms = await _provider.getEpgInfo(chId: channel.id, period: 24);
@@ -71,7 +71,7 @@ class StalkerRepository {
   Future<List<EpgProgramme>> getEpgForChannel(String channelId, String portalId) async {
     final List<Map<String, dynamic>> epgMaps = await _databaseHelper.getEpgForChannel(channelId, portalId);
     return epgMaps.map((map) {
-      final program = EpgProgramme.fromJson(map);
+      final program = EpgProgramme.fromStalkerJson(map);
       program.portalId = int.parse(portalId);
       return program;
     }).toList();

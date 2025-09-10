@@ -22,7 +22,7 @@ class ChannelLocalDataSource {
     final List<Channel> channels = [];
 
     for (var channelMap in channelMaps) {
-      final Channel channel = Channel.fromJson(channelMap);
+      final Channel channel = Channel.fromStalkerJson(channelMap);
       final List<Map<String, dynamic>> cmdMaps = await _dbHelper.getChannelCmdsForChannel(channel.id, portalId);
       final List<ChannelCmd> cmds = cmdMaps.map((cmdMap) => ChannelCmd.fromJson(cmdMap, channelId: channel.id)).toList();
       

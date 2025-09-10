@@ -80,7 +80,7 @@ class StalkerApiService {
       appLogger.d('Get all channels response for genre $genreId: ${response.data}');
       if (response.data is Map && response.data['js'] is List) {
         return (response.data['js'] as List)
-            .map((e) => Channel.fromJson(e as Map<String, dynamic>))
+            .map((e) => Channel.fromStalkerJson(e as Map<String, dynamic>))
             .toList();
       }
       return [];
@@ -150,7 +150,7 @@ class StalkerApiService {
       appLogger.d('Get EPG info response for channel $chId, period $period: ${response.data}');
       if (response.data is Map && response.data['js'] is List) {
         return (response.data['js'] as List)
-            .map((e) => EpgProgramme.fromJson(e as Map<String, dynamic>))
+            .map((e) => EpgProgramme.fromStalkerJson(e as Map<String, dynamic>))
             .toList();
       }
       return [];

@@ -1,5 +1,6 @@
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/core/models/channel_cmd.dart';
+import 'package:openiptv/utils/app_logger.dart';
 
 /// The Channel model, now adapted for Hive storage.
 /// Annotations are used by the hive_generator to create a TypeAdapter.
@@ -106,18 +107,18 @@ class Channel {
     this.epgId,
   });
 
-  factory Channel.fromJson(Map<String, dynamic> json) {
+  factory Channel.fromStalkerJson(Map<String, dynamic> json) {
     final List<dynamic>? cmdsJson = json['cmds'];
     final List<ChannelCmd>? cmds = cmdsJson?.map((cmdJson) => ChannelCmd.fromJson(cmdJson, channelId: json['id'] as String)).toList();
 
-    return Channel(
+    final channel = Channel(
       id: json['id'] as String,
       name: json['name'] as String,
       number: json['number'] as String?,
       logo: json['logo'] as String?,
       genreId: json['tv_genre_id'] as String?,
       xmltvId: json['xmltv_id'] as String?,
-      epg: json['epg'] as String?, // This might need more specific parsing if it's an array/object
+      epg: json['epg'] as String?,
       genresStr: json['genres_str'] as String?,
       curPlaying: json['cur_playing'] as String?,
       status: json['status'] as int?,
@@ -157,10 +158,51 @@ class Channel {
       open: json['open'] as int?,
       useLoadBalancing: json['use_load_balancing'] as int?,
       cmds: cmds,
-      streamUrl: json['url'] as String?, // Assuming 'url' from JSON is the stream URL
-      group: json['group_title'] as String?, // Assuming 'group_title' from JSON is the group
-      epgId: json['epg_id'] as String?, // Assuming 'epg_id' from JSON is the epgId
+      streamUrl: json['url'] as String?,
+      group: json['group_title'] as String?,
+      epgId: json['epg_id'] as String?,
     );
+    _logChannelDifferences(channel, 'Stalker');
+    return channel;
+  }
+
+  factory Channel.fromM3UEntry(Map<String, String> attributes, String streamUrl) {
+    final name = attributes['title'] ?? 'Unnamed Channel';
+    final tvgId = attributes['tvg-id'];
+    final channel = Channel(
+      id: (tvgId != null && tvgId.isNotEmpty) ? tvgId : streamUrl,
+      name: name,
+      logo: attributes['tvg-logo'] ?? '',
+      streamUrl: streamUrl,
+      group: attributes['group-title'] ?? 'Uncategorized',
+      epgId: tvgId ?? name,
+    );
+    _logChannelDifferences(channel, 'M3U');
+    return channel;
+  }
+
+  factory Channel.fromXtreamJson(Map<String, dynamic> json) {
+    final channel = Channel(
+      id: json['stream_id'].toString(),
+      name: json['name'] as String,
+      logo: json['stream_icon'] as String?,
+      streamUrl: json['stream_url'] as String?,
+      group: json['category_name'] as String?,
+      epgId: json['epg_channel_id'] as String?,
+      number: json['num'].toString(),
+    );
+    _logChannelDifferences(channel, 'Xtream');
+    return channel;
+  }
+
+  static void _logChannelDifferences(Channel channel, String type) {
+    appLogger.d('[$type] Channel created: ${channel.name}');
+    appLogger.d('[$type] ID: ${channel.id}');
+    appLogger.d('[$type] Name: ${channel.name}');
+    appLogger.d('[$type] Logo: ${channel.logo}');
+    appLogger.d('[$type] Stream URL: ${channel.streamUrl}');
+    appLogger.d('[$type] Group: ${channel.group}');
+    appLogger.d('[$type] EPG ID: ${channel.epgId}');
   }
 
   Map<String, dynamic> toMap() {
@@ -210,8 +252,6 @@ class Channel {
       'nginxSecureLink': nginxSecureLink,
       'open': open,
       'useLoadBalancing': useLoadBalancing,
-      // cmds are handled separately as they are a list of objects
-      // Add new fields to toMap if they need to be persisted
     };
   }
 }

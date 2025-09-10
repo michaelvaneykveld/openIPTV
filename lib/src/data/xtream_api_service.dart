@@ -9,6 +9,7 @@ class XtreamApiService {
   XtreamApiService(this._baseUrl) : _dio = Dio();
 
   Future<bool> login(String username, String password) async {
+    appLogger.d('Attempting Xtream login for user: $username');
     try {
       final response = await _dio.get(
         _baseUrl,

@@ -14,6 +14,7 @@ class StalkerApiProvider implements IProvider {
   static const _tokenKey = 'stalker_token';
 
   Future<String?> _performHandshake(String portalUrl, String macAddress) async {
+    appLogger.d('Performing handshake with portal: $portalUrl, mac: $macAddress');
     try {
       final response = await _dio.get(
         '$portalUrl/server/load.php',
@@ -25,6 +26,7 @@ class StalkerApiProvider implements IProvider {
           'JsHttpRequest': '1-xml',
         },
       );
+      appLogger.d('Handshake response: ${response.data}');
 
       final Map<String, dynamic> responseData = response.data;
 
@@ -115,7 +117,7 @@ class StalkerApiProvider implements IProvider {
           responseData['js']['data'] != null) {
         final channelsData = responseData['js']['data'] as List;
         return channelsData
-            .map((channelData) => Channel.fromJson(channelData))
+            .map((channelData) => Channel.fromStalkerJson(channelData))
             .toList();
       } else {
         throw Exception('Failed to fetch channels');
@@ -194,7 +196,7 @@ class StalkerApiProvider implements IProvider {
           responseData['js']['data'] != null) {
         final channelsData = responseData['js']['data'] as List;
         return channelsData
-            .map((channelData) => Channel.fromJson(channelData))
+            .map((channelData) => Channel.fromStalkerJson(channelData))
             .toList();
       } else {
         throw Exception('Failed to fetch channels');
@@ -354,7 +356,7 @@ class StalkerApiProvider implements IProvider {
           responseData['js']['data'] != null) {
         final channelsData = responseData['js']['data'] as List;
         return channelsData
-            .map((channelData) => Channel.fromJson(channelData))
+            .map((channelData) => Channel.fromStalkerJson(channelData))
             .toList();
       } else {
         throw Exception('Failed to fetch radio channels');
@@ -395,7 +397,7 @@ class StalkerApiProvider implements IProvider {
           responseData['js'] != null &&
           responseData['js']['data'] != null) {
         final epgData = responseData['js']['data'] as List;
-        return epgData.map((epgData) => EpgProgramme.fromJson(epgData)).toList();
+        return epgData.map((epgData) => EpgProgramme.fromStalkerJson(epgData)).toList();
       } else {
         throw Exception('Failed to fetch EPG info');
       }

@@ -59,7 +59,7 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
       liveNode.children.add(genreNode);
 
       final channelsMaps = await dbHelper.getAllChannels(portalId);
-      final channels = channelsMaps.map((e) => Channel.fromJson(e)).toList();
+      final channels = channelsMaps.map((e) => Channel.fromStalkerJson(e)).toList();
       final channelsInGenre = channels.where((c) => c.genreId == genre.id).toList();
 
       for (var channel in channelsInGenre) {

@@ -19,7 +19,7 @@ class StalkerApiService {
           'JsHttpRequest': '1-xml',
         },
       );
-      appLogger.d('Handshake response: \${response.data}');
+      appLogger.d('Handshake response: ${response.data}');
       return response.data;
     } on DioException catch (e) {
       appLogger.e('Error during handshake', error: e);
@@ -37,7 +37,7 @@ class StalkerApiService {
           'JsHttpRequest': '1-xml',
         },
       );
-      appLogger.d('Get profile response: \${response.data}');
+      appLogger.d('Get profile response: ${response.data}');
       return response.data;
     } on DioException catch (e) {
       appLogger.e('Error getting profile', error: e);

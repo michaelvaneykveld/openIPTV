@@ -54,7 +54,7 @@ class StalkerRepository {
     for (var channel in allChannels) {
       try {
         final epgPrograms = await _provider.getEpgInfo(chId: channel.id, period: 24);
-        appLogger.d('Fetched \${epgPrograms.length} EPG programs for channel \${channel.id}.'); // Added log
+        appLogger.d('Fetched ${epgPrograms.length} EPG programs for channel ${channel.id}.'); // Added log
         await _saveEpgPrograms(epgPrograms, portalId: portalId); // Call to save EPG programs
       } catch (e, stackTrace) {
         appLogger.e("Could not fetch EPG for channel ${channel.id}", error: e, stackTrace: stackTrace);

@@ -195,6 +195,58 @@ class Channel {
     return channel;
   }
 
+  factory Channel.fromDbMap(Map<String, dynamic> map) {
+    return Channel(
+      id: map[DatabaseHelper.columnChannelId] as String,
+      name: map[DatabaseHelper.columnChannelName] as String,
+      number: map[DatabaseHelper.columnChannelNumber] as String?,
+      logo: map[DatabaseHelper.columnChannelLogo] as String?,
+      genreId: map[DatabaseHelper.columnChannelGenreId] as String?,
+      xmltvId: map[DatabaseHelper.columnChannelXmltvId] as String?,
+      epg: map[DatabaseHelper.columnChannelEpg] as String?,
+      genresStr: map[DatabaseHelper.columnChannelGenresStr] as String?,
+      curPlaying: map[DatabaseHelper.columnChannelCurPlaying] as String?,
+      status: map[DatabaseHelper.columnChannelStatus] as int?,
+      hd: map[DatabaseHelper.columnChannelHd] as int?,
+      censored: map[DatabaseHelper.columnChannelCensored] as int?,
+      fav: map[DatabaseHelper.columnChannelFav] as int?,
+      locked: map[DatabaseHelper.columnChannelLocked] as int?,
+      archive: map[DatabaseHelper.columnChannelArchive] as int?,
+      pvr: map[DatabaseHelper.columnChannelPvr] as int?,
+      enableTvArchive: map[DatabaseHelper.columnChannelEnableTvArchive] as int?,
+      tvArchiveDuration: map[DatabaseHelper.columnChannelTvArchiveDuration] as int?,
+      allowPvr: map[DatabaseHelper.columnChannelAllowPvr] as int?,
+      allowLocalPvr: map[DatabaseHelper.columnChannelAllowLocalPvr] as int?,
+      allowRemotePvr: map[DatabaseHelper.columnChannelAllowRemotePvr] as int?,
+      allowLocalTimeshift: map[DatabaseHelper.columnChannelAllowLocalTimeshift] as int?,
+      cmd: map[DatabaseHelper.columnChannelCmd] as String?,
+      cmd1: map[DatabaseHelper.columnChannelCmd1] as String?,
+      cmd2: map[DatabaseHelper.columnChannelCmd2] as String?,
+      cmd3: map[DatabaseHelper.columnChannelCmd3] as String?,
+      cost: map[DatabaseHelper.columnChannelCost] as String?,
+      count: map[DatabaseHelper.columnChannelCount] as String?,
+      baseCh: map[DatabaseHelper.columnChannelBaseCh] as String?,
+      serviceId: map[DatabaseHelper.columnChannelServiceId] as String?,
+      bonusCh: map[DatabaseHelper.columnChannelBonusCh] as String?,
+      volumeCorrection: map[DatabaseHelper.columnChannelVolumeCorrection] as String?,
+      mcCmd: map[DatabaseHelper.columnChannelMcCmd] as String?,
+      wowzaTmpLink: map[DatabaseHelper.columnChannelWowzaTmpLink] as String?,
+      wowzaDvr: map[DatabaseHelper.columnChannelWowzaDvr] as String?,
+      useHttpTmpLink: map[DatabaseHelper.columnChannelUseHttpTmpLink] as String?,
+      monitoringStatus: map[DatabaseHelper.columnChannelMonitoringStatus] as String?,
+      enableMonitoring: map[DatabaseHelper.columnChannelEnableMonitoring] as int?,
+      enableWowzaLoadBalancing: map[DatabaseHelper.columnChannelEnableWowzaLoadBalancing] as int?,
+      correctTime: map[DatabaseHelper.columnChannelCorrectTime] as String?,
+      nimbleDvr: map[DatabaseHelper.columnChannelNimbleDvr] as String?,
+      modified: map[DatabaseHelper.columnChannelModified] as String?,
+      nginxSecureLink: map[DatabaseHelper.columnChannelNginxSecureLink] as String?,
+      open: map[DatabaseHelper.columnChannelOpen] as int?,
+      useLoadBalancing: map[DatabaseHelper.columnChannelUseLoadBalancing] as int?,
+      group: map[DatabaseHelper.columnChannelGroupTitle] as String?,
+      // Note: cmds, streamUrl, epgId are not stored in the main channels table
+    );
+  }
+
   static void _logChannelDifferences(Channel channel, String type) {
     appLogger.d('[$type] Channel created: ${channel.name}');
     appLogger.d('[$type] ID: ${channel.id}');
@@ -251,6 +303,7 @@ class Channel {
       'modified': modified,
       'nginxSecureLink': nginxSecureLink,
       'open': open,
+      DatabaseHelper.columnChannelGroupTitle: group, // Added for M3U/Xtream grouping
       'useLoadBalancing': useLoadBalancing,
     };
   }

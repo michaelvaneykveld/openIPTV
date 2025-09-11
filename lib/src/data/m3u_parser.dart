@@ -1,44 +1,46 @@
-import 'package:openiptv/src/core/models/models.dart'; // Assuming Channel model is here
+import 'package:openiptv/src/core/models/models.dart';
 
 class M3uParser {
   static List<Channel> parse(String m3uContent) {
     final List<Channel> channels = [];
     final lines = m3uContent.split('\n');
 
-    Channel? currentChannel;
+    Map<String, String> currentAttributes = {};
 
-    for (var i = 0; i < lines.length; i++) {
-      final line = lines[i].trim();
+    for (final line in lines) {
+      final trimmedLine = line.trim();
+      if (trimmedLine.isEmpty) {
+        continue;
+      }
 
-      if (line.startsWith('#EXTINF:')) {
-        // Parse EXTINF line
-        final nameMatch = RegExp(r',(.+)$').firstMatch(line);
-        final name = nameMatch?.group(1)?.trim() ?? 'Unknown Channel';
-
-        final logoMatch = RegExp(r'tvg-logo="([^"]+)"').firstMatch(line);
-        final logo = logoMatch?.group(1);
-
-        final groupMatch = RegExp(r'group-title="([^"]+)"').firstMatch(line);
-        final group = groupMatch?.group(1);
-
-        currentChannel = Channel(
-          id: name, // Using name as ID for simplicity, might need a better unique ID
-          name: name,
-          logo: logo ?? '',
-          genreId: group ?? 'Unknown', // Using group as genreId
-        );
-      } else if (currentChannel != null && line.isNotEmpty && !line.startsWith('#')) {
-        // This is the URL line
-        channels.add(Channel(
-          id: currentChannel.id,
-          name: currentChannel.name,
-          logo: currentChannel.logo,
-          streamUrl: line,
-          genreId: currentChannel.genreId,
-        ));
-        currentChannel = null; // Reset for next channel
+      if (trimmedLine.startsWith('#EXTINF:')) {
+        currentAttributes = _parseExtinf(trimmedLine);
+      } else if (!trimmedLine.startsWith('#') && currentAttributes.isNotEmpty) {
+        final streamUrl = trimmedLine;
+        channels.add(Channel.fromM3UEntry(currentAttributes, streamUrl));
+        currentAttributes = {}; // Reset for the next entry
       }
     }
     return channels;
+  }
+
+  static Map<String, String> _parseExtinf(String line) {
+    final attributes = <String, String>{};
+    final parts = line.split(',');
+    if (parts.length > 1) {
+      attributes['title'] = parts.sublist(1).join(',').trim();
+    }
+
+    final regex = RegExp(r'([a-zA-Z0-9\-]+)=\"([^\"]*)\"|([a-zA-Z0-9\-]+)=([^\s,]+)');
+    final matches = regex.allMatches(line);
+
+    for (final match in matches) {
+      final key = (match.group(1) ?? match.group(3))?.trim();
+      final value = (match.group(2) ?? match.group(4))?.trim();
+      if (key != null && value != null) {
+        attributes[key] = value;
+      }
+    }
+    return attributes;
   }
 }

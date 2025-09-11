@@ -72,6 +72,7 @@ class DatabaseHelper {
   static const columnChannelModified = 'modified';
   static const columnChannelNginxSecureLink = 'nginx_secure_link';
   static const columnChannelOpen = 'open';
+  static const columnChannelGroupTitle = 'group_title'; // Added for M3U/Xtream grouping
   static const columnChannelUseLoadBalancing = 'use_load_balancing';
 
   // Channel CMDS Table
@@ -218,6 +219,7 @@ class DatabaseHelper {
             $columnChannelNginxSecureLink TEXT,
             $columnChannelOpen INTEGER,
             $columnChannelUseLoadBalancing INTEGER,
+            $columnChannelGroupTitle TEXT, // Added for M3U/Xtream grouping
             PRIMARY KEY ($columnChannelId, $columnPortalId),
             FOREIGN KEY ($columnChannelGenreId, $columnPortalId) REFERENCES $tableGenres ($columnGenreId, $columnPortalId)
           )

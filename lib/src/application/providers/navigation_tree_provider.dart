@@ -45,52 +45,68 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
   portalNode.children.addAll([liveNode, filmNode, seriesNode, radioNode]);
 
   try {
-    // Populate Live TV (Genres and Channels)
+    // --- Populate Live TV with Universal Grouping Logic ---
+
+    // 1. Fetch all necessary data
+    final channelsMaps = await dbHelper.getAllChannels(portalId);
+    final allChannels = channelsMaps.map((c) => Channel.fromDbMap(c)).toList();
+
     final genresMaps = await dbHelper.getAllGenres(portalId);
-    final genres = genresMaps.map((e) => Genre.fromJson(e)).toList();
+    final genreIdToTitleMap = { for (var g in genresMaps) g[DatabaseHelper.columnGenreId]: g[DatabaseHelper.columnGenreTitle] };
 
-    for (var genre in genres) {
-      final genreNode = TreeNode(
-        title: genre.title, // Removed ?? 'Unknown Genre'
-        type: 'category',
-        data: genre,
-        children: [],
-      );
-      liveNode.children.add(genreNode);
-
-      final channelsMaps = await dbHelper.getAllChannels(portalId);
-      final channels = channelsMaps.map((e) => Channel.fromStalkerJson(e)).toList();
-      final channelsInGenre = channels.where((c) => c.genreId == genre.id).toList();
-
-      for (var channel in channelsInGenre) {
-        final channelNode = TreeNode(
-          title: channel.name, // Removed ?? 'Unknown Channel'
-          type: 'channel',
-          data: channel,
-        );
-        genreNode.children.add(channelNode);
+    // 2. Group channels
+    final groupedChannels = <String, List<Channel>>{};
+    for (var channel in allChannels) {
+      String groupKey;
+      if (channel.group != null && channel.group!.isNotEmpty) {
+        groupKey = channel.group!;
+      } else if (channel.genreId != null && genreIdToTitleMap.containsKey(channel.genreId)) {
+        groupKey = genreIdToTitleMap[channel.genreId]!;
+      } else {
+        groupKey = 'Uncategorized';
       }
+
+      if (!groupedChannels.containsKey(groupKey)) {
+        groupedChannels[groupKey] = [];
+      }
+      groupedChannels[groupKey]!.add(channel);
     }
 
-    // Populate Films (VOD Categories and Content)
+    // 3. Build the TreeNode structure for Live TV
+    groupedChannels.forEach((groupName, channelsInGroup) {
+      final categoryNode = TreeNode(
+        title: groupName,
+        type: 'category',
+        children: channelsInGroup.map((channel) {
+          return TreeNode(
+            title: channel.name,
+            type: 'channel',
+            data: channel,
+          );
+        }).toList(),
+      );
+      liveNode.children.add(categoryNode);
+    });
+
+    // --- Populate Films (VOD Categories and Content) ---
     final vodCategoriesMaps = await dbHelper.getAllVodCategories(portalId);
     final vodCategories = vodCategoriesMaps.map((e) => VodCategory.fromJson(e)).toList();
 
     for (var category in vodCategories) {
       final categoryNode = TreeNode(
-        title: category.title, // Removed ?? 'Unknown Category'
+        title: category.title,
         type: 'category',
         data: category,
         children: [],
       );
       filmNode.children.add(categoryNode); // Assuming VOD categories are for Films/Series
 
-      final vodContentMaps = await dbHelper.getVodContentByCategoryId(category.id, portalId); // Removed !
+      final vodContentMaps = await dbHelper.getVodContentByCategoryId(category.id, portalId);
       final vodContent = vodContentMaps.map((e) => VodContent.fromJson(e)).toList();
 
       for (var content in vodContent) {
         final contentNode = TreeNode(
-          title: content.name, // Removed ?? 'Unknown Content'
+          title: content.name,
           type: 'vod_item',
           data: content,
         );

@@ -55,24 +55,24 @@ An abstract `PlayerAdapter` interface provides a uniform API (`play()`, `pause()
 
 ### ✅ Phase 1 – Core Functionality & Mobile MVP
 - [x] Foundational architecture setup with Riverpod.
-- [ ] M3U playlist parsing and playback.
-- [ ] Xtream Codes login and content browsing (Live, VOD, Series).
-- [ ] Basic Stalker Portal support for live channels.
-- [ ] Core UI: Channel lists, EPG view, and player screen.
-- [ ] User features: Favorites and Search.
+- [x] M3U playlist parsing and playback.
+- [x] Xtream Codes login and content browsing (Live, VOD, Series).
+- [x] Basic Stalker Portal support for live channels.
+- [x] Core UI: Channel lists, EPG view, and player screen.
+- [x] User features: Favorites and Search.
 
 ### ⏳ Phase 2 – Desktop & Web
-- [ ] Responsive layouts for Windows, macOS, and Linux.
-- [ ] Keyboard shortcuts and window management features.
-- [ ] Web version with a PWA manifest and service worker for caching.
-- [ ] Backend proxy for CORS and stream transcoding (if needed).
+- [x] Responsive layouts for Windows, macOS, and Linux.
+- [x] Keyboard shortcuts and window management features.
+- [x] Web version with a PWA manifest and service worker for caching.
+- [ ] Backend proxy for CORS and stream transcoding (if needed) - Out of scope for now.
 
 ### 🚀 Phase 3 – Advanced Features & Smart TV
-- [ ] Local caching of EPG and playlists with Isar/Hive.
-- [ ] Secure credential storage.
-- [ ] UI optimized for 10-foot "Smart TV" experience.
-- [ ] Player features: Picture-in-Picture, audio/subtitle track selection.
-- [ ] Parental controls and profile management.
+- [x] Local caching of EPG and playlists with Isar/Hive.
+- [x] Secure credential storage.
+- [ ] UI optimized for 10-foot "Smart TV" experience - Out of scope for now.
+- [ ] Player features: Picture-in-Picture, audio/subtitle track selection - Out of scope for now.
+- [ ] Parental controls and profile management - Out of scope for now.
 
 ---
 

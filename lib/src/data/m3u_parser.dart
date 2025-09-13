@@ -1,4 +1,4 @@
-import 'package:openiptv/src/core/models/models.dart';
+import 'package:openiptv/src/core/models/channel.dart';
 
 class M3uParser {
   static List<Channel> parse(String m3uContent) {

@@ -6,7 +6,7 @@ part of 'api_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$dioHash() => r'587ef6b98b30060e3f764de7dddf936991bf16d5';
+String _$dioHash() => r'cee8539a71ff2c0290ed4cdf2d0070acd27a8470';
 
 /// See also [dio].
 @ProviderFor(dio)
@@ -40,24 +40,7 @@ final stalkerApiProvider = AutoDisposeProvider<StalkerApiProvider>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef StalkerApiRef = AutoDisposeProviderRef<StalkerApiProvider>;
-String _$xtreamApiHash() => r'383947c3381595789138b627fbf4d73ff55c1499';
-
-/// See also [xtreamApi].
-@ProviderFor(xtreamApi)
-final xtreamApiProvider = AutoDisposeProvider<XtreamApiService>.internal(
-  xtreamApi,
-  name: r'xtreamApiProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$xtreamApiHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef XtreamApiRef = AutoDisposeProviderRef<XtreamApiService>;
-String _$m3uApiHash() => r'74b44a1c2bd7aa5f7060245415ea123c21a03a23';
+String _$xtreamApiHash() => r'9a351069914a940f72d4758cf1173b3971d0685a';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -79,6 +62,124 @@ class _SystemHash {
     return 0x1fffffff & (hash + ((0x00003fff & hash) << 15));
   }
 }
+
+/// See also [xtreamApi].
+@ProviderFor(xtreamApi)
+const xtreamApiProvider = XtreamApiFamily();
+
+/// See also [xtreamApi].
+class XtreamApiFamily extends Family<XtreamApiService> {
+  /// See also [xtreamApi].
+  const XtreamApiFamily();
+
+  /// See also [xtreamApi].
+  XtreamApiProvider call(XtreamCredentials credentials) {
+    return XtreamApiProvider(credentials);
+  }
+
+  @override
+  XtreamApiProvider getProviderOverride(covariant XtreamApiProvider provider) {
+    return call(provider.credentials);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'xtreamApiProvider';
+}
+
+/// See also [xtreamApi].
+class XtreamApiProvider extends AutoDisposeProvider<XtreamApiService> {
+  /// See also [xtreamApi].
+  XtreamApiProvider(XtreamCredentials credentials)
+    : this._internal(
+        (ref) => xtreamApi(ref as XtreamApiRef, credentials),
+        from: xtreamApiProvider,
+        name: r'xtreamApiProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$xtreamApiHash,
+        dependencies: XtreamApiFamily._dependencies,
+        allTransitiveDependencies: XtreamApiFamily._allTransitiveDependencies,
+        credentials: credentials,
+      );
+
+  XtreamApiProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.credentials,
+  }) : super.internal();
+
+  final XtreamCredentials credentials;
+
+  @override
+  Override overrideWith(
+    XtreamApiService Function(XtreamApiRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: XtreamApiProvider._internal(
+        (ref) => create(ref as XtreamApiRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        credentials: credentials,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeProviderElement<XtreamApiService> createElement() {
+    return _XtreamApiProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is XtreamApiProvider && other.credentials == credentials;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, credentials.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin XtreamApiRef on AutoDisposeProviderRef<XtreamApiService> {
+  /// The parameter `credentials` of this provider.
+  XtreamCredentials get credentials;
+}
+
+class _XtreamApiProviderElement
+    extends AutoDisposeProviderElement<XtreamApiService>
+    with XtreamApiRef {
+  _XtreamApiProviderElement(super.provider);
+
+  @override
+  XtreamCredentials get credentials =>
+      (origin as XtreamApiProvider).credentials;
+}
+
+String _$m3uApiHash() => r'74b44a1c2bd7aa5f7060245415ea123c21a03a23';
 
 /// See also [m3uApi].
 @ProviderFor(m3uApi)

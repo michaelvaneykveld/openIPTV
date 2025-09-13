@@ -29,6 +29,11 @@ CredentialsRepository credentialsRepository(Ref ref) {
   );
 }
 
+final credentialsProvider = FutureProvider<List<dynamic>>((ref) async {
+  final repository = ref.watch(credentialsRepositoryProvider);
+  return await repository.getSavedCredentials();
+});
+
 @riverpod
 Future<String?> portalId(Ref ref) async {
   final credentialsRepository = ref.watch(credentialsRepositoryProvider);

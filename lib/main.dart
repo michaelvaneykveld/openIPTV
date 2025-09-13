@@ -1,97 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io' show Platform;
 
-import 'package:openiptv/src/application/providers/credentials_provider.dart';
-import 'package:openiptv/src/presentation/screens/login_screen.dart';
-import 'package:openiptv/src/ui/home_screen.dart';
+import 'package:openiptv/src/app_router.dart';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
+void main() {
   if (Platform.isWindows || Platform.isLinux) {
     // Initialize FFI
     sqfliteFfiInit();
     // Change the default factory
     databaseFactory = databaseFactoryFfi;
   }
-
-  // Initialize DatabaseHelper
-  // final databaseHelper = DatabaseHelper.instance;
-
-  // Define the portal URL (which will also serve as the portalId)
-  // IMPORTANT: Replace with your actual Stalker Portal base URL
-  // final portalUrl = 'http://your-stalker-portal-url.com'; 
-  // final stalkerApiService = StalkerApiService(portalUrl); 
-
-  // Initialize StalkerRepository
-  // final stalkerRepository = StalkerRepository(stalkerApiService, databaseHelper, portalUrl);
-
-  // Initialize ChannelSyncService
-  // final channelSyncService = ChannelSyncService(stalkerRepository);
-
-  // Trigger data synchronization
-  // await channelSyncService.syncChannels(portalUrl);
-  
-
-  runApp(
-    const ProviderScope(
-      child: MyApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: MyApp()));
 }
-
-final _routerProvider = Provider<GoRouter>((ref) {
-  final credentialsRepository = ref.watch(credentialsRepositoryProvider);
-
-  return GoRouter(
-    initialLocation: '/login',
-    routes: [
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const HomeScreen(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-    ],
-    redirect: (context, state) async {
-      final savedCredentials = await credentialsRepository.getSavedCredentials();
-      final isLoggedIn = savedCredentials.isNotEmpty; // Check if any credentials exist
-
-      final loggingIn = state.matchedLocation == '/login';
-
-      // If not logged in, always go to login screen (unless already there)
-      if (!isLoggedIn) {
-        return loggingIn ? null : '/login';
-      }
-
-      // If logged in, and trying to go to login screen, don't redirect.
-      // This allows the user to explicitly go to the login screen even if logged in (e.g., for logout).
-      if (loggingIn) {
-        return null; // Allow navigation to /login
-      }
-
-      // If logged in and trying to go to root, allow it.
-      if (state.matchedLocation == '/') {
-        return null; // Allow navigation to /
-      }
-
-      // Otherwise, no redirect needed.
-      return null;
-    },
-  );
-});
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(_routerProvider);
+    final router = ref.watch(routerProvider);
     return MaterialApp.router(
       routerConfig: router,
       title: 'OpenIPTV',

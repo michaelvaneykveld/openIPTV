@@ -105,6 +105,17 @@ class DatabaseHelper {
   static const columnVodContentDuration = 'duration';
   static const columnVodContentCategoryId = 'category_id';
 
+  // Series Table
+  static const tableSeries = 'series';
+  static const columnSeriesId = 'id';
+  static const columnSeriesName = 'name';
+  static const columnSeriesLogo = 'logo';
+  static const columnSeriesDescription = 'description';
+  static const columnSeriesYear = 'year';
+  static const columnSeriesDirector = 'director';
+  static const columnSeriesActors = 'actors';
+  static const columnSeriesCategoryId = 'category_id';
+
   // EPG Table
   static const tableEpg = 'epg';
   static const columnEpgId = 'id';
@@ -270,6 +281,24 @@ class DatabaseHelper {
       'DatabaseHelper: Table $tableVodContent created.',
     );
     await db.execute('''
+          CREATE TABLE $tableSeries (
+            $columnSeriesId TEXT,
+            $columnPortalId TEXT NOT NULL,
+            $columnSeriesName TEXT,
+            $columnSeriesLogo TEXT,
+            $columnSeriesDescription TEXT,
+            $columnSeriesYear TEXT,
+            $columnSeriesDirector TEXT,
+            $columnSeriesActors TEXT,
+            $columnSeriesCategoryId TEXT,
+            PRIMARY KEY ($columnSeriesId, $columnPortalId),
+            FOREIGN KEY ($columnSeriesCategoryId, $columnPortalId) REFERENCES $tableVodCategories ($columnVodCategoryId, $columnPortalId)
+          )
+          ''');
+    appLogger.d(
+      'DatabaseHelper: Table $tableSeries created.',
+    );
+    await db.execute('''
           CREATE TABLE $tableEpg (
             $columnEpgId TEXT,
             $columnEpgChannelId TEXT,
@@ -297,6 +326,7 @@ class DatabaseHelper {
       await txn.delete(tableGenres, where: '$columnPortalId = ?', whereArgs: [portalId]);
       await txn.delete(tableVodCategories, where: '$columnPortalId = ?', whereArgs: [portalId]);
       await txn.delete(tableVodContent, where: '$columnPortalId = ?', whereArgs: [portalId]);
+      await txn.delete(tableSeries, where: '$columnPortalId = ?', whereArgs: [portalId]);
       await txn.delete(tableEpg, where: '$columnPortalId = ?', whereArgs: [portalId]); // Added EPG table to clear
     });
     appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
@@ -796,5 +826,18 @@ class DatabaseHelper {
       appLogger.d('First EPG programme for channel $channelId: ${maps.first}');
     }
     return maps;
+  }
+
+  // --- Debug Methods ---
+  Future<List<String>> getTables() async {
+    final db = await instance.database;
+    final List<Map<String, dynamic>> tables =
+        await db.query('sqlite_master', where: 'type = ?', whereArgs: ['table']);
+    return tables.map((table) => table['name'] as String).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getTableData(String tableName) async {
+    final db = await instance.database;
+    return await db.query(tableName);
   }
 }

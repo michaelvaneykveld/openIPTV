@@ -5,6 +5,8 @@ import 'package:openiptv/src/core/models/models.dart';
 import 'package:openiptv/src/data/m3u_repository.dart';
 import 'package:openiptv/src/data/providers/m3u_api_provider.dart';
 import 'package:openiptv/src/data/stalker_repository.dart';
+import 'package:openiptv/src/data/xtream_repository.dart';
+import 'package:openiptv/src/core/models/xtream_credentials.dart';
 import 'package:openiptv/utils/app_logger.dart';
 
 final channelSyncServiceProvider = Provider<ChannelSyncService>((ref) {
@@ -30,6 +32,38 @@ class ChannelSyncService {
         final M3uApiService m3uProvider = _ref.read(m3uApiProvider(credential));
         final m3uContent = await m3uProvider.getRawM3uContent();
         await m3uRepository.synchronizeData(portalId, m3uContent);
+      } else if (credential is XtreamCredentials) {
+        final xtreamApi = _ref.read(xtreamApiProvider(credential));
+        final xtreamRepository = _ref.read(xtreamRepositoryProvider);
+
+        final liveCategories = await xtreamApi.getLiveCategories(credential.username, credential.password);
+        final vodCategories = await xtreamApi.getVodCategories(credential.username, credential.password);
+        final seriesCategories = await xtreamApi.getSeriesCategories(credential.username, credential.password);
+
+        final liveStreams = <String, List<Channel>>{};
+        for (final category in liveCategories) {
+          liveStreams[category.id] = await xtreamApi.getLiveStreams(credential.username, credential.password, category.id);
+        }
+
+        final vodStreams = <String, List<VodContent>>{};
+        for (final category in vodCategories) {
+          vodStreams[category.id] = await xtreamApi.getVodStreams(credential.username, credential.password, category.id);
+        }
+
+        final series = <String, List<VodContent>>{};
+        for (final category in seriesCategories) {
+          series[category.id] = await xtreamApi.getSeries(credential.username, credential.password, category.id);
+        }
+
+        await xtreamRepository.synchronizeData(
+          portalId,
+          liveCategories,
+          vodCategories,
+          seriesCategories,
+          liveStreams,
+          vodStreams,
+          series,
+        );
       } else {
         // Handle other credential types if necessary
         throw Exception('Unsupported credential type for sync: ${credential.runtimeType}');

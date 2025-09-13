@@ -1,4 +1,5 @@
 
+import 'package:go_router/go_router.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -21,6 +22,10 @@ class _DebugScreenState extends ConsumerState<DebugScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Debug Info'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.pop(),
+          ),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'DB Tables'),
@@ -50,6 +55,7 @@ class _DbTablesViewState extends State<DbTablesView> {
   List<String> _tables = [];
   String? _selectedTable;
   List<Map<String, dynamic>> _tableData = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -58,17 +64,25 @@ class _DbTablesViewState extends State<DbTablesView> {
   }
 
   Future<void> _loadTables() async {
+    setState(() {
+      _isLoading = true;
+    });
     final tables = await DatabaseHelper.instance.getTables();
     setState(() {
       _tables = tables;
+      _isLoading = false;
     });
   }
 
   Future<void> _loadTableData(String tableName) async {
+    setState(() {
+      _isLoading = true;
+    });
     final data = await DatabaseHelper.instance.getTableData(tableName);
     setState(() {
       _tableData = data;
       _selectedTable = tableName;
+      _isLoading = false;
     });
   }
 
@@ -91,27 +105,38 @@ class _DbTablesViewState extends State<DbTablesView> {
             );
           }).toList(),
         ),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+        if (_isLoading)
+          const Expanded(
+            child: Center(
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_tableData.isEmpty)
+          const Expanded(
+            child: Center(
+              child: Text('No data in this table.'),
+            ),
+          )
+        else
+          Expanded(
             child: SingleChildScrollView(
-              child: DataTable(
-                columns: _tableData.isNotEmpty
-                    ? _tableData.first.keys
-                        .map((k) => DataColumn(label: Text(k)))
-                        .toList()
-                    : [],
-                rows: _tableData
-                    .map((row) => DataRow(
-                          cells: row.values
-                              .map((v) => DataCell(Text(v.toString())))
-                              .toList(),
-                        ))
-                    .toList(),
+              scrollDirection: Axis.horizontal,
+              child: SingleChildScrollView(
+                child: DataTable(
+                  columns: _tableData.first.keys
+                      .map((k) => DataColumn(label: Text(k)))
+                      .toList(),
+                  rows: _tableData
+                      .map((row) => DataRow(
+                            cells: row.values
+                                .map((v) => DataCell(Text(v.toString())))
+                                .toList(),
+                          ))
+                      .toList(),
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

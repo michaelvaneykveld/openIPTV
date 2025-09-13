@@ -83,7 +83,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               IconButton(
                 icon: const Icon(Icons.bug_report),
                 onPressed: () {
-                  context.go('/debug');
+                  context.push('/debug');
                 },
               ),
             ],

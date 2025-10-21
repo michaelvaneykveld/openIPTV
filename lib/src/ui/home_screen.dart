@@ -3,12 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/navigation_tree_provider.dart'; // Import the new provider
+import 'package:openiptv/src/application/providers/credentials_provider.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/core/models/channel.dart';
-
-// import '../application/providers/channel_list_provider.dart'; // No longer needed
-// import '../core/models/channel.dart'; // No longer directly needed for display
-import 'package:openiptv/src/application/providers/credentials_provider.dart';
+import 'package:openiptv/src/ui/responsive/responsive_layout.dart';
 
 /// The main screen of the application, displaying the list of channels.
 class HomeScreen extends ConsumerStatefulWidget {
@@ -21,7 +19,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isSearching = false;
   String _searchQuery = '';
-  TreeNode? _selectedCategory;
+  String? _activeSectionTitle;
+  String? _activeCategoryTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -88,33 +87,53 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ],
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              return navigationTreeAsyncValue.when(
-                // Data is successfully loaded, display the tree.
-                data: (treeNodes) {
-                  if (constraints.maxWidth > 600) {
-                    return _buildWideLayout(context, treeNodes, portalId, ref);
-                  } else {
-                    return _buildNarrowLayout(context, treeNodes, portalId, ref);
-                  }
-                },
-                // An error occurred, display the error message.
-                error: (err, stack) => Center(
-                  child: Text('Error: ${err.toString()}'),
-                ),
-                // Data is loading, show a progress indicator.
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            },
+          body: navigationTreeAsyncValue.when(
+            data: (treeNodes) => ResponsiveLayoutBuilder(
+              builder: (context, sizeClass) {
+                final filteredNodes = _filterNodes(treeNodes, _searchQuery);
+                return _buildResponsiveLayout(
+                  context,
+                  sizeClass,
+                  filteredNodes,
+                  portalId,
+                  ref,
+                );
+              },
+            ),
+            error: (err, stack) => Center(
+              child: Text('Error: ${err.toString()}'),
+            ),
+            loading: () => const Center(
+              child: CircularProgressIndicator(),
+            ),
           ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, stack) => Center(child: Text('Error loading portal ID: ${err.toString()}')),
     );
+  }
+
+  Widget _buildResponsiveLayout(
+    BuildContext context,
+    ScreenSizeClass sizeClass,
+    List<TreeNode> nodes,
+    String portalId,
+    WidgetRef ref,
+  ) {
+    if (_searchQuery.isNotEmpty) {
+      // For search results, always show the compact list regardless of size.
+      return _buildNarrowLayout(context, nodes, portalId, ref);
+    }
+
+    switch (sizeClass) {
+      case ScreenSizeClass.compact:
+        return _buildNarrowLayout(context, nodes, portalId, ref);
+      case ScreenSizeClass.medium:
+        return _buildWideLayout(context, nodes, portalId, ref);
+      case ScreenSizeClass.expanded:
+        return _buildDesktopLayout(context, nodes, portalId, ref);
+    }
   }
 
   Widget _buildWideLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
@@ -214,6 +233,134 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     }
     return filteredNodes;
+  }
+
+  Widget _buildDesktopLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
+    if (nodes.isEmpty) {
+      return const Center(
+        child: Text('No content available.'),
+      );
+    }
+
+    final portalNode = nodes.firstWhere(
+      (node) => node.type == 'portal',
+      orElse: () => nodes.first,
+    );
+    final sections = portalNode.children.isNotEmpty ? portalNode.children : nodes;
+
+    if (sections.isEmpty) {
+      return _buildWideLayout(context, nodes, portalId, ref);
+    }
+
+    final selectedSection = _selectNode(sections, _activeSectionTitle);
+    if (_activeSectionTitle != selectedSection?.title) {
+      _activeSectionTitle = selectedSection?.title;
+      _activeCategoryTitle = null; // Reset category when section changes.
+    }
+
+    final categoryCandidates = selectedSection?.children ?? [];
+    final selectedCategory = _selectNode(categoryCandidates, _activeCategoryTitle);
+    if (_activeCategoryTitle != selectedCategory?.title) {
+      _activeCategoryTitle = selectedCategory?.title;
+    }
+
+    final leafNodes = selectedCategory?.children.isNotEmpty == true
+        ? selectedCategory!.children
+        : selectedSection?.children ?? [];
+
+    return Row(
+      children: [
+        NavigationRail(
+          selectedIndex: sections.indexWhere((node) => node.title == _activeSectionTitle),
+          onDestinationSelected: (index) {
+            setState(() {
+              _activeSectionTitle = sections[index].title;
+              _activeCategoryTitle = null;
+            });
+          },
+          destinations: sections
+              .map(
+                (section) => NavigationRailDestination(
+                  icon: Icon(_iconForNodeType(section.type)),
+                  label: Text(section.title),
+                ),
+              )
+              .toList(),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 2,
+          child: categoryCandidates.isEmpty
+              ? const Center(child: Text('No categories available.'))
+              : ListView.builder(
+                  itemCount: categoryCandidates.length,
+                  itemBuilder: (context, index) {
+                    final category = categoryCandidates[index];
+                    final isSelected = category.title == _activeCategoryTitle;
+                    return ListTile(
+                      title: Text(category.title),
+                      selected: isSelected,
+                      onTap: () {
+                        setState(() {
+                          _activeCategoryTitle = category.title;
+                        });
+                      },
+                    );
+                  },
+                ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          flex: 3,
+          child: leafNodes.isEmpty
+              ? const Center(child: Text('Select a category to see items.'))
+              : ListView.builder(
+                  itemCount: leafNodes.length,
+                  itemBuilder: (context, index) {
+                    final node = leafNodes[index];
+                    if (node.children.isNotEmpty) {
+                      return ExpansionTile(
+                        title: Text(node.title),
+                        children: node.children
+                            .map((child) => _buildTreeNode(context, child, portalId, ref))
+                            .toList(),
+                      );
+                    }
+                    return _buildTreeNode(context, node, portalId, ref);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  TreeNode? _selectNode(List<TreeNode> nodes, String? preferredTitle) {
+    if (nodes.isEmpty) return null;
+    if (preferredTitle != null) {
+      for (final node in nodes) {
+        if (node.title == preferredTitle) {
+          return node;
+        }
+      }
+    }
+    return nodes.first;
+  }
+
+  IconData _iconForNodeType(String type) {
+    switch (type) {
+      case 'live':
+        return Icons.live_tv;
+      case 'film':
+        return Icons.movie;
+      case 'series':
+        return Icons.video_library;
+      case 'radio':
+        return Icons.radio;
+      case 'category':
+        return Icons.folder;
+      default:
+        return Icons.list_alt;
+    }
   }
 
   Widget _buildTreeNode(BuildContext context, TreeNode node, String portalId, WidgetRef ref) { // Added context

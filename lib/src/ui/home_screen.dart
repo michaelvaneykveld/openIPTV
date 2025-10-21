@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -125,9 +127,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 tooltip: 'Logout',
                 onPressed: () async {
                   await ref.read(stalkerApiProvider).logout();
-                  if (mounted) {
-                    context.go('/login');
-                  }
+                  if (!context.mounted) return;
+                  context.go('/login');
                 },
               ),
             ],
@@ -218,44 +219,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _showAccountSwitcher(BuildContext context) async {
     final credentialsRepository = ref.read(credentialsRepositoryProvider);
     final credentials = await credentialsRepository.getSavedCredentials();
-    final activePortal = ref.read(activePortalProvider);
+    if (!context.mounted) return;
 
-    if (!mounted) return;
+    final activePortal = ref.read(activePortalProvider);
 
     await showModalBottomSheet<void>(
       context: context,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(title: Text('Select account')),
-            for (final credential in credentials)
-              RadioListTile<String>(
-                value: credential.id,
-                groupValue: activePortal,
-                title: Text(credential.name),
-                subtitle: Text(credential.type),
-                onChanged: (value) async {
-                  if (value == null) return;
-                  await ref
-                      .read(activePortalProvider.notifier)
-                      .setActivePortal(value);
-                  ref.invalidate(portalIdProvider);
-                  ref.invalidate(navigationTreeProvider);
-                  ref.invalidate(channelOverridesProvider(value));
-                  if (!mounted) return;
-                  setState(() {
-                    _selectedCategory = null;
-                    _activeSectionTitle = null;
-                    _activeCategoryTitle = null;
-                  });
-                  Navigator.of(context).pop();
-                },
-              ),
-          ],
+      builder: (sheetContext) => SafeArea(
+        child: RadioGroup<String>(
+          groupValue: activePortal,
+          onChanged: (value) {
+            if (value == null) return;
+            unawaited(_handleAccountSelection(sheetContext, value));
+          },
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(title: Text('Select account')),
+              for (final credential in credentials)
+                RadioListTile<String>(
+                  value: credential.id,
+                  title: Text(credential.name),
+                  subtitle: Text(credential.type),
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Future<void> _handleAccountSelection(
+    BuildContext sheetContext,
+    String portalId,
+  ) async {
+    await ref.read(activePortalProvider.notifier).setActivePortal(portalId);
+    ref.invalidate(portalIdProvider);
+    ref.invalidate(navigationTreeProvider);
+    ref.invalidate(channelOverridesProvider(portalId));
+    if (!mounted) return;
+    setState(() {
+      _selectedCategory = null;
+      _activeSectionTitle = null;
+      _activeCategoryTitle = null;
+    });
+    if (!sheetContext.mounted) return;
+    Navigator.of(sheetContext).pop();
   }
 
   Widget _buildWideLayout(
@@ -699,7 +708,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           portalId: portalId,
           duration: duration,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Recording started for ${channel.name}.')),
     );
@@ -711,10 +720,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     String portalId,
   ) async {
     final start = await _pickDateTime(context, 'Recording start time');
+    if (!context.mounted) return;
     if (start == null) return;
     final end = await _pickDateTime(context, 'Recording end time');
+    if (!context.mounted) return;
     if (end == null || end.isBefore(start)) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('End time must be after start time.')),
       );
@@ -728,7 +739,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           startTime: start,
           endTime: end,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     final startLabel = _formatDateTime(start);
     final endLabel = _formatDateTime(end);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -746,8 +757,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     String portalId,
   ) async {
     final startTime = await _pickDateTime(context, 'Program start time');
+    if (!context.mounted) return;
     if (startTime == null) return;
     final title = await _promptForText(context, 'Program title', channel.name);
+    if (!context.mounted) return;
     if (title == null || title.trim().isEmpty) return;
     await ref
         .read(reminderManagerProvider)
@@ -757,7 +770,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           programTitle: title.trim(),
           startTime: startTime,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     final startLabel = _formatDateTime(startTime);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -808,6 +821,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       lastDate: now.add(const Duration(days: 365)),
       helpText: title,
     );
+    if (!context.mounted) return null;
     if (date == null) return null;
     final time = await showTimePicker(
       context: context,

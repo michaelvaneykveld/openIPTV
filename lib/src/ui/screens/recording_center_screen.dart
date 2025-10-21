@@ -31,7 +31,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
                 icon: const Icon(Icons.add),
                 label: const Text('New recording'),
               ),
-        error: (_, __) => null,
+        error: (context, _) => null,
         loading: () => null,
       ),
       body: portalIdAsync.when(
@@ -61,7 +61,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
 
               return ListView.separated(
                 itemCount: recordings.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (context, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final recording = recordings[index];
                   return ListTile(
@@ -158,9 +158,11 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
 
     switch (action) {
       case _RecordingChoice.immediate:
+        if (!context.mounted) return;
         await _recordNow(context, portalId);
         break;
       case _RecordingChoice.schedule:
+        if (!context.mounted) return;
         await _scheduleRecording(context, portalId);
         break;
       default:
@@ -170,6 +172,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
 
   Future<void> _recordNow(BuildContext context, String portalId) async {
     final channel = await _chooseChannel(context, portalId);
+    if (!context.mounted) return;
     if (channel == null) return;
 
     final durationMinutes = await _promptForNumber(
@@ -177,6 +180,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
       'Recording duration (minutes)',
       '60',
     );
+    if (!context.mounted) return;
     final duration = durationMinutes != null
         ? Duration(minutes: durationMinutes)
         : null;
@@ -188,7 +192,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
           portalId: portalId,
           duration: duration,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Recording started for ${channel.name}.')),
     );
@@ -197,13 +201,16 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
 
   Future<void> _scheduleRecording(BuildContext context, String portalId) async {
     final channel = await _chooseChannel(context, portalId);
+    if (!context.mounted) return;
     if (channel == null) return;
 
     final start = await _pickDateTime(context, 'Choose start time');
+    if (!context.mounted) return;
     if (start == null) return;
     final end = await _pickDateTime(context, 'Choose end time');
+    if (!context.mounted) return;
     if (end == null || end.isBefore(start)) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('End time must be after start time.')),
       );
@@ -218,7 +225,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
           startTime: start,
           endTime: end,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Recording scheduled for ${channel.name}.')),
     );
@@ -227,10 +234,11 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
 
   Future<Channel?> _chooseChannel(BuildContext context, String portalId) async {
     final rows = await DatabaseHelper.instance.getAllChannels(portalId);
+    if (!context.mounted) return null;
     final channels = rows.map((row) => Channel.fromDbMap(row)).toList();
 
     if (channels.isEmpty) {
-      if (!mounted) return null;
+      if (!context.mounted) return null;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('No channels available.')));
@@ -313,6 +321,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
       lastDate: now.add(const Duration(days: 365)),
       helpText: title,
     );
+    if (!context.mounted) return null;
     if (date == null) return null;
 
     final time = await showTimePicker(
@@ -334,7 +343,7 @@ class _RecordingCenterScreenState extends ConsumerState<RecordingCenterScreen> {
   }
 
   void _showRecordingFile(BuildContext context, String path) {
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Recording saved at $path')));

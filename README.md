@@ -1,96 +1,116 @@
-# openIPTV - A Modern, Cross-Platform IPTV Player
+# OpenIPTV
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-blue.svg)](https://flutter.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub stars](https://img.shields.io/github/stars/michaelvaneykveld/openiptv?style=social)](https://github.com/michaelvaneykveld/openiptv/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Build Status](https://img.shields.io/badge/CI-local-blueviolet.svg)](#)
 
-A modern, open-source IPTV player built with Flutter, designed to support M3U, Xtream Codes, and Stalker Portals across all major platforms.
-
----
-
-## ✨ Key Features
-
--   **Multi-Protocol Support**: Natively handles M3U playlists, Xtream Codes APIs, and Stalker/Ministra Portals.
--   **Truly Cross-Platform**: A single codebase for Mobile (iOS, Android), Desktop (Windows, macOS, Linux), and Web.
--   **Unified Content Library**: Seamlessly browse Live TV, Video on Demand (VOD), and TV Series from any source.
--   **Rich User Experience**: Full EPG (Electronic Program Guide) support, channel favoriting, powerful search, and catch-up functionality.
--   **High-Performance Playback**: Utilizes an adapter-based architecture to leverage the best native video players on each platform (VLC, ExoPlayer, AVPlayer).
--   **Clean, Modern UI**: Designed for intuitive navigation on both touch screens and with a remote control.
+OpenIPTV is a modern, cross‑platform IPTV player built with Flutter. It brings live TV, VOD, and series catalogs from M3U playlists, Xtream Codes, and Stalker/Ministra portals together in a single experience that runs on mobile, desktop, and the web.
 
 ---
 
-## 🏗️ Architecture Overview
+## Highlights
 
-The project follows a clean, scalable architecture that separates concerns, making it maintainable and easy to extend.
+- **Multi‑protocol ingestion** — authenticate against Xtream and Stalker portals or load traditional M3U playlists.
+- **Cross‑platform delivery** — the Flutter shell targets Android, iOS, Windows, macOS, Linux, and the web from a single codebase.
+- **Rich navigation tree** — live, VOD, and series content is normalised into a unified tree with search and responsive layouts.
+- **Channel management** — reorder channels, rename, regroup, or hide entries with overrides stored per portal.
+- **Background synchronisation** — opt‑in scheduler refreshes playlists/EPG automatically with Wi‑Fi‑only safeguards.
+- **Personal DVR tooling** — schedule or start recordings instantly and track local files with resume/status metadata.
+- **EPG reminders** — queue notifications before programmes start; reminders survive restarts and rehydrate on boot.
+- **Multi‑account switching** — maintain multiple portal credentials and swap profiles in-app without signing out.
+- **Desktop friendly** — keyboard shortcuts, navigation rail layouts, and focus traversal built with large screens in mind.
 
-#### 1. Flutter App (Single Codebase)
+---
+
+## Feature Overview
+
+| Area | Details |
+| ---- | ------- |
+| **Sync Scheduler** | Toggle auto refresh, select 30–360 minute intervals, and enforce Wi‑Fi‑only syncs. Runs immediately after settings change and cycles through all saved portals. |
+| **Channel Manager** | Drag **ReorderableListView** to change ordering, rename or regroup channels, and toggle visibility. Overrides persist in the SQLite backing store. |
+| **Recording Centre** | Browse scheduled/active/completed recordings, launch ad‑hoc or scheduled jobs, and stop/cancel existing tasks. Recordings write TS files under a portal-specific directory. |
+| **Reminder Centre** | Create, list, and remove programme reminders. Utilises the local notifications plugin with automatic rescheduling after restarts. |
+| **Player Screen** | Video playback via `video_player` with inline record toggle, stream URL diagnostics, and contextual error messaging. |
+| **Navigation Tree** | Builds a portal-scoped content tree, respecting channel overrides and grouping by provider metadata or manual folders. |
+
+---
+
+## Architecture
+
 ```
-┌─────────────────────────────────────────────┐
-│ Presentation (UI Widgets)                   │
-│ - Channel list, EPG timeline, player view   │
-├─────────────────────────────────────────────┤
-│ Application State (Riverpod)                │
-│ - Manages state, triggers data fetching     │
-├─────────────────────────────────────────────┤
-│ Domain Logic / Repositories                 │
-│ - Abstracts data sources from the UI        │
-└─────────────────────────────────────────────┘
+lib/
+ ├─ src/application/   ← Riverpod providers, schedulers, services
+ ├─ src/core/          ← Data models and SQLite helper
+ ├─ src/data/          ← Protocol repositories and adapters
+ ├─ src/ui/            ← Feature screens and responsive layouts
+ └─ utils/             ← Shared helpers (logging, etc.)
 ```
 
-#### 2. Data Layer
--   **Protocol Providers**: Dedicated clients for M3U, Xtream, and Stalker that fetch and parse data.
--   **Normalization**: All incoming data is mapped to unified models (`Channel`, `EpgEvent`, `VodItem`).
--   **Caching**: A local database (Isar/Hive) caches EPG, playlists, and images for fast startup times and offline access.
-
-#### 3. Player Adapter Layer
-An abstract `PlayerAdapter` interface provides a uniform API (`play()`, `pause()`, `seek()`) to the application, while platform-specific implementations handle the native playback.
-
--   **Android/Windows/Linux** → `flutter_vlc_player`
--   **iOS/macOS/tvOS** → Native `AVPlayer`
--   **Web** → HTML5 `<video>` with `hls.js`
+- **State management**: Riverpod/StateNotifier for deterministic, testable flows.
+- **Persistence**: `sqflite` (+ ffi) powers the local catalogue, overrides, recordings, and reminders.
+- **Background work**: Timer-based scheduler handles sync and reminder restoration after restarts.
+- **Navigation**: `go_router` backs deep linking between login, home, player, and management screens.
 
 ---
 
-## 🚦 Project Roadmap
+## Platform Support
 
-### ✅ Phase 1 – Core Functionality & Mobile MVP
-- [x] Foundational architecture setup with Riverpod.
-- [x] M3U playlist parsing and playback.
-- [x] Xtream Codes login and content browsing (Live, VOD, Series).
-- [x] Basic Stalker Portal support for live channels.
-- [x] Core UI: Channel lists, EPG view, and player screen.
-- [x] User features: Favorites and Search.
+| Platform | Status | Notes |
+| -------- | ------ | ----- |
+| Android / iOS | ✅ | Uses secure storage for credentials, `path_provider` for DVR output. |
+| Windows / macOS / Linux | ✅ | Bundles `sqflite_common_ffi` for native desktop persistence. |
+| Web | ✅ | Navigation tree and management screens render responsively; DVR/notifications are no‑ops. |
 
-### ⏳ Phase 2 – Desktop & Web
-- [x] Responsive layouts for Windows, macOS, and Linux.
-- [x] Keyboard shortcuts and window management features.
-- [x] Web version with a PWA manifest and service worker for caching.
-- [ ] Backend proxy for CORS and stream transcoding (if needed) - Out of scope for now.
-
-### 🚀 Phase 3 – Advanced Features & Smart TV
-- [x] Local caching of EPG and playlists with Isar/Hive.
-- [x] Secure credential storage.
-- [ ] UI optimized for 10-foot "Smart TV" experience - Out of scope for now.
-- [ ] Player features: Picture-in-Picture, audio/subtitle track selection - Out of scope for now.
-- [ ] Parental controls and profile management - Out of scope for now.
+> Tip: desktop targets require the Flutter FFI tooling (`sqflite_common_ffi`) which is already initialised in `main.dart`.
 
 ---
 
-## 🔧 Tech Stack
+## Getting Started
 
--   **Framework**: Flutter
--   **State Management**: Riverpod
--   **Networking**: Dio
--   **Storage**: Isar / Hive (for caching) & flutter_secure_storage (for credentials)
--   **Navigation**: GoRouter
--   **Video Playback**: flutter_vlc_player, video_player
+```bash
+# Install dependencies
+flutter pub get
+
+# Run the application
+flutter run -d windows   # or macos, linux, chrome, android, ios
+
+# Static analysis
+flutter analyze
+
+# Format Dart sources
+dart format lib test
+```
+
+A valid IPTV account (M3U URL, Xtream credentials, or Stalker portal) is required to exercise the app end‑to‑end.
 
 ---
 
-## 🤝 Contributing
+## Roadmap
 
-Contributions are welcome! Please feel free to open an issue or submit a pull request.
+- **Short term**
+  - Finalise 10‑foot / TV layouts.
+  - Expose DVR file browser with playback integrations.
+  - Expand reminder UI with per-programme notification offsets.
 
-## 📄 License
+- **Long term**
+  - Parental controls and PIN locking.
+  - Integrated transcoding/proxy service for CORS-limited streams.
+  - Smart TV packaging (Android TV, tvOS).
 
-This project is licensed under the MIT License - see the `LICENSE.md` file for details.
+Progress is tracked via GitHub issues; contributions to any of the above are welcome.
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch.
+2. Run `flutter analyze` and `dart format` before committing.
+3. Submit a pull request describing your change and steps to validate it.
+
+Bug reports, feature ideas, and UI/UX suggestions are encouraged via the issue tracker.
+
+---
+
+## License
+
+OpenIPTV is released under the [MIT License](LICENSE). Feel free to use it commercially or privately with attribution.

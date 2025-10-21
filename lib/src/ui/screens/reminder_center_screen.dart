@@ -31,7 +31,7 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
                 icon: const Icon(Icons.add_alert),
                 label: const Text('New reminder'),
               ),
-        error: (_, __) => null,
+        error: (context, _) => null,
         loading: () => null,
       ),
       body: portalIdAsync.when(
@@ -61,7 +61,7 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
 
               return ListView.separated(
                 itemCount: reminders.length,
-                separatorBuilder: (_, __) => const Divider(height: 1),
+                separatorBuilder: (context, _) => const Divider(height: 1),
                 itemBuilder: (context, index) {
                   final reminder = reminders[index];
                   return ListTile(
@@ -99,12 +99,15 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
 
   Future<void> _createReminder(BuildContext context, String portalId) async {
     final channel = await _chooseChannel(context, portalId);
+    if (!context.mounted) return;
     if (channel == null) return;
 
     final startTime = await _pickDateTime(context, 'Program start time');
+    if (!context.mounted) return;
     if (startTime == null) return;
 
     final title = await _promptForText(context, 'Program title', channel.name);
+    if (!context.mounted) return;
     if (title == null || title.trim().isEmpty) return;
 
     await ref
@@ -115,7 +118,7 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
           programTitle: title.trim(),
           startTime: startTime,
         );
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Reminder set for ${channel.name}.')),
     );
@@ -124,10 +127,11 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
 
   Future<Channel?> _chooseChannel(BuildContext context, String portalId) async {
     final rows = await DatabaseHelper.instance.getAllChannels(portalId);
+    if (!context.mounted) return null;
     final channels = rows.map((row) => Channel.fromDbMap(row)).toList();
 
     if (channels.isEmpty) {
-      if (!mounted) return null;
+      if (!context.mounted) return null;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('No channels available.')));
@@ -176,6 +180,7 @@ class _ReminderCenterScreenState extends ConsumerState<ReminderCenterScreen> {
       lastDate: now.add(const Duration(days: 365)),
       helpText: title,
     );
+    if (!context.mounted) return null;
     if (date == null) return null;
 
     final time = await showTimePicker(

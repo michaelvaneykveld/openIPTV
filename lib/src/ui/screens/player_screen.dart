@@ -63,7 +63,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Future<void> _toggleRecording(BuildContext context) async {
     final portalId = await ref.read(portalIdProvider.future);
     if (portalId == null) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No active portal to record from.')),
       );
@@ -80,6 +80,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _isRecording = false;
         _activeRecordingId = null;
       });
+      if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Recording stopped.')));
@@ -89,7 +90,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         portalId: portalId,
       );
       if (recordingId == null) {
-        if (!mounted) return;
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Unable to start recording.')),
         );
@@ -100,6 +101,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _isRecording = true;
         _activeRecordingId = recordingId;
       });
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Recording started for ${widget.channel.name}.'),

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:openiptv/utils/app_logger.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
+import 'package:openiptv/src/application/providers/account_provider.dart';
 import 'package:openiptv/src/core/models/credentials.dart'; // Import Credentials model (plural)
 import 'package:openiptv/src/core/models/stalker_credentials.dart'; // Import StalkerCredentials
 import 'package:openiptv/src/core/models/m3u_credentials.dart'; // Import M3uCredentials
@@ -198,6 +199,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         final success = await stalkerApi.login(newCredential);
 
         if (success) {
+          await ref.read(activePortalProvider.notifier).setActivePortal(newCredential.id);
           final channelSyncService = ref.read(channelSyncServiceProvider);
           await channelSyncService.syncChannels(newCredential.id);
           ref.invalidate(savedCredentialsProvider);
@@ -256,6 +258,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         await credentialsRepository.saveCredential(newCredential);
         final channelSyncService = ref.read(channelSyncServiceProvider);
         await channelSyncService.syncChannels(newCredential.id);
+        await ref.read(activePortalProvider.notifier).setActivePortal(newCredential.id);
         ref.invalidate(savedCredentialsProvider);
         ref.invalidate(portalIdProvider);
 
@@ -311,6 +314,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       await credentialsRepository.saveCredential(newCredential);
       final channelSyncService = ref.read(channelSyncServiceProvider);
       await channelSyncService.syncChannels(newCredential.id);
+      await ref.read(activePortalProvider.notifier).setActivePortal(newCredential.id);
       ref.invalidate(savedCredentialsProvider);
       ref.invalidate(portalIdProvider);
 
@@ -595,3 +599,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
     );
   }
 }
+
+
+
+
+
+

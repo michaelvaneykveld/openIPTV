@@ -1,4 +1,3 @@
-
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/src/core/models/channel.dart';
@@ -27,12 +26,8 @@ class ContentGroupingService {
 
     final results = await Future.wait(futures);
 
-    final allGenres = (results[0])
-        .map((e) => Genre.fromJson(e))
-        .toList();
-    final allChannels = (results[1])
-        .map((e) => Channel.fromDbMap(e))
-        .toList();
+    final allGenres = (results[0]).map((e) => Genre.fromJson(e)).toList();
+    final allChannels = (results[1]).map((e) => Channel.fromDbMap(e)).toList();
     final allVodCategories = (results[2])
         .map((e) => VodCategory.fromJson(e))
         .toList();
@@ -58,8 +53,10 @@ class ContentGroupingService {
 
       if (channelsForGenre.isEmpty) continue;
 
-      final subCategory =
-          SubCategory(name: genre.title, items: channelsForGenre);
+      final subCategory = SubCategory(
+        name: genre.title,
+        items: channelsForGenre,
+      );
 
       if (genre.title.toLowerCase().contains('radio')) {
         radioSubCategories.add(subCategory);
@@ -76,8 +73,10 @@ class ContentGroupingService {
 
       if (contentForCategory.isEmpty) continue;
 
-      final subCategory =
-          SubCategory(name: vodCategory.title, items: contentForCategory);
+      final subCategory = SubCategory(
+        name: vodCategory.title,
+        items: contentForCategory,
+      );
 
       final title = vodCategory.title.toLowerCase();
       if (title.contains('series') ||
@@ -93,19 +92,23 @@ class ContentGroupingService {
     final mainCategories = <MainCategory>[];
     if (liveTvSubCategories.isNotEmpty) {
       mainCategories.add(
-          MainCategory(name: 'Live TV', subCategories: liveTvSubCategories));
+        MainCategory(name: 'Live TV', subCategories: liveTvSubCategories),
+      );
     }
     if (moviesSubCategories.isNotEmpty) {
-      mainCategories
-          .add(MainCategory(name: 'Films', subCategories: moviesSubCategories));
+      mainCategories.add(
+        MainCategory(name: 'Films', subCategories: moviesSubCategories),
+      );
     }
     if (seriesSubCategories.isNotEmpty) {
-      mainCategories
-          .add(MainCategory(name: 'Series', subCategories: seriesSubCategories));
+      mainCategories.add(
+        MainCategory(name: 'Series', subCategories: seriesSubCategories),
+      );
     }
     if (radioSubCategories.isNotEmpty) {
-      mainCategories
-          .add(MainCategory(name: 'Radio', subCategories: radioSubCategories));
+      mainCategories.add(
+        MainCategory(name: 'Radio', subCategories: radioSubCategories),
+      );
     }
 
     return GroupedContent(categories: mainCategories);

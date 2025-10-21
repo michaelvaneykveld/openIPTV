@@ -4,6 +4,11 @@ import 'package:go_router/go_router.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/navigation_tree_provider.dart'; // Import the new provider
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
+import 'package:openiptv/src/application/providers/account_provider.dart';
+import 'package:openiptv/src/application/providers/channel_override_provider.dart';
+import 'package:openiptv/src/application/providers/sync_scheduler_provider.dart';
+import 'package:openiptv/src/application/services/recording_service.dart';
+import 'package:openiptv/src/application/services/reminder_service.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/core/models/channel.dart';
 import 'package:openiptv/src/ui/responsive/responsive_layout.dart';
@@ -16,20 +21,34 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+enum _HomeMenuAction {
+  manageChannels,
+  recordings,
+  reminders,
+  syncSettings,
+  debug,
+}
+
+enum _ChannelAction { recordNow, scheduleRecording, setReminder }
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isSearching = false;
   String _searchQuery = '';
   String? _activeSectionTitle;
   String? _activeCategoryTitle;
+  TreeNode? _selectedCategory;
 
   @override
   Widget build(BuildContext context) {
     final portalIdAsyncValue = ref.watch(portalIdProvider);
+    ref.watch(syncSchedulerProvider);
 
     return portalIdAsyncValue.when(
       data: (portalId) {
         if (portalId == null) {
-          return const Center(child: Text('Portal URL not found. Please log in.'));
+          return const Center(
+            child: Text('Portal URL not found. Please log in.'),
+          );
         }
         // Watch the navigationTreeProvider to get the state of the tree.
         final navigationTreeAsyncValue = ref.watch(navigationTreeProvider);
@@ -53,36 +72,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             actions: [
               IconButton(
                 icon: Icon(_isSearching ? Icons.close : Icons.search),
+                tooltip: _isSearching ? 'Close search' : 'Search',
                 onPressed: () {
                   setState(() {
                     _isSearching = !_isSearching;
                     _searchQuery = '';
+                    _selectedCategory = null;
                   });
                 },
               ),
-              // Add a refresh button to the app bar.
+              IconButton(
+                icon: const Icon(Icons.switch_account),
+                tooltip: 'Switch account',
+                onPressed: () => _showAccountSwitcher(context),
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh content',
                 onPressed: () {
-                  // Invalidate the provider to force a refresh of the tree.
                   ref.invalidate(navigationTreeProvider);
                 },
               ),
-              // Add a logout button to the app bar.
+              PopupMenuButton<_HomeMenuAction>(
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'More actions',
+                onSelected: (action) => _handleMenuAction(context, action),
+                itemBuilder: (context) => const [
+                  PopupMenuItem(
+                    value: _HomeMenuAction.manageChannels,
+                    child: Text('Manage channels'),
+                  ),
+                  PopupMenuItem(
+                    value: _HomeMenuAction.recordings,
+                    child: Text('Recordings'),
+                  ),
+                  PopupMenuItem(
+                    value: _HomeMenuAction.reminders,
+                    child: Text('Reminders'),
+                  ),
+                  PopupMenuItem(
+                    value: _HomeMenuAction.syncSettings,
+                    child: Text('Sync settings'),
+                  ),
+                  PopupMenuItem(
+                    value: _HomeMenuAction.debug,
+                    child: Text('Debug tools'),
+                  ),
+                ],
+              ),
               IconButton(
                 icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
                 onPressed: () async {
                   await ref.read(stalkerApiProvider).logout();
-                  if (context.mounted) {
+                  if (mounted) {
                     context.go('/login');
                   }
-                },
-              ),
-              // Add a debug button to the app bar.
-              IconButton(
-                icon: const Icon(Icons.bug_report),
-                onPressed: () {
-                  context.push('/debug');
                 },
               ),
             ],
@@ -100,17 +145,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 );
               },
             ),
-            error: (err, stack) => Center(
-              child: Text('Error: ${err.toString()}'),
-            ),
-            loading: () => const Center(
-              child: CircularProgressIndicator(),
-            ),
+            error: (err, stack) =>
+                Center(child: Text('Error: ${err.toString()}')),
+            loading: () => const Center(child: CircularProgressIndicator()),
           ),
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (err, stack) => Center(child: Text('Error loading portal ID: ${err.toString()}')),
+      error: (err, stack) =>
+          Center(child: Text('Error loading portal ID: ${err.toString()}')),
     );
   }
 
@@ -136,7 +179,91 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Widget _buildWideLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
+  void _handleMenuAction(BuildContext context, _HomeMenuAction action) {
+    switch (action) {
+      case _HomeMenuAction.manageChannels:
+        _openChannelManager(context);
+        break;
+      case _HomeMenuAction.recordings:
+        _openRecordingCenter(context);
+        break;
+      case _HomeMenuAction.reminders:
+        _openReminderCenter(context);
+        break;
+      case _HomeMenuAction.syncSettings:
+        _openSyncSettings(context);
+        break;
+      case _HomeMenuAction.debug:
+        context.push('/debug');
+        break;
+    }
+  }
+
+  void _openChannelManager(BuildContext context) {
+    context.push('/channels/manage');
+  }
+
+  void _openRecordingCenter(BuildContext context) {
+    context.push('/recordings');
+  }
+
+  void _openReminderCenter(BuildContext context) {
+    context.push('/reminders');
+  }
+
+  void _openSyncSettings(BuildContext context) {
+    context.push('/settings/sync');
+  }
+
+  Future<void> _showAccountSwitcher(BuildContext context) async {
+    final credentialsRepository = ref.read(credentialsRepositoryProvider);
+    final credentials = await credentialsRepository.getSavedCredentials();
+    final activePortal = ref.read(activePortalProvider);
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const ListTile(title: Text('Select account')),
+            for (final credential in credentials)
+              RadioListTile<String>(
+                value: credential.id,
+                groupValue: activePortal,
+                title: Text(credential.name),
+                subtitle: Text(credential.type),
+                onChanged: (value) async {
+                  if (value == null) return;
+                  await ref
+                      .read(activePortalProvider.notifier)
+                      .setActivePortal(value);
+                  ref.invalidate(portalIdProvider);
+                  ref.invalidate(navigationTreeProvider);
+                  ref.invalidate(channelOverridesProvider(value));
+                  if (!mounted) return;
+                  setState(() {
+                    _selectedCategory = null;
+                    _activeSectionTitle = null;
+                    _activeCategoryTitle = null;
+                  });
+                  Navigator.of(context).pop();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWideLayout(
+    BuildContext context,
+    List<TreeNode> nodes,
+    String portalId,
+    WidgetRef ref,
+  ) {
     if (nodes.isEmpty) {
       return const Center(
         child: Text('No data found to build the navigation tree.'),
@@ -178,20 +305,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     return _buildTreeNode(context, node, portalId, ref);
                   },
                 )
-              : const Center(
-                  child: Text('Select a category'),
-                ),
+              : const Center(child: Text('Select a category')),
         ),
       ],
     );
   }
 
-  Widget _buildNarrowLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
+  Widget _buildNarrowLayout(
+    BuildContext context,
+    List<TreeNode> nodes,
+    String portalId,
+    WidgetRef ref,
+  ) {
     return _buildTree(context, nodes, portalId, ref);
   }
 
   /// Builds the tree structure using ExpansionTiles.
-  Widget _buildTree(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) { // Added context
+  Widget _buildTree(
+    BuildContext context,
+    List<TreeNode> nodes,
+    String portalId,
+    WidgetRef ref,
+  ) {
+    // Added context
     if (nodes.isEmpty) {
       return const Center(
         child: Text('No data found to build the navigation tree.'),
@@ -223,30 +359,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       } else if (node.children.isNotEmpty) {
         final filteredChildren = _filterNodes(node.children, query);
         if (filteredChildren.isNotEmpty) {
-          filteredNodes.add(TreeNode(
-            title: node.title,
-            type: node.type,
-            data: node.data,
-            children: filteredChildren,
-          ));
+          filteredNodes.add(
+            TreeNode(
+              title: node.title,
+              type: node.type,
+              data: node.data,
+              children: filteredChildren,
+            ),
+          );
         }
       }
     }
     return filteredNodes;
   }
 
-  Widget _buildDesktopLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
+  Widget _buildDesktopLayout(
+    BuildContext context,
+    List<TreeNode> nodes,
+    String portalId,
+    WidgetRef ref,
+  ) {
     if (nodes.isEmpty) {
-      return const Center(
-        child: Text('No content available.'),
-      );
+      return const Center(child: Text('No content available.'));
     }
 
     final portalNode = nodes.firstWhere(
       (node) => node.type == 'portal',
       orElse: () => nodes.first,
     );
-    final sections = portalNode.children.isNotEmpty ? portalNode.children : nodes;
+    final sections = portalNode.children.isNotEmpty
+        ? portalNode.children
+        : nodes;
 
     if (sections.isEmpty) {
       return _buildWideLayout(context, nodes, portalId, ref);
@@ -259,7 +402,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     final categoryCandidates = selectedSection?.children ?? [];
-    final selectedCategory = _selectNode(categoryCandidates, _activeCategoryTitle);
+    final selectedCategory = _selectNode(
+      categoryCandidates,
+      _activeCategoryTitle,
+    );
     if (_activeCategoryTitle != selectedCategory?.title) {
       _activeCategoryTitle = selectedCategory?.title;
     }
@@ -271,7 +417,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return Row(
       children: [
         NavigationRail(
-          selectedIndex: sections.indexWhere((node) => node.title == _activeSectionTitle),
+          selectedIndex: sections.indexWhere(
+            (node) => node.title == _activeSectionTitle,
+          ),
           onDestinationSelected: (index) {
             setState(() {
               _activeSectionTitle = sections[index].title;
@@ -322,7 +470,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       return ExpansionTile(
                         title: Text(node.title),
                         children: node.children
-                            .map((child) => _buildTreeNode(context, child, portalId, ref))
+                            .map(
+                              (child) =>
+                                  _buildTreeNode(context, child, portalId, ref),
+                            )
                             .toList(),
                       );
                     }
@@ -363,18 +514,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Widget _buildTreeNode(BuildContext context, TreeNode node, String portalId, WidgetRef ref) { // Added context
+  Widget _buildTreeNode(
+    BuildContext context,
+    TreeNode node,
+    String portalId,
+    WidgetRef ref,
+  ) {
+    // Added context
     if (node.children.isEmpty) {
       // Leaf node (e.g., Channel, VOD item)
       return ListTile(
         focusNode: FocusNode(),
         title: Text(node.title),
         trailing: node.type == 'channel'
-            ? IconButton(
-                icon: Icon(
-                  (node.data as Channel).fav == 1 ? Icons.star : Icons.star_border,
-                ),
-                onPressed: () => _toggleFavorite(node.data as Channel, portalId, ref),
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      (node.data as Channel).fav == 1
+                          ? Icons.star
+                          : Icons.star_border,
+                    ),
+                    onPressed: () =>
+                        _toggleFavorite(node.data as Channel, portalId, ref),
+                  ),
+                  PopupMenuButton<_ChannelAction>(
+                    tooltip: 'Channel actions',
+                    onSelected: (action) => _handleChannelAction(
+                      context,
+                      node.data as Channel,
+                      action,
+                      portalId,
+                    ),
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: _ChannelAction.recordNow,
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(
+                            Icons.fiber_manual_record,
+                            color: Colors.redAccent,
+                          ),
+                          title: Text('Record now'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _ChannelAction.scheduleRecording,
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(Icons.schedule),
+                          title: Text('Schedule recording'),
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _ChannelAction.setReminder,
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(Icons.alarm),
+                          title: Text('Set reminder'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               )
             : null,
         onTap: () {
@@ -382,7 +585,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             context.go('/player', extra: node.data);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Tapped on \${node.title} (\${node.type})')),
+              SnackBar(content: Text('Tapped on ${node.title} (${node.type})')),
             );
           }
         },
@@ -392,7 +595,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       return ExpansionTile(
         initiallyExpanded: _searchQuery.isNotEmpty,
         title: Text(node.title),
-        children: node.children.map((childNode) => _buildTreeNode(context, childNode, portalId, ref)).toList(), // Pass context
+        children: node.children
+            .map(
+              (childNode) => _buildTreeNode(context, childNode, portalId, ref),
+            )
+            .toList(), // Pass context
       );
     }
   }
@@ -451,5 +658,196 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
     await DatabaseHelper.instance.updateChannel(newChannel.toMap(), portalId);
     ref.invalidate(navigationTreeProvider);
+  }
+
+  Future<void> _handleChannelAction(
+    BuildContext context,
+    Channel channel,
+    _ChannelAction action,
+    String portalId,
+  ) async {
+    switch (action) {
+      case _ChannelAction.recordNow:
+        await _startRecordingNowForChannel(context, channel, portalId);
+        break;
+      case _ChannelAction.scheduleRecording:
+        await _scheduleRecordingForChannel(context, channel, portalId);
+        break;
+      case _ChannelAction.setReminder:
+        await _createReminderForChannel(context, channel, portalId);
+        break;
+    }
+  }
+
+  Future<void> _startRecordingNowForChannel(
+    BuildContext context,
+    Channel channel,
+    String portalId,
+  ) async {
+    final durationMinutes = await _promptForNumber(
+      context,
+      'Recording duration (minutes)',
+      '60',
+    );
+    final duration = durationMinutes != null
+        ? Duration(minutes: durationMinutes)
+        : null;
+    await ref
+        .read(recordingManagerProvider)
+        .startRecordingNow(
+          channel: channel,
+          portalId: portalId,
+          duration: duration,
+        );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Recording started for ${channel.name}.')),
+    );
+  }
+
+  Future<void> _scheduleRecordingForChannel(
+    BuildContext context,
+    Channel channel,
+    String portalId,
+  ) async {
+    final start = await _pickDateTime(context, 'Recording start time');
+    if (start == null) return;
+    final end = await _pickDateTime(context, 'Recording end time');
+    if (end == null || end.isBefore(start)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be after start time.')),
+      );
+      return;
+    }
+    await ref
+        .read(recordingManagerProvider)
+        .scheduleRecording(
+          channel: channel,
+          portalId: portalId,
+          startTime: start,
+          endTime: end,
+        );
+    if (!mounted) return;
+    final startLabel = _formatDateTime(start);
+    final endLabel = _formatDateTime(end);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Recording scheduled for ${channel.name} ($startLabel - $endLabel).',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createReminderForChannel(
+    BuildContext context,
+    Channel channel,
+    String portalId,
+  ) async {
+    final startTime = await _pickDateTime(context, 'Program start time');
+    if (startTime == null) return;
+    final title = await _promptForText(context, 'Program title', channel.name);
+    if (title == null || title.trim().isEmpty) return;
+    await ref
+        .read(reminderManagerProvider)
+        .scheduleReminder(
+          channel: channel,
+          portalId: portalId,
+          programTitle: title.trim(),
+          startTime: startTime,
+        );
+    if (!mounted) return;
+    final startLabel = _formatDateTime(startTime);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Reminder set for ${channel.name} at $startLabel.'),
+      ),
+    );
+  }
+
+  Future<int?> _promptForNumber(
+    BuildContext context,
+    String title,
+    String initial,
+  ) async {
+    final controller = TextEditingController(text: initial);
+    final result = await showDialog<int?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              Navigator.of(context).pop(value);
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return result;
+  }
+
+  Future<DateTime?> _pickDateTime(BuildContext context, String title) async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now.subtract(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 365)),
+      helpText: title,
+    );
+    if (date == null) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now),
+    );
+    if (time == null) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  }
+
+  Future<String?> _promptForText(
+    BuildContext context,
+    String title,
+    String initial,
+  ) async {
+    final controller = TextEditingController(text: initial);
+    return showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(controller.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final date =
+        '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+    final time =
+        '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    return '$date $time';
   }
 }

@@ -4,8 +4,12 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'dart:io' show Platform;
 
 import 'package:openiptv/src/app_router.dart';
+import 'package:openiptv/src/application/services/notification_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.instance.initialize();
+
   if (Platform.isWindows || Platform.isLinux) {
     // Initialize FFI
     sqfliteFfiInit();
@@ -40,3 +44,4 @@ class MyApp extends ConsumerWidget {
     );
   }
 }
+

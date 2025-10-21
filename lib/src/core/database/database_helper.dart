@@ -1,3 +1,6 @@
+import 'package:openiptv/src/core/models/channel_override.dart';
+import 'package:openiptv/src/core/models/recording.dart';
+import 'package:openiptv/src/core/models/reminder.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -5,7 +8,7 @@ import 'package:openiptv/utils/app_logger.dart'; // Added this import
 
 class DatabaseHelper {
   static const _databaseName = "OpenIPTV.db";
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
 
   static const columnPortalId = 'portal_id';
 
@@ -24,6 +27,14 @@ class DatabaseHelper {
   static const columnVodCategoryTitle = 'title';
   static const columnVodCategoryAlias = 'alias';
   static const columnVodCategoryCensored = 'censored';
+
+  // Channel Overrides Table
+  static const tableChannelOverrides = 'channel_overrides';
+  static const columnOverrideChannelId = 'channel_id';
+  static const columnOverrideIsHidden = 'is_hidden';
+  static const columnOverrideCustomName = 'custom_name';
+  static const columnOverrideCustomGroup = 'custom_group';
+  static const columnOverridePosition = 'position';
 
   // Channels Table
   static const tableChannels = 'channels';
@@ -125,6 +136,26 @@ class DatabaseHelper {
   static const columnEpgTitle = 'title';
   static const columnEpgDescription = 'description';
 
+  // Recordings Table
+  static const tableRecordings = 'recordings';
+  static const columnRecordingId = 'id';
+  static const columnRecordingChannelId = 'channel_id';
+  static const columnRecordingTitle = 'title';
+  static const columnRecordingStartTime = 'start_time';
+  static const columnRecordingEndTime = 'end_time';
+  static const columnRecordingStatus = 'status';
+  static const columnRecordingFilePath = 'file_path';
+  static const columnRecordingCreatedAt = 'created_at';
+
+  // Reminders Table
+  static const tableReminders = 'reminders';
+  static const columnReminderId = 'id';
+  static const columnReminderChannelId = 'channel_id';
+  static const columnReminderProgramTitle = 'program_title';
+  static const columnReminderStartTime = 'start_time';
+  static const columnReminderNotificationId = 'notification_id';
+  static const columnReminderCreatedAt = 'created_at';
+
   // make this a singleton class
   DatabaseHelper._privateConstructor();
   static final DatabaseHelper instance = DatabaseHelper._privateConstructor();
@@ -146,6 +177,7 @@ class DatabaseHelper {
       path,
       version: _databaseVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -239,6 +271,20 @@ class DatabaseHelper {
       'DatabaseHelper: Table $tableChannels created.',
     );
     await db.execute('''
+          CREATE TABLE $tableChannelOverrides (
+            $columnPortalId TEXT NOT NULL,
+            $columnOverrideChannelId TEXT NOT NULL,
+            $columnOverrideIsHidden INTEGER DEFAULT 0,
+            $columnOverrideCustomName TEXT,
+            $columnOverrideCustomGroup TEXT,
+            $columnOverridePosition INTEGER,
+            PRIMARY KEY ($columnPortalId, $columnOverrideChannelId)
+          )
+          ''');
+    appLogger.d(
+      'DatabaseHelper: Table $tableChannelOverrides created.',
+    );
+    await db.execute('''
           CREATE TABLE $tableChannelCmds (
             $columnCmdId TEXT PRIMARY KEY,
             $columnCmdChannelId TEXT,
@@ -313,6 +359,77 @@ class DatabaseHelper {
     appLogger.d(
       'DatabaseHelper: Table $tableEpg created.',
     );
+    await db.execute('''
+          CREATE TABLE $tableRecordings (
+            $columnRecordingId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $columnPortalId TEXT NOT NULL,
+            $columnRecordingChannelId TEXT NOT NULL,
+            $columnRecordingTitle TEXT,
+            $columnRecordingStartTime INTEGER NOT NULL,
+            $columnRecordingEndTime INTEGER,
+            $columnRecordingStatus INTEGER NOT NULL,
+            $columnRecordingFilePath TEXT,
+            $columnRecordingCreatedAt INTEGER NOT NULL
+          )
+          ''');
+    appLogger.d(
+      'DatabaseHelper: Table $tableRecordings created.',
+    );
+    await db.execute('''
+          CREATE TABLE $tableReminders (
+            $columnReminderId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $columnPortalId TEXT NOT NULL,
+            $columnReminderChannelId TEXT NOT NULL,
+            $columnReminderProgramTitle TEXT,
+            $columnReminderStartTime INTEGER NOT NULL,
+            $columnReminderNotificationId INTEGER,
+            $columnReminderCreatedAt INTEGER NOT NULL
+          )
+          ''');
+    appLogger.d(
+      'DatabaseHelper: Table $tableReminders created.',
+    );
+  }
+
+  Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      appLogger.d('DatabaseHelper: Applying upgrade to version 2');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableChannelOverrides (
+            $columnPortalId TEXT NOT NULL,
+            $columnOverrideChannelId TEXT NOT NULL,
+            $columnOverrideIsHidden INTEGER DEFAULT 0,
+            $columnOverrideCustomName TEXT,
+            $columnOverrideCustomGroup TEXT,
+            $columnOverridePosition INTEGER,
+            PRIMARY KEY ($columnPortalId, $columnOverrideChannelId)
+          )
+          ''');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableRecordings (
+            $columnRecordingId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $columnPortalId TEXT NOT NULL,
+            $columnRecordingChannelId TEXT NOT NULL,
+            $columnRecordingTitle TEXT,
+            $columnRecordingStartTime INTEGER NOT NULL,
+            $columnRecordingEndTime INTEGER,
+            $columnRecordingStatus INTEGER NOT NULL,
+            $columnRecordingFilePath TEXT,
+            $columnRecordingCreatedAt INTEGER NOT NULL
+          )
+          ''');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableReminders (
+            $columnReminderId INTEGER PRIMARY KEY AUTOINCREMENT,
+            $columnPortalId TEXT NOT NULL,
+            $columnReminderChannelId TEXT NOT NULL,
+            $columnReminderProgramTitle TEXT,
+            $columnReminderStartTime INTEGER NOT NULL,
+            $columnReminderNotificationId INTEGER,
+            $columnReminderCreatedAt INTEGER NOT NULL
+          )
+          ''');
+    }
   }
 
   Future<void> clearAllData(String portalId) async {
@@ -812,6 +929,232 @@ class DatabaseHelper {
     }
   }
 
+  // --- CRUD Operations for Channel Overrides ---
+  Future<List<Map<String, dynamic>>> getChannelOverrides(String portalId) async {
+    try {
+      final db = await instance.database;
+      return await db.query(
+        tableChannelOverrides,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+        orderBy:
+            'CASE WHEN $columnOverridePosition IS NULL THEN 1 ELSE 0 END, $columnOverridePosition ASC, $columnOverrideCustomName ASC',
+      );
+    } catch (e) {
+      appLogger.e('Error getting channel overrides for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<void> upsertChannelOverride(ChannelOverride override) async {
+    try {
+      final db = await instance.database;
+      await db.insert(
+        tableChannelOverrides,
+        override.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      appLogger.e(
+        'Error saving channel override for channel ${override.channelId} (${override.portalId}): $e',
+      );
+    }
+  }
+
+  Future<void> deleteChannelOverride(String portalId, String channelId) async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        tableChannelOverrides,
+        where: '$columnPortalId = ? AND $columnOverrideChannelId = ?',
+        whereArgs: [portalId, channelId],
+      );
+    } catch (e) {
+      appLogger.e(
+        'Error deleting channel override for channel $channelId ($portalId): $e',
+      );
+    }
+  }
+
+  Future<void> updateChannelOverridePositions(
+    String portalId,
+    List<ChannelOverride> orderedOverrides,
+  ) async {
+    try {
+      final db = await instance.database;
+      await db.transaction((txn) async {
+        for (var i = 0; i < orderedOverrides.length; i++) {
+          final override = orderedOverrides[i].copyWith(position: i);
+          await txn.update(
+            tableChannelOverrides,
+            {
+              columnOverridePosition: override.position,
+            },
+            where: '$columnPortalId = ? AND $columnOverrideChannelId = ?',
+            whereArgs: [portalId, override.channelId],
+          );
+        }
+      });
+    } catch (e) {
+      appLogger.e('Error updating override positions for $portalId: $e');
+    }
+  }
+
+  // --- CRUD Operations for Recordings ---
+  Future<int> insertRecording(Recording recording) async {
+    try {
+      final db = await instance.database;
+      return await db.insert(
+        tableRecordings,
+        recording.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      appLogger.e('Error inserting recording ${recording.title}: $e');
+      return -1;
+    }
+  }
+
+  Future<int> updateRecording(Recording recording) async {
+    try {
+      final db = await instance.database;
+      return await db.update(
+        tableRecordings,
+        recording.toMap(),
+        where: '$columnRecordingId = ?',
+        whereArgs: [recording.id],
+      );
+    } catch (e) {
+      appLogger.e('Error updating recording ${recording.id}: $e');
+      return 0;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllRecordings(String portalId) async {
+    try {
+      final db = await instance.database;
+      return await db.query(
+        tableRecordings,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+        orderBy: '$columnRecordingStartTime DESC',
+      );
+    } catch (e) {
+      appLogger.e('Error fetching recordings for portal $portalId: $e');
+      return [];
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getPendingRecordings(DateTime now) async {
+    try {
+      final db = await instance.database;
+      return await db.query(
+        tableRecordings,
+        where:
+            '$columnRecordingStatus IN (?, ?) AND $columnRecordingStartTime <= ?',
+        whereArgs: [
+          RecordingStatus.scheduled.index,
+          RecordingStatus.recording.index,
+          now.millisecondsSinceEpoch
+        ],
+        orderBy: '$columnRecordingStartTime ASC',
+      );
+    } catch (e) {
+      appLogger.e('Error fetching pending recordings: $e');
+      return [];
+    }
+  }
+
+  Future<void> deleteRecording(int id) async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        tableRecordings,
+        where: '$columnRecordingId = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      appLogger.e('Error deleting recording $id: $e');
+    }
+  }
+
+  // --- CRUD Operations for Reminders ---
+  Future<int> insertReminder(Reminder reminder) async {
+    try {
+      final db = await instance.database;
+      return await db.insert(
+        tableReminders,
+        reminder.toMap(),
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      appLogger.e('Error inserting reminder ${reminder.programTitle}: $e');
+      return -1;
+    }
+  }
+
+  Future<void> deleteReminder(int id) async {
+    try {
+      final db = await instance.database;
+      await db.delete(
+        tableReminders,
+        where: '$columnReminderId = ?',
+        whereArgs: [id],
+      );
+    } catch (e) {
+      appLogger.e('Error deleting reminder $id: $e');
+    }
+  }
+
+  Future<void> updateReminder(Reminder reminder) async {
+    try {
+      final db = await instance.database;
+      await db.update(
+        tableReminders,
+        reminder.toMap(),
+        where: '$columnReminderId = ?',
+        whereArgs: [reminder.id],
+      );
+    } catch (e) {
+      appLogger.e('Error updating reminder ${reminder.id}: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUpcomingReminders(
+    DateTime now,
+  ) async {
+    try {
+      final db = await instance.database;
+      return await db.query(
+        tableReminders,
+        where: '$columnReminderStartTime >= ?',
+        whereArgs: [now.millisecondsSinceEpoch],
+        orderBy: '$columnReminderStartTime ASC',
+      );
+    } catch (e) {
+      appLogger.e('Error fetching reminders: $e');
+      return [];
+    }
+  }
+
+  Future<Map<String, dynamic>?> getReminderById(int id) async {
+    try {
+      final db = await instance.database;
+      final result = await db.query(
+        tableReminders,
+        where: '$columnReminderId = ?',
+        whereArgs: [id],
+        limit: 1,
+      );
+      if (result.isNotEmpty) {
+        return result.first;
+      }
+    } catch (e) {
+      appLogger.e('Error fetching reminder $id: $e');
+    }
+    return null;
+  }
+
   // --- CRUD Operations for EPG ---
   Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, {required String portalId}) async {
     final db = await instance.database;
@@ -859,3 +1202,4 @@ class DatabaseHelper {
     return await db.query(tableName);
   }
 }
+

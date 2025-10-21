@@ -4,7 +4,7 @@ import 'package:openiptv/src/data/datasources/flutter_secure_storage_adapter.dar
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:openiptv/src/data/datasources/local/credentials_local_data_source.dart';
 import 'package:openiptv/src/data/repository/credentials_repository.dart';
-
+import 'package:openiptv/src/application/providers/account_provider.dart';
 import 'package:openiptv/src/core/models/credentials.dart';
 
 part 'credentials_provider.g.dart';
@@ -37,8 +37,15 @@ Future<String?> portalId(Ref ref) async {
   final savedCredentials = await credentialsRepository.getSavedCredentials();
 
   if (savedCredentials.isNotEmpty) {
-    final activeCredential = savedCredentials.first;
-    return activeCredential.id;
+    final activePortalId = ref.watch(activePortalProvider);
+    final activeController = ref.read(activePortalProvider.notifier);
+    if (activePortalId != null &&
+        savedCredentials.any((credential) => credential.id == activePortalId)) {
+      return activePortalId;
+    }
+    final fallback = savedCredentials.first.id;
+    await activeController.setActivePortal(fallback);
+    return fallback;
   }
   return null; // No portalId found
 }

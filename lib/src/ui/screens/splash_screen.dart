@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:openiptv/src/application/providers/credentials_provider.dart';
+import 'package:openiptv/src/application/services/channel_sync_service.dart';
+import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/utils/app_logger.dart';
-
 
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
@@ -21,19 +23,49 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   Future<void> _initializeApp() async {
     try {
-      
-      // TODO: Implement a proper data synchronization strategy
-      // await apiProvider.syncAllDataIfNeeded();
-      
-      // Navigate to the home screen on success.
-      // Ensure you have a route named '/home' in your GoRouter configuration.
+      final credentialsRepository = ref.read(credentialsRepositoryProvider);
+      final credentials = await credentialsRepository.getSavedCredentials();
+
+      if (!mounted) return;
+
+      if (credentials.isEmpty) {
+        context.go('/login');
+        return;
+      }
+
+      final channelSyncService = ref.read(channelSyncServiceProvider);
+      final dbHelper = DatabaseHelper.instance;
+
+      for (final credential in credentials) {
+        final portalId = credential.id;
+        final hasChannelData = await _hasAnyData(dbHelper, portalId);
+
+        if (!hasChannelData) {
+          await channelSyncService.syncChannels(portalId);
+        }
+      }
+
       if (mounted) {
         context.go('/home');
       }
-    } catch (e) {
-      // Handle error appropriately in a real app (e.g., show a dialog)
-      appLogger.e("Error during data synchronization: $e");
-      // Optionally, navigate to an error screen or show a retry button.
+    } catch (e, stackTrace) {
+      appLogger.e('Error during data synchronization', error: e, stackTrace: stackTrace);
+      if (!mounted) return;
+      context.go('/login');
+    }
+  }
+
+  Future<bool> _hasAnyData(DatabaseHelper dbHelper, String portalId) async {
+    try {
+      final List<Map<String, dynamic>> existingChannels = await dbHelper.getAllChannels(portalId);
+      if (existingChannels.isNotEmpty) {
+        return true;
+      }
+      final vodCategories = await dbHelper.getAllVodCategories(portalId);
+      return vodCategories.isNotEmpty;
+    } catch (e, stackTrace) {
+      appLogger.w('Failed to read cached data for portal $portalId: $e', stackTrace: stackTrace);
+      return false;
     }
   }
 

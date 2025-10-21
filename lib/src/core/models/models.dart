@@ -5,3 +5,6 @@ export 'm3u_credentials.dart';
 export 'genre.dart';
 export 'vod_content.dart';
 export 'vod_category.dart';
+export 'channel_override.dart';
+export 'recording.dart';
+export 'reminder.dart';

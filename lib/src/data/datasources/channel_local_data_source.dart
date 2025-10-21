@@ -22,9 +22,9 @@ class ChannelLocalDataSource {
     final List<Channel> channels = [];
 
     for (var channelMap in channelMaps) {
-      final Channel channel = Channel.fromStalkerJson(channelMap);
+      final Channel channel = Channel.fromDbMap(channelMap);
       final List<Map<String, dynamic>> cmdMaps = await _dbHelper.getChannelCmdsForChannel(channel.id, portalId);
-      final List<ChannelCmd> cmds = cmdMaps.map((cmdMap) => ChannelCmd.fromJson(cmdMap, channelId: channel.id)).toList();
+      final List<ChannelCmd> cmds = cmdMaps.map((cmdMap) => ChannelCmd.fromDbMap(cmdMap)).toList();
       
       // Create a new Channel object with cmds populated
       channels.add(Channel(
@@ -74,6 +74,9 @@ class ChannelLocalDataSource {
         open: channel.open,
         useLoadBalancing: channel.useLoadBalancing,
         cmds: cmds, // Populate cmds
+        streamUrl: channel.streamUrl,
+        group: channel.group,
+        epgId: channel.epgId,
       ));
     }
     return channels;
@@ -81,7 +84,7 @@ class ChannelLocalDataSource {
 
   Future<void> saveChannels(List<Channel> channels, String portalId) async {
     // Clear existing data before saving new data
-    await _dbHelper.clearAllData(portalId); // This clears all tables, might need to be more specific
+    await _dbHelper.clearChannelData(portalId); // Only clear channel-related tables
 
     for (var channel in channels) {
       await _dbHelper.insertChannel(channel.toMap(), portalId);

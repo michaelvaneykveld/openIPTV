@@ -53,6 +53,25 @@ class ChannelCmd {
     );
   }
 
+  factory ChannelCmd.fromDbMap(Map<String, dynamic> map) {
+    return ChannelCmd(
+      id: map[DatabaseHelper.columnCmdId] as String,
+      channelId: map[DatabaseHelper.columnCmdChannelId] as String,
+      priority: map[DatabaseHelper.columnCmdPriority] as int?,
+      url: map[DatabaseHelper.columnCmdUrl] as String?,
+      status: map[DatabaseHelper.columnCmdStatus] as int?,
+      useHttpTmpLink: map[DatabaseHelper.columnCmdUseHttpTmpLink] as int?,
+      wowzaTmpLink: map[DatabaseHelper.columnCmdWowzaTmpLink] as int?,
+      userAgentFilter: map[DatabaseHelper.columnCmdUserAgentFilter] as String?,
+      useLoadBalancing: map[DatabaseHelper.columnCmdUseLoadBalancing] as int?,
+      changed: map[DatabaseHelper.columnCmdChanged] as String?,
+      enableMonitoring: map[DatabaseHelper.columnCmdEnableMonitoring] as int?,
+      enableBalancerMonitoring: map[DatabaseHelper.columnCmdEnableBalancerMonitoring] as int?,
+      nginxSecureLink: map[DatabaseHelper.columnCmdNginxSecureLink] as int?,
+      flussonicTmpLink: map[DatabaseHelper.columnCmdFlussonicTmpLink] as int?,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       DatabaseHelper.columnCmdId: id,

@@ -332,6 +332,24 @@ class DatabaseHelper {
     appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
   }
 
+  Future<void> clearChannelData(String portalId) async {
+    appLogger.d('DatabaseHelper: Clearing channel data for portal: $portalId...');
+    final db = await instance.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        tableChannelCmds,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableChannels,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+    });
+    appLogger.d('DatabaseHelper: Channel data cleared for portal: $portalId.');
+  }
+
   // --- CRUD Operations for Genres ---
   Future<int> insertGenre(Map<String, dynamic> genre, String portalId) async {
     try {

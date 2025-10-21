@@ -36,7 +36,7 @@ class ChannelRepository {
 
     // If local database is empty or refresh is forced, fetch from remote.
     appLogger.d('Cache is empty or refresh is forced. Fetching from remote.');
-    final remoteChannels = await _remoteProvider.fetchLiveChannels();
+    final remoteChannels = await _remoteProvider.fetchLiveChannels(portalId);
 
     // Save the fetched channels to the local database for next time.
     await _localDataSource.saveChannels(remoteChannels, portalId);
@@ -44,8 +44,8 @@ class ChannelRepository {
     return remoteChannels;
   }
 
-  Future<List<Genre>> getGenres() async {
-    return await _remoteProvider.getGenres();
+  Future<List<Genre>> getGenres(String portalId) async {
+    return await _remoteProvider.getGenres(portalId);
   }
 }
 

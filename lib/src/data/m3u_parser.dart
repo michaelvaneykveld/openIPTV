@@ -1,9 +1,7 @@
 import 'package:openiptv/src/core/models/channel.dart';
-import 'package:openiptv/utils/app_logger.dart';
 
 class M3uParser {
   static List<Channel> parse(String m3uContent) {
-    appLogger.d("M3U Content:\n$m3uContent");
     final List<Channel> channels = [];
     final lines = m3uContent.split('\n');
 

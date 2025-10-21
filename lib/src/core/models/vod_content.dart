@@ -1,3 +1,5 @@
+import 'package:openiptv/src/core/database/database_helper.dart';
+
 class VodContent {
   final String id;
   final String name;
@@ -35,6 +37,21 @@ class VodContent {
       actors: json['actors'] as String?,
       duration: json['duration'] as String?,
       categoryId: categoryId,
+    );
+  }
+
+  factory VodContent.fromDbMap(Map<String, dynamic> map) {
+    return VodContent(
+      id: map[DatabaseHelper.columnVodContentId] as String,
+      name: map[DatabaseHelper.columnVodContentName] as String,
+      cmd: map[DatabaseHelper.columnVodContentCmd] as String?,
+      logo: map[DatabaseHelper.columnVodContentLogo] as String?,
+      description: map[DatabaseHelper.columnVodContentDescription] as String?,
+      year: map[DatabaseHelper.columnVodContentYear] as String?,
+      director: map[DatabaseHelper.columnVodContentDirector] as String?,
+      actors: map[DatabaseHelper.columnVodContentActors] as String?,
+      duration: map[DatabaseHelper.columnVodContentDuration] as String?,
+      categoryId: map[DatabaseHelper.columnVodContentCategoryId] as String?,
     );
   }
 

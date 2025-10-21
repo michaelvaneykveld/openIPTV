@@ -7,7 +7,7 @@ import '../../core/models/genre.dart';
 part 'genre_list_provider.g.dart';
 
 @riverpod
-Future<List<Genre>> genreList(Ref ref) {
+Future<List<Genre>> genreList(Ref ref, String portalId) {
   final repository = ref.watch(channelRepositoryProvider);
-  return repository.getGenres();
+  return repository.getGenres(portalId);
 }

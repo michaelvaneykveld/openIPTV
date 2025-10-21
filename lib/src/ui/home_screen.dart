@@ -118,6 +118,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildWideLayout(BuildContext context, List<TreeNode> nodes, String portalId, WidgetRef ref) {
+    if (nodes.isEmpty) {
+      return const Center(
+        child: Text('No data found to build the navigation tree.'),
+      );
+    }
     final filteredNodes = _filterNodes(nodes, _searchQuery);
     return Row(
       children: [

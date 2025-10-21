@@ -31,13 +31,13 @@ class ContentGroupingService {
         .map((e) => Genre.fromJson(e))
         .toList();
     final allChannels = (results[1])
-        .map((e) => Channel.fromStalkerJson(e))
+        .map((e) => Channel.fromDbMap(e))
         .toList();
     final allVodCategories = (results[2])
         .map((e) => VodCategory.fromJson(e))
         .toList();
     final allVodContent = (results[3])
-        .map((e) => VodContent.fromJson(e))
+        .map((e) => VodContent.fromDbMap(e))
         .toList();
 
     // 2. Group channels and VOD content by their respective category IDs for efficient lookup

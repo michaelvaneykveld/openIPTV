@@ -102,7 +102,7 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
       filmNode.children.add(categoryNode); // Assuming VOD categories are for Films/Series
 
       final vodContentMaps = await dbHelper.getVodContentByCategoryId(category.id, portalId);
-      final vodContent = vodContentMaps.map((e) => VodContent.fromJson(e)).toList();
+      final vodContent = vodContentMaps.map((e) => VodContent.fromDbMap(e)).toList();
 
       for (var content in vodContent) {
         final contentNode = TreeNode(

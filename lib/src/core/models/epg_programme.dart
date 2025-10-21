@@ -1,3 +1,4 @@
+import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/utils/app_logger.dart';
 
 class EpgProgramme {
@@ -7,7 +8,7 @@ class EpgProgramme {
   final DateTime start;
   final DateTime end;
   final String channelId;
-  int? portalId;
+  String? portalId;
 
   EpgProgramme({
     required this.id,
@@ -32,6 +33,35 @@ class EpgProgramme {
     return programme;
   }
 
+  factory EpgProgramme.fromDbMap(Map<String, dynamic> map) {
+    DateTime parseTimestamp(dynamic value) {
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      }
+      if (value is String) {
+        final parsed = DateTime.tryParse(value);
+        if (parsed != null) {
+          return parsed;
+        }
+        final numeric = int.tryParse(value);
+        if (numeric != null) {
+          return DateTime.fromMillisecondsSinceEpoch(numeric);
+        }
+      }
+      throw ArgumentError('Unsupported timestamp value: $value');
+    }
+
+    return EpgProgramme(
+      id: map[DatabaseHelper.columnEpgId] as String,
+      title: map[DatabaseHelper.columnEpgTitle] as String,
+      description: (map[DatabaseHelper.columnEpgDescription] as String?) ?? '',
+      start: parseTimestamp(map[DatabaseHelper.columnEpgStart]),
+      end: parseTimestamp(map[DatabaseHelper.columnEpgStop]),
+      channelId: map[DatabaseHelper.columnEpgChannelId] as String,
+      portalId: map[DatabaseHelper.columnPortalId] as String?,
+    );
+  }
+
   static void _logEpgProgrammeDifferences(EpgProgramme programme, String type) {
     appLogger.d('[$type] EPG Programme created: ${programme.title}');
     appLogger.d('[$type] ID: ${programme.id}');
@@ -47,8 +77,8 @@ class EpgProgramme {
       'id': id,
       'title': title,
       'description': description,
-      'start': start.toIso8601String(),
-      'end': end.toIso8601String(),
+      'start': start.millisecondsSinceEpoch,
+      'end': end.millisecondsSinceEpoch,
       'channel_id': channelId,
       'portal_id': portalId,
     };

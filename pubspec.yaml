@@ -51,6 +51,7 @@ dependencies:
   collection: ^1.19.1
   file_picker: ^8.0.3
   video_player: ^2.8.1
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

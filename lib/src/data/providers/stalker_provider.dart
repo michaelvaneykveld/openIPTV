@@ -28,7 +28,7 @@ class StalkerProvider implements IProvider {
 
   /// Fetches the complete list of live TV channels from the Stalker Portal.
   @override
-  Future<List<Channel>> fetchLiveChannels() async {
+  Future<List<Channel>> fetchLiveChannels(String portalId) async {
     try {
       // Step 1: Fetch the genre mapping first.
       final genreMap = await _fetchGenres('itv');
@@ -124,13 +124,13 @@ class StalkerProvider implements IProvider {
   }
 
   @override
-  Future<List<Genre>> getGenres() async {
+  Future<List<Genre>> getGenres(String portalId) async {
     final genres = await _fetchGenres('itv');
     return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
   }
 
   @override
-  Future<List<VodCategory>> fetchVodCategories() async {
+  Future<List<VodCategory>> fetchVodCategories(String portalId) async {
     try {
       final url =
           '$_baseUrl/server/load.php?type=vod&action=get_categories&mac=$_macAddress';
@@ -165,7 +165,7 @@ class StalkerProvider implements IProvider {
   }
 
   @override
-  Future<List<VodContent>> fetchVodContent(String categoryId) async {
+  Future<List<VodContent>> fetchVodContent(String portalId, String categoryId) async {
     try {
       final url =
           '$_baseUrl/server/load.php?type=vod&action=get_content&category_id=$categoryId&mac=$_macAddress';
@@ -200,13 +200,13 @@ class StalkerProvider implements IProvider {
   }
 
   @override
-  Future<List<Genre>> fetchRadioGenres() async {
+  Future<List<Genre>> fetchRadioGenres(String portalId) async {
     final genres = await _fetchGenres('radio');
     return genres.entries.map((entry) => Genre(id: entry.key, title: entry.value)).toList();
   }
 
   @override
-  Future<List<Channel>> fetchRadioChannels(String genreId) async {
+  Future<List<Channel>> fetchRadioChannels(String portalId, String genreId) async {
     try {
       final genreMap = await _fetchGenres('radio');
       final url =
@@ -230,7 +230,7 @@ class StalkerProvider implements IProvider {
   }
 
   @override
-  Future<List<Channel>> getAllChannels(String genreId) async {
+  Future<List<Channel>> getAllChannels(String portalId, String genreId) async {
     try {
       final genreMap = await _fetchGenres('itv');
       final url =
@@ -254,7 +254,11 @@ class StalkerProvider implements IProvider {
   }
 
     @override
-  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
+  Future<List<EpgProgramme>> getEpgInfo({
+    required String portalId,
+    required String chId,
+    required int period,
+  }) async {
     try {
       final url =
           '$_baseUrl/server/load.php?type=epg&action=get_epg_info&ch_id=$chId&period=$period&mac=$_macAddress';

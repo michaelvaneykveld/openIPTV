@@ -31,6 +31,7 @@ class ChannelSyncService {
         final m3uRepository = _ref.read(m3uRepositoryProvider);
         final M3uApiService m3uProvider = _ref.read(m3uApiProvider(credential));
         final m3uContent = await m3uProvider.getRawM3uContent();
+        appLogger.d("M3U Content in ChannelSyncService:\n$m3uContent");
         await m3uRepository.synchronizeData(portalId, m3uContent);
       } else if (credential is XtreamCredentials) {
         final xtreamApi = _ref.read(xtreamApiProvider(credential));

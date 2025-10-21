@@ -18,7 +18,7 @@ class M3uProvider implements IProvider {
         _m3uUrl = m3uUrl;
 
   @override
-  Future<List<Channel>> fetchLiveChannels() async {
+  Future<List<Channel>> fetchLiveChannels(String portalId) async {
     appLogger.d('Fetching M3U playlist from: $_m3uUrl');
     try {
       final response = await _dio.get<String>(
@@ -118,39 +118,43 @@ class M3uProvider implements IProvider {
   }
 
   @override
-  Future<List<Genre>> getGenres() async {
+  Future<List<Genre>> getGenres(String portalId) async {
     // M3U playlists don't typically have a separate genre list.
     // Genres are usually extracted from the 'group-title' attribute of each channel.
     return [];
   }
 
   @override
-  Future<List<VodCategory>> fetchVodCategories() async {
+  Future<List<VodCategory>> fetchVodCategories(String portalId) async {
     return [];
   }
 
   @override
-  Future<List<VodContent>> fetchVodContent(String categoryId) async {
+  Future<List<VodContent>> fetchVodContent(String portalId, String categoryId) async {
     return [];
   }
 
   @override
-  Future<List<Genre>> fetchRadioGenres() async {
+  Future<List<Genre>> fetchRadioGenres(String portalId) async {
     return [];
   }
 
   @override
-  Future<List<Channel>> fetchRadioChannels(String genreId) async {
+  Future<List<Channel>> fetchRadioChannels(String portalId, String genreId) async {
     return [];
   }
 
   @override
-  Future<List<Channel>> getAllChannels(String genreId) async {
+  Future<List<Channel>> getAllChannels(String portalId, String genreId) async {
     return [];
   }
 
   @override
-  Future<List<EpgProgramme>> getEpgInfo({required String chId, required int period}) async {
+  Future<List<EpgProgramme>> getEpgInfo({
+    required String portalId,
+    required String chId,
+    required int period,
+  }) async {
     return [];
   }
 }

@@ -12,17 +12,13 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.channel.streamUrl!))
-      ..initialize().then((_) {
-        // Ensure the first frame is shown after the video is initialized, even before the play button has been pressed.
-        setState(() {});
-        _controller.play();
-      });
+    _initializePlayer();
   }
 
   @override
@@ -32,19 +28,74 @@ class _PlayerScreenState extends State<PlayerScreen> {
         title: Text(widget.channel.name),
       ),
       body: Center(
-        child: _controller.value.isInitialized
-            ? AspectRatio(
-                aspectRatio: _controller.value.aspectRatio,
-                child: VideoPlayer(_controller),
-              )
-            : const CircularProgressIndicator(),
+        child: _errorMessage != null
+            ? Text(_errorMessage!)
+            : (_controller != null && _controller!.value.isInitialized)
+                ? AspectRatio(
+                    aspectRatio: _controller!.value.aspectRatio,
+                    child: VideoPlayer(_controller!),
+                  )
+                : const CircularProgressIndicator(),
       ),
     );
   }
 
   @override
   void dispose() {
+    _controller?.dispose();
     super.dispose();
-    _controller.dispose();
+  }
+
+  Future<void> _initializePlayer() async {
+    final streamUrl = _resolveStreamUrl(widget.channel);
+    if (streamUrl == null) {
+      setState(() {
+        _errorMessage = 'Geen stream-URL beschikbaar voor dit kanaal.';
+      });
+      return;
+    }
+
+    final parsedUri = Uri.tryParse(streamUrl);
+    if (parsedUri == null) {
+      setState(() {
+        _errorMessage = 'Ongeldige stream-URL: $streamUrl';
+      });
+      return;
+    }
+
+    final controller = VideoPlayerController.networkUrl(parsedUri);
+    try {
+      await controller.initialize();
+      if (!mounted) {
+        controller.dispose();
+        return;
+      }
+      controller.play();
+      setState(() {
+        _controller = controller;
+      });
+    } catch (error) {
+      controller.dispose();
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Kan stream niet afspelen: $error';
+      });
+    }
+  }
+
+  String? _resolveStreamUrl(Channel channel) {
+    if (channel.streamUrl != null && channel.streamUrl!.isNotEmpty) {
+      return channel.streamUrl;
+    }
+    if (channel.cmd != null && channel.cmd!.isNotEmpty) {
+      return channel.cmd;
+    }
+    final cmds = channel.cmds ?? [];
+    for (final cmd in cmds) {
+      if (cmd.url != null && cmd.url!.isNotEmpty) {
+        return cmd.url;
+      }
+    }
+    return null;
   }
 }

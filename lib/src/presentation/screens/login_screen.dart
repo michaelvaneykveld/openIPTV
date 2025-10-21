@@ -106,7 +106,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
         final username = uri.queryParameters['username'];
         final password = uri.queryParameters['password'];
-        final baseUrl = '${uri.scheme}://${uri.host}:${uri.port}';
+        final baseUrl = (uri.hasPort && uri.port > 0)
+            ? '${uri.scheme}://${uri.host}:${uri.port}'
+            : '${uri.scheme}://${uri.host}';
 
         if (username != null && password != null) {
           // This avoids getting into a loop
@@ -188,20 +190,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
 
         appLogger.d('Attempting login with Portal URL: $portalUrl and MAC Address: $macAddress');
 
-        final success = await stalkerApi.login(portalUrl, macAddress);
+        final sanitizedPortalUrl = portalUrl.replaceAll(RegExp(r'/+$'), '');
+        final newCredential = StalkerCredentials(
+          baseUrl: sanitizedPortalUrl,
+          macAddress: macAddress,
+        );
+        final success = await stalkerApi.login(newCredential);
 
         if (success) {
-          final credentialsRepository = ref.read(credentialsRepositoryProvider);
-          final newCredential = StalkerCredentials(
-            baseUrl: portalUrl,
-            macAddress: macAddress,
-          );
-          await credentialsRepository.saveCredential(newCredential);
           final channelSyncService = ref.read(channelSyncServiceProvider);
           await channelSyncService.syncChannels(newCredential.id);
           ref.invalidate(savedCredentialsProvider);
+          ref.invalidate(portalIdProvider);
           if (mounted) {
-            context.go('/');
+            context.go('/home');
           }
         } else {
           setState(() {
@@ -214,7 +216,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         });
       }
 
-      if(mounted) {
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
@@ -255,9 +257,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
         final channelSyncService = ref.read(channelSyncServiceProvider);
         await channelSyncService.syncChannels(newCredential.id);
         ref.invalidate(savedCredentialsProvider);
+        ref.invalidate(portalIdProvider);
 
         if (mounted) {
-          context.go('/');
+          context.go('/home');
         }
       } else {
         setState(() {
@@ -309,9 +312,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> with SingleTickerProv
       final channelSyncService = ref.read(channelSyncServiceProvider);
       await channelSyncService.syncChannels(newCredential.id);
       ref.invalidate(savedCredentialsProvider);
+      ref.invalidate(portalIdProvider);
 
       if (mounted) {
-        context.go('/');
+        context.go('/home');
       }
     } catch (e) {
       setState(() {

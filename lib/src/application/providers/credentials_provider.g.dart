@@ -66,7 +66,7 @@ final credentialsRepositoryProvider =
 // ignore: unused_element
 typedef CredentialsRepositoryRef =
     AutoDisposeProviderRef<CredentialsRepository>;
-String _$portalIdHash() => r'e82284465be5b94fb2e0fbf299d16e70fb555f92';
+String _$portalIdHash() => r'61417e78b10eb15f84086c764bcd9d9e4a3b0306';
 
 /// See also [portalId].
 @ProviderFor(portalId)

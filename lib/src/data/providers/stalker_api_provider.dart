@@ -42,10 +42,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final channels = data
               .whereType<Map<String, dynamic>>()
               .map(Channel.fromStalkerJson)
               .toList();
+          appLogger.d(
+            'Fetched ${channels.length} live channels for portal $portalId.',
+          );
+          if (channels.isEmpty) {
+            _logEmptyPayload(
+              'Live channel list',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return channels;
         }
       }
       throw Exception('Failed to fetch channels for portal $portalId.');
@@ -56,7 +67,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<Genre>> getGenres(String portalId) {
     return _withSession<List<Genre>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'itv',
           'action': 'get_genres',
@@ -69,10 +80,17 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final genres = data
               .whereType<Map<String, dynamic>>()
               .map(Genre.fromJson)
               .toList();
+          appLogger.d(
+            'Fetched ${genres.length} genres for portal $portalId from ${session.portalUrl}.',
+          );
+          if (genres.isEmpty) {
+            _logEmptyPayload('Genre list', portalId: portalId, payload: js);
+          }
+          return genres;
         }
       }
       throw Exception('Failed to fetch genres for portal $portalId.');
@@ -83,7 +101,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<Channel>> getAllChannels(String portalId, String genreId) {
     return _withSession<List<Channel>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'itv',
           'action': 'get_all_channels',
@@ -97,10 +115,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final channels = data
               .whereType<Map<String, dynamic>>()
               .map(Channel.fromStalkerJson)
               .toList();
+          appLogger.d(
+            'Fetched ${channels.length} channels for genre $genreId on portal $portalId.',
+          );
+          if (channels.isEmpty) {
+            _logEmptyPayload(
+              'Channel list for genre $genreId',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return channels;
         }
       }
       throw Exception('Failed to fetch channels for genre $genreId.');
@@ -111,7 +140,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<VodCategory>> fetchVodCategories(String portalId) {
     return _withSession<List<VodCategory>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'vod',
           'action': 'get_categories',
@@ -124,10 +153,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final categories = data
               .whereType<Map<String, dynamic>>()
               .map(VodCategory.fromJson)
               .toList();
+          appLogger.d(
+            'Fetched ${categories.length} VOD categories for portal $portalId.',
+          );
+          if (categories.isEmpty) {
+            _logEmptyPayload(
+              'VOD category list',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return categories;
         }
       }
       throw Exception('Failed to fetch VOD categories.');
@@ -138,7 +178,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<VodContent>> fetchVodContent(String portalId, String categoryId) {
     return _withSession<List<VodContent>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'vod',
           'action': 'get_content',
@@ -152,10 +192,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final vodItems = data
               .whereType<Map<String, dynamic>>()
               .map((item) => VodContent.fromJson(item, categoryId: categoryId))
               .toList();
+          appLogger.d(
+            'Fetched ${vodItems.length} VOD items for category $categoryId on portal $portalId.',
+          );
+          if (vodItems.isEmpty) {
+            _logEmptyPayload(
+              'VOD items for category $categoryId',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return vodItems;
         }
       }
       throw Exception('Failed to fetch VOD content for category $categoryId.');
@@ -166,7 +217,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<Genre>> fetchRadioGenres(String portalId) {
     return _withSession<List<Genre>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'radio',
           'action': 'get_genres',
@@ -179,10 +230,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final genres = data
               .whereType<Map<String, dynamic>>()
               .map(Genre.fromJson)
               .toList();
+          appLogger.d(
+            'Fetched ${genres.length} radio genres for portal $portalId.',
+          );
+          if (genres.isEmpty) {
+            _logEmptyPayload(
+              'Radio genre list',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return genres;
         }
       }
       throw Exception('Failed to fetch radio genres.');
@@ -193,7 +255,7 @@ class StalkerApiProvider implements IProvider {
   Future<List<Channel>> fetchRadioChannels(String portalId, String genreId) {
     return _withSession<List<Channel>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'radio',
           'action': 'get_all_channels',
@@ -207,10 +269,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final channels = data
               .whereType<Map<String, dynamic>>()
               .map(Channel.fromStalkerJson)
               .toList();
+          appLogger.d(
+            'Fetched ${channels.length} radio channels for genre $genreId on portal $portalId.',
+          );
+          if (channels.isEmpty) {
+            _logEmptyPayload(
+              'Radio channels for genre $genreId',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return channels;
         }
       }
       throw Exception('Failed to fetch radio channels for genre $genreId.');
@@ -225,7 +298,7 @@ class StalkerApiProvider implements IProvider {
   }) {
     return _withSession<List<EpgProgramme>>(portalId, (session) async {
       final response = await _dio.get(
-        '${session.portalUrl}/stalker_portal/server/load.php',
+        '${session.portalUrl}/server/load.php',
         queryParameters: <String, dynamic>{
           'type': 'epg',
           'action': 'get_epg_info',
@@ -240,10 +313,21 @@ class StalkerApiProvider implements IProvider {
       if (js is Map<String, dynamic>) {
         final data = js['data'];
         if (data is List) {
-          return data
+          final programmes = data
               .whereType<Map<String, dynamic>>()
               .map(EpgProgramme.fromStalkerJson)
               .toList();
+          appLogger.d(
+            'Fetched ${programmes.length} EPG programmes for channel $chId on portal $portalId.',
+          );
+          if (programmes.isEmpty) {
+            _logEmptyPayload(
+              'EPG programmes for channel $chId',
+              portalId: portalId,
+              payload: js,
+            );
+          }
+          return programmes;
         }
       }
       throw Exception('Failed to fetch EPG for channel $chId.');
@@ -257,28 +341,35 @@ class StalkerApiProvider implements IProvider {
     );
 
     try {
-      final session = await _bootstrapSession(sanitized, portalIdOverride: sanitized.id);
+      final session = await _bootstrapSession(
+        sanitized,
+        portalIdOverride: sanitized.id,
+      );
       await _secureStorage.saveCredentials(sanitized);
       _sessionCache[session.portalId] = session;
       await _persistSession(session);
       return true;
     } catch (error, stackTrace) {
-      appLogger.e('Stalker login failed for ${sanitized.baseUrl}', error: error, stackTrace: stackTrace);
+      appLogger.e(
+        'Stalker login failed for ${sanitized.baseUrl}',
+        error: error,
+        stackTrace: stackTrace,
+      );
       await _invalidateSession(sanitized.id);
       return false;
     }
   }
 
-  Future<void> logout({String? portalId}) async {
+  Future<void> logout({
+    String? portalId,
+    bool clearStoredCredentials = false,
+  }) async {
     if (portalId != null) {
       await _invalidateSession(portalId);
-      final credentials = await _secureStorage.getCredentialsList();
-      final retained = credentials.where((c) => c.id != portalId).toList();
-      await _secureStorage.clearAllCredentials();
-      for (final credential in retained) {
-        await _secureStorage.saveCredentials(credential);
-      }
-      appLogger.d('Logged out portal $portalId and removed associated session.');
+      await _secureStorage.deleteCredentialById(portalId);
+      appLogger.d(
+        'Logged out portal $portalId and retained other credentials.',
+      );
       return;
     }
 
@@ -286,8 +377,13 @@ class StalkerApiProvider implements IProvider {
     for (final credential in credentials.whereType<StalkerCredentials>()) {
       await _invalidateSession(credential.id);
     }
-    await _secureStorage.clearAllCredentials();
-    appLogger.d('Logged out and cleared all credentials.');
+
+    if (clearStoredCredentials) {
+      await _secureStorage.clearAllCredentials();
+      appLogger.d('Logged out of all portals and cleared stored credentials.');
+    } else {
+      appLogger.d('Logged out of all portals but retained stored credentials.');
+    }
   }
 
   Future<_StalkerSession> _withFreshSession(
@@ -296,7 +392,8 @@ class StalkerApiProvider implements IProvider {
   }) async {
     final cached = _sessionCache[portalId];
     if (cached != null && !cached.isExpired(_sessionTtl)) {
-      if (DateTime.now().difference(cached.createdAt) > const Duration(minutes: 10)) {
+      if (DateTime.now().difference(cached.createdAt) >
+          const Duration(minutes: 10)) {
         await _ping(cached);
       }
       return cached;
@@ -305,23 +402,31 @@ class StalkerApiProvider implements IProvider {
     final persisted = await _loadPersistedSession(portalId);
     if (persisted != null && !persisted.isExpired(_sessionTtl)) {
       _sessionCache[portalId] = persisted;
-      if (DateTime.now().difference(persisted.createdAt) > const Duration(minutes: 10)) {
+      if (DateTime.now().difference(persisted.createdAt) >
+          const Duration(minutes: 10)) {
         await _ping(persisted);
       }
       return persisted;
     }
 
-    final credential = credentialOverride ?? await _requireStalkerCredential(portalId: portalId);
+    final credential =
+        credentialOverride ??
+        await _requireStalkerCredential(portalId: portalId);
     return _bootstrapSession(credential, portalIdOverride: portalId);
   }
 
-  Future<T> _withSession<T>(String portalId, Future<T> Function(_StalkerSession session) action) async {
+  Future<T> _withSession<T>(
+    String portalId,
+    Future<T> Function(_StalkerSession session) action,
+  ) async {
     _StalkerSession session = await _withFreshSession(portalId);
     try {
       return await action(session);
     } on DioException catch (error) {
       if (_isAuthError(error)) {
-        appLogger.w('Session for $portalId appears invalid. Re-authenticating...');
+        appLogger.w(
+          'Session for $portalId appears invalid. Re-authenticating...',
+        );
         await _invalidateSession(portalId);
         session = await _withFreshSession(portalId);
         return await action(session);
@@ -334,27 +439,27 @@ class StalkerApiProvider implements IProvider {
     StalkerCredentials credential, {
     String? portalIdOverride,
   }) async {
-    final portalUrl = _normalizePortalUrl(credential.baseUrl);
     final mac = credential.macAddress.toUpperCase();
     final portalId = portalIdOverride ?? credential.id;
 
-    final handshake = await _performHandshake(
+    final handshake = await _resolveHandshake(
       portalId: portalId,
-      portalUrl: portalUrl,
+      rawPortalUrl: credential.baseUrl,
       macAddress: mac,
     );
 
     await _doAuth(handshake);
     final profile = await _getProfile(handshake);
 
-    final timezone = profile?['default_timezone']?.toString() ??
+    final timezone =
+        profile?['default_timezone']?.toString() ??
         profile?['timezone']?.toString() ??
         handshake.timezone ??
         _defaultTimezone;
 
     final session = _StalkerSession(
       portalId: portalId,
-      portalUrl: portalUrl,
+      portalUrl: handshake.portalUrl,
       macAddress: mac,
       token: handshake.token,
       random: handshake.random,
@@ -367,6 +472,41 @@ class StalkerApiProvider implements IProvider {
     _sessionCache[portalId] = session;
     await _persistSession(session);
     return session;
+  }
+
+  Future<_HandshakePayload> _resolveHandshake({
+    required String portalId,
+    required String rawPortalUrl,
+    required String macAddress,
+  }) async {
+    final candidates = _buildPortalCandidates(rawPortalUrl);
+    if (candidates.isEmpty) {
+      throw ArgumentError('Invalid portal URL: $rawPortalUrl');
+    }
+
+    Exception? lastError;
+    for (final candidate in candidates) {
+      try {
+        appLogger.d('Attempting handshake at ${candidate.baseUrl}');
+        final handshake = await _performHandshake(
+          portalId: portalId,
+          portalUrl: candidate.baseUrl,
+          macAddress: macAddress,
+        );
+        return handshake;
+      } on Exception catch (error, stackTrace) {
+        lastError = error;
+        appLogger.w(
+          'Handshake attempt failed for ${candidate.baseUrl}: $error',
+          stackTrace: stackTrace,
+        );
+      }
+    }
+
+    throw lastError ??
+        Exception(
+          'Unable to establish handshake for $portalId using $rawPortalUrl',
+        );
   }
 
   Future<_HandshakePayload> _performHandshake({
@@ -404,9 +544,12 @@ class StalkerApiProvider implements IProvider {
       throw Exception('Handshake failed: missing token.');
     }
 
+    final resolvedPortalUrl = _extractPortalUrl(js, portalUrl) ?? portalUrl;
+    appLogger.d('Handshake resolved portal URL: $resolvedPortalUrl');
+
     return _HandshakePayload(
       portalId: portalId,
-      portalUrl: portalUrl,
+      portalUrl: resolvedPortalUrl,
       macAddress: macAddress,
       token: token,
       random: js['random']?.toString(),
@@ -423,9 +566,7 @@ class StalkerApiProvider implements IProvider {
       token: handshake.token,
       timezone: handshake.timezone ?? _defaultTimezone,
       sessionId: handshake.sessionId,
-      extraHeaders: const <String, String>{
-        'Accept': 'application/json',
-      },
+      extraHeaders: const <String, String>{'Accept': 'application/json'},
     );
 
     final response = await _dio.get(
@@ -438,7 +579,11 @@ class StalkerApiProvider implements IProvider {
         'random': handshake.random ?? '',
         'device_id': handshake.macAddress,
         'device_id2': handshake.macAddress,
-        'signature': _generateSignature(handshake.token, handshake.macAddress, handshake.random),
+        'signature': _generateSignature(
+          handshake.token,
+          handshake.macAddress,
+          handshake.random,
+        ),
         'JsHttpRequest': '1-xml',
       },
       options: Options(headers: headers),
@@ -501,13 +646,20 @@ class StalkerApiProvider implements IProvider {
         await _invalidateSession(session.portalId);
       }
     } catch (error, stackTrace) {
-      appLogger.w('Ping failed for ${session.portalId}: $error', stackTrace: stackTrace);
+      appLogger.w(
+        'Ping failed for ${session.portalId}: $error',
+        stackTrace: stackTrace,
+      );
     }
   }
 
-  Future<StalkerCredentials> _requireStalkerCredential({String? portalId}) async {
+  Future<StalkerCredentials> _requireStalkerCredential({
+    String? portalId,
+  }) async {
     final savedCredentials = await _secureStorage.getCredentialsList();
-    final stalkerCredentials = savedCredentials.whereType<StalkerCredentials>().toList();
+    final stalkerCredentials = savedCredentials
+        .whereType<StalkerCredentials>()
+        .toList();
     if (stalkerCredentials.isEmpty) {
       throw Exception('No Stalker credentials found. Please log in.');
     }
@@ -517,7 +669,9 @@ class StalkerApiProvider implements IProvider {
     }
 
     try {
-      return stalkerCredentials.firstWhere((credential) => credential.id == portalId);
+      return stalkerCredentials.firstWhere(
+        (credential) => credential.id == portalId,
+      );
     } catch (_) {
       throw Exception('No Stalker credentials found for portal $portalId.');
     }
@@ -597,7 +751,10 @@ class StalkerApiProvider implements IProvider {
           return decoded.map((key, value) => MapEntry(key.toString(), value));
         }
       } catch (error, stackTrace) {
-        appLogger.w('Failed to decode JSON response: $error', stackTrace: stackTrace);
+        appLogger.w(
+          'Failed to decode JSON response: $error',
+          stackTrace: stackTrace,
+        );
       }
     }
     return null;
@@ -628,10 +785,14 @@ class StalkerApiProvider implements IProvider {
       return null;
     }
     try {
-      final Map<String, dynamic> map = jsonDecode(stored) as Map<String, dynamic>;
+      final Map<String, dynamic> map =
+          jsonDecode(stored) as Map<String, dynamic>;
       return _StalkerSession.fromJson(map);
     } catch (error, stackTrace) {
-      appLogger.w('Failed to restore persisted session for $portalId: $error', stackTrace: stackTrace);
+      appLogger.w(
+        'Failed to restore persisted session for $portalId: $error',
+        stackTrace: stackTrace,
+      );
       await _secureStorage.delete(key: key);
       return null;
     }
@@ -645,7 +806,10 @@ class StalkerApiProvider implements IProvider {
     try {
       await _secureStorage.write(key: key, value: jsonEncode(session.toJson()));
     } catch (error, stackTrace) {
-      appLogger.w('Failed to persist session for ${session.portalId}: $error', stackTrace: stackTrace);
+      appLogger.w(
+        'Failed to persist session for ${session.portalId}: $error',
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -654,10 +818,152 @@ class StalkerApiProvider implements IProvider {
     await _secureStorage.delete(key: _sessionStorageKey(portalId));
   }
 
-  String _sessionStorageKey(String portalId) => '${_sessionKeyPrefix}_$portalId';
+  String _sessionStorageKey(String portalId) =>
+      '${_sessionKeyPrefix}_$portalId';
+
+  List<_PortalCandidate> _buildPortalCandidates(String rawPortalUrl) {
+    final trimmed = rawPortalUrl.trim();
+    if (trimmed.isEmpty) {
+      return const <_PortalCandidate>[];
+    }
+
+    Uri? baseUri;
+    var working = trimmed;
+    if (working.contains('://')) {
+      baseUri = Uri.tryParse(working);
+    } else {
+      // Try https first, then http if parsing fails.
+      baseUri = Uri.tryParse('https://$working');
+      if (baseUri == null || baseUri.host.isEmpty) {
+        baseUri = Uri.tryParse('http://$working');
+      }
+    }
+
+    if (baseUri == null || baseUri.host.isEmpty) {
+      return const <_PortalCandidate>[];
+    }
+
+    final host = baseUri.host;
+    final port = baseUri.hasPort ? baseUri.port : null;
+    final originalScheme = baseUri.scheme.isNotEmpty
+        ? baseUri.scheme.toLowerCase()
+        : null;
+    final originalPathSegments = baseUri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+    final originalPath = originalPathSegments.isEmpty
+        ? ''
+        : '/${originalPathSegments.join('/')}';
+
+    final basePaths = <String>{
+      if (originalPath.isNotEmpty) originalPath,
+      '',
+      '/stalker_portal',
+      '/portal',
+      '/mag',
+    };
+
+    final schemeOrder = <String>[];
+    if (originalScheme != null && originalScheme.isNotEmpty) {
+      schemeOrder.add(originalScheme);
+      final fallback = originalScheme == 'https' ? 'http' : 'https';
+      schemeOrder.add(fallback);
+    } else if (port == 443) {
+      schemeOrder.addAll(['https', 'http']);
+    } else if (port == 80) {
+      schemeOrder.addAll(['http', 'https']);
+    } else {
+      schemeOrder.addAll(['https', 'http']);
+    }
+
+    final schemes = <String>{
+      ...schemeOrder.map((scheme) => scheme.toLowerCase()),
+    };
+    if (schemes.isEmpty) {
+      schemes.addAll(['https', 'http']);
+    }
+
+    final seen = <String>{};
+    final candidates = <_PortalCandidate>[];
+
+    void addCandidate(String url) {
+      final normalized = _sanitizePortalUrl(url);
+      if (seen.add(normalized)) {
+        candidates.add(_PortalCandidate(normalized));
+      }
+    }
+
+    for (final scheme in schemes) {
+      for (final path in basePaths) {
+        final segments = path.isEmpty
+            ? const <String>[]
+            : path.split('/').where((s) => s.isNotEmpty).toList();
+        final uri = Uri(
+          scheme: scheme,
+          host: host,
+          port: port ?? 0,
+          pathSegments: segments,
+        );
+        addCandidate(uri.toString());
+      }
+    }
+
+    return candidates;
+  }
 
   String _normalizePortalUrl(String portalUrl) {
     return portalUrl.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  String _sanitizePortalUrl(String value) {
+    var normalized = _normalizePortalUrl(value.trim());
+    const suffixes = ['/server/load.php', '/portal.php', '/c', '/c/'];
+    for (final suffix in suffixes) {
+      if (normalized.toLowerCase().endsWith(suffix)) {
+        normalized = _normalizePortalUrl(
+          normalized.substring(0, normalized.length - suffix.length),
+        );
+      }
+    }
+    return normalized;
+  }
+
+  String? _extractPortalUrl(Map<String, dynamic> js, String fallback) {
+    final candidates = [
+      js['portal_url'],
+      js['portal'],
+      js['server_url'],
+      js['internal_portal_url'],
+      js['external_portal_url'],
+      js['store_url'],
+      js['log_url'],
+    ];
+    for (final candidate in candidates) {
+      final value = candidate?.toString();
+      if (value != null && value.isNotEmpty) {
+        return _sanitizePortalUrl(value);
+      }
+    }
+    return _sanitizePortalUrl(fallback);
+  }
+
+  void _logEmptyPayload(
+    String context, {
+    required String portalId,
+    Map<String, dynamic>? payload,
+  }) {
+    try {
+      final encoded = payload != null ? jsonEncode(payload) : 'null';
+      appLogger.w(
+        '$context returned an empty data array for portal $portalId. Raw payload: $encoded',
+      );
+    } catch (error, stackTrace) {
+      appLogger.w(
+        '$context returned an empty data array for portal $portalId. Raw payload could not be encoded.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   String _generateSignature(String token, String macAddress, [String? random]) {
@@ -668,6 +974,12 @@ class StalkerApiProvider implements IProvider {
     final bytes = utf8.encode(buffer.toString());
     return crypto.md5.convert(bytes).toString();
   }
+}
+
+class _PortalCandidate {
+  const _PortalCandidate(this.baseUrl);
+
+  final String baseUrl;
 }
 
 class _HandshakePayload {
@@ -715,7 +1027,8 @@ class _StalkerSession {
   final DateTime createdAt;
   final Map<String, dynamic>? profile;
 
-  bool isExpired(Duration ttl) => DateTime.now().toUtc().difference(createdAt) > ttl;
+  bool isExpired(Duration ttl) =>
+      DateTime.now().toUtc().difference(createdAt) > ttl;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -740,7 +1053,9 @@ class _StalkerSession {
       random: json['random'] as String?,
       sessionId: json['sessionId'] as String?,
       timezone: json['timezone'] as String?,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now().toUtc(),
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now().toUtc(),
       profile: (json['profile'] as Map?)?.cast<String, dynamic>(),
     );
   }

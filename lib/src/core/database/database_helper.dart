@@ -8,7 +8,7 @@ import 'package:openiptv/utils/app_logger.dart'; // Added this import
 
 class DatabaseHelper {
   static const _databaseName = "OpenIPTV.db";
-  static const _databaseVersion = 2;
+  static const _databaseVersion = 3;
 
   static const columnPortalId = 'portal_id';
 
@@ -83,7 +83,8 @@ class DatabaseHelper {
   static const columnChannelModified = 'modified';
   static const columnChannelNginxSecureLink = 'nginx_secure_link';
   static const columnChannelOpen = 'open';
-  static const columnChannelGroupTitle = 'group_title'; // Added for M3U/Xtream grouping
+  static const columnChannelGroupTitle =
+      'group_title'; // Added for M3U/Xtream grouping
   static const columnChannelUseLoadBalancing = 'use_load_balancing';
 
   // Channel CMDS Table
@@ -125,6 +126,8 @@ class DatabaseHelper {
   static const columnSeriesYear = 'year';
   static const columnSeriesDirector = 'director';
   static const columnSeriesActors = 'actors';
+  static const columnSeriesCmd = 'cmd';
+  static const columnSeriesDuration = 'duration';
   static const columnSeriesCategoryId = 'category_id';
 
   // EPG Table
@@ -183,9 +186,7 @@ class DatabaseHelper {
 
   // SQL code to create the database table
   Future _onCreate(Database db, int version) async {
-    appLogger.d(
-      'DatabaseHelper: Creating database tables...',
-    );
+    appLogger.d('DatabaseHelper: Creating database tables...');
     await db.execute('''
           CREATE TABLE $tableGenres (
             $columnGenreId TEXT,
@@ -198,9 +199,7 @@ class DatabaseHelper {
             PRIMARY KEY ($columnGenreId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableGenres created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableGenres created.');
     await db.execute('''
           CREATE TABLE $tableVodCategories (
             $columnVodCategoryId TEXT,
@@ -211,9 +210,7 @@ class DatabaseHelper {
             PRIMARY KEY ($columnVodCategoryId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableVodCategories created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableVodCategories created.');
     await db.execute('''
           CREATE TABLE $tableChannels (
             $columnChannelId TEXT,
@@ -267,9 +264,7 @@ class DatabaseHelper {
             FOREIGN KEY ($columnChannelGenreId, $columnPortalId) REFERENCES $tableGenres ($columnGenreId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableChannels created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableChannels created.');
     await db.execute('''
           CREATE TABLE $tableChannelOverrides (
             $columnPortalId TEXT NOT NULL,
@@ -281,9 +276,7 @@ class DatabaseHelper {
             PRIMARY KEY ($columnPortalId, $columnOverrideChannelId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableChannelOverrides created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableChannelOverrides created.');
     await db.execute('''
           CREATE TABLE $tableChannelCmds (
             $columnCmdId TEXT PRIMARY KEY,
@@ -303,9 +296,7 @@ class DatabaseHelper {
             FOREIGN KEY ($columnCmdChannelId) REFERENCES $tableChannels ($columnChannelId) ON DELETE CASCADE
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableChannelCmds created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableChannelCmds created.');
     await db.execute('''
           CREATE TABLE $tableVodContent (
             $columnVodContentId TEXT,
@@ -323,9 +314,7 @@ class DatabaseHelper {
             FOREIGN KEY ($columnVodContentCategoryId, $columnPortalId) REFERENCES $tableVodCategories ($columnVodCategoryId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableVodContent created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableVodContent created.');
     await db.execute('''
           CREATE TABLE $tableSeries (
             $columnSeriesId TEXT,
@@ -336,14 +325,14 @@ class DatabaseHelper {
             $columnSeriesYear TEXT,
             $columnSeriesDirector TEXT,
             $columnSeriesActors TEXT,
+            $columnSeriesCmd TEXT,
+            $columnSeriesDuration TEXT,
             $columnSeriesCategoryId TEXT,
             PRIMARY KEY ($columnSeriesId, $columnPortalId),
             FOREIGN KEY ($columnSeriesCategoryId, $columnPortalId) REFERENCES $tableVodCategories ($columnVodCategoryId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableSeries created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableSeries created.');
     await db.execute('''
           CREATE TABLE $tableEpg (
             $columnEpgId TEXT,
@@ -356,9 +345,7 @@ class DatabaseHelper {
             PRIMARY KEY ($columnEpgId, $columnPortalId)
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableEpg created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableEpg created.');
     await db.execute('''
           CREATE TABLE $tableRecordings (
             $columnRecordingId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -372,9 +359,7 @@ class DatabaseHelper {
             $columnRecordingCreatedAt INTEGER NOT NULL
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableRecordings created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableRecordings created.');
     await db.execute('''
           CREATE TABLE $tableReminders (
             $columnReminderId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -386,9 +371,7 @@ class DatabaseHelper {
             $columnReminderCreatedAt INTEGER NOT NULL
           )
           ''');
-    appLogger.d(
-      'DatabaseHelper: Table $tableReminders created.',
-    );
+    appLogger.d('DatabaseHelper: Table $tableReminders created.');
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -430,27 +413,104 @@ class DatabaseHelper {
           )
           ''');
     }
+    if (oldVersion < 3) {
+      appLogger.d('DatabaseHelper: Applying upgrade to version 3');
+      await db.execute('DROP TABLE IF EXISTS $tableSeries');
+      await db.execute('DROP TABLE IF EXISTS $tableEpg');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableSeries (
+            $columnSeriesId TEXT,
+            $columnPortalId TEXT NOT NULL,
+            $columnSeriesName TEXT,
+            $columnSeriesLogo TEXT,
+            $columnSeriesDescription TEXT,
+            $columnSeriesYear TEXT,
+            $columnSeriesDirector TEXT,
+            $columnSeriesActors TEXT,
+            $columnSeriesCmd TEXT,
+            $columnSeriesDuration TEXT,
+            $columnSeriesCategoryId TEXT,
+            PRIMARY KEY ($columnSeriesId, $columnPortalId),
+            FOREIGN KEY ($columnSeriesCategoryId, $columnPortalId) REFERENCES $tableVodCategories ($columnVodCategoryId, $columnPortalId)
+          )
+          ''');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableEpg (
+            $columnEpgId TEXT,
+            $columnEpgChannelId TEXT,
+            $columnEpgStart INTEGER,
+            $columnEpgStop INTEGER,
+            $columnEpgTitle TEXT,
+            $columnEpgDescription TEXT,
+            $columnPortalId TEXT NOT NULL,
+            PRIMARY KEY ($columnEpgId, $columnPortalId)
+          )
+          ''');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getAllSeries(String portalId) async {
+    try {
+      final db = await instance.database;
+      return await db.query(
+        tableSeries,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+    } catch (e) {
+      appLogger.e('Error getting all series for portal $portalId', error: e);
+      return [];
+    }
   }
 
   Future<void> clearAllData(String portalId) async {
-    appLogger.d(
-      'DatabaseHelper: Clearing data for portal: $portalId...',
-    );
+    appLogger.d('DatabaseHelper: Clearing data for portal: $portalId...');
     final db = await instance.database;
     await db.transaction((txn) async {
-      await txn.delete(tableChannelCmds, where: '$columnCmdChannelId IN (SELECT $columnChannelId FROM $tableChannels WHERE $columnPortalId = ?)', whereArgs: [portalId]);
-      await txn.delete(tableChannels, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableGenres, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodCategories, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableVodContent, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableSeries, where: '$columnPortalId = ?', whereArgs: [portalId]);
-      await txn.delete(tableEpg, where: '$columnPortalId = ?', whereArgs: [portalId]); // Added EPG table to clear
+      await txn.delete(
+        tableChannelCmds,
+        where:
+            '$columnCmdChannelId IN (SELECT $columnChannelId FROM $tableChannels WHERE $columnPortalId = ?)',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableChannels,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableGenres,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableVodCategories,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableVodContent,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableSeries,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      );
+      await txn.delete(
+        tableEpg,
+        where: '$columnPortalId = ?',
+        whereArgs: [portalId],
+      ); // Added EPG table to clear
     });
     appLogger.d('DatabaseHelper: All data cleared for portal: $portalId.');
   }
 
   Future<void> clearChannelData(String portalId) async {
-    appLogger.d('DatabaseHelper: Clearing channel data for portal: $portalId...');
+    appLogger.d(
+      'DatabaseHelper: Clearing channel data for portal: $portalId...',
+    );
     final db = await instance.database;
     await db.transaction((txn) async {
       await txn.delete(
@@ -472,7 +532,10 @@ class DatabaseHelper {
     try {
       appLogger.d('Inserting genre: $genre for portal: $portalId');
       final db = await instance.database;
-      final id = await db.insert(tableGenres, {...genre, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      final id = await db.insert(tableGenres, {
+        ...genre,
+        columnPortalId: portalId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted genre with id: $id for portal: $portalId');
       return id;
     } catch (e) {
@@ -515,7 +578,10 @@ class DatabaseHelper {
       appLogger.d('Genre with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting genre with id $id for portal $portalId', error: e);
+      appLogger.e(
+        'Error getting genre with id $id for portal $portalId',
+        error: e,
+      );
       return null;
     }
   }
@@ -531,10 +597,15 @@ class DatabaseHelper {
         where: '$columnGenreId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for genre with id: $id for portal: $portalId');
+      appLogger.d(
+        'Updated $rowsAffected rows for genre with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating genre with id ${genre[columnGenreId]} for portal $portalId', error: e);
+      appLogger.e(
+        'Error updating genre with id ${genre[columnGenreId]} for portal $portalId',
+        error: e,
+      );
       return 0; // Indicate no rows affected due to error
     }
   }
@@ -547,7 +618,9 @@ class DatabaseHelper {
         where: '$columnGenreId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for genre with id: $id for portal: $portalId');
+      appLogger.d(
+        'Deleted $rowsAffected rows for genre with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
       appLogger.e('Error deleting genre with id $id for portal $portalId: $e');
@@ -556,11 +629,17 @@ class DatabaseHelper {
   }
 
   // --- CRUD Operations for VOD Categories ---
-  Future<int> insertVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
+  Future<int> insertVodCategory(
+    Map<String, dynamic> vodCategory,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Inserting VOD category: $vodCategory for portal: $portalId');
       final db = await instance.database;
-      final id = await db.insert(tableVodCategories, {...vodCategory, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      final id = await db.insert(tableVodCategories, {
+        ...vodCategory,
+        columnPortalId: portalId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted VOD category with id: $id for portal: $portalId');
       return id;
     } catch (e) {
@@ -569,7 +648,9 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getAllVodCategories(String portalId) async {
+  Future<List<Map<String, dynamic>>> getAllVodCategories(
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodCategories = await db.query(
@@ -577,7 +658,9 @@ class DatabaseHelper {
         where: '$columnPortalId = ?',
         whereArgs: [portalId],
       );
-      appLogger.d('Retrieved ${vodCategories.length} VOD categories for portal: $portalId');
+      appLogger.d(
+        'Retrieved ${vodCategories.length} VOD categories for portal: $portalId',
+      );
       if (vodCategories.isNotEmpty) {
         appLogger.d('First VOD category: ${vodCategories.first}');
       }
@@ -588,7 +671,10 @@ class DatabaseHelper {
     }
   }
 
-  Future<Map<String, dynamic>?> getVodCategory(String id, String portalId) async {
+  Future<Map<String, dynamic>?> getVodCategory(
+    String id,
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodCategories = await db.query(
@@ -597,18 +683,25 @@ class DatabaseHelper {
         whereArgs: [id, portalId],
       );
       if (vodCategories.isNotEmpty) {
-        appLogger.d('Retrieved VOD category with id: $id for portal: $portalId');
+        appLogger.d(
+          'Retrieved VOD category with id: $id for portal: $portalId',
+        );
         return vodCategories.first;
       }
       appLogger.d('VOD category with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD category with id $id for portal $portalId: $e');
+      appLogger.e(
+        'Error getting VOD category with id $id for portal $portalId: $e',
+      );
       return null;
     }
   }
 
-  Future<int> updateVodCategory(Map<String, dynamic> vodCategory, String portalId) async {
+  Future<int> updateVodCategory(
+    Map<String, dynamic> vodCategory,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Updating VOD category: $vodCategory for portal: $portalId');
       final db = await instance.database;
@@ -619,10 +712,14 @@ class DatabaseHelper {
         where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD category with id: $id for portal: $portalId');
+      appLogger.d(
+        'Updated $rowsAffected rows for VOD category with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD category with id ${vodCategory[columnVodCategoryId]} for portal $portalId: $e');
+      appLogger.e(
+        'Error updating VOD category with id ${vodCategory[columnVodCategoryId]} for portal $portalId: $e',
+      );
       return 0;
     }
   }
@@ -635,20 +732,30 @@ class DatabaseHelper {
         where: '$columnVodCategoryId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD category with id: $id for portal: $portalId');
+      appLogger.d(
+        'Deleted $rowsAffected rows for VOD category with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD category with id $id for portal $portalId: $e');
+      appLogger.e(
+        'Error deleting VOD category with id $id for portal $portalId: $e',
+      );
       return 0;
     }
   }
 
   // --- CRUD Operations for Channels ---
-  Future<int> insertChannel(Map<String, dynamic> channel, String portalId) async {
+  Future<int> insertChannel(
+    Map<String, dynamic> channel,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Inserting channel: $channel for portal: $portalId');
       final db = await instance.database;
-      final id = await db.insert(tableChannels, {...channel, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      final id = await db.insert(tableChannels, {
+        ...channel,
+        columnPortalId: portalId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted channel with id: $id for portal: $portalId');
       return id;
     } catch (e) {
@@ -665,7 +772,9 @@ class DatabaseHelper {
         where: '$columnPortalId = ?',
         whereArgs: [portalId],
       );
-      appLogger.d('Retrieved ${channels.length} channels for portal: $portalId');
+      appLogger.d(
+        'Retrieved ${channels.length} channels for portal: $portalId',
+      );
       if (channels.isNotEmpty) {
         appLogger.d('First channel: ${channels.first}');
       }
@@ -696,7 +805,10 @@ class DatabaseHelper {
     }
   }
 
-  Future<int> updateChannel(Map<String, dynamic> channel, String portalId) async {
+  Future<int> updateChannel(
+    Map<String, dynamic> channel,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Updating channel: $channel for portal: $portalId');
       final db = await instance.database;
@@ -707,10 +819,14 @@ class DatabaseHelper {
         where: '$columnChannelId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel with id: $id for portal: $portalId');
+      appLogger.d(
+        'Updated $rowsAffected rows for channel with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel with id ${channel[columnChannelId]} for portal $portalId: $e');
+      appLogger.e(
+        'Error updating channel with id ${channel[columnChannelId]} for portal $portalId: $e',
+      );
       return 0;
     }
   }
@@ -723,21 +839,35 @@ class DatabaseHelper {
         where: '$columnChannelId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for channel with id: $id for portal: $portalId');
+      appLogger.d(
+        'Deleted $rowsAffected rows for channel with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting channel with id $id for portal $portalId: $e');
+      appLogger.e(
+        'Error deleting channel with id $id for portal $portalId: $e',
+      );
       return 0;
     }
   }
 
   // --- CRUD Operations for Channel CMDS ---
-  Future<int> insertChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
+  Future<int> insertChannelCmd(
+    Map<String, dynamic> channelCmd,
+    String portalId,
+  ) async {
     try {
-      appLogger.d('Inserting channel command: $channelCmd for portal: $portalId');
+      appLogger.d(
+        'Inserting channel command: $channelCmd for portal: $portalId',
+      );
       final db = await instance.database;
-      final id = await db.insert(tableChannelCmds, {...channelCmd, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
-      appLogger.d('Inserted channel command with id: $id for portal: $portalId');
+      final id = await db.insert(tableChannelCmds, {
+        ...channelCmd,
+        columnPortalId: portalId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      appLogger.d(
+        'Inserted channel command with id: $id for portal: $portalId',
+      );
       return id;
     } catch (e) {
       appLogger.e('Error inserting channel command for portal $portalId: $e');
@@ -753,18 +883,25 @@ class DatabaseHelper {
         where: '$columnPortalId = ?',
         whereArgs: [portalId],
       );
-      appLogger.d('Retrieved ${channelCmds.length} channel commands for portal: $portalId');
+      appLogger.d(
+        'Retrieved ${channelCmds.length} channel commands for portal: $portalId',
+      );
       if (channelCmds.isNotEmpty) {
         appLogger.d('First channel command: ${channelCmds.first}');
       }
       return channelCmds;
     } catch (e) {
-      appLogger.e('Error getting all channel commands for portal $portalId: $e');
+      appLogger.e(
+        'Error getting all channel commands for portal $portalId: $e',
+      );
       return [];
     }
   }
 
-  Future<Map<String, dynamic>?> getChannelCmd(String id, String portalId) async {
+  Future<Map<String, dynamic>?> getChannelCmd(
+    String id,
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
@@ -773,20 +910,31 @@ class DatabaseHelper {
         whereArgs: [id, portalId],
       );
       if (channelCmds.isNotEmpty) {
-        appLogger.d('Retrieved channel command with id: $id for portal: $portalId');
+        appLogger.d(
+          'Retrieved channel command with id: $id for portal: $portalId',
+        );
         return channelCmds.first;
       }
-      appLogger.d('Channel command with id: $id for portal: $portalId not found.');
+      appLogger.d(
+        'Channel command with id: $id for portal: $portalId not found.',
+      );
       return null;
     } catch (e) {
-      appLogger.e('Error getting channel command with id $id for portal $portalId: $e');
+      appLogger.e(
+        'Error getting channel command with id $id for portal $portalId: $e',
+      );
       return null;
     }
   }
 
-  Future<int> updateChannelCmd(Map<String, dynamic> channelCmd, String portalId) async {
+  Future<int> updateChannelCmd(
+    Map<String, dynamic> channelCmd,
+    String portalId,
+  ) async {
     try {
-      appLogger.d('Updating channel command: $channelCmd for portal: $portalId');
+      appLogger.d(
+        'Updating channel command: $channelCmd for portal: $portalId',
+      );
       final db = await instance.database;
       final id = channelCmd[columnCmdId];
       final rowsAffected = await db.update(
@@ -795,15 +943,22 @@ class DatabaseHelper {
         where: '$columnCmdId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for channel command with id: $id for portal: $portalId');
+      appLogger.d(
+        'Updated $rowsAffected rows for channel command with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating channel command with id ${channelCmd[columnCmdId]} for portal $portalId: $e');
+      appLogger.e(
+        'Error updating channel command with id ${channelCmd[columnCmdId]} for portal $portalId: $e',
+      );
       return 0;
     }
   }
 
-  Future<List<Map<String, dynamic>>> getChannelCmdsForChannel(String channelId, String portalId) async {
+  Future<List<Map<String, dynamic>>> getChannelCmdsForChannel(
+    String channelId,
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> channelCmds = await db.query(
@@ -811,23 +966,35 @@ class DatabaseHelper {
         where: '$columnCmdChannelId = ? AND $columnPortalId = ?',
         whereArgs: [channelId, portalId],
       );
-      appLogger.d('Retrieved ${channelCmds.length} channel commands for channel $channelId for portal: $portalId.');
+      appLogger.d(
+        'Retrieved ${channelCmds.length} channel commands for channel $channelId for portal: $portalId.',
+      );
       if (channelCmds.isNotEmpty) {
-        appLogger.d('First channel command for channel $channelId: ${channelCmds.first}');
+        appLogger.d(
+          'First channel command for channel $channelId: ${channelCmds.first}',
+        );
       }
       return channelCmds;
     } catch (e) {
-      appLogger.e('Error getting channel commands for channel $channelId for portal $portalId: $e');
+      appLogger.e(
+        'Error getting channel commands for channel $channelId for portal $portalId: $e',
+      );
       return [];
     }
   }
 
   // --- CRUD Operations for VOD Content ---
-  Future<int> insertVodContent(Map<String, dynamic> vodContent, String portalId) async {
+  Future<int> insertVodContent(
+    Map<String, dynamic> vodContent,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Inserting VOD content: $vodContent for portal: $portalId');
       final db = await instance.database;
-      final id = await db.insert(tableVodContent, {...vodContent, columnPortalId: portalId}, conflictAlgorithm: ConflictAlgorithm.replace);
+      final id = await db.insert(tableVodContent, {
+        ...vodContent,
+        columnPortalId: portalId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
       appLogger.d('Inserted VOD content with id: $id for portal: $portalId');
       return id;
     } catch (e) {
@@ -844,7 +1011,9 @@ class DatabaseHelper {
         where: '$columnPortalId = ?',
         whereArgs: [portalId],
       );
-      appLogger.d('Retrieved ${vodContent.length} VOD content items for portal: $portalId.');
+      appLogger.d(
+        'Retrieved ${vodContent.length} VOD content items for portal: $portalId.',
+      );
       if (vodContent.isNotEmpty) {
         appLogger.d('First VOD content: ${vodContent.first}');
       }
@@ -855,7 +1024,10 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getVodContentByCategoryId(String categoryId, String portalId) async {
+  Future<List<Map<String, dynamic>>> getVodContentByCategoryId(
+    String categoryId,
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
@@ -863,18 +1035,27 @@ class DatabaseHelper {
         where: '$columnVodContentCategoryId = ? AND $columnPortalId = ?',
         whereArgs: [categoryId, portalId],
       );
-      appLogger.d('Retrieved ${vodContent.length} VOD content items for category $categoryId for portal: $portalId.');
+      appLogger.d(
+        'Retrieved ${vodContent.length} VOD content items for category $categoryId for portal: $portalId.',
+      );
       if (vodContent.isNotEmpty) {
-        appLogger.d('First VOD content for category $categoryId: ${vodContent.first}');
+        appLogger.d(
+          'First VOD content for category $categoryId: ${vodContent.first}',
+        );
       }
       return vodContent;
     } catch (e) {
-      appLogger.e('Error getting VOD content for category $categoryId for portal $portalId: $e');
+      appLogger.e(
+        'Error getting VOD content for category $categoryId for portal $portalId: $e',
+      );
       return [];
     }
   }
 
-  Future<Map<String, dynamic>?> getVodContent(String id, String portalId) async {
+  Future<Map<String, dynamic>?> getVodContent(
+    String id,
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       final List<Map<String, dynamic>> vodContent = await db.query(
@@ -889,12 +1070,17 @@ class DatabaseHelper {
       appLogger.d('VOD content with id: $id for portal: $portalId not found.');
       return null;
     } catch (e) {
-      appLogger.e('Error getting VOD content with id $id for portal $portalId: $e');
+      appLogger.e(
+        'Error getting VOD content with id $id for portal $portalId: $e',
+      );
       return null;
     }
   }
 
-  Future<int> updateVodContent(Map<String, dynamic> vodContent, String portalId) async {
+  Future<int> updateVodContent(
+    Map<String, dynamic> vodContent,
+    String portalId,
+  ) async {
     try {
       appLogger.d('Updating VOD content: $vodContent for portal: $portalId');
       final db = await instance.database;
@@ -905,10 +1091,14 @@ class DatabaseHelper {
         where: '$columnVodContentId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Updated $rowsAffected rows for VOD content with id: $id for portal: $portalId');
+      appLogger.d(
+        'Updated $rowsAffected rows for VOD content with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error updating VOD content with id ${vodContent[columnVodContentId]} for portal $portalId: $e');
+      appLogger.e(
+        'Error updating VOD content with id ${vodContent[columnVodContentId]} for portal $portalId: $e',
+      );
       return 0;
     }
   }
@@ -921,16 +1111,23 @@ class DatabaseHelper {
         where: '$columnVodContentId = ? AND $columnPortalId = ?',
         whereArgs: [id, portalId],
       );
-      appLogger.d('Deleted $rowsAffected rows for VOD content with id: $id for portal: $portalId');
+      appLogger.d(
+        'Deleted $rowsAffected rows for VOD content with id: $id for portal: $portalId',
+      );
       return rowsAffected;
     } catch (e) {
-      appLogger.e('Error deleting VOD content with id $id for portal $portalId', error: e);
+      appLogger.e(
+        'Error deleting VOD content with id $id for portal $portalId',
+        error: e,
+      );
       return 0;
     }
   }
 
   // --- CRUD Operations for Channel Overrides ---
-  Future<List<Map<String, dynamic>>> getChannelOverrides(String portalId) async {
+  Future<List<Map<String, dynamic>>> getChannelOverrides(
+    String portalId,
+  ) async {
     try {
       final db = await instance.database;
       return await db.query(
@@ -987,9 +1184,7 @@ class DatabaseHelper {
           final override = orderedOverrides[i].copyWith(position: i);
           await txn.update(
             tableChannelOverrides,
-            {
-              columnOverridePosition: override.position,
-            },
+            {columnOverridePosition: override.position},
             where: '$columnPortalId = ? AND $columnOverrideChannelId = ?',
             whereArgs: [portalId, override.channelId],
           );
@@ -1055,7 +1250,7 @@ class DatabaseHelper {
         whereArgs: [
           RecordingStatus.scheduled.index,
           RecordingStatus.recording.index,
-          now.millisecondsSinceEpoch
+          now.millisecondsSinceEpoch,
         ],
         orderBy: '$columnRecordingStartTime ASC',
       );
@@ -1120,9 +1315,7 @@ class DatabaseHelper {
     }
   }
 
-  Future<List<Map<String, dynamic>>> getUpcomingReminders(
-    DateTime now,
-  ) async {
+  Future<List<Map<String, dynamic>>> getUpcomingReminders(DateTime now) async {
     try {
       final db = await instance.database;
       return await db.query(
@@ -1156,25 +1349,34 @@ class DatabaseHelper {
   }
 
   // --- CRUD Operations for EPG ---
-  Future<void> insertEpgProgrammes(List<Map<String, dynamic>> programmes, {required String portalId}) async {
+  Future<void> insertEpgProgrammes(
+    List<Map<String, dynamic>> programmes, {
+    required String portalId,
+  }) async {
     final db = await instance.database;
-    appLogger.d('Inserting ${programmes.length} EPG programmes for portal: $portalId');
+    appLogger.d(
+      'Inserting ${programmes.length} EPG programmes for portal: $portalId',
+    );
     if (programmes.isNotEmpty) {
       appLogger.d('First EPG programme: ${programmes.first}');
     }
     await db.transaction((txn) async {
       for (final programme in programmes) {
-        await txn.insert(
-          tableEpg,
-          {...programme, columnPortalId: portalId},
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert(tableEpg, {
+          ...programme,
+          columnPortalId: portalId,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
-    appLogger.d('Inserted ${programmes.length} EPG programmes for portal: $portalId');
+    appLogger.d(
+      'Inserted ${programmes.length} EPG programmes for portal: $portalId',
+    );
   }
 
-  Future<List<Map<String, dynamic>>> getEpgForChannel(String channelId, String portalId) async {
+  Future<List<Map<String, dynamic>>> getEpgForChannel(
+    String channelId,
+    String portalId,
+  ) async {
     final db = await instance.database;
     final maps = await db.query(
       tableEpg,
@@ -1182,7 +1384,9 @@ class DatabaseHelper {
       whereArgs: [channelId, portalId],
       orderBy: '$columnEpgStart ASC',
     );
-    appLogger.d('Retrieved ${maps.length} EPG programmes for channel $channelId and portal: $portalId');
+    appLogger.d(
+      'Retrieved ${maps.length} EPG programmes for channel $channelId and portal: $portalId',
+    );
     if (maps.isNotEmpty) {
       appLogger.d('First EPG programme for channel $channelId: ${maps.first}');
     }
@@ -1192,8 +1396,11 @@ class DatabaseHelper {
   // --- Debug Methods ---
   Future<List<String>> getTables() async {
     final db = await instance.database;
-    final List<Map<String, dynamic>> tables =
-        await db.query('sqlite_master', where: 'type = ?', whereArgs: ['table']);
+    final List<Map<String, dynamic>> tables = await db.query(
+      'sqlite_master',
+      where: 'type = ?',
+      whereArgs: ['table'],
+    );
     return tables.map((table) => table['name'] as String).toList();
   }
 
@@ -1202,4 +1409,3 @@ class DatabaseHelper {
     return await db.query(tableName);
   }
 }
-

@@ -113,6 +113,9 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
     final vodCategories = vodCategoriesMaps
         .map((e) => VodCategory.fromJson(e))
         .toList();
+    final vodCategoryTitleMap = {
+      for (final category in vodCategories) category.id: category.title,
+    };
 
     for (var category in vodCategories) {
       final categoryNode = TreeNode(
@@ -143,8 +146,93 @@ final navigationTreeProvider = FutureProvider<List<TreeNode>>((ref) async {
       }
     }
 
-    // TODO: Implement Series and Radio population if data sources become available
-    // For now, Films will contain all VOD content.
+    // --- Populate Series ---
+    final seriesMaps = await dbHelper.getAllSeries(portalId);
+    if (seriesMaps.isEmpty) {
+      seriesNode.children.add(
+        TreeNode(title: 'No series available', type: 'info'),
+      );
+    } else {
+      final seriesItems = seriesMaps.map((row) {
+        return VodContent(
+          id: row[DatabaseHelper.columnSeriesId] as String,
+          name: row[DatabaseHelper.columnSeriesName] as String,
+          cmd: row[DatabaseHelper.columnSeriesCmd] as String?,
+          logo: row[DatabaseHelper.columnSeriesLogo] as String?,
+          description: row[DatabaseHelper.columnSeriesDescription] as String?,
+          year: row[DatabaseHelper.columnSeriesYear] as String?,
+          director: row[DatabaseHelper.columnSeriesDirector] as String?,
+          actors: row[DatabaseHelper.columnSeriesActors] as String?,
+          duration: row[DatabaseHelper.columnSeriesDuration] as String?,
+          categoryId: row[DatabaseHelper.columnSeriesCategoryId] as String?,
+        );
+      }).toList();
+
+      final groupedSeries = <String, List<VodContent>>{};
+      for (final series in seriesItems) {
+        final key = series.categoryId ?? '_uncategorized';
+        groupedSeries.putIfAbsent(key, () => []).add(series);
+      }
+
+      groupedSeries.forEach((categoryId, items) {
+        final categoryTitle =
+            vodCategoryTitleMap[categoryId] ?? 'Uncategorized Series';
+        seriesNode.children.add(
+          TreeNode(
+            title: categoryId == '_uncategorized'
+                ? 'Uncategorized Series'
+                : categoryTitle,
+            type: 'category',
+            children: items
+                .map(
+                  (item) => TreeNode(
+                    title: item.name,
+                    type: 'series_item',
+                    data: item,
+                  ),
+                )
+                .toList(),
+          ),
+        );
+      });
+    }
+
+    // --- Populate Radio ---
+    final radioChannels = allChannels.where((channel) {
+      final group = channel.group?.toLowerCase() ?? '';
+      return group.contains('radio');
+    }).toList();
+
+    if (radioChannels.isEmpty) {
+      radioNode.children.add(
+        TreeNode(title: 'No radio channels available', type: 'info'),
+      );
+    } else {
+      final groupedRadio = <String, List<Channel>>{};
+      for (final channel in radioChannels) {
+        final key = channel.group?.isNotEmpty == true
+            ? channel.group!
+            : 'Radio';
+        groupedRadio.putIfAbsent(key, () => []).add(channel);
+      }
+
+      groupedRadio.forEach((groupName, channelsInGroup) {
+        final categoryNode = TreeNode(
+          title: groupName,
+          type: 'category',
+          children: channelsInGroup
+              .map(
+                (channel) => TreeNode(
+                  title: channel.name,
+                  type: 'radio_channel',
+                  data: channel,
+                ),
+              )
+              .toList(),
+        );
+        radioNode.children.add(categoryNode);
+      });
+    }
   } catch (e, stackTrace) {
     appLogger.e(
       'Error building navigation tree',

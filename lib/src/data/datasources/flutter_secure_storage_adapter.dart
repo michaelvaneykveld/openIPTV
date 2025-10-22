@@ -37,13 +37,17 @@ class FlutterSecureStorageAdapter implements SecureStorageInterface {
       ...currentCredentials.where((c) => c.id != credentials.id),
       credentials,
     ];
-    final List<Map<String, dynamic>> jsonList = updatedCredentials.map((c) => c.toJson()).toList();
+    final List<Map<String, dynamic>> jsonList = updatedCredentials
+        .map((c) => c.toJson())
+        .toList();
     await _storage.write(key: _credentialsListKey, value: jsonEncode(jsonList));
   }
 
   @override
   Future<List<Credentials>> getCredentialsList() async {
-    final String? credentialsJson = await _storage.read(key: _credentialsListKey);
+    final String? credentialsJson = await _storage.read(
+      key: _credentialsListKey,
+    );
     if (credentialsJson == null) {
       return [];
     }
@@ -60,6 +64,23 @@ class FlutterSecureStorageAdapter implements SecureStorageInterface {
         throw Exception('Unknown credential type: $type');
       }
     }).toList();
+  }
+
+  @override
+  Future<void> deleteCredentialById(String credentialId) async {
+    final currentCredentials = await getCredentialsList();
+    final updated = currentCredentials
+        .where((c) => c.id != credentialId)
+        .toList();
+    final jsonList = updated.map((c) => c.toJson()).toList();
+    if (jsonList.isEmpty) {
+      await _storage.delete(key: _credentialsListKey);
+    } else {
+      await _storage.write(
+        key: _credentialsListKey,
+        value: jsonEncode(jsonList),
+      );
+    }
   }
 
   @override

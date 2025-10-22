@@ -4,7 +4,9 @@ import 'package:openiptv/src/data/datasources/secure_storage_interface.dart'; //
 abstract class CredentialsLocalDataSource {
   Future<void> saveCredential(Credentials credential);
   Future<List<Credentials>> getSavedCredentials();
-  Future<void> deleteCredential(String credentialId); // Changed to use ID for deletion
+  Future<void> deleteCredential(
+    String credentialId,
+  ); // Changed to use ID for deletion
   Future<void> deleteAllCredentials(); // To delete all credentials
 }
 
@@ -25,15 +27,7 @@ class CredentialsLocalDataSourceImpl implements CredentialsLocalDataSource {
 
   @override
   Future<void> deleteCredential(String credentialId) async {
-    final currentCredentials = await _secureStorage.getCredentialsList();
-    currentCredentials.removeWhere((c) => c.id == credentialId);
-    // Re-save the modified list. This is a workaround as SecureStorageInterface doesn't have a direct delete by ID.
-    // A better approach would be to have a deleteById in SecureStorageInterface.
-    // For now, clear all and re-save remaining.
-    await _secureStorage.clearAllCredentials();
-    for (var credential in currentCredentials) {
-      await _secureStorage.saveCredentials(credential);
-    }
+    await _secureStorage.deleteCredentialById(credentialId);
   }
 
   @override

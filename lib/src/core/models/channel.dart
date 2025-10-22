@@ -108,65 +108,112 @@ class Channel {
   });
 
   factory Channel.fromStalkerJson(Map<String, dynamic> json) {
-    final List<dynamic>? cmdsJson = json['cmds'];
-    final List<ChannelCmd>? cmds = cmdsJson?.map((cmdJson) => ChannelCmd.fromJson(cmdJson, channelId: json['id'] as String)).toList();
+    final List<dynamic>? cmdsJson = json['cmds'] as List<dynamic>?;
+    final List<ChannelCmd>? cmds = cmdsJson
+        ?.whereType<Map<String, dynamic>>()
+        .map(
+          (cmdJson) => ChannelCmd.fromJson(
+            cmdJson,
+            channelId: _asString(json['id']) ?? '',
+          ),
+        )
+        .toList();
 
     final channel = Channel(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      number: json['number'] as String?,
-      logo: json['logo'] as String?,
-      genreId: json['tv_genre_id'] as String?,
-      xmltvId: json['xmltv_id'] as String?,
-      epg: json['epg'] as String?,
-      genresStr: json['genres_str'] as String?,
-      curPlaying: json['cur_playing'] as String?,
-      status: json['status'] as int?,
-      hd: json['hd'] as int?,
-      censored: json['censored'] as int?,
-      fav: json['fav'] as int?,
-      locked: json['locked'] as int?,
-      archive: json['archive'] as int?,
-      pvr: json['pvr'] as int?,
-      enableTvArchive: json['enable_tv_archive'] as int?,
-      tvArchiveDuration: json['tv_archive_duration'] as int?,
-      allowPvr: json['allow_pvr'] as int?,
-      allowLocalPvr: json['allow_local_pvr'] as int?,
-      allowRemotePvr: json['allow_remote_pvr'] as int?,
-      allowLocalTimeshift: json['allow_local_timeshift'] as int?,
-      cmd: json['cmd'] as String?,
-      cmd1: json['cmd_1'] as String?,
-      cmd2: json['cmd_2'] as String?,
-      cmd3: json['cmd_3'] as String?,
-      cost: json['cost'] as String?,
-      count: json['count'] as String?,
-      baseCh: json['base_ch'] as String?,
-      serviceId: json['service_id'] as String?,
-      bonusCh: json['bonus_ch'] as String?,
-      volumeCorrection: json['volume_correction'] as String?,
-      mcCmd: json['mc_cmd'] as String?,
-      wowzaTmpLink: json['wowza_tmp_link'] as String?,
-      wowzaDvr: json['wowza_dvr'] as String?,
-      useHttpTmpLink: json['use_http_tmp_link'] as String?,
-      monitoringStatus: json['monitoring_status'] as String?,
-      enableMonitoring: json['enable_monitoring'] as int?,
-      enableWowzaLoadBalancing: json['enable_wowza_load_balancing'] as int?,
-      correctTime: json['correct_time'] as String?,
-      nimbleDvr: json['nimble_dvr'] as String?,
-      modified: json['modified'] as String?,
-      nginxSecureLink: json['nginx_secure_link'] as String?,
-      open: json['open'] as int?,
-      useLoadBalancing: json['use_load_balancing'] as int?,
+      id: _asString(json['id']) ?? '',
+      name: _asString(json['name']) ?? 'Unknown Channel',
+      number: _asString(json['number']),
+      logo: _asString(json['logo']),
+      genreId: _asString(json['tv_genre_id']),
+      xmltvId: _asString(json['xmltv_id']),
+      epg: _asString(_preferString(json['epg'])),
+      genresStr: _asString(json['genres_str']),
+      curPlaying: _asString(json['cur_playing']),
+      status: _asInt(json['status']),
+      hd: _asInt(json['hd']),
+      censored: _asInt(json['censored']),
+      fav: _asInt(json['fav']),
+      locked: _asInt(json['locked']),
+      archive: _asInt(json['archive']),
+      pvr: _asInt(json['pvr']),
+      enableTvArchive: _asInt(json['enable_tv_archive']),
+      tvArchiveDuration: _asInt(json['tv_archive_duration']),
+      allowPvr: _asInt(json['allow_pvr']),
+      allowLocalPvr: _asInt(json['allow_local_pvr']),
+      allowRemotePvr: _asInt(json['allow_remote_pvr']),
+      allowLocalTimeshift: _asInt(json['allow_local_timeshift']),
+      cmd: _asString(json['cmd']),
+      cmd1: _asString(json['cmd_1']),
+      cmd2: _asString(json['cmd_2']),
+      cmd3: _asString(json['cmd_3']),
+      cost: _asString(json['cost']),
+      count: _asString(json['count']),
+      baseCh: _asString(json['base_ch']),
+      serviceId: _asString(json['service_id']),
+      bonusCh: _asString(json['bonus_ch']),
+      volumeCorrection: _asString(json['volume_correction']),
+      mcCmd: _asString(json['mc_cmd']),
+      wowzaTmpLink: _asString(json['wowza_tmp_link']),
+      wowzaDvr: _asString(json['wowza_dvr']),
+      useHttpTmpLink: _asString(json['use_http_tmp_link']),
+      monitoringStatus: _asString(json['monitoring_status']),
+      enableMonitoring: _asInt(json['enable_monitoring']),
+      enableWowzaLoadBalancing: _asInt(json['enable_wowza_load_balancing']),
+      correctTime: _asString(json['correct_time']),
+      nimbleDvr: _asString(json['nimble_dvr']),
+      modified: _asString(json['modified']),
+      nginxSecureLink: _asString(json['nginx_secure_link']),
+      open: _asInt(json['open']),
+      useLoadBalancing: _asInt(json['use_load_balancing']),
       cmds: cmds,
-      streamUrl: json['url'] as String?,
-      group: json['group_title'] as String?,
-      epgId: json['epg_id'] as String?,
+      streamUrl: _asString(json['url']),
+      group: _asString(json['group_title']),
+      epgId: _asString(json['epg_id']),
     );
     _logChannelDifferences(channel, 'Stalker');
     return channel;
   }
 
-  factory Channel.fromM3UEntry(Map<String, String> attributes, String streamUrl) {
+  static String? _preferString(dynamic value) {
+    if (value is String) {
+      return value;
+    }
+    return null;
+  }
+
+  static String? _asString(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is String) {
+      return value;
+    }
+    if (value is num || value is bool) {
+      return value.toString();
+    }
+    return null;
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
+  }
+
+  factory Channel.fromM3UEntry(
+    Map<String, String> attributes,
+    String streamUrl,
+  ) {
     final name = attributes['title'] ?? 'Unnamed Channel';
     final tvgId = attributes['tvg-id'];
     final channel = Channel(
@@ -214,11 +261,13 @@ class Channel {
       archive: map[DatabaseHelper.columnChannelArchive] as int?,
       pvr: map[DatabaseHelper.columnChannelPvr] as int?,
       enableTvArchive: map[DatabaseHelper.columnChannelEnableTvArchive] as int?,
-      tvArchiveDuration: map[DatabaseHelper.columnChannelTvArchiveDuration] as int?,
+      tvArchiveDuration:
+          map[DatabaseHelper.columnChannelTvArchiveDuration] as int?,
       allowPvr: map[DatabaseHelper.columnChannelAllowPvr] as int?,
       allowLocalPvr: map[DatabaseHelper.columnChannelAllowLocalPvr] as int?,
       allowRemotePvr: map[DatabaseHelper.columnChannelAllowRemotePvr] as int?,
-      allowLocalTimeshift: map[DatabaseHelper.columnChannelAllowLocalTimeshift] as int?,
+      allowLocalTimeshift:
+          map[DatabaseHelper.columnChannelAllowLocalTimeshift] as int?,
       cmd: map[DatabaseHelper.columnChannelCmd] as String?,
       cmd1: map[DatabaseHelper.columnChannelCmd1] as String?,
       cmd2: map[DatabaseHelper.columnChannelCmd2] as String?,
@@ -228,20 +277,27 @@ class Channel {
       baseCh: map[DatabaseHelper.columnChannelBaseCh] as String?,
       serviceId: map[DatabaseHelper.columnChannelServiceId] as String?,
       bonusCh: map[DatabaseHelper.columnChannelBonusCh] as String?,
-      volumeCorrection: map[DatabaseHelper.columnChannelVolumeCorrection] as String?,
+      volumeCorrection:
+          map[DatabaseHelper.columnChannelVolumeCorrection] as String?,
       mcCmd: map[DatabaseHelper.columnChannelMcCmd] as String?,
       wowzaTmpLink: map[DatabaseHelper.columnChannelWowzaTmpLink] as String?,
       wowzaDvr: map[DatabaseHelper.columnChannelWowzaDvr] as String?,
-      useHttpTmpLink: map[DatabaseHelper.columnChannelUseHttpTmpLink] as String?,
-      monitoringStatus: map[DatabaseHelper.columnChannelMonitoringStatus] as String?,
-      enableMonitoring: map[DatabaseHelper.columnChannelEnableMonitoring] as int?,
-      enableWowzaLoadBalancing: map[DatabaseHelper.columnChannelEnableWowzaLoadBalancing] as int?,
+      useHttpTmpLink:
+          map[DatabaseHelper.columnChannelUseHttpTmpLink] as String?,
+      monitoringStatus:
+          map[DatabaseHelper.columnChannelMonitoringStatus] as String?,
+      enableMonitoring:
+          map[DatabaseHelper.columnChannelEnableMonitoring] as int?,
+      enableWowzaLoadBalancing:
+          map[DatabaseHelper.columnChannelEnableWowzaLoadBalancing] as int?,
       correctTime: map[DatabaseHelper.columnChannelCorrectTime] as String?,
       nimbleDvr: map[DatabaseHelper.columnChannelNimbleDvr] as String?,
       modified: map[DatabaseHelper.columnChannelModified] as String?,
-      nginxSecureLink: map[DatabaseHelper.columnChannelNginxSecureLink] as String?,
+      nginxSecureLink:
+          map[DatabaseHelper.columnChannelNginxSecureLink] as String?,
       open: map[DatabaseHelper.columnChannelOpen] as int?,
-      useLoadBalancing: map[DatabaseHelper.columnChannelUseLoadBalancing] as int?,
+      useLoadBalancing:
+          map[DatabaseHelper.columnChannelUseLoadBalancing] as int?,
       group: map[DatabaseHelper.columnChannelGroupTitle] as String?,
       // Note: cmds, streamUrl, epgId are not stored in the main channels table
     );
@@ -295,16 +351,17 @@ class Channel {
       DatabaseHelper.columnChannelWowzaTmpLink: wowzaTmpLink,
       DatabaseHelper.columnChannelWowzaDvr: wowzaDvr,
       DatabaseHelper.columnChannelUseHttpTmpLink: useHttpTmpLink,
-      'monitoringStatus': monitoringStatus,
-      'enableMonitoring': enableMonitoring,
-      'enableWowzaLoadBalancing': enableWowzaLoadBalancing,
-      'correctTime': correctTime,
-      'nimbleDvr': nimbleDvr,
-      'modified': modified,
-      'nginxSecureLink': nginxSecureLink,
-      'open': open,
-      DatabaseHelper.columnChannelGroupTitle: group, // Added for M3U/Xtream grouping
-      'useLoadBalancing': useLoadBalancing,
+      DatabaseHelper.columnChannelMonitoringStatus: monitoringStatus,
+      DatabaseHelper.columnChannelEnableMonitoring: enableMonitoring,
+      DatabaseHelper.columnChannelEnableWowzaLoadBalancing:
+          enableWowzaLoadBalancing,
+      DatabaseHelper.columnChannelCorrectTime: correctTime,
+      DatabaseHelper.columnChannelNimbleDvr: nimbleDvr,
+      DatabaseHelper.columnChannelModified: modified,
+      DatabaseHelper.columnChannelNginxSecureLink: nginxSecureLink,
+      DatabaseHelper.columnChannelOpen: open,
+      DatabaseHelper.columnChannelGroupTitle: group,
+      DatabaseHelper.columnChannelUseLoadBalancing: useLoadBalancing,
     };
   }
 }

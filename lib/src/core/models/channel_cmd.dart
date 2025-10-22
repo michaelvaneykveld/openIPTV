@@ -1,4 +1,3 @@
-
 import 'package:openiptv/src/core/database/database_helper.dart';
 
 class ChannelCmd {
@@ -34,22 +33,25 @@ class ChannelCmd {
     this.flussonicTmpLink,
   });
 
-  factory ChannelCmd.fromJson(Map<String, dynamic> json, {required String channelId}) {
+  factory ChannelCmd.fromJson(
+    Map<String, dynamic> json, {
+    required String channelId,
+  }) {
     return ChannelCmd(
-      id: json['id'] as String,
+      id: _asString(json['id']) ?? channelId,
       channelId: channelId, // Pass the parent channel's ID
-      priority: int.tryParse(json['priority']?.toString() ?? ''),
-      url: json['url'] as String?,
-      status: int.tryParse(json['status']?.toString() ?? ''),
-      useHttpTmpLink: int.tryParse(json['use_http_tmp_link']?.toString() ?? ''),
-      wowzaTmpLink: int.tryParse(json['wowza_tmp_link']?.toString() ?? ''),
-      userAgentFilter: json['user_agent_filter'] as String?,
-      useLoadBalancing: int.tryParse(json['use_load_balancing']?.toString() ?? ''),
-      changed: json['changed'] as String?,
-      enableMonitoring: int.tryParse(json['enable_monitoring']?.toString() ?? ''),
-      enableBalancerMonitoring: int.tryParse(json['enable_balancer_monitoring']?.toString() ?? ''),
-      nginxSecureLink: int.tryParse(json['nginx_secure_link']?.toString() ?? ''),
-      flussonicTmpLink: int.tryParse(json['flussonic_tmp_link']?.toString() ?? ''),
+      priority: _asInt(json['priority']),
+      url: _asString(json['url']),
+      status: _asInt(json['status']),
+      useHttpTmpLink: _asInt(json['use_http_tmp_link']),
+      wowzaTmpLink: _asInt(json['wowza_tmp_link']),
+      userAgentFilter: _asString(json['user_agent_filter']),
+      useLoadBalancing: _asInt(json['use_load_balancing']),
+      changed: _asString(json['changed']),
+      enableMonitoring: _asInt(json['enable_monitoring']),
+      enableBalancerMonitoring: _asInt(json['enable_balancer_monitoring']),
+      nginxSecureLink: _asInt(json['nginx_secure_link']),
+      flussonicTmpLink: _asInt(json['flussonic_tmp_link']),
     );
   }
 
@@ -66,7 +68,8 @@ class ChannelCmd {
       useLoadBalancing: map[DatabaseHelper.columnCmdUseLoadBalancing] as int?,
       changed: map[DatabaseHelper.columnCmdChanged] as String?,
       enableMonitoring: map[DatabaseHelper.columnCmdEnableMonitoring] as int?,
-      enableBalancerMonitoring: map[DatabaseHelper.columnCmdEnableBalancerMonitoring] as int?,
+      enableBalancerMonitoring:
+          map[DatabaseHelper.columnCmdEnableBalancerMonitoring] as int?,
       nginxSecureLink: map[DatabaseHelper.columnCmdNginxSecureLink] as int?,
       flussonicTmpLink: map[DatabaseHelper.columnCmdFlussonicTmpLink] as int?,
     );
@@ -85,9 +88,39 @@ class ChannelCmd {
       DatabaseHelper.columnCmdUseLoadBalancing: useLoadBalancing,
       DatabaseHelper.columnCmdChanged: changed,
       DatabaseHelper.columnCmdEnableMonitoring: enableMonitoring,
-      DatabaseHelper.columnCmdEnableBalancerMonitoring: enableBalancerMonitoring,
+      DatabaseHelper.columnCmdEnableBalancerMonitoring:
+          enableBalancerMonitoring,
       DatabaseHelper.columnCmdNginxSecureLink: nginxSecureLink,
       DatabaseHelper.columnCmdFlussonicTmpLink: flussonicTmpLink,
     };
+  }
+
+  static String? _asString(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is String) {
+      return value;
+    }
+    if (value is num || value is bool) {
+      return value.toString();
+    }
+    return null;
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
   }
 }

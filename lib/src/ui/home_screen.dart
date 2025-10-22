@@ -38,7 +38,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _searchQuery = '';
   String? _activeSectionTitle;
   String? _activeCategoryTitle;
-  TreeNode? _selectedCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +78,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   setState(() {
                     _isSearching = !_isSearching;
                     _searchQuery = '';
-                    _selectedCategory = null;
+                    _activeSectionTitle = null;
+                    _activeCategoryTitle = null;
                   });
                 },
               ),
@@ -259,7 +259,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ref.invalidate(channelOverridesProvider(portalId));
     if (!mounted) return;
     setState(() {
-      _selectedCategory = null;
       _activeSectionTitle = null;
       _activeCategoryTitle = null;
     });
@@ -279,42 +278,107 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
     final filteredNodes = _filterNodes(nodes, _searchQuery);
+
+    if (filteredNodes.isEmpty) {
+      return const Center(
+        child: Text('No data found to build the navigation tree.'),
+      );
+    }
+
+    final portalNode = filteredNodes.firstWhere(
+      (node) => node.type == 'portal',
+      orElse: () => filteredNodes.first,
+    );
+    final sections = portalNode.children.isNotEmpty
+        ? portalNode.children
+        : filteredNodes;
+
+    if (sections.isEmpty) {
+      return const Center(child: Text('No sections available.'));
+    }
+
+    final selectedSection = _selectNode(sections, _activeSectionTitle);
+    if (_activeSectionTitle != selectedSection?.title) {
+      _activeSectionTitle = selectedSection?.title;
+      _activeCategoryTitle = null;
+    }
+
+    final categoryCandidates = selectedSection?.children ?? [];
+    final selectedCategory = categoryCandidates.isNotEmpty
+        ? _selectNode(categoryCandidates, _activeCategoryTitle)
+        : selectedSection;
+    if (categoryCandidates.isNotEmpty &&
+        _activeCategoryTitle != selectedCategory?.title) {
+      _activeCategoryTitle = selectedCategory?.title;
+    }
+
+    final leafNodes = selectedCategory?.children ?? [];
+
     return Row(
       children: [
         SizedBox(
           width: 300,
-          child: ListView.builder(
-            itemCount: filteredNodes.length,
-            itemBuilder: (context, index) {
-              final node = filteredNodes[index];
+          child: ListView(
+            children: sections.map((section) {
+              final isExpanded =
+                  section.title == _activeSectionTitle ||
+                  section.children.any(
+                    (category) => category.title == _activeCategoryTitle,
+                  );
+              final children = section.children;
+
+              if (children.isEmpty) {
+                return ListTile(
+                  leading: Icon(_iconForNodeType(section.type)),
+                  title: Text(section.title),
+                  selected: section.title == _activeSectionTitle,
+                  onTap: () {
+                    setState(() {
+                      _activeSectionTitle = section.title;
+                      _activeCategoryTitle = null;
+                    });
+                  },
+                );
+              }
+
               return ExpansionTile(
-                title: Text(node.title),
-                initiallyExpanded: true,
-                children: node.children.map((child) {
+                key: PageStorageKey(section.title),
+                leading: Icon(_iconForNodeType(section.type)),
+                title: Text(section.title),
+                initiallyExpanded: isExpanded,
+                children: children.map((category) {
+                  final isSelected = category.title == _activeCategoryTitle;
                   return ListTile(
-                    title: Text(child.title),
-                    selected: _selectedCategory == child,
+                    title: Text(category.title),
+                    selected: isSelected,
+                    trailing: category.children.isNotEmpty
+                        ? Text(
+                            '${category.children.length}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          )
+                        : null,
                     onTap: () {
                       setState(() {
-                        _selectedCategory = child;
+                        _activeSectionTitle = section.title;
+                        _activeCategoryTitle = category.title;
                       });
                     },
                   );
                 }).toList(),
               );
-            },
+            }).toList(),
           ),
         ),
         Expanded(
-          child: _selectedCategory != null
-              ? ListView.builder(
-                  itemCount: _selectedCategory!.children.length,
+          child: leafNodes.isEmpty
+              ? const Center(child: Text('Select a category to see items.'))
+              : ListView.builder(
+                  itemCount: leafNodes.length,
                   itemBuilder: (context, index) {
-                    final node = _selectedCategory!.children[index];
+                    final node = leafNodes[index];
                     return _buildTreeNode(context, node, portalId, ref);
                   },
-                )
-              : const Center(child: Text('Select a category')),
+                ),
         ),
       ],
     );

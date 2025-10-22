@@ -39,26 +39,39 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final channels = data
-              .whereType<Map<String, dynamic>>()
-              .map(Channel.fromStalkerJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${channels.length} live channels for portal $portalId.',
-          );
-          if (channels.isEmpty) {
-            _logEmptyPayload(
-              'Live channel list',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final channels = <Channel>[];
+        for (final row in rows) {
+          try {
+            channels.add(Channel.fromStalkerJson(row));
+          } catch (error, stackTrace) {
+            _logConversionError(
+              "Live channel (${row['id'] ?? 'unknown'})",
               portalId: portalId,
-              payload: js,
+              payload: row,
+              error: error,
+              stackTrace: stackTrace,
             );
           }
-          return channels;
         }
+        appLogger.d(
+          'Fetched ${channels.length} live channels for portal $portalId.',
+        );
+        if (channels.isEmpty) {
+          _logEmptyPayload(
+            'Live channel list',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
+          );
+        }
+        return channels;
       }
+      _logUnexpectedPayload(
+        'Live channel list',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch channels for portal $portalId.');
     });
   }
@@ -77,22 +90,26 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final genres = data
-              .whereType<Map<String, dynamic>>()
-              .map(Genre.fromJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${genres.length} genres for portal $portalId from ${session.portalUrl}.',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final genres = rows.map(Genre.fromJson).toList();
+        appLogger.d(
+          'Fetched ${genres.length} genres for portal $portalId from ${session.portalUrl}.',
+        );
+        if (genres.isEmpty) {
+          _logEmptyPayload(
+            'Genre list',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
           );
-          if (genres.isEmpty) {
-            _logEmptyPayload('Genre list', portalId: portalId, payload: js);
-          }
-          return genres;
         }
+        return genres;
       }
+      _logUnexpectedPayload(
+        'Genre list',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch genres for portal $portalId.');
     });
   }
@@ -112,26 +129,39 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final channels = data
-              .whereType<Map<String, dynamic>>()
-              .map(Channel.fromStalkerJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${channels.length} channels for genre $genreId on portal $portalId.',
-          );
-          if (channels.isEmpty) {
-            _logEmptyPayload(
-              'Channel list for genre $genreId',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final channels = <Channel>[];
+        for (final row in rows) {
+          try {
+            channels.add(Channel.fromStalkerJson(row));
+          } catch (error, stackTrace) {
+            _logConversionError(
+              "Channel (${row['id'] ?? 'unknown'}) in genre $genreId",
               portalId: portalId,
-              payload: js,
+              payload: row,
+              error: error,
+              stackTrace: stackTrace,
             );
           }
-          return channels;
         }
+        appLogger.d(
+          'Fetched ${channels.length} channels for genre $genreId on portal $portalId.',
+        );
+        if (channels.isEmpty) {
+          _logEmptyPayload(
+            'Channel list for genre $genreId',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
+          );
+        }
+        return channels;
       }
+      _logUnexpectedPayload(
+        'Channel list for genre $genreId',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch channels for genre $genreId.');
     });
   }
@@ -150,26 +180,26 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final categories = data
-              .whereType<Map<String, dynamic>>()
-              .map(VodCategory.fromJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${categories.length} VOD categories for portal $portalId.',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final categories = rows.map(VodCategory.fromJson).toList();
+        appLogger.d(
+          'Fetched ${categories.length} VOD categories for portal $portalId.',
+        );
+        if (categories.isEmpty) {
+          _logEmptyPayload(
+            'VOD category list',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
           );
-          if (categories.isEmpty) {
-            _logEmptyPayload(
-              'VOD category list',
-              portalId: portalId,
-              payload: js,
-            );
-          }
-          return categories;
         }
+        return categories;
       }
+      _logUnexpectedPayload(
+        'VOD category list',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch VOD categories.');
     });
   }
@@ -189,26 +219,39 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final vodItems = data
-              .whereType<Map<String, dynamic>>()
-              .map((item) => VodContent.fromJson(item, categoryId: categoryId))
-              .toList();
-          appLogger.d(
-            'Fetched ${vodItems.length} VOD items for category $categoryId on portal $portalId.',
-          );
-          if (vodItems.isEmpty) {
-            _logEmptyPayload(
-              'VOD items for category $categoryId',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final vodItems = <VodContent>[];
+        for (final row in rows) {
+          try {
+            vodItems.add(VodContent.fromJson(row, categoryId: categoryId));
+          } catch (error, stackTrace) {
+            _logConversionError(
+              "VOD item (${row['id'] ?? 'unknown'}) in category $categoryId",
               portalId: portalId,
-              payload: js,
+              payload: row,
+              error: error,
+              stackTrace: stackTrace,
             );
           }
-          return vodItems;
         }
+        appLogger.d(
+          'Fetched ${vodItems.length} VOD items for category $categoryId on portal $portalId.',
+        );
+        if (vodItems.isEmpty) {
+          _logEmptyPayload(
+            'VOD items for category $categoryId',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
+          );
+        }
+        return vodItems;
       }
+      _logUnexpectedPayload(
+        'VOD items for category $categoryId',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch VOD content for category $categoryId.');
     });
   }
@@ -227,26 +270,26 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final genres = data
-              .whereType<Map<String, dynamic>>()
-              .map(Genre.fromJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${genres.length} radio genres for portal $portalId.',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final genres = rows.map(Genre.fromJson).toList();
+        appLogger.d(
+          'Fetched ${genres.length} radio genres for portal $portalId.',
+        );
+        if (genres.isEmpty) {
+          _logEmptyPayload(
+            'Radio genre list',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
           );
-          if (genres.isEmpty) {
-            _logEmptyPayload(
-              'Radio genre list',
-              portalId: portalId,
-              payload: js,
-            );
-          }
-          return genres;
         }
+        return genres;
       }
+      _logUnexpectedPayload(
+        'Radio genre list',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch radio genres.');
     });
   }
@@ -266,26 +309,39 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final channels = data
-              .whereType<Map<String, dynamic>>()
-              .map(Channel.fromStalkerJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${channels.length} radio channels for genre $genreId on portal $portalId.',
-          );
-          if (channels.isEmpty) {
-            _logEmptyPayload(
-              'Radio channels for genre $genreId',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final channels = <Channel>[];
+        for (final row in rows) {
+          try {
+            channels.add(Channel.fromStalkerJson(row));
+          } catch (error, stackTrace) {
+            _logConversionError(
+              "Radio channel (${row['id'] ?? 'unknown'}) in genre $genreId",
               portalId: portalId,
-              payload: js,
+              payload: row,
+              error: error,
+              stackTrace: stackTrace,
             );
           }
-          return channels;
         }
+        appLogger.d(
+          'Fetched ${channels.length} radio channels for genre $genreId on portal $portalId.',
+        );
+        if (channels.isEmpty) {
+          _logEmptyPayload(
+            'Radio channels for genre $genreId',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
+          );
+        }
+        return channels;
       }
+      _logUnexpectedPayload(
+        'Radio channels for genre $genreId',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch radio channels for genre $genreId.');
     });
   }
@@ -310,26 +366,39 @@ class StalkerApiProvider implements IProvider {
       );
       final map = _ensureMap(response.data);
       final js = map?['js'];
-      if (js is Map<String, dynamic>) {
-        final data = js['data'];
-        if (data is List) {
-          final programmes = data
-              .whereType<Map<String, dynamic>>()
-              .map(EpgProgramme.fromStalkerJson)
-              .toList();
-          appLogger.d(
-            'Fetched ${programmes.length} EPG programmes for channel $chId on portal $portalId.',
-          );
-          if (programmes.isEmpty) {
-            _logEmptyPayload(
-              'EPG programmes for channel $chId',
+      final rows = _extractDataList(js ?? map);
+      if (rows != null) {
+        final programmes = <EpgProgramme>[];
+        for (final row in rows) {
+          try {
+            programmes.add(EpgProgramme.fromStalkerJson(row));
+          } catch (error, stackTrace) {
+            _logConversionError(
+              "EPG programme (${row['id'] ?? 'unknown'}) for channel $chId",
               portalId: portalId,
-              payload: js,
+              payload: row,
+              error: error,
+              stackTrace: stackTrace,
             );
           }
-          return programmes;
         }
+        appLogger.d(
+          'Fetched ${programmes.length} EPG programmes for channel $chId on portal $portalId.',
+        );
+        if (programmes.isEmpty) {
+          _logEmptyPayload(
+            'EPG programmes for channel $chId',
+            portalId: portalId,
+            payload: js is Map<String, dynamic> ? js : map,
+          );
+        }
+        return programmes;
       }
+      _logUnexpectedPayload(
+        'EPG programmes for channel $chId',
+        portalId: portalId,
+        payload: js is Map<String, dynamic> ? js : map,
+      );
       throw Exception('Failed to fetch EPG for channel $chId.');
     });
   }
@@ -960,6 +1029,61 @@ class StalkerApiProvider implements IProvider {
     } catch (error, stackTrace) {
       appLogger.w(
         '$context returned an empty data array for portal $portalId. Raw payload could not be encoded.',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  List<Map<String, dynamic>>? _extractDataList(dynamic payload) {
+    if (payload is List) {
+      return payload.whereType<Map<String, dynamic>>().toList();
+    }
+    if (payload is Map<String, dynamic>) {
+      final data = payload['data'];
+      if (data is List) {
+        return data.whereType<Map<String, dynamic>>().toList();
+      }
+    }
+    return null;
+  }
+
+  void _logConversionError(
+    String context, {
+    required String portalId,
+    Map<String, dynamic>? payload,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    try {
+      final encoded = payload != null ? jsonEncode(payload) : 'null';
+      appLogger.e(
+        '$context conversion failed for portal $portalId. Payload: $encoded',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } catch (encodeError, encodeStackTrace) {
+      appLogger.e(
+        '$context conversion failed for portal $portalId and JSON encoding failed.',
+        error: encodeError,
+        stackTrace: encodeStackTrace,
+      );
+    }
+  }
+
+  void _logUnexpectedPayload(
+    String context, {
+    required String portalId,
+    Map<String, dynamic>? payload,
+  }) {
+    try {
+      final encoded = payload != null ? jsonEncode(payload) : 'null';
+      appLogger.w(
+        '$context returned an unexpected payload for portal $portalId. Raw payload: $encoded',
+      );
+    } catch (error, stackTrace) {
+      appLogger.w(
+        '$context returned an unexpected payload for portal $portalId and JSON encoding failed.',
         error: error,
         stackTrace: stackTrace,
       );

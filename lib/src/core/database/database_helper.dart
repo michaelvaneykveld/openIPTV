@@ -8,7 +8,7 @@ import 'package:openiptv/utils/app_logger.dart'; // Added this import
 
 class DatabaseHelper {
   static const _databaseName = "OpenIPTV.db";
-  static const _databaseVersion = 3;
+  static const _databaseVersion = 4;
 
   static const columnPortalId = 'portal_id';
 
@@ -83,8 +83,7 @@ class DatabaseHelper {
   static const columnChannelModified = 'modified';
   static const columnChannelNginxSecureLink = 'nginx_secure_link';
   static const columnChannelOpen = 'open';
-  static const columnChannelGroupTitle =
-      'group_title'; // Added for M3U/Xtream grouping
+  static const columnChannelGroupTitle = 'group_title';
   static const columnChannelUseLoadBalancing = 'use_load_balancing';
 
   // Channel CMDS Table
@@ -259,7 +258,7 @@ class DatabaseHelper {
             $columnChannelNginxSecureLink TEXT,
             $columnChannelOpen INTEGER,
             $columnChannelUseLoadBalancing INTEGER,
-            $columnChannelGroupTitle TEXT, // Added for M3U/Xtream grouping
+            $columnChannelGroupTitle TEXT, 
             PRIMARY KEY ($columnChannelId, $columnPortalId),
             FOREIGN KEY ($columnChannelGenreId, $columnPortalId) REFERENCES $tableGenres ($columnGenreId, $columnPortalId)
           )
@@ -279,7 +278,8 @@ class DatabaseHelper {
     appLogger.d('DatabaseHelper: Table $tableChannelOverrides created.');
     await db.execute('''
           CREATE TABLE $tableChannelCmds (
-            $columnCmdId TEXT PRIMARY KEY,
+            $columnCmdId TEXT,
+            $columnPortalId TEXT NOT NULL,
             $columnCmdChannelId TEXT,
             $columnCmdPriority INTEGER,
             $columnCmdUrl TEXT,
@@ -293,7 +293,8 @@ class DatabaseHelper {
             $columnCmdEnableBalancerMonitoring INTEGER,
             $columnCmdNginxSecureLink INTEGER,
             $columnCmdFlussonicTmpLink INTEGER,
-            FOREIGN KEY ($columnCmdChannelId) REFERENCES $tableChannels ($columnChannelId) ON DELETE CASCADE
+            PRIMARY KEY ($columnCmdId, $columnPortalId),
+            FOREIGN KEY ($columnCmdChannelId, $columnPortalId) REFERENCES $tableChannels ($columnChannelId, $columnPortalId) ON DELETE CASCADE
           )
           ''');
     appLogger.d('DatabaseHelper: Table $tableChannelCmds created.');
@@ -444,6 +445,31 @@ class DatabaseHelper {
             $columnEpgDescription TEXT,
             $columnPortalId TEXT NOT NULL,
             PRIMARY KEY ($columnEpgId, $columnPortalId)
+          )
+          ''');
+    }
+    if (oldVersion < 4) {
+      appLogger.d('DatabaseHelper: Applying upgrade to version 4');
+      await db.execute('DROP TABLE IF EXISTS $tableChannelCmds');
+      await db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableChannelCmds (
+            $columnCmdId TEXT,
+            $columnPortalId TEXT NOT NULL,
+            $columnCmdChannelId TEXT,
+            $columnCmdPriority INTEGER,
+            $columnCmdUrl TEXT,
+            $columnCmdStatus INTEGER,
+            $columnCmdUseHttpTmpLink INTEGER,
+            $columnCmdWowzaTmpLink INTEGER,
+            $columnCmdUserAgentFilter TEXT,
+            $columnCmdUseLoadBalancing INTEGER,
+            $columnCmdChanged TEXT,
+            $columnCmdEnableMonitoring INTEGER,
+            $columnCmdEnableBalancerMonitoring INTEGER,
+            $columnCmdNginxSecureLink INTEGER,
+            $columnCmdFlussonicTmpLink INTEGER,
+            PRIMARY KEY ($columnCmdId, $columnPortalId),
+            FOREIGN KEY ($columnCmdChannelId, $columnPortalId) REFERENCES $tableChannels ($columnChannelId, $columnPortalId) ON DELETE CASCADE
           )
           ''');
     }

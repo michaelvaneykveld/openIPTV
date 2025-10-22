@@ -27,17 +27,49 @@ class StalkerRepository {
     // Fetch and store Genres
     final genres = await _provider.getGenres(portalId);
     appLogger.d('Fetched ${genres.length} genres for portal: $portalId');
-    for (var genre in genres) {
+    for (final genre in genres) {
       await _databaseHelper.insertGenre(genre.toMap(), portalId);
-      // For each genre, fetch and store its channels
-      final channels = await _provider.getAllChannels(portalId, genre.id);
-      appLogger.d(
-        'Genre ${genre.id} (${genre.title}) returned ${channels.length} channels.',
-      );
-      for (var channel in channels) {
-        await _databaseHelper.insertChannel(channel.toMap(), portalId);
+    }
+
+    // Fetch all channels once and map them to genres locally
+    final channels = await _provider.getAllChannels(portalId, '*');
+    appLogger.d(
+      'Fetched ${channels.length} live channels for portal: $portalId in a single bulk request.',
+    );
+
+    final Map<String, int> genreChannelCounts = {};
+    var channelsWithoutGenre = 0;
+
+    for (final channel in channels) {
+      await _databaseHelper.insertChannel(channel.toMap(), portalId);
+      if (channel.cmds != null && channel.cmds!.isNotEmpty) {
+        for (final cmd in channel.cmds!) {
+          await _databaseHelper.insertChannelCmd(cmd.toMap(), portalId);
+        }
+      }
+
+      final genreIds = _extractGenreIds(channel);
+      if (genreIds.isEmpty) {
+        channelsWithoutGenre++;
+      } else {
+        for (final genreId in genreIds) {
+          genreChannelCounts[genreId] = (genreChannelCounts[genreId] ?? 0) + 1;
+        }
       }
     }
+
+    for (final genre in genres) {
+      final count = genreChannelCounts[genre.id] ?? 0;
+      appLogger.d(
+        'Genre ${genre.id} (${genre.title}) associated with $count channels.',
+      );
+    }
+    if (channelsWithoutGenre > 0) {
+      appLogger.w(
+        '$channelsWithoutGenre channels lacked an explicit genre_id and were stored without a genre association.',
+      );
+    }
+
     appLogger.d('Genres and Channels synchronized.');
 
     // Fetch and store VOD Categories
@@ -45,15 +77,32 @@ class StalkerRepository {
     appLogger.d(
       'Fetched ${vodCategories.length} VOD categories for portal: $portalId',
     );
-    for (var category in vodCategories) {
+    for (final category in vodCategories) {
       await _databaseHelper.insertVodCategory(category.toJson(), portalId);
+      if (category.id.trim() == '*') {
+        appLogger.d(
+          'Skipping wildcard VOD category ${category.id} (${category.title}) during content sync.',
+        );
+        continue;
+      }
       // For each VOD category, fetch and store its content
-      final vodContent = await _provider.fetchVodContent(portalId, category.id);
-      appLogger.d(
-        'VOD category ${category.id} (${category.title}) returned ${vodContent.length} items.',
-      );
-      for (var content in vodContent) {
-        await _databaseHelper.insertVodContent(content.toMap(), portalId);
+      try {
+        final vodContent = await _provider.fetchVodContent(
+          portalId,
+          category.id,
+        );
+        appLogger.d(
+          'VOD category ${category.id} (${category.title}) returned ${vodContent.length} items.',
+        );
+        for (final content in vodContent) {
+          await _databaseHelper.insertVodContent(content.toMap(), portalId);
+        }
+      } catch (error, stackTrace) {
+        appLogger.e(
+          'Failed to synchronize VOD content for category ${category.id} (${category.title}) on portal $portalId.',
+          error: error,
+          stackTrace: stackTrace,
+        );
       }
     }
     appLogger.d('VOD Categories and Content synchronized.');
@@ -94,6 +143,23 @@ class StalkerRepository {
       }
     }
     appLogger.d('EPG data synchronized.');
+  }
+
+  Set<String> _extractGenreIds(Channel channel) {
+    final ids = <String>{};
+    final primary = channel.genreId?.trim();
+    if (primary != null && primary.isNotEmpty) {
+      ids.add(primary);
+    }
+    final additional = channel.genresStr;
+    if (additional != null && additional.isNotEmpty) {
+      final parts = additional
+          .split(RegExp(r'[|,]'))
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty);
+      ids.addAll(parts);
+    }
+    return ids;
   }
 
   Future<void> _saveEpgPrograms(

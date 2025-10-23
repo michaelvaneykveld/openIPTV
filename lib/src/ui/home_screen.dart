@@ -655,7 +655,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : null,
         onTap: () {
           if (node.type == 'channel') {
-            context.go('/player', extra: node.data);
+            context.push('/player', extra: node.data);
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Tapped on ${node.title} (${node.type})')),

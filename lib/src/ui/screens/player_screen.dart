@@ -1,150 +1,99 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:video_player/video_player.dart';
-import 'package:openiptv/src/application/providers/credentials_provider.dart';
-import 'package:openiptv/src/application/services/recording_service.dart';
+import 'package:go_router/go_router.dart';
 import 'package:openiptv/src/core/models/channel.dart';
 
-class PlayerScreen extends ConsumerStatefulWidget {
-  final Channel channel;
-
+/// Temporary placeholder for the video player screen.
+///
+/// Until the real player is implemented this screen simply displays the
+/// resolved stream source (if any) so we can verify that channel selection
+/// and navigation work end-to-end.
+class PlayerScreen extends StatelessWidget {
   const PlayerScreen({super.key, required this.channel});
 
-  @override
-  ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
-}
-
-class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  VideoPlayerController? _controller;
-  String? _errorMessage;
-  bool _isRecording = false;
-  int? _activeRecordingId;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializePlayer();
-  }
+  final Channel channel;
 
   @override
   Widget build(BuildContext context) {
+    final streamUrl = _resolveStreamUrl(channel);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.channel.name),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _isRecording ? Icons.stop : Icons.fiber_manual_record,
-              color: _isRecording ? Colors.redAccent : Colors.red,
-            ),
-            onPressed: () => _toggleRecording(context),
-          ),
-        ],
+        leading: BackButton(onPressed: () => context.pop()),
+        title: Text(channel.name),
       ),
       body: Center(
-        child: _errorMessage != null
-            ? Text(_errorMessage!)
-            : (_controller != null && _controller!.value.isInitialized)
-            ? AspectRatio(
-                aspectRatio: _controller!.value.aspectRatio,
-                child: VideoPlayer(_controller!),
-              )
-            : const CircularProgressIndicator(),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 540),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.tv,
+                  size: 72,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Player coming soon',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  streamUrl != null
+                      ? 'When the player is implemented, this channel will try to play from the stream source below.'
+                      : 'We could not resolve a stream source for this channel yet.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                if (streamUrl != null)
+                  Card(
+                    elevation: 2,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Resolved stream source',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          SelectableText(
+                            streamUrl,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontFamily: 'monospace'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'No stream URL or command was found for this channel.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _toggleRecording(BuildContext context) async {
-    final portalId = await ref.read(portalIdProvider.future);
-    if (portalId == null) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No active portal to record from.')),
-      );
-      return;
-    }
-
-    final manager = ref.read(recordingManagerProvider);
-    if (_isRecording) {
-      if (_activeRecordingId != null) {
-        await manager.stopRecording(_activeRecordingId!);
-      }
-      if (!mounted) return;
-      setState(() {
-        _isRecording = false;
-        _activeRecordingId = null;
-      });
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Recording stopped.')));
-    } else {
-      final recordingId = await manager.startRecordingNow(
-        channel: widget.channel,
-        portalId: portalId,
-      );
-      if (recordingId == null) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to start recording.')),
-        );
-        return;
-      }
-      if (!mounted) return;
-      setState(() {
-        _isRecording = true;
-        _activeRecordingId = recordingId;
-      });
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Recording started for ${widget.channel.name}.'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _initializePlayer() async {
-    final streamUrl = _resolveStreamUrl(widget.channel);
-    if (streamUrl == null) {
-      setState(() {
-        _errorMessage = 'Geen stream-URL beschikbaar voor dit kanaal.';
-      });
-      return;
-    }
-
-    final parsedUri = Uri.tryParse(streamUrl);
-    if (parsedUri == null) {
-      setState(() {
-        _errorMessage = 'Ongeldige stream-URL: $streamUrl';
-      });
-      return;
-    }
-
-    final controller = VideoPlayerController.networkUrl(parsedUri);
-    try {
-      await controller.initialize();
-      if (!mounted) {
-        controller.dispose();
-        return;
-      }
-      controller.play();
-      setState(() {
-        _controller = controller;
-      });
-    } catch (error) {
-      controller.dispose();
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = 'Kan stream niet afspelen: $error';
-      });
-    }
   }
 
   String? _resolveStreamUrl(Channel channel) {

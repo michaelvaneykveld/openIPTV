@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/src/application/providers/api_provider.dart';
 import 'package:openiptv/src/application/providers/credentials_provider.dart';
+import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/core/models/models.dart';
 import 'package:openiptv/src/data/m3u_repository.dart';
 import 'package:openiptv/src/data/providers/m3u_api_provider.dart';
@@ -18,11 +19,26 @@ class ChannelSyncService {
 
   ChannelSyncService(this._ref);
 
-  Future<void> syncChannels(String portalId) async {
+  Future<void> syncChannels(
+    String portalId, {
+    bool forceRefresh = false,
+  }) async {
     appLogger.d('ChannelSyncService: Starting channel synchronization for portal: $portalId');
     try {
       final credentialsList = await _ref.read(credentialsRepositoryProvider).getSavedCredentials();
       final credential = credentialsList.firstWhere((c) => c.id == portalId, orElse: () => throw Exception("Credential not found"));
+
+      final databaseHelper = DatabaseHelper.instance;
+      if (!forceRefresh) {
+        final hasExistingData = await databaseHelper.hasChannelData(portalId);
+        final lastSync = await databaseHelper.getLastChannelSync(portalId);
+        if (hasExistingData &&
+            lastSync != null &&
+            DateTime.now().difference(lastSync) < const Duration(minutes: 15)) {
+          appLogger.d('ChannelSyncService: Skipping synchronization for portal: $portalId because data was refreshed at $lastSync.');
+          return;
+        }
+      }
 
       if (credential is StalkerCredentials) {
         final stalkerRepository = _ref.read(stalkerRepositoryProvider);

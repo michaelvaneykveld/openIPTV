@@ -5,6 +5,7 @@ import 'package:openiptv/src/core/models/channel.dart';
 import 'package:openiptv/src/core/models/vod_category.dart';
 import 'package:openiptv/src/core/models/vod_content.dart';
 import 'package:openiptv/utils/app_logger.dart';
+import 'package:sqflite/sqflite.dart';
 
 final xtreamRepositoryProvider = Provider<XtreamRepository>((ref) {
   final databaseHelper = ref.watch(databaseHelperProvider);
@@ -35,27 +36,47 @@ class XtreamRepository {
         await txn.delete(DatabaseHelper.tableSeries, where: '${DatabaseHelper.columnPortalId} = ?', whereArgs: [portalId]);
 
         // Insert new data
+        final liveBatch = txn.batch();
         for (final category in liveCategories) {
           final streams = liveStreams[category.id] ?? [];
           for (final stream in streams) {
-            await txn.insert(DatabaseHelper.tableChannels, stream.toMap()..['portal_id'] = portalId);
+            liveBatch.insert(
+              DatabaseHelper.tableChannels,
+              {...stream.toMap(), DatabaseHelper.columnPortalId: portalId},
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
           }
         }
+        await liveBatch.commit(noResult: true);
 
+        final vodBatch = txn.batch();
         for (final category in vodCategories) {
           final streams = vodStreams[category.id] ?? [];
           for (final stream in streams) {
-            await txn.insert(DatabaseHelper.tableVodContent, stream.toMap()..['portal_id'] = portalId);
+            vodBatch.insert(
+              DatabaseHelper.tableVodContent,
+              {...stream.toMap(), DatabaseHelper.columnPortalId: portalId},
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
           }
         }
+        await vodBatch.commit(noResult: true);
 
+        final seriesBatch = txn.batch();
         for (final category in seriesCategories) {
           final seriesList = series[category.id] ?? [];
           for (final item in seriesList) {
-            await txn.insert(DatabaseHelper.tableSeries, item.toMap()..['portal_id'] = portalId);
+            seriesBatch.insert(
+              DatabaseHelper.tableSeries,
+              {...item.toMap(), DatabaseHelper.columnPortalId: portalId},
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
           }
         }
+        await seriesBatch.commit(noResult: true);
       });
+      await _databaseHelper.markChannelsSynced(portalId);
+      await _databaseHelper.markVodSynced(portalId);
       appLogger.d('Xtream data synchronization complete for portal: $portalId.');
     } catch (e, stackTrace) {
       appLogger.e('Error during Xtream data synchronization', error: e, stackTrace: stackTrace);

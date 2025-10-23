@@ -1,6 +1,5 @@
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/core/models/channel_cmd.dart';
-import 'package:openiptv/utils/app_logger.dart';
 
 /// The Channel model, now adapted for Hive storage.
 /// Annotations are used by the hive_generator to create a TypeAdapter.
@@ -170,7 +169,6 @@ class Channel {
       group: _asString(json['group_title']),
       epgId: _asString(json['epg_id']),
     );
-    _logChannelDifferences(channel, 'Stalker');
     return channel;
   }
 
@@ -224,7 +222,6 @@ class Channel {
       group: attributes['group-title'] ?? 'Uncategorized',
       epgId: tvgId ?? name,
     );
-    _logChannelDifferences(channel, 'M3U');
     return channel;
   }
 
@@ -238,7 +235,6 @@ class Channel {
       epgId: json['epg_channel_id'] as String?,
       number: json['num'].toString(),
     );
-    _logChannelDifferences(channel, 'Xtream');
     return channel;
   }
 
@@ -301,16 +297,6 @@ class Channel {
       group: map[DatabaseHelper.columnChannelGroupTitle] as String?,
       // Note: cmds, streamUrl, epgId are not stored in the main channels table
     );
-  }
-
-  static void _logChannelDifferences(Channel channel, String type) {
-    appLogger.d('[$type] Channel created: ${channel.name}');
-    appLogger.d('[$type] ID: ${channel.id}');
-    appLogger.d('[$type] Name: ${channel.name}');
-    appLogger.d('[$type] Logo: ${channel.logo}');
-    appLogger.d('[$type] Stream URL: ${channel.streamUrl}');
-    appLogger.d('[$type] Group: ${channel.group}');
-    appLogger.d('[$type] EPG ID: ${channel.epgId}');
   }
 
   Map<String, dynamic> toMap() {

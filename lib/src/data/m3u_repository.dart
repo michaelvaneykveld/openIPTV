@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/src/core/database/database_helper.dart';
 import 'package:openiptv/src/data/m3u_parser.dart';
 import 'package:openiptv/utils/app_logger.dart';
-import 'package:sqflite/sqflite.dart';
 
 final m3uRepositoryProvider = Provider<M3uRepository>((ref) {
   final databaseHelper = DatabaseHelper.instance;
@@ -25,17 +24,12 @@ class M3uRepository {
       final channels = M3uParser.parse(m3uContent);
       appLogger.d('Parsed ${channels.length} channels from M3U content.');
 
-      // Insert all channels in a single transaction for efficiency
-      final db = await _databaseHelper.database;
-      await db.transaction((txn) async {
-        for (final channel in channels) {
-          await txn.insert(
-            DatabaseHelper.tableChannels,
-            {...channel.toMap(), DatabaseHelper.columnPortalId: portalId},
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-        }
-      });
+      // Insert all channels using bulk helper for efficiency
+      await _databaseHelper.insertChannelsBulk(
+        channels.map((channel) => channel.toMap()).toList(),
+        portalId,
+      );
+      await _databaseHelper.markChannelsSynced(portalId);
 
       appLogger.d('Successfully inserted ${channels.length} channels into the database.');
 

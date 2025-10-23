@@ -27,9 +27,10 @@ class StalkerRepository {
     // Fetch and store Genres
     final genres = await _provider.getGenres(portalId);
     appLogger.d('Fetched ${genres.length} genres for portal: $portalId');
-    for (final genre in genres) {
-      await _databaseHelper.insertGenre(genre.toMap(), portalId);
-    }
+    await _databaseHelper.insertGenresBulk(
+      genres.map((genre) => genre.toMap()).toList(),
+      portalId,
+    );
 
     // Fetch all channels once and map them to genres locally
     final channels = await _provider.getAllChannels(portalId, '*');
@@ -39,13 +40,15 @@ class StalkerRepository {
 
     final Map<String, int> genreChannelCounts = {};
     var channelsWithoutGenre = 0;
+    final channelMaps = <Map<String, dynamic>>[];
+    final channelCmdMaps = <Map<String, dynamic>>[];
 
     for (final channel in channels) {
-      await _databaseHelper.insertChannel(channel.toMap(), portalId);
+      channelMaps.add(channel.toMap());
       if (channel.cmds != null && channel.cmds!.isNotEmpty) {
-        for (final cmd in channel.cmds!) {
-          await _databaseHelper.insertChannelCmd(cmd.toMap(), portalId);
-        }
+        channelCmdMaps.addAll(
+          channel.cmds!.map((cmd) => cmd.toMap()),
+        );
       }
 
       final genreIds = _extractGenreIds(channel);
@@ -57,6 +60,10 @@ class StalkerRepository {
         }
       }
     }
+
+    await _databaseHelper.insertChannelsBulk(channelMaps, portalId);
+    await _databaseHelper.insertChannelCmdsBulk(channelCmdMaps, portalId);
+    await _databaseHelper.markChannelsSynced(portalId);
 
     for (final genre in genres) {
       final count = genreChannelCounts[genre.id] ?? 0;
@@ -77,8 +84,11 @@ class StalkerRepository {
     appLogger.d(
       'Fetched ${vodCategories.length} VOD categories for portal: $portalId',
     );
+    await _databaseHelper.insertVodCategoriesBulk(
+      vodCategories.map((category) => category.toJson()).toList(),
+      portalId,
+    );
     for (final category in vodCategories) {
-      await _databaseHelper.insertVodCategory(category.toJson(), portalId);
       if (category.id.trim() == '*') {
         appLogger.d(
           'Skipping wildcard VOD category ${category.id} (${category.title}) during content sync.',
@@ -94,9 +104,10 @@ class StalkerRepository {
         appLogger.d(
           'VOD category ${category.id} (${category.title}) returned ${vodContent.length} items.',
         );
-        for (final content in vodContent) {
-          await _databaseHelper.insertVodContent(content.toMap(), portalId);
-        }
+        await _databaseHelper.insertVodContentBulk(
+          vodContent.map((content) => content.toMap()).toList(),
+          portalId,
+        );
       } catch (error, stackTrace) {
         appLogger.e(
           'Failed to synchronize VOD content for category ${category.id} (${category.title}) on portal $portalId.',
@@ -105,44 +116,10 @@ class StalkerRepository {
         );
       }
     }
+    await _databaseHelper.markVodSynced(portalId);
     appLogger.d('VOD Categories and Content synchronized.');
 
     appLogger.d('Data synchronization complete.');
-
-    // Fetch and store EPG data for all channels
-    final allChannelsMaps = await _databaseHelper.getAllChannels(portalId);
-    appLogger.d(
-      'Total channels stored for portal $portalId: ${allChannelsMaps.length}',
-    );
-    final allChannels = allChannelsMaps
-        .map((e) => Channel.fromDbMap(e))
-        .toList();
-    for (var channel in allChannels) {
-      try {
-        final epgPrograms = await _provider.getEpgInfo(
-          portalId: portalId,
-          chId: channel.id,
-          period: 24,
-        );
-        appLogger.d(
-          'Fetched ${epgPrograms.length} EPG programs for channel ${channel.id}.',
-        ); // Added log
-        for (final program in epgPrograms) {
-          program.portalId = portalId;
-        }
-        await _saveEpgPrograms(
-          epgPrograms,
-          portalId: portalId,
-        ); // Call to save EPG programs
-      } catch (e, stackTrace) {
-        appLogger.e(
-          "Could not fetch EPG for channel ${channel.id}",
-          error: e,
-          stackTrace: stackTrace,
-        );
-      }
-    }
-    appLogger.d('EPG data synchronized.');
   }
 
   Set<String> _extractGenreIds(Channel channel) {
@@ -165,20 +142,45 @@ class StalkerRepository {
   Future<void> _saveEpgPrograms(
     List<EpgProgramme> epgPrograms, {
     required String portalId,
+    required String channelId,
   }) async {
     final programsAsMaps = epgPrograms.map((p) => p.toMap()).toList();
-    await _databaseHelper.insertEpgProgrammes(
+    await _databaseHelper.replaceEpgForChannel(
+      portalId,
+      channelId,
       programsAsMaps,
-      portalId: portalId,
     );
+    await _databaseHelper.markEpgSynced(portalId);
   }
 
   Future<List<EpgProgramme>> getEpgForChannel(
     String channelId,
-    String portalId,
-  ) async {
-    final List<Map<String, dynamic>> epgMaps = await _databaseHelper
-        .getEpgForChannel(channelId, portalId);
-    return epgMaps.map((map) => EpgProgramme.fromDbMap(map)).toList();
+    String portalId, {
+    bool refresh = false,
+  }) async {
+    if (!refresh) {
+      final cached = await _databaseHelper.getEpgForChannel(
+        channelId,
+        portalId,
+      );
+      if (cached.isNotEmpty) {
+        return cached.map(EpgProgramme.fromDbMap).toList();
+      }
+    }
+
+    final epgPrograms = await _provider.getEpgInfo(
+      portalId: portalId,
+      chId: channelId,
+      period: 24,
+    );
+    for (final program in epgPrograms) {
+      program.portalId = portalId;
+    }
+    await _saveEpgPrograms(
+      epgPrograms,
+      portalId: portalId,
+      channelId: channelId,
+    );
+    return epgPrograms;
   }
 }

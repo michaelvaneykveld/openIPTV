@@ -217,7 +217,16 @@ class StalkerApiProvider implements IProvider {
         },
         options: _optionsFor(session),
       );
-      final map = _ensureMap(response.data);
+      final rawData = response.data;
+      if (rawData == null ||
+          (rawData is String && rawData.trim().isEmpty)) {
+        _logEmptyPayload(
+          'VOD items for category $categoryId',
+          portalId: portalId,
+        );
+        return const <VodContent>[];
+      }
+      final map = _ensureMap(rawData);
       final js = map?['js'];
       final rows = _extractDataList(js ?? map);
       if (rows != null) {
@@ -252,7 +261,7 @@ class StalkerApiProvider implements IProvider {
         portalId: portalId,
         payload: js is Map<String, dynamic> ? js : map,
       );
-      throw Exception('Failed to fetch VOD content for category $categoryId.');
+      return const <VodContent>[];
     });
   }
 

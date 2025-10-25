@@ -83,8 +83,11 @@ class M3uFormState {
   final FieldState epgUrl;
   final FieldState username;
   final FieldState password;
+  final FieldState userAgent;
+  final FieldState customHeaders;
   final bool autoUpdate;
   final bool followRedirects;
+  final bool allowSelfSignedTls;
   final bool advancedExpanded;
 
   const M3uFormState({
@@ -96,8 +99,11 @@ class M3uFormState {
     this.epgUrl = const FieldState(),
     this.username = const FieldState(),
     this.password = const FieldState(),
+    this.userAgent = const FieldState(),
+    this.customHeaders = const FieldState(),
     this.autoUpdate = true,
     this.followRedirects = true,
+    this.allowSelfSignedTls = false,
     this.advancedExpanded = false,
   });
 
@@ -110,8 +116,11 @@ class M3uFormState {
     FieldState? epgUrl,
     FieldState? username,
     FieldState? password,
+    FieldState? userAgent,
+    FieldState? customHeaders,
     bool? autoUpdate,
     bool? followRedirects,
+    bool? allowSelfSignedTls,
     bool? advancedExpanded,
     bool clearFileSelection = false,
   }) {
@@ -126,8 +135,11 @@ class M3uFormState {
       epgUrl: epgUrl ?? this.epgUrl,
       username: username ?? this.username,
       password: password ?? this.password,
+      userAgent: userAgent ?? this.userAgent,
+      customHeaders: customHeaders ?? this.customHeaders,
       autoUpdate: autoUpdate ?? this.autoUpdate,
       followRedirects: followRedirects ?? this.followRedirects,
+      allowSelfSignedTls: allowSelfSignedTls ?? this.allowSelfSignedTls,
       advancedExpanded: advancedExpanded ?? this.advancedExpanded,
     );
   }
@@ -139,6 +151,8 @@ class XtreamFormState {
   final FieldState serverUrl;
   final FieldState username;
   final FieldState password;
+  final FieldState userAgent;
+  final FieldState customHeaders;
   final String outputFormat;
   final bool allowSelfSignedTls;
   final bool advancedExpanded;
@@ -147,6 +161,8 @@ class XtreamFormState {
     this.serverUrl = const FieldState(),
     this.username = const FieldState(),
     this.password = const FieldState(),
+    this.userAgent = const FieldState(),
+    this.customHeaders = const FieldState(),
     this.outputFormat = 'ts',
     this.allowSelfSignedTls = false,
     this.advancedExpanded = false,
@@ -156,6 +172,8 @@ class XtreamFormState {
     FieldState? serverUrl,
     FieldState? username,
     FieldState? password,
+    FieldState? userAgent,
+    FieldState? customHeaders,
     String? outputFormat,
     bool? allowSelfSignedTls,
     bool? advancedExpanded,
@@ -164,6 +182,8 @@ class XtreamFormState {
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
       password: password ?? this.password,
+      userAgent: userAgent ?? this.userAgent,
+      customHeaders: customHeaders ?? this.customHeaders,
       outputFormat: outputFormat ?? this.outputFormat,
       allowSelfSignedTls: allowSelfSignedTls ?? this.allowSelfSignedTls,
       advancedExpanded: advancedExpanded ?? this.advancedExpanded,
@@ -176,6 +196,8 @@ class XtreamFormState {
 class StalkerFormState {
   final FieldState portalUrl;
   final FieldState macAddress;
+  final FieldState userAgent;
+  final FieldState customHeaders;
   final String deviceProfile;
   final bool allowSelfSignedTls;
   final bool advancedExpanded;
@@ -183,6 +205,8 @@ class StalkerFormState {
   const StalkerFormState({
     this.portalUrl = const FieldState(),
     this.macAddress = const FieldState(value: '00:1A:79:'),
+    this.userAgent = const FieldState(),
+    this.customHeaders = const FieldState(),
     this.deviceProfile = 'MAG250',
     this.allowSelfSignedTls = false,
     this.advancedExpanded = false,
@@ -191,6 +215,8 @@ class StalkerFormState {
   StalkerFormState copyWith({
     FieldState? portalUrl,
     FieldState? macAddress,
+    FieldState? userAgent,
+    FieldState? customHeaders,
     String? deviceProfile,
     bool? allowSelfSignedTls,
     bool? advancedExpanded,
@@ -198,6 +224,8 @@ class StalkerFormState {
     return StalkerFormState(
       portalUrl: portalUrl ?? this.portalUrl,
       macAddress: macAddress ?? this.macAddress,
+      userAgent: userAgent ?? this.userAgent,
+      customHeaders: customHeaders ?? this.customHeaders,
       deviceProfile: deviceProfile ?? this.deviceProfile,
       allowSelfSignedTls: allowSelfSignedTls ?? this.allowSelfSignedTls,
       advancedExpanded: advancedExpanded ?? this.advancedExpanded,
@@ -378,6 +406,25 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
+  void updateM3uUserAgent(String value) {
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        userAgent: state.m3u.userAgent.copyWith(value: value),
+      ),
+    );
+  }
+
+  void updateM3uCustomHeaders(String value) {
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        customHeaders: state.m3u.customHeaders.copyWith(
+          value: value,
+          clearError: true,
+        ),
+      ),
+    );
+  }
+
   void toggleM3uAutoUpdate(bool value) {
     state = state.copyWith(m3u: state.m3u.copyWith(autoUpdate: value));
   }
@@ -386,11 +433,19 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     state = state.copyWith(m3u: state.m3u.copyWith(followRedirects: value));
   }
 
+  void toggleM3uTlsOverride(bool allow) {
+    state = state.copyWith(m3u: state.m3u.copyWith(allowSelfSignedTls: allow));
+  }
+
   void toggleM3uAdvanced(bool expanded) {
     state = state.copyWith(m3u: state.m3u.copyWith(advancedExpanded: expanded));
   }
 
-  void setM3uFieldErrors({String? playlistMessage, String? epgMessage}) {
+  void setM3uFieldErrors({
+    String? playlistMessage,
+    String? epgMessage,
+    String? customHeaderMessage,
+  }) {
     var playlistUrl = state.m3u.playlistUrl;
     var playlistFile = state.m3u.playlistFilePath;
     if (state.m3u.inputMode == M3uInputMode.url) {
@@ -413,6 +468,10 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         epgUrl: state.m3u.epgUrl.copyWith(
           error: epgMessage,
           clearError: epgMessage == null,
+        ),
+        customHeaders: state.m3u.customHeaders.copyWith(
+          error: customHeaderMessage,
+          clearError: customHeaderMessage == null,
         ),
       ),
     );
@@ -451,6 +510,25 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
+  void updateXtreamUserAgent(String value) {
+    state = state.copyWith(
+      xtream: state.xtream.copyWith(
+        userAgent: state.xtream.userAgent.copyWith(value: value),
+      ),
+    );
+  }
+
+  void updateXtreamCustomHeaders(String value) {
+    state = state.copyWith(
+      xtream: state.xtream.copyWith(
+        customHeaders: state.xtream.customHeaders.copyWith(
+          value: value,
+          clearError: true,
+        ),
+      ),
+    );
+  }
+
   void setXtreamOutputFormat(String format) {
     state = state.copyWith(xtream: state.xtream.copyWith(outputFormat: format));
   }
@@ -471,6 +549,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     String? baseUrlMessage,
     String? usernameMessage,
     String? passwordMessage,
+    String? customHeaderMessage,
   }) {
     state = state.copyWith(
       xtream: state.xtream.copyWith(
@@ -485,6 +564,10 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         password: state.xtream.password.copyWith(
           error: passwordMessage,
           clearError: passwordMessage == null,
+        ),
+        customHeaders: state.xtream.customHeaders.copyWith(
+          error: customHeaderMessage,
+          clearError: customHeaderMessage == null,
         ),
       ),
     );
@@ -512,6 +595,25 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
+  void updateStalkerUserAgent(String value) {
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(
+        userAgent: state.stalker.userAgent.copyWith(value: value),
+      ),
+    );
+  }
+
+  void updateStalkerCustomHeaders(String value) {
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(
+        customHeaders: state.stalker.customHeaders.copyWith(
+          value: value,
+          clearError: true,
+        ),
+      ),
+    );
+  }
+
   void updateStalkerDeviceProfile(String value) {
     state = state.copyWith(
       stalker: state.stalker.copyWith(deviceProfile: value),
@@ -530,7 +632,11 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
-  void setStalkerFieldErrors({String? portalMessage, String? macMessage}) {
+  void setStalkerFieldErrors({
+    String? portalMessage,
+    String? macMessage,
+    String? customHeaderMessage,
+  }) {
     state = state.copyWith(
       stalker: state.stalker.copyWith(
         portalUrl: state.stalker.portalUrl.copyWith(
@@ -540,6 +646,10 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         macAddress: state.stalker.macAddress.copyWith(
           error: macMessage,
           clearError: macMessage == null,
+        ),
+        customHeaders: state.stalker.customHeaders.copyWith(
+          error: customHeaderMessage,
+          clearError: customHeaderMessage == null,
         ),
       ),
     );

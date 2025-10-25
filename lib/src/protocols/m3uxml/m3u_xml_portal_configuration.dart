@@ -31,6 +31,15 @@ class M3uXmlPortalConfiguration {
   /// value provides a consistent default (e.g. Hypnotix-style UA).
   final String defaultUserAgent;
 
+  /// Whether playlists should allow self-signed TLS certificates.
+  final bool allowSelfSignedTls;
+
+  /// Additional headers applied to playlist and XMLTV requests.
+  final Map<String, String> defaultHeaders;
+
+  /// Whether HTTP redirects should be followed automatically.
+  final bool followRedirects;
+
   /// Creates a configuration object.
   M3uXmlPortalConfiguration({
     required this.portalId,
@@ -39,8 +48,15 @@ class M3uXmlPortalConfiguration {
     this.displayName,
     this.preferredEncoding = 'utf-8',
     String? defaultUserAgent,
+    this.allowSelfSignedTls = false,
+    Map<String, String>? defaultHeaders,
+    this.followRedirects = true,
   }) : defaultUserAgent =
-            defaultUserAgent ?? 'OpenIPTV/1.0 (+https://github.com/your-org/openiptv)';
+           defaultUserAgent ??
+           'OpenIPTV/1.0 (+https://github.com/your-org/openiptv)',
+       defaultHeaders = defaultHeaders == null
+           ? const {}
+           : Map.unmodifiable(Map.of(defaultHeaders));
 
   /// Convenience builder for URL-based playlists. This helps bridge the gap
   /// between the current credential storage and the new modular structure
@@ -52,19 +68,35 @@ class M3uXmlPortalConfiguration {
     String? displayName,
     Map<String, String>? playlistHeaders,
     Map<String, String>? xmltvHeaders,
+    bool allowSelfSignedTls = false,
+    Map<String, String>? defaultHeaders,
+    String? defaultUserAgent,
+    bool followRedirects = true,
   }) {
+    final mergedHeaders = <String, String>{
+      ...?defaultHeaders,
+      ...?playlistHeaders,
+    };
+    final mergedXmltvHeaders = <String, String>{
+      ...?defaultHeaders,
+      ...?xmltvHeaders,
+    };
     return M3uXmlPortalConfiguration(
       portalId: portalId,
       displayName: displayName,
+      allowSelfSignedTls: allowSelfSignedTls,
+      defaultHeaders: defaultHeaders ?? const {},
+      defaultUserAgent: defaultUserAgent,
+      followRedirects: followRedirects,
       m3uSource: M3uUrlSource(
         playlistUri: Uri.parse(playlistUrl),
-        headers: playlistHeaders,
+        headers: mergedHeaders,
         displayName: displayName,
       ),
       xmltvSource: xmltvUrl != null
           ? XmltvUrlSource(
               epgUri: Uri.parse(xmltvUrl),
-              headers: xmltvHeaders,
+              headers: mergedXmltvHeaders,
               displayName: displayName,
             )
           : null,
@@ -77,10 +109,18 @@ class M3uXmlPortalConfiguration {
     required String playlistPath,
     String? xmltvPath,
     String? displayName,
+    bool allowSelfSignedTls = false,
+    Map<String, String>? defaultHeaders,
+    String? defaultUserAgent,
+    bool followRedirects = true,
   }) {
     return M3uXmlPortalConfiguration(
       portalId: portalId,
       displayName: displayName,
+      allowSelfSignedTls: allowSelfSignedTls,
+      defaultHeaders: defaultHeaders ?? const {},
+      defaultUserAgent: defaultUserAgent,
+      followRedirects: followRedirects,
       m3uSource: M3uFileSource(
         filePath: playlistPath,
         originalFileName: displayName,
@@ -96,4 +136,3 @@ class M3uXmlPortalConfiguration {
     );
   }
 }
-

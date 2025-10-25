@@ -10,12 +10,13 @@ import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
-import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
-import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
+import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
+import 'package:openiptv/src/utils/header_parser.dart';
 
 /// A [TextInputFormatter] that coerces user input into an uppercase MAC
 /// address with colon separators (e.g. 0:1A:79:12:34:56).
@@ -74,6 +75,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _m3uInputController = TextEditingController();
   final TextEditingController _m3uUsernameController = TextEditingController();
   final TextEditingController _m3uPasswordController = TextEditingController();
+  final TextEditingController _stalkerUserAgentController =
+      TextEditingController();
+  final TextEditingController _stalkerHeadersController =
+      TextEditingController();
+  final TextEditingController _xtreamUserAgentController =
+      TextEditingController();
+  final TextEditingController _xtreamHeadersController =
+      TextEditingController();
+  final TextEditingController _m3uUserAgentController = TextEditingController();
+  final TextEditingController _m3uHeadersController = TextEditingController();
 
   // Lightweight protocol clients used for follow-up probes during testing.
   late final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
@@ -97,6 +108,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         : flow.m3u.playlistFilePath.value;
     _m3uUsernameController.text = flow.m3u.username.value;
     _m3uPasswordController.text = flow.m3u.password.value;
+    _stalkerUserAgentController.text = flow.stalker.userAgent.value;
+    _stalkerHeadersController.text = flow.stalker.customHeaders.value;
+    _xtreamUserAgentController.text = flow.xtream.userAgent.value;
+    _xtreamHeadersController.text = flow.xtream.customHeaders.value;
+    _m3uUserAgentController.text = flow.m3u.userAgent.value;
+    _m3uHeadersController.text = flow.m3u.customHeaders.value;
 
     _flowSubscription = ref.listenManual<LoginFlowState>(
       loginFlowControllerProvider,
@@ -115,6 +132,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           _macAddressController,
         );
         _syncControllerText(
+          previous?.stalker.userAgent.value,
+          next.stalker.userAgent.value,
+          _stalkerUserAgentController,
+        );
+        _syncControllerText(
+          previous?.stalker.customHeaders.value,
+          next.stalker.customHeaders.value,
+          _stalkerHeadersController,
+        );
+        _syncControllerText(
           previous?.xtream.serverUrl.value,
           next.xtream.serverUrl.value,
           _xtreamUrlController,
@@ -128,6 +155,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           previous?.xtream.password.value,
           next.xtream.password.value,
           _xtreamPasswordController,
+        );
+        _syncControllerText(
+          previous?.xtream.userAgent.value,
+          next.xtream.userAgent.value,
+          _xtreamUserAgentController,
+        );
+        _syncControllerText(
+          previous?.xtream.customHeaders.value,
+          next.xtream.customHeaders.value,
+          _xtreamHeadersController,
         );
         final previousM3uInput = previous == null
             ? null
@@ -152,6 +189,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           next.m3u.password.value,
           _m3uPasswordController,
         );
+        _syncControllerText(
+          previous?.m3u.userAgent.value,
+          next.m3u.userAgent.value,
+          _m3uUserAgentController,
+        );
+        _syncControllerText(
+          previous?.m3u.customHeaders.value,
+          next.m3u.customHeaders.value,
+          _m3uHeadersController,
+        );
       },
       fireImmediately: true,
     );
@@ -169,6 +216,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _m3uInputController.dispose();
     _m3uUsernameController.dispose();
     _m3uPasswordController.dispose();
+    _stalkerUserAgentController.dispose();
+    _stalkerHeadersController.dispose();
+    _xtreamUserAgentController.dispose();
+    _xtreamHeadersController.dispose();
+    _m3uUserAgentController.dispose();
+    _m3uHeadersController.dispose();
     super.dispose();
   }
 
@@ -373,6 +426,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             inputFormatters: [MacAddressInputFormatter()],
             onChanged: controller.updateStalkerMacAddress,
           ),
+          const SizedBox(height: 16),
+          _buildStalkerAdvancedSection(flowState, isBusy),
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
@@ -429,6 +484,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             obscureText: true,
             onChanged: controller.updateXtreamPassword,
           ),
+          const SizedBox(height: 16),
+          _buildXtreamAdvancedSection(flowState, isBusy),
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
@@ -487,6 +544,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             obscureText: true,
             onChanged: controller.updateM3uPassword,
           ),
+          const SizedBox(height: 16),
+          _buildM3uAdvancedSection(flowState, isBusy, isUrlMode),
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
@@ -495,6 +554,155 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Builds the advanced settings panel for Stalker portals.
+  Widget _buildStalkerAdvancedSection(LoginFlowState flowState, bool isBusy) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+    return ExpansionTile(
+      title: const Text('Advanced options'),
+      initiallyExpanded: flowState.stalker.advancedExpanded,
+      onExpansionChanged: controller.toggleStalkerAdvanced,
+      childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      children: [
+        TextFormField(
+          controller: _stalkerUserAgentController,
+          enabled: !isBusy,
+          decoration: const InputDecoration(
+            labelText: 'User-Agent override',
+            helperText: 'Leave blank to use the default Infomir agent.',
+          ),
+          onChanged: controller.updateStalkerUserAgent,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _stalkerHeadersController,
+          enabled: !isBusy,
+          minLines: 2,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Custom headers',
+            helperText: 'One header per line, e.g. X-Api-Key: secret',
+            errorText: flowState.stalker.customHeaders.error,
+          ),
+          onChanged: controller.updateStalkerCustomHeaders,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Allow self-signed TLS'),
+          subtitle: const Text(
+            'Accept certificates that are not trusted by the system CA store.',
+          ),
+          value: flowState.stalker.allowSelfSignedTls,
+          onChanged: isBusy ? null : controller.toggleStalkerTlsOverride,
+        ),
+      ],
+    );
+  }
+
+  /// Builds the advanced settings panel for Xtream portals.
+  Widget _buildXtreamAdvancedSection(LoginFlowState flowState, bool isBusy) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+    return ExpansionTile(
+      title: const Text('Advanced options'),
+      initiallyExpanded: flowState.xtream.advancedExpanded,
+      onExpansionChanged: controller.toggleXtreamAdvanced,
+      childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      children: [
+        TextFormField(
+          controller: _xtreamUserAgentController,
+          enabled: !isBusy,
+          decoration: const InputDecoration(
+            labelText: 'User-Agent override',
+            helperText: 'Leave blank to use the default Xtream agent.',
+          ),
+          onChanged: controller.updateXtreamUserAgent,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _xtreamHeadersController,
+          enabled: !isBusy,
+          minLines: 2,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Custom headers',
+            helperText: 'One header per line, e.g. X-Device: Flutter',
+            errorText: flowState.xtream.customHeaders.error,
+          ),
+          onChanged: controller.updateXtreamCustomHeaders,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Allow self-signed TLS'),
+          subtitle: const Text(
+            'Trust self-signed certificates when contacting this server.',
+          ),
+          value: flowState.xtream.allowSelfSignedTls,
+          onChanged: isBusy ? null : controller.toggleXtreamTlsOverride,
+        ),
+      ],
+    );
+  }
+
+  /// Builds the advanced settings panel for M3U/XMLTV providers.
+  Widget _buildM3uAdvancedSection(
+    LoginFlowState flowState,
+    bool isBusy,
+    bool isUrlMode,
+  ) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+    return ExpansionTile(
+      title: const Text('Advanced options'),
+      initiallyExpanded: flowState.m3u.advancedExpanded,
+      onExpansionChanged: controller.toggleM3uAdvanced,
+      childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      children: [
+        TextFormField(
+          controller: _m3uUserAgentController,
+          enabled: !isBusy,
+          decoration: const InputDecoration(
+            labelText: 'User-Agent override',
+            helperText: 'Leave blank to use the default playlist agent.',
+          ),
+          onChanged: controller.updateM3uUserAgent,
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _m3uHeadersController,
+          enabled: !isBusy,
+          minLines: 2,
+          maxLines: 4,
+          decoration: InputDecoration(
+            labelText: 'Custom headers',
+            helperText: 'One header per line, e.g. Authorization: Bearer token',
+            errorText: flowState.m3u.customHeaders.error,
+          ),
+          onChanged: controller.updateM3uCustomHeaders,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Follow redirects automatically'),
+          subtitle: const Text(
+            'Disable when your provider expects strict URLs.',
+          ),
+          value: flowState.m3u.followRedirects,
+          onChanged: isBusy || !isUrlMode
+              ? null
+              : controller.toggleM3uFollowRedirects,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Allow self-signed TLS'),
+          subtitle: const Text(
+            'Accept certificates that are not trusted by the system CA store.',
+          ),
+          value: flowState.m3u.allowSelfSignedTls,
+          onChanged: isBusy || !isUrlMode
+              ? null
+              : controller.toggleM3uTlsOverride,
+        ),
+      ],
     );
   }
 
@@ -701,6 +909,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Shared action row combining the save-for-later affordance with the
   /// primary test button.
+  /// Shared action row combining the save-for-later affordance with the
+  /// primary test button.
   Widget _buildFormActions({
     required bool isBusy,
     required String primaryLabel,
@@ -772,12 +982,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    final current = ref.read(loginFlowControllerProvider);
+    final headerResult = parseHeaderInput(current.stalker.customHeaders.value);
+    if (headerResult.error != null) {
+      flowController.setStalkerFieldErrors(
+        customHeaderMessage: headerResult.error,
+      );
+      flowController.setBannerMessage(headerResult.error);
+      return;
+    }
+
     flowController.beginTestSequence(includeEpgStep: false);
     flowController.setStalkerFieldErrors();
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final current = ref.read(loginFlowControllerProvider);
       var portalUrl = current.stalker.portalUrl.value.trim();
       if (!portalUrl.startsWith('http://') &&
           !portalUrl.startsWith('https://')) {
@@ -787,9 +1006,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .replaceAll('/c/', '/')
           .replaceAll(RegExp(r'/+$'), '');
 
+      final userAgentOverride = current.stalker.userAgent.value.trim();
       final configuration = StalkerPortalConfiguration(
         baseUri: Uri.parse(portalUrl),
         macAddress: current.stalker.macAddress.value.trim(),
+        userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+        allowSelfSignedTls: current.stalker.allowSelfSignedTls,
+        extraHeaders: headerResult.headers,
       );
 
       final session = await ref.read(
@@ -886,23 +1109,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    final current = ref.read(loginFlowControllerProvider);
+    final headerResult = parseHeaderInput(current.xtream.customHeaders.value);
+    if (headerResult.error != null) {
+      flowController.setXtreamFieldErrors(
+        customHeaderMessage: headerResult.error,
+      );
+      flowController.setBannerMessage(headerResult.error);
+      return;
+    }
+
     flowController.beginTestSequence(includeEpgStep: true);
     flowController.setM3uFieldErrors();
     flowController.setXtreamFieldErrors();
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final current = ref.read(loginFlowControllerProvider);
       var baseUrl = current.xtream.serverUrl.value.trim();
       if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
         baseUrl = 'http://$baseUrl';
       }
       baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), '');
 
+      final userAgentOverride = current.xtream.userAgent.value.trim();
       final configuration = XtreamPortalConfiguration(
         baseUri: Uri.parse(baseUrl),
         username: current.xtream.username.value.trim(),
         password: current.xtream.password.value.trim(),
+        userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+        allowSelfSignedTls: current.xtream.allowSelfSignedTls,
+        extraHeaders: headerResult.headers,
       );
 
       await ref.read(xtreamSessionProvider(configuration).future);
@@ -1021,14 +1257,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
+    final current = ref.read(loginFlowControllerProvider);
+    final headerResult = parseHeaderInput(current.m3u.customHeaders.value);
+    if (headerResult.error != null) {
+      flowController.setM3uFieldErrors(customHeaderMessage: headerResult.error);
+      flowController.setBannerMessage(headerResult.error);
+      return;
+    }
+
     flowController.beginTestSequence(includeEpgStep: true);
+    flowController.setM3uFieldErrors();
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final current = ref.read(loginFlowControllerProvider);
       final playlistInput = current.m3u.inputMode == M3uInputMode.url
           ? current.m3u.playlistUrl.value
           : current.m3u.playlistFilePath.value;
+      final userAgentOverride = current.m3u.userAgent.value.trim();
       final configuration = buildM3uConfiguration(
         portalId: 'm3u-',
         playlistInput: playlistInput,
@@ -1041,6 +1286,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         password: current.m3u.password.value.trim().isEmpty
             ? null
             : current.m3u.password.value.trim(),
+        userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+        customHeaders: headerResult.headers,
+        allowSelfSignedTls: current.m3u.allowSelfSignedTls,
+        followRedirects: current.m3u.followRedirects,
       );
 
       final session = await ref.read(
@@ -1161,12 +1410,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ),
               SizedBox(height: 12),
               Text(
-                '• Stalker/Ministra: usually available in your set-top box '
-                'portal settings or provider onboarding email.\n'
-                '• Xtream: ask your provider for base URL, username, and '
-                'password (often identical to app credentials).\n'
-                '• M3U: copy the playlist link from your provider dashboard '
-                'or export the file from their portal.',
+                '- Stalker/Ministra: usually available in your set-top box portal settings or provider onboarding email.\n'
+                '- Xtream: ask your provider for base URL, username, and password (often identical to app credentials).\n'
+                '- M3U: copy the playlist link from your provider dashboard or export the file from their portal.',
               ),
             ],
           ),
@@ -1318,8 +1564,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'macAddress': mac,
           'deviceProfile': state.stalker.deviceProfile,
           'allowSelfSignedTls': state.stalker.allowSelfSignedTls,
+          'userAgent': state.stalker.userAgent.value,
+          'customHeaders': state.stalker.customHeaders.value,
         });
-        hasContent = portal.isNotEmpty || mac.isNotEmpty;
+        hasContent =
+            portal.isNotEmpty ||
+            mac.isNotEmpty ||
+            state.stalker.userAgent.value.trim().isNotEmpty ||
+            state.stalker.customHeaders.value.trim().isNotEmpty ||
+            state.stalker.allowSelfSignedTls;
         break;
       case LoginProviderType.xtream:
         final baseUrl = state.xtream.serverUrl.value.trim();
@@ -1333,6 +1586,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'baseUrl': baseUrl,
           'outputFormat': state.xtream.outputFormat,
           'allowSelfSignedTls': state.xtream.allowSelfSignedTls,
+          'userAgent': state.xtream.userAgent.value,
+          'customHeaders': state.xtream.customHeaders.value,
         });
         if (username.isNotEmpty) {
           secrets['username'] = username;
@@ -1340,7 +1595,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (password.isNotEmpty) {
           secrets['password'] = password;
         }
-        hasContent = baseUrl.isNotEmpty || secrets.isNotEmpty;
+        hasContent =
+            baseUrl.isNotEmpty ||
+            secrets.isNotEmpty ||
+            state.xtream.userAgent.value.trim().isNotEmpty ||
+            state.xtream.customHeaders.value.trim().isNotEmpty ||
+            state.xtream.allowSelfSignedTls;
         break;
       case LoginProviderType.m3u:
         final playlistInput = state.m3u.inputMode == M3uInputMode.url
@@ -1359,6 +1619,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'inputMode': state.m3u.inputMode.name,
           'autoUpdate': state.m3u.autoUpdate,
           'followRedirects': state.m3u.followRedirects,
+          'allowSelfSignedTls': state.m3u.allowSelfSignedTls,
+          'userAgent': state.m3u.userAgent.value,
+          'customHeaders': state.m3u.customHeaders.value,
           'epgUrl': epgUrl,
           'fileName': state.m3u.fileName,
           'fileSizeBytes': state.m3u.fileSizeBytes,
@@ -1375,7 +1638,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         hasContent =
             trimmedPlaylist.isNotEmpty ||
             epgUrl.isNotEmpty ||
-            secrets.isNotEmpty;
+            secrets.isNotEmpty ||
+            state.m3u.userAgent.value.trim().isNotEmpty ||
+            state.m3u.customHeaders.value.trim().isNotEmpty ||
+            state.m3u.allowSelfSignedTls;
         break;
     }
 

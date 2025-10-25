@@ -40,8 +40,12 @@
 - Added protocol-specific field microcopy so authentication failures highlight the affected inputs with actionable fixes (e.g., Xtream credentials, Stalker portal URL, M3U playlist fields).
 - Centralised controller helpers for clearing/assigning field errors, enabling consistent recovery UX across retries (`lib/src/providers/login_flow_controller.dart`).
 
+## Session Log - Advanced Connection Options
+- Wired the Stalker, Xtream, and M3U login flows to honour custom headers, user-agent overrides, and TLS trust settings end-to-end so authenticator probes and follow-up metadata fetches respect advanced input.
+- Refreshed the login UI with provider-specific advanced panels (headers, user-agent, redirect and TLS toggles) and persisted those values in drafts for future reuse (`lib/src/ui/login_screen.dart`, `lib/src/providers/login_flow_controller.dart`).
+- Added a reusable header parser with dedicated unit coverage (`lib/src/utils/header_parser.dart`, `test/utils/header_parser_test.dart`) to validate multiline input consistently and surface targeted field errors.
+
 ## TODO - Login Experience Implementation
-- Integrate authenticator providers for Stalker/Xtream/M3U tests, honoring TLS overrides and custom headers. (todo)
 - Plan persistence hooks for validated profiles and drafts using a clean storage abstraction. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
 - Add QA coverage: unit tests for validators and error mapping, widget tests for form switching/validation, integration tests with mocked protocol responses, and manual device checks. (todo)

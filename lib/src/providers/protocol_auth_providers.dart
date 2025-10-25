@@ -13,51 +13,49 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_session.dart';
 
 /// Provides shared access to the Stalker/Ministra authenticator.
-final stalkerAuthenticatorProvider =
-    Provider<StalkerAuthenticator>((ref) {
+final stalkerAuthenticatorProvider = Provider<StalkerAuthenticator>((ref) {
   return DefaultStalkerAuthenticator();
 });
 
 /// Executes the MAC+token handshake for a given Stalker configuration.
 final stalkerSessionProvider =
-    FutureProvider.family<StalkerSession, StalkerPortalConfiguration>(
-  (ref, configuration) async {
-    final authenticator = ref.watch(stalkerAuthenticatorProvider);
-    return authenticator.authenticate(configuration);
-  },
-);
+    FutureProvider.family<StalkerSession, StalkerPortalConfiguration>((
+      ref,
+      configuration,
+    ) async {
+      final authenticator = ref.watch(stalkerAuthenticatorProvider);
+      return authenticator.authenticate(configuration);
+    });
 
 /// Provides shared access to the Xtream authenticator.
-final xtreamAuthenticatorProvider =
-    Provider<XtreamAuthenticator>((ref) {
+final xtreamAuthenticatorProvider = Provider<XtreamAuthenticator>((ref) {
   return DefaultXtreamAuthenticator();
 });
 
 /// Runs the Xtream login flow for a given configuration.
 final xtreamSessionProvider =
-    FutureProvider.family<XtreamSession, XtreamPortalConfiguration>(
-  (ref, configuration) async {
-    final authenticator = ref.watch(xtreamAuthenticatorProvider);
-    return authenticator.authenticate(configuration);
-  },
-);
+    FutureProvider.family<XtreamSession, XtreamPortalConfiguration>((
+      ref,
+      configuration,
+    ) async {
+      final authenticator = ref.watch(xtreamAuthenticatorProvider);
+      return authenticator.authenticate(configuration);
+    });
 
 /// Provides shared access to the M3U/XMLTV authenticator.
-final m3uXmlAuthenticatorProvider =
-    Provider<M3uXmlAuthenticator>((ref) {
-  return DefaultM3uXmlAuthenticator(
-    client: M3uXmlClient(),
-  );
+final m3uXmlAuthenticatorProvider = Provider<M3uXmlAuthenticator>((ref) {
+  return DefaultM3uXmlAuthenticator(client: M3uXmlClient());
 });
 
 /// Fetches and validates the playlist/EPG pair for a configuration.
 final m3uXmlSessionProvider =
-    FutureProvider.family<M3uXmlSession, M3uXmlPortalConfiguration>(
-  (ref, configuration) async {
-    final authenticator = ref.watch(m3uXmlAuthenticatorProvider);
-    return authenticator.authenticate(configuration);
-  },
-);
+    FutureProvider.family<M3uXmlSession, M3uXmlPortalConfiguration>((
+      ref,
+      configuration,
+    ) async {
+      final authenticator = ref.watch(m3uXmlAuthenticatorProvider);
+      return authenticator.authenticate(configuration);
+    });
 
 /// Helper that builds a basic configuration for the supplied playlist input.
 M3uXmlPortalConfiguration buildM3uConfiguration({
@@ -66,6 +64,10 @@ M3uXmlPortalConfiguration buildM3uConfiguration({
   String? displayName,
   String? username,
   String? password,
+  String? userAgent,
+  Map<String, String>? customHeaders,
+  bool allowSelfSignedTls = false,
+  bool followRedirects = true,
 }) {
   final trimmed = playlistInput.trim();
   final isRemote = trimmed.contains('://');
@@ -80,11 +82,16 @@ M3uXmlPortalConfiguration buildM3uConfiguration({
   return M3uXmlPortalConfiguration(
     portalId: portalId,
     displayName: displayName ?? portalId,
+    defaultUserAgent: userAgent,
+    allowSelfSignedTls: allowSelfSignedTls,
+    defaultHeaders: customHeaders ?? const {},
+    followRedirects: followRedirects,
     m3uSource: isRemote
         ? M3uUrlSource(
             playlistUri: Uri.parse(trimmed),
             extraQuery: query,
             displayName: displayName,
+            headers: customHeaders,
           )
         : M3uFileSource(
             filePath: trimmed,
@@ -93,4 +100,3 @@ M3uXmlPortalConfiguration buildM3uConfiguration({
           ),
   );
 }
-

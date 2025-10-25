@@ -19,6 +19,12 @@ class XtreamPortalConfiguration {
   /// mimic well-known clients (Kodi, Hypnotix) so we give callers control.
   final String userAgent;
 
+  /// Whether to trust self-signed TLS certificates for this portal.
+  final bool allowSelfSignedTls;
+
+  /// Additional headers sent alongside the standard Xtream headers.
+  final Map<String, String> extraHeaders;
+
   /// Creates a configuration object with pragmatic defaults inspired by the
   /// reference projects highlighted in `REWRITE.md`.
   XtreamPortalConfiguration({
@@ -26,9 +32,15 @@ class XtreamPortalConfiguration {
     required this.username,
     required this.password,
     String? userAgent,
-  })  : baseUri = _normaliseBaseUri(baseUri),
-        userAgent = userAgent ??
-            'Hypnotix/2.0 (Linux; IPTV) Flutter/OpenIPTV XtreamAdapter';
+    this.allowSelfSignedTls = false,
+    Map<String, String>? extraHeaders,
+  }) : baseUri = _normaliseBaseUri(baseUri),
+       userAgent =
+           userAgent ??
+           'Hypnotix/2.0 (Linux; IPTV) Flutter/OpenIPTV XtreamAdapter',
+       extraHeaders = extraHeaders == null
+           ? const {}
+           : Map.unmodifiable(Map.of(extraHeaders));
 
   /// Convenience helper used while the rest of the app is being rewritten.
   /// Accepts raw string values (matching the current credential model) and
@@ -37,20 +49,28 @@ class XtreamPortalConfiguration {
     required String url,
     required String username,
     required String password,
+    String? userAgent,
+    bool allowSelfSignedTls = false,
+    Map<String, String>? extraHeaders,
   }) {
     return XtreamPortalConfiguration(
       baseUri: Uri.parse(url),
       username: username,
       password: password,
+      userAgent: userAgent,
+      allowSelfSignedTls: allowSelfSignedTls,
+      extraHeaders: extraHeaders,
     );
   }
 
   /// Ensures the base URI never ends with a trailing slash. This keeps future
   /// URL construction deterministic when using `Uri.resolve`.
   static Uri _normaliseBaseUri(Uri raw) {
-    final cleaned =
-        raw.replace(path: raw.path.endsWith('/') ? raw.path.substring(0, raw.path.length - 1) : raw.path);
+    final cleaned = raw.replace(
+      path: raw.path.endsWith('/')
+          ? raw.path.substring(0, raw.path.length - 1)
+          : raw.path,
+    );
     return cleaned;
   }
 }
-

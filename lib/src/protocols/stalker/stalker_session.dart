@@ -44,8 +44,8 @@ class StalkerSession {
     this.tokenTtl,
     List<String>? rawCookies,
     Map<String, String>? persistentHeaders,
-  })  : rawCookies = List.unmodifiable(rawCookies ?? const []),
-        persistentHeaders = Map.unmodifiable(persistentHeaders ?? const {});
+  }) : rawCookies = List.unmodifiable(rawCookies ?? const []),
+       persistentHeaders = Map.unmodifiable(persistentHeaders ?? const {});
 
   /// Builds the complete cookie header expected by the portal. We merge the
   /// handshake cookies with the mandatory MAC and language cookies described
@@ -91,6 +91,7 @@ class StalkerSession {
     headers.putIfAbsent('Referer', () => configuration.refererUri.toString());
     headers.putIfAbsent('Cookie', () => cookieHeader);
     headers.putIfAbsent('Authorization', () => 'Bearer $token');
+    headers.addAll(configuration.extraHeaders);
 
     return headers;
   }
@@ -106,4 +107,3 @@ class StalkerSession {
     return DateTime.now().isAfter(expiry);
   }
 }
-

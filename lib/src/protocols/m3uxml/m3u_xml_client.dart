@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import 'm3u_source_descriptor.dart';
 import 'm3u_xml_portal_configuration.dart';
@@ -17,15 +18,16 @@ class M3uXmlClient {
   final Dio _dio;
 
   M3uXmlClient({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: Duration(seconds: 15),
-                receiveTimeout: Duration(minutes: 2),
-                sendTimeout: Duration(seconds: 30),
-                responseType: ResponseType.bytes,
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: Duration(seconds: 15),
+              receiveTimeout: Duration(minutes: 2),
+              sendTimeout: Duration(seconds: 30),
+              responseType: ResponseType.bytes,
+            ),
+          );
 
   /// Downloads the playlist described by [source]. Local files are read via
   /// `dart:io`, while remote URLs go through `Dio`. The configuration allows
@@ -66,6 +68,8 @@ class M3uXmlClient {
     M3uXmlPortalConfiguration configuration,
     M3uUrlSource source,
   ) async {
+    _applyTlsOverrides(configuration.allowSelfSignedTls);
+
     var uri = source.playlistUri;
     if (source.extraQuery.isNotEmpty) {
       final merged = <String, String>{...uri.queryParameters};
@@ -75,20 +79,26 @@ class M3uXmlClient {
       uri = uri.replace(queryParameters: merged);
     }
 
-    final response = await _dio.getUri(uri,
-        options: Options(
-          headers: {
-            'User-Agent': configuration.defaultUserAgent,
-            ...source.headers,
-          },
-          responseType: ResponseType.bytes,
-          validateStatus: (status) => status != null && status < 500,
-        ));
+    final response = await _dio.getUri(
+      uri,
+      options: Options(
+        headers: {
+          'User-Agent': configuration.defaultUserAgent,
+          ...configuration.defaultHeaders,
+          ...source.headers,
+        },
+        responseType: ResponseType.bytes,
+        followRedirects: configuration.followRedirects,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
 
     return PlaylistFetchEnvelope(
-      bytes: Uint8List.fromList(response.data is Uint8List
-          ? (response.data as Uint8List)
-          : Uint8List.fromList(response.data)),
+      bytes: Uint8List.fromList(
+        response.data is Uint8List
+            ? (response.data as Uint8List)
+            : Uint8List.fromList(response.data),
+      ),
       contentType: response.headers.value('content-type'),
       contentEncoding: response.headers.value('content-encoding'),
       etag: response.headers.value('etag'),
@@ -102,20 +112,28 @@ class M3uXmlClient {
     M3uXmlPortalConfiguration configuration,
     XmltvUrlSource source,
   ) async {
-    final response = await _dio.getUri(source.epgUri,
-        options: Options(
-          headers: {
-            'User-Agent': configuration.defaultUserAgent,
-            ...source.headers,
-          },
-          responseType: ResponseType.bytes,
-          validateStatus: (status) => status != null && status < 500,
-        ));
+    _applyTlsOverrides(configuration.allowSelfSignedTls);
+
+    final response = await _dio.getUri(
+      source.epgUri,
+      options: Options(
+        headers: {
+          'User-Agent': configuration.defaultUserAgent,
+          ...configuration.defaultHeaders,
+          ...source.headers,
+        },
+        responseType: ResponseType.bytes,
+        followRedirects: configuration.followRedirects,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
 
     return PlaylistFetchEnvelope(
-      bytes: Uint8List.fromList(response.data is Uint8List
-          ? (response.data as Uint8List)
-          : Uint8List.fromList(response.data)),
+      bytes: Uint8List.fromList(
+        response.data is Uint8List
+            ? (response.data as Uint8List)
+            : Uint8List.fromList(response.data),
+      ),
       contentType: response.headers.value('content-type'),
       contentEncoding: response.headers.value('content-encoding'),
       etag: response.headers.value('etag'),
@@ -143,6 +161,21 @@ class M3uXmlClient {
       return HttpDate.parse(value);
     } on FormatException {
       return null;
+    }
+  }
+
+  void _applyTlsOverrides(bool allowSelfSigned) {
+    final adapter = _dio.httpClientAdapter;
+    if (adapter is IOHttpClientAdapter) {
+      if (allowSelfSigned) {
+        adapter.createHttpClient = () {
+          final client = HttpClient();
+          client.badCertificateCallback = (cert, host, port) => true;
+          return client;
+        };
+      } else {
+        adapter.createHttpClient = null;
+      }
     }
   }
 }

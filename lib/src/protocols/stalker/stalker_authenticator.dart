@@ -22,7 +22,7 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
   /// Accepts an optional client so callers can inject a mocked Dio instance
   /// or apply additional interceptors without modifying this class.
   DefaultStalkerAuthenticator({StalkerHttpClient? httpClient})
-      : _httpClient = httpClient ?? StalkerHttpClient();
+    : _httpClient = httpClient ?? StalkerHttpClient();
 
   @override
   Future<StalkerSession> authenticate(
@@ -40,8 +40,9 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
     );
 
     // Parse the handshake payload and build a session skeleton.
-    final handshakePayload =
-        StalkerHandshakePayload.parse(handshakeResponse.body);
+    final handshakePayload = StalkerHandshakePayload.parse(
+      handshakeResponse.body,
+    );
 
     if (_hasHandshakeError(handshakePayload)) {
       throw StalkerAuthenticationException(
@@ -66,6 +67,7 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
         'X-User-Agent': configuration.userAgent,
         'Accept': 'application/json',
         'Connection': 'Keep-Alive',
+        ...configuration.extraHeaders,
       },
     );
 
@@ -97,6 +99,8 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
       'timezone=${configuration.timezone}',
     ];
     headers['Cookie'] = cookies.join('; ');
+
+    headers.addAll(configuration.extraHeaders);
 
     return headers;
   }
@@ -154,8 +158,9 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
     }
 
     // Attempt to decode JSON so we can inspect the `js` section.
-    final dynamic decoded =
-        envelope.body is String ? jsonDecode(envelope.body) : envelope.body;
+    final dynamic decoded = envelope.body is String
+        ? jsonDecode(envelope.body)
+        : envelope.body;
 
     if (decoded is! Map<String, dynamic>) {
       throw const StalkerAuthenticationException(
@@ -201,4 +206,3 @@ class StalkerAuthenticationException implements Exception {
   @override
   String toString() => 'StalkerAuthenticationException: $message';
 }
-

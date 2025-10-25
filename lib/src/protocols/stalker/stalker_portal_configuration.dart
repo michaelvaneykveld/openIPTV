@@ -32,6 +32,15 @@ class StalkerPortalConfiguration {
   /// when calculating programme guides, so we expose it next to language.
   final String timezone;
 
+  /// Whether the client should accept self-signed TLS certificates when
+  /// communicating with the portal.
+  final bool allowSelfSignedTls;
+
+  /// Optional extra headers supplied by the user. They are appended to every
+  /// request (handshake + authenticated probes) allowing providers that
+  /// require bespoke authentication to function.
+  final Map<String, String> extraHeaders;
+
   /// Creates a configuration object. Callers must provide the base URL and
   /// MAC address; other fields fall back to pragmatic defaults used by the
   /// open-source reference clients highlighted in `REWRITE.md`.
@@ -42,10 +51,16 @@ class StalkerPortalConfiguration {
     Uri? refererUri,
     this.languageCode = 'en',
     this.timezone = 'UTC',
-  })  : baseUri = _normaliseBaseUri(baseUri),
-        userAgent = userAgent ??
-            'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) InfomirBrowser/3.0 StbApp/0.23',
-        refererUri = refererUri ?? _deriveReferer(baseUri);
+    this.allowSelfSignedTls = false,
+    Map<String, String>? extraHeaders,
+  }) : baseUri = _normaliseBaseUri(baseUri),
+       userAgent =
+           userAgent ??
+           'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) InfomirBrowser/3.0 StbApp/0.23',
+       refererUri = refererUri ?? _deriveReferer(baseUri),
+       extraHeaders = extraHeaders == null
+           ? const {}
+           : Map.unmodifiable(Map.of(extraHeaders));
 
   /// Convenience factory to bridge the existing domain model into the new
   /// protocol layer. Keeping the mapping here avoids coupling the protocol
@@ -67,9 +82,11 @@ class StalkerPortalConfiguration {
   static Uri _normaliseBaseUri(Uri raw) {
     // Remove trailing slashes because `Uri.resolve` handles path joins
     // deterministically when the base URI ends with the root segment only.
-    final cleaned = raw.replace(path: raw.path.endsWith('/')
-        ? raw.path.substring(0, raw.path.length - 1)
-        : raw.path);
+    final cleaned = raw.replace(
+      path: raw.path.endsWith('/')
+          ? raw.path.substring(0, raw.path.length - 1)
+          : raw.path,
+    );
     return cleaned;
   }
 
@@ -82,4 +99,3 @@ class StalkerPortalConfiguration {
     return normalised.resolve('c/');
   }
 }
-

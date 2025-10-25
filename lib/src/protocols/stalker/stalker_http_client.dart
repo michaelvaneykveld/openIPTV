@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import 'stalker_portal_configuration.dart';
 
@@ -16,17 +19,18 @@ class StalkerHttpClient {
   /// Builds the client with sensible defaults for Stalker portals. Timeouts
   /// are intentionally short so we can keep retry logic in higher layers.
   StalkerHttpClient({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                connectTimeout: Duration(seconds: 10),
-                receiveTimeout: Duration(seconds: 10),
-                sendTimeout: Duration(seconds: 10),
-                // Stalker portals are often self-signed; we will handle TLS
-                // overrides in a dedicated adapter later if required.
-                responseType: ResponseType.json,
-              ),
-            );
+    : _dio =
+          dio ??
+          Dio(
+            BaseOptions(
+              connectTimeout: Duration(seconds: 10),
+              receiveTimeout: Duration(seconds: 10),
+              sendTimeout: Duration(seconds: 10),
+              // Stalker portals are often self-signed; we will handle TLS
+              // overrides in a dedicated adapter later if required.
+              responseType: ResponseType.json,
+            ),
+          );
 
   /// Performs a GET request against `portal.php` with the supplied query
   /// parameters and headers. Returns a lightweight envelope containing the
@@ -36,6 +40,7 @@ class StalkerHttpClient {
     required Map<String, dynamic> queryParameters,
     required Map<String, String> headers,
   }) async {
+    _applyTlsOverrides(configuration.allowSelfSignedTls);
     // Compose the absolute URL once. Using `resolve` ensures we respect any
     // portal that runs under a sub-path.
     var uri = configuration.baseUri.resolve('portal.php');
@@ -49,12 +54,14 @@ class StalkerHttpClient {
 
     // Execute the HTTP call. We request a plain response so we can control
     // JSON decoding manually and surface clearer error messages.
-    final response = await _dio.getUri(uri,
-        options: Options(
-          responseType: ResponseType.plain,
-          headers: headers,
-          validateStatus: (status) => status != null && status < 500,
-        ));
+    final response = await _dio.getUri(
+      uri,
+      options: Options(
+        responseType: ResponseType.plain,
+        headers: headers,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
 
     // Capture all `Set-Cookie` values so the session can rebuild the cookie
     // header later without hard-coding attribute stripping logic here.
@@ -66,6 +73,21 @@ class StalkerHttpClient {
       headers: response.headers.map,
       cookies: cookies,
     );
+  }
+
+  void _applyTlsOverrides(bool allowSelfSigned) {
+    final adapter = _dio.httpClientAdapter;
+    if (adapter is IOHttpClientAdapter) {
+      if (allowSelfSigned) {
+        adapter.createHttpClient = () {
+          final client = HttpClient();
+          client.badCertificateCallback = (cert, host, port) => true;
+          return client;
+        };
+      } else {
+        adapter.createHttpClient = null;
+      }
+    }
   }
 }
 

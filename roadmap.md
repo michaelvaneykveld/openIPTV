@@ -35,8 +35,12 @@
 - Added a shared "Save for later" action across login forms that serialises form state, filters out empty values, and persists protocol-specific secrets safely (`lib/src/ui/login_screen.dart`).
 - Surface snack-bar feedback on successful saves and validation guidance when drafts lack sufficient information, preparing the ground for a dedicated drafts picker.
 
+## Session Log - Error Feedback Enhancements
+- Hardened the login flows to surface top-of-screen banner guidance for systemic failures and network issues (`lib/src/ui/login_screen.dart`).
+- Added protocol-specific field microcopy so authentication failures highlight the affected inputs with actionable fixes (e.g., Xtream credentials, Stalker portal URL, M3U playlist fields).
+- Centralised controller helpers for clearing/assigning field errors, enabling consistent recovery UX across retries (`lib/src/providers/login_flow_controller.dart`).
+
 ## TODO - Login Experience Implementation
-- Surface error feedback using top banners for systemic failures and field-level messages with fix-oriented microcopy. (todo)
 - Integrate authenticator providers for Stalker/Xtream/M3U tests, honoring TLS overrides and custom headers. (todo)
 - Plan persistence hooks for validated profiles and drafts using a clean storage abstraction. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)

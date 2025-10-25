@@ -390,6 +390,34 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     state = state.copyWith(m3u: state.m3u.copyWith(advancedExpanded: expanded));
   }
 
+  void setM3uFieldErrors({String? playlistMessage, String? epgMessage}) {
+    var playlistUrl = state.m3u.playlistUrl;
+    var playlistFile = state.m3u.playlistFilePath;
+    if (state.m3u.inputMode == M3uInputMode.url) {
+      playlistUrl = playlistUrl.copyWith(
+        error: playlistMessage,
+        clearError: playlistMessage == null,
+      );
+      playlistFile = playlistFile.copyWith(clearError: true);
+    } else {
+      playlistFile = playlistFile.copyWith(
+        error: playlistMessage,
+        clearError: playlistMessage == null,
+      );
+      playlistUrl = playlistUrl.copyWith(clearError: true);
+    }
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        playlistUrl: playlistUrl,
+        playlistFilePath: playlistFile,
+        epgUrl: state.m3u.epgUrl.copyWith(
+          error: epgMessage,
+          clearError: epgMessage == null,
+        ),
+      ),
+    );
+  }
+
   void updateXtreamServerUrl(String value) {
     state = state.copyWith(
       xtream: state.xtream.copyWith(
@@ -439,6 +467,29 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
+  void setXtreamFieldErrors({
+    String? baseUrlMessage,
+    String? usernameMessage,
+    String? passwordMessage,
+  }) {
+    state = state.copyWith(
+      xtream: state.xtream.copyWith(
+        serverUrl: state.xtream.serverUrl.copyWith(
+          error: baseUrlMessage,
+          clearError: baseUrlMessage == null,
+        ),
+        username: state.xtream.username.copyWith(
+          error: usernameMessage,
+          clearError: usernameMessage == null,
+        ),
+        password: state.xtream.password.copyWith(
+          error: passwordMessage,
+          clearError: passwordMessage == null,
+        ),
+      ),
+    );
+  }
+
   void updateStalkerPortalUrl(String value) {
     state = state.copyWith(
       stalker: state.stalker.copyWith(
@@ -476,6 +527,21 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   void toggleStalkerAdvanced(bool expanded) {
     state = state.copyWith(
       stalker: state.stalker.copyWith(advancedExpanded: expanded),
+    );
+  }
+
+  void setStalkerFieldErrors({String? portalMessage, String? macMessage}) {
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(
+        portalUrl: state.stalker.portalUrl.copyWith(
+          error: portalMessage,
+          clearError: portalMessage == null,
+        ),
+        macAddress: state.stalker.macAddress.copyWith(
+          error: macMessage,
+          clearError: macMessage == null,
+        ),
+      ),
     );
   }
 

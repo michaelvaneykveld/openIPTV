@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -772,6 +773,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     flowController.beginTestSequence(includeEpgStep: false);
+    flowController.setStalkerFieldErrors();
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
@@ -836,6 +838,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: 'Profile ready to save',
       );
 
+      flowController.setStalkerFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.stalker,
@@ -846,15 +849,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Handshake succeeded.');
     } on StalkerAuthenticationException catch (error) {
+      final message = _stalkerAuthFailureMessage(error.message);
+      flowController.setStalkerFieldErrors(
+        portalMessage:
+            'Portal rejected the handshake. Confirm the URL, MAC address, and account status.',
+      );
       flowController.markStepFailure(
         LoginTestStep.authenticate,
-        message: error.message,
+        message: message,
+      );
+    } on DioException catch (dioError) {
+      debugPrint('Stalker login network error: $dioError');
+      final friendly = _describeNetworkError(dioError);
+      flowController.setStalkerFieldErrors(
+        portalMessage:
+            'Unable to reach the portal. Check the address and your network connection.',
+      );
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: friendly,
       );
     } catch (error, stackTrace) {
       debugPrint('Stalker login error: $error\n$stackTrace');
       flowController.markStepFailure(
         LoginTestStep.reachServer,
-        message: error.toString(),
+        message: _unexpectedErrorMessage(error),
       );
     }
   }
@@ -868,6 +887,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     flowController.beginTestSequence(includeEpgStep: true);
+    flowController.setM3uFieldErrors();
+    flowController.setXtreamFieldErrors();
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
@@ -951,6 +972,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: 'Profile ready to save',
       );
 
+      flowController.setXtreamFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.xtream,
@@ -962,15 +984,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Xtream login success.');
     } on XtreamAuthenticationException catch (error) {
+      final message = _xtreamAuthFailureMessage(error.message);
+      flowController.setXtreamFieldErrors(
+        usernameMessage: 'Credentials were rejected. Confirm your username.',
+        passwordMessage: 'Credentials were rejected. Confirm your password.',
+      );
       flowController.markStepFailure(
         LoginTestStep.authenticate,
-        message: error.message,
+        message: message,
+      );
+    } on DioException catch (dioError) {
+      debugPrint('Xtream login network error: $dioError');
+      final friendly = _describeNetworkError(dioError);
+      flowController.setXtreamFieldErrors(
+        baseUrlMessage:
+            'Unable to reach the server. Confirm the URL and your connection.',
+      );
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: friendly,
       );
     } catch (error, stackTrace) {
       debugPrint('Xtream login error: $error\n$stackTrace');
       flowController.markStepFailure(
         LoginTestStep.reachServer,
-        message: error.toString(),
+        message: _unexpectedErrorMessage(error),
       );
     }
   }
@@ -1055,6 +1093,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: 'Profile ready to save',
       );
 
+      flowController.setM3uFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.m3u,
@@ -1066,15 +1105,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Playlist validated successfully.');
     } on M3uXmlAuthenticationException catch (error) {
+      final lower = error.message.toLowerCase();
+      final targetsXmltv = lower.contains('xmltv');
+      final playlistMessage = targetsXmltv
+          ? null
+          : 'Playlist couldn\'t be validated. Confirm the URL or file path and credentials.';
+      final epgMessage = targetsXmltv
+          ? 'EPG feed couldn\'t be validated. Confirm the XMLTV URL or remove it for now.'
+          : null;
+      flowController.setM3uFieldErrors(
+        playlistMessage: playlistMessage,
+        epgMessage: epgMessage,
+      );
+      final failureStep = targetsXmltv
+          ? LoginTestStep.fetchEpg
+          : LoginTestStep.fetchChannels;
       flowController.markStepFailure(
-        LoginTestStep.fetchChannels,
-        message: error.message,
+        failureStep,
+        message: _m3uFailureMessage(error.message),
+      );
+    } on DioException catch (dioError) {
+      debugPrint('M3U validation network error: $dioError');
+      final friendly = _describeNetworkError(dioError);
+      flowController.setM3uFieldErrors(
+        playlistMessage:
+            'Unable to reach the playlist. Confirm the address and your connection.',
+      );
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: friendly,
       );
     } catch (error, stackTrace) {
       debugPrint('M3U validation error: $error\n$stackTrace');
       flowController.markStepFailure(
         LoginTestStep.reachServer,
-        message: error.toString(),
+        message: _unexpectedErrorMessage(error),
       );
     }
   }
@@ -1414,6 +1479,62 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     for (final key in removalKeys) {
       map.remove(key);
+    }
+  }
+
+  String _stalkerAuthFailureMessage(String raw) {
+    if (raw.isEmpty) {
+      return 'Portal rejected the handshake. Confirm the MAC address and account status.';
+    }
+    return 'Portal rejected the handshake. Confirm the MAC address and account status. ($raw)';
+  }
+
+  String _xtreamAuthFailureMessage(String raw) {
+    if (raw.isEmpty) {
+      return 'Credentials were rejected. Confirm your username and password with your provider.';
+    }
+    return 'Credentials were rejected. Confirm your username and password with your provider. ($raw)';
+  }
+
+  String _m3uFailureMessage(String raw) {
+    if (raw.isEmpty) {
+      return 'Playlist validation failed. Confirm the playlist URL or file and any credentials.';
+    }
+    return 'Playlist validation failed. Confirm the playlist URL or file and any credentials. ($raw)';
+  }
+
+  String _unexpectedErrorMessage(Object error) {
+    final description = error.toString();
+    if (description.isEmpty) {
+      return 'Unexpected error encountered. Please try again.';
+    }
+    return 'Unexpected error encountered: $description';
+  }
+
+  String _describeNetworkError(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return 'Connection timed out. Check your internet connection or try again.';
+      case DioExceptionType.badCertificate:
+        return 'Secure connection failed. Disable TLS overrides only if you trust the portal.';
+      case DioExceptionType.badResponse:
+        final status = error.response?.statusCode;
+        if (status != null) {
+          return 'Portal responded with HTTP $status. Confirm the server address and credentials.';
+        }
+        return 'Portal responded unexpectedly. Confirm the server address and credentials.';
+      case DioExceptionType.cancel:
+        return 'Request was cancelled before completion.';
+      case DioExceptionType.connectionError:
+        return 'Unable to reach the portal. Check your network connection or provider status.';
+      case DioExceptionType.unknown:
+        final underlying = error.error?.toString() ?? '';
+        if (underlying.toLowerCase().contains('socket')) {
+          return 'Unable to reach the portal. Check your network connection or provider status.';
+        }
+        return 'Unexpected network error. Please try again.';
     }
   }
 

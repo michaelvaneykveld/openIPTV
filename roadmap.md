@@ -45,7 +45,15 @@
 - Refreshed the login UI with provider-specific advanced panels (headers, user-agent, redirect and TLS toggles) and persisted those values in drafts for future reuse (`lib/src/ui/login_screen.dart`, `lib/src/providers/login_flow_controller.dart`).
 - Added a reusable header parser with dedicated unit coverage (`lib/src/utils/header_parser.dart`, `test/utils/header_parser_test.dart`) to validate multiline input consistently and surface targeted field errors.
 
+## Session Log - M3U File Picker UX
+- Introduced a platform-aware file picker for the M3U file import path so the login flow now opens the native chooser and captures filename/size metadata (`lib/src/ui/login_screen.dart`).
+- Synced picker selections back into the flow controller and text controller, including graceful messaging for unsupported platforms and updated draft persistence.
+
 ## TODO - Login Experience Implementation
-- Plan persistence hooks for validated profiles and drafts using a clean storage abstraction. (todo)
+- Draft the storage architecture that keeps provider metadata in Drift while isolating secrets in `flutter_secure_storage`, referencing the separation guidelines in `securestorage.md`. (todo)
+- Specify secure-store options and platform policies (Keychain accessibility, Android Keystore, backup exclusions, web constraints) so the abstraction can be configured per target. (todo)
+- Define the vault data model: key naming, JSON payload shape per provider, token rotation strategy, and how public rows reference vault entries without embedding secrets. (todo)
+- Design the repository API surface that login flows and the draft loader will call (save, load, revoke, clear), including failure semantics and biometric gating hooks. (todo)
+- Outline migration and test requirements: fallback when secure storage is unavailable, DFU/backup scenarios, and unit/UI tests covering opt-in “remember me” behaviour. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
 - Add QA coverage: unit tests for validators and error mapping, widget tests for form switching/validation, integration tests with mocked protocol responses, and manual device checks. (todo)

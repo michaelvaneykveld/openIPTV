@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
@@ -514,20 +515,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 16),
           TextFormField(
             controller: _m3uInputController,
-            enabled: !isBusy,
+            enabled: isUrlMode ? !isBusy : true,
+            readOnly: !isUrlMode,
             decoration: InputDecoration(
               labelText: isUrlMode ? 'M3U URL' : 'M3U file path',
+              hintText: isUrlMode
+                  ? 'https://provider.example.com/playlist.m3u'
+                  : 'Select a local playlist file',
               errorText: isUrlMode
                   ? flowState.m3u.playlistUrl.error
                   : flowState.m3u.playlistFilePath.error,
+              suffixIcon: isUrlMode
+                  ? null
+                  : IconButton(
+                      tooltip: 'Browse files',
+                      icon: const Icon(Icons.folder_open),
+                      onPressed: isBusy ? null : _pickM3uPlaylistFile,
+                    ),
             ),
-            onChanged: (value) {
-              if (isUrlMode) {
-                controller.updateM3uPlaylistUrl(value);
-              } else {
-                controller.updateM3uPlaylistFilePath(value);
-              }
-            },
+            onTap: !isUrlMode && !isBusy ? _pickM3uPlaylistFile : null,
+            onChanged: isUrlMode ? controller.updateM3uPlaylistUrl : null,
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -1245,6 +1252,64 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
+      );
+    }
+  }
+
+  Future<void> _pickM3uPlaylistFile() async {
+    final flowState = ref.read(loginFlowControllerProvider);
+    if (flowState.testProgress.inProgress) {
+      return;
+    }
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['m3u', 'm3u8', 'txt'],
+      );
+      if (result == null || result.files.isEmpty) {
+        return;
+      }
+
+      final file = result.files.first;
+      final path = file.path;
+      if (path == null || path.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to access the selected file path on this platform.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final flowController = ref.read(loginFlowControllerProvider.notifier);
+      flowController.setM3uFileSelection(
+        path: path,
+        fileName: file.name,
+        fileSizeBytes: file.size > 0 ? file.size : null,
+      );
+
+      if (!mounted) return;
+      _m3uInputController.text = path;
+      _m3uInputController.selection = TextSelection.collapsed(
+        offset: path.length,
+      );
+    } on PlatformException catch (error) {
+      debugPrint('M3U file picker error: $error');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('File picker failed: ${error.message ?? error.code}'),
+        ),
+      );
+    } catch (error, stackTrace) {
+      debugPrint('M3U file picker unexpected error: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to pick a playlist file.')),
       );
     }
   }

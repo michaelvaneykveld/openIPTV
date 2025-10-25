@@ -29,9 +29,8 @@ class XmltvUrlSource extends XmltvSourceDescriptor {
   const XmltvUrlSource({
     required this.epgUri,
     Map<String, String>? headers,
-    String? displayName,
-  })  : headers = headers ?? const {},
-        super(displayName: displayName);
+    super.displayName,
+  }) : headers = headers ?? const {};
 
   @override
   bool get isRemote => true;
@@ -48,10 +47,9 @@ class XmltvFileSource extends XmltvSourceDescriptor {
   const XmltvFileSource({
     required this.filePath,
     this.originalFileName,
-    String? displayName,
-  }) : super(displayName: displayName);
+    super.displayName,
+  });
 
   @override
   bool get isRemote => false;
 }
-

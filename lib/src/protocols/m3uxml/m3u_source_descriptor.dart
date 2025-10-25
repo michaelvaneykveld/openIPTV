@@ -33,12 +33,11 @@ class M3uUrlSource extends M3uSourceDescriptor {
 
   const M3uUrlSource({
     required this.playlistUri,
-    String? displayName,
+    super.displayName,
     Map<String, String>? headers,
     Map<String, dynamic>? extraQuery,
-  })  : headers = headers ?? const {},
-        extraQuery = extraQuery ?? const {},
-        super(displayName: displayName);
+  }) : headers = headers ?? const {},
+       extraQuery = extraQuery ?? const {};
 
   @override
   bool get isRemote => true;
@@ -56,10 +55,9 @@ class M3uFileSource extends M3uSourceDescriptor {
   const M3uFileSource({
     required this.filePath,
     this.originalFileName,
-    String? displayName,
-  }) : super(displayName: displayName);
+    super.displayName,
+  });
 
   @override
   bool get isRemote => false;
 }
-

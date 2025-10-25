@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
@@ -16,7 +17,10 @@ class MacAddressInputFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    final text = newValue.text.toUpperCase().replaceAll(RegExp(r'[^0-9A-F]'), '');
+    final text = newValue.text.toUpperCase().replaceAll(
+      RegExp(r'[^0-9A-F]'),
+      '',
+    );
     final buffer = StringBuffer();
     for (var i = 0; i < text.length && i < 12; i++) {
       if (i > 0 && i.isEven) {
@@ -57,18 +61,89 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _m3uPasswordController = TextEditingController();
 
   late final TabController _tabController;
-  bool _isAuthenticating = false;
-  String? _errorMessage;
+  ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    final flow = ref.read(loginFlowControllerProvider);
+    _portalUrlController.text = flow.stalker.portalUrl.value;
+    _macAddressController.text = flow.stalker.macAddress.value;
+    _xtreamUrlController.text = flow.xtream.serverUrl.value;
+    _xtreamUsernameController.text = flow.xtream.username.value;
+    _xtreamPasswordController.text = flow.xtream.password.value;
+    _m3uInputController.text = flow.m3u.inputMode == M3uInputMode.url
+        ? flow.m3u.playlistUrl.value
+        : flow.m3u.playlistFilePath.value;
+    _m3uUsernameController.text = flow.m3u.username.value;
+    _m3uPasswordController.text = flow.m3u.password.value;
+
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: _indexForProvider(flow.providerType),
+    );
+    _tabController.addListener(_handleTabSelection);
+
+    ref.listen<LoginFlowState>(loginFlowControllerProvider, (previous, next) {
+      final nextIndex = _indexForProvider(next.providerType);
+      if (_tabController.index != nextIndex &&
+          !_tabController.indexIsChanging) {
+        _tabController.index = nextIndex;
+      }
+      _syncControllerText(
+        previous?.stalker.portalUrl.value,
+        next.stalker.portalUrl.value,
+        _portalUrlController,
+      );
+      _syncControllerText(
+        previous?.stalker.macAddress.value,
+        next.stalker.macAddress.value,
+        _macAddressController,
+      );
+      _syncControllerText(
+        previous?.xtream.serverUrl.value,
+        next.xtream.serverUrl.value,
+        _xtreamUrlController,
+      );
+      _syncControllerText(
+        previous?.xtream.username.value,
+        next.xtream.username.value,
+        _xtreamUsernameController,
+      );
+      _syncControllerText(
+        previous?.xtream.password.value,
+        next.xtream.password.value,
+        _xtreamPasswordController,
+      );
+      final m3uInput = next.m3u.inputMode == M3uInputMode.url
+          ? next.m3u.playlistUrl.value
+          : next.m3u.playlistFilePath.value;
+      final previousM3uInput = previous == null
+          ? null
+          : previous.m3u.inputMode == M3uInputMode.url
+          ? previous.m3u.playlistUrl.value
+          : previous.m3u.playlistFilePath.value;
+      _syncControllerText(previousM3uInput, m3uInput, _m3uInputController);
+      _syncControllerText(
+        previous?.m3u.username.value,
+        next.m3u.username.value,
+        _m3uUsernameController,
+      );
+      _syncControllerText(
+        previous?.m3u.password.value,
+        next.m3u.password.value,
+        _m3uPasswordController,
+      );
+    });
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
+    _flowSubscription?.close();
+    _tabController
+      ..removeListener(_handleTabSelection)
+      ..dispose();
     _portalUrlController.dispose();
     _macAddressController.dispose();
     _xtreamUrlController.dispose();
@@ -80,8 +155,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
+  void _handleTabSelection() {
+    if (_tabController.indexIsChanging) {
+      return;
+    }
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+    controller.selectProvider(_providerForIndex(_tabController.index));
+  }
+
+  int _indexForProvider(LoginProviderType type) {
+    switch (type) {
+      case LoginProviderType.stalker:
+        return 0;
+      case LoginProviderType.xtream:
+        return 1;
+      case LoginProviderType.m3u:
+        return 2;
+    }
+  }
+
+  LoginProviderType _providerForIndex(int index) {
+    switch (index) {
+      case 0:
+        return LoginProviderType.stalker;
+      case 1:
+        return LoginProviderType.xtream;
+      default:
+        return LoginProviderType.m3u;
+    }
+  }
+
+  void _syncControllerText(
+    String? previousValue,
+    String nextValue,
+    TextEditingController controller,
+  ) {
+    if (previousValue == nextValue) {
+      return;
+    }
+    if (controller.text != nextValue) {
+      controller.text = nextValue;
+      controller.selection = TextSelection.collapsed(offset: nextValue.length);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final flowState = ref.watch(loginFlowControllerProvider);
+    final isBusy = flowState.testProgress.inProgress;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('OpenIPTV Login'),
@@ -96,13 +218,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       ),
       body: Column(
         children: [
-          if (_errorMessage != null)
+          if (flowState.bannerMessage != null)
             Container(
               width: double.infinity,
               color: const Color.fromARGB(32, 244, 67, 54),
               padding: const EdgeInsets.all(12),
               child: Text(
-                _errorMessage!,
+                flowState.bannerMessage!,
                 style: const TextStyle(color: Colors.redAccent),
               ),
             ),
@@ -110,9 +232,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             child: TabBarView(
               controller: _tabController,
               children: [
-                _buildStalkerLogin(context),
-                _buildXtreamLogin(context),
-                _buildM3uLogin(context),
+                _buildStalkerLogin(context, flowState, isBusy),
+                _buildXtreamLogin(context, flowState, isBusy),
+                _buildM3uLogin(context, flowState, isBusy),
               ],
             ),
           ),
@@ -121,7 +243,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildStalkerLogin(BuildContext context) {
+  Widget _buildStalkerLogin(
+    BuildContext context,
+    LoginFlowState flowState,
+    bool isBusy,
+  ) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
@@ -135,41 +263,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             const SizedBox(height: 16),
             TextFormField(
               controller: _portalUrlController,
-              decoration: const InputDecoration(
+              enabled: !isBusy,
+              decoration: InputDecoration(
                 labelText: 'Portal URL',
                 hintText: 'http://portal.example.com',
+                errorText: flowState.stalker.portalUrl.error,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter a portal URL';
-                }
-                return null;
-              },
+              onChanged: controller.updateStalkerPortalUrl,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _macAddressController,
-              decoration: const InputDecoration(
+              enabled: !isBusy,
+              decoration: InputDecoration(
                 labelText: 'MAC Address',
                 hintText: '00:1A:79:12:34:56',
+                errorText: flowState.stalker.macAddress.error,
               ),
               inputFormatters: [MacAddressInputFormatter()],
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter a MAC address';
-                }
-                final macRegex =
-                    RegExp(r'^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$');
-                if (!macRegex.hasMatch(value.trim())) {
-                  return 'Enter a valid MAC address';
-                }
-                return null;
-              },
+              onChanged: controller.updateStalkerMacAddress,
             ),
             const SizedBox(height: 24),
             _buildActionButton(
               label: 'Handshake',
-              onPressed: _isAuthenticating ? null : _handleStalkerLogin,
+              isBusy: isBusy,
+              onPressed: isBusy ? null : _handleStalkerLogin,
             ),
           ],
         ),
@@ -177,7 +295,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildXtreamLogin(BuildContext context) {
+  Widget _buildXtreamLogin(
+    BuildContext context,
+    LoginFlowState flowState,
+    bool isBusy,
+  ) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
@@ -191,40 +315,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             const SizedBox(height: 16),
             TextFormField(
               controller: _xtreamUrlController,
-              decoration: const InputDecoration(
+              enabled: !isBusy,
+              decoration: InputDecoration(
                 labelText: 'Base URL',
                 hintText: 'http://example.com:8080',
+                errorText: flowState.xtream.serverUrl.error,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter the Xtream base URL';
-                }
-                return null;
-              },
+              onChanged: controller.updateXtreamServerUrl,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _xtreamUsernameController,
-              decoration: const InputDecoration(
+              enabled: !isBusy,
+              decoration: InputDecoration(
                 labelText: 'Username',
+                errorText: flowState.xtream.username.error,
               ),
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'Enter a username' : null,
+              onChanged: controller.updateXtreamUsername,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _xtreamPasswordController,
-              decoration: const InputDecoration(
+              enabled: !isBusy,
+              decoration: InputDecoration(
                 labelText: 'Password',
+                errorText: flowState.xtream.password.error,
               ),
               obscureText: true,
-              validator: (value) =>
-                  value == null || value.trim().isEmpty ? 'Enter a password' : null,
+              onChanged: controller.updateXtreamPassword,
             ),
             const SizedBox(height: 24),
             _buildActionButton(
               label: 'Login',
-              onPressed: _isAuthenticating ? null : _handleXtreamLogin,
+              isBusy: isBusy,
+              onPressed: isBusy ? null : _handleXtreamLogin,
             ),
           ],
         ),
@@ -232,7 +356,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildM3uLogin(BuildContext context) {
+  Widget _buildM3uLogin(
+    BuildContext context,
+    LoginFlowState flowState,
+    bool isBusy,
+  ) {
+    final controller = ref.read(loginFlowControllerProvider.notifier);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Form(
@@ -246,35 +376,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             const SizedBox(height: 16),
             TextFormField(
               controller: _m3uInputController,
-              decoration: const InputDecoration(
-                labelText: 'M3U URL or file path',
+              enabled: !isBusy,
+              decoration: InputDecoration(
+                labelText: flowState.m3u.inputMode == M3uInputMode.url
+                    ? 'M3U URL'
+                    : 'M3U file path',
+                errorText: flowState.m3u.inputMode == M3uInputMode.url
+                    ? flowState.m3u.playlistUrl.error
+                    : flowState.m3u.playlistFilePath.error,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Enter an M3U source';
+              onChanged: (value) {
+                if (flowState.m3u.inputMode == M3uInputMode.url) {
+                  controller.updateM3uPlaylistUrl(value);
+                } else {
+                  controller.updateM3uPlaylistFilePath(value);
                 }
-                return null;
               },
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _m3uUsernameController,
+              enabled: !isBusy,
               decoration: const InputDecoration(
                 labelText: 'Username (optional)',
               ),
+              onChanged: controller.updateM3uUsername,
             ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _m3uPasswordController,
+              enabled: !isBusy,
               decoration: const InputDecoration(
                 labelText: 'Password (optional)',
               ),
               obscureText: true,
+              onChanged: controller.updateM3uPassword,
             ),
             const SizedBox(height: 24),
             _buildActionButton(
               label: 'Validate Playlist',
-              onPressed: _isAuthenticating ? null : _handleM3uLogin,
+              onPressed: isBusy ? null : _handleM3uLogin,
+              isBusy: isBusy,
             ),
           ],
         ),
@@ -285,12 +427,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget _buildActionButton({
     required String label,
     required VoidCallback? onPressed,
+    bool isBusy = false,
   }) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: onPressed,
-        child: _isAuthenticating
+        child: isBusy
             ? const SizedBox(
                 height: 20,
                 width: 20,
@@ -302,58 +445,70 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   Future<void> _handleStalkerLogin() async {
-    if (!_stalkerFormKey.currentState!.validate()) {
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+    if (!flowController.validateActiveForm()) {
+      flowController.setBannerMessage('Please review the highlighted fields.');
       return;
     }
 
-    setState(() {
-      _isAuthenticating = true;
-      _errorMessage = null;
-    });
+    flowController.beginTestSequence(includeEpgStep: false);
 
     try {
-      var portalUrl = _portalUrlController.text.trim();
-      if (!portalUrl.startsWith('http://') && !portalUrl.startsWith('https://')) {
+      flowController.markStepActive(LoginTestStep.reachServer);
+      final current = ref.read(loginFlowControllerProvider);
+      var portalUrl = current.stalker.portalUrl.value.trim();
+      if (!portalUrl.startsWith('http://') &&
+          !portalUrl.startsWith('https://')) {
         portalUrl = 'http://$portalUrl';
       }
-      portalUrl = portalUrl.replaceAll('/c/', '/').replaceAll(RegExp(r'/+$'), '');
+      portalUrl = portalUrl
+          .replaceAll('/c/', '/')
+          .replaceAll(RegExp(r'/+$'), '');
 
       final configuration = StalkerPortalConfiguration(
         baseUri: Uri.parse(portalUrl),
-        macAddress: _macAddressController.text.trim(),
+        macAddress: current.stalker.macAddress.value.trim(),
       );
 
       await ref.read(stalkerSessionProvider(configuration).future);
 
+      flowController.markStepSuccess(LoginTestStep.reachServer);
+      flowController.markStepSuccess(
+        LoginTestStep.authenticate,
+        message: 'Token acquired',
+      );
+      flowController.markStepSuccess(LoginTestStep.fetchChannels);
+      flowController.markStepSuccess(LoginTestStep.saveProfile);
+      flowController.resetTestProgress();
+      flowController.setBannerMessage(null);
       _showSuccessSnackBar('Handshake succeeded. Token acquired.');
     } on StalkerAuthenticationException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.authenticate,
+        message: error.message,
+      );
     } catch (error, stackTrace) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
       debugPrint('Stalker login error: $error\n$stackTrace');
-    } finally {
-      setState(() {
-        _isAuthenticating = false;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: error.toString(),
+      );
     }
   }
 
   Future<void> _handleXtreamLogin() async {
-    if (!_xtreamFormKey.currentState!.validate()) {
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+    if (!flowController.validateActiveForm()) {
+      flowController.setBannerMessage('Please review the highlighted fields.');
       return;
     }
 
-    setState(() {
-      _isAuthenticating = true;
-      _errorMessage = null;
-    });
+    flowController.beginTestSequence(includeEpgStep: true);
 
     try {
-      var baseUrl = _xtreamUrlController.text.trim();
+      flowController.markStepActive(LoginTestStep.reachServer);
+      final current = ref.read(loginFlowControllerProvider);
+      var baseUrl = current.xtream.serverUrl.value.trim();
       if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
         baseUrl = 'http://$baseUrl';
       }
@@ -361,75 +516,88 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
       final configuration = XtreamPortalConfiguration(
         baseUri: Uri.parse(baseUrl),
-        username: _xtreamUsernameController.text.trim(),
-        password: _xtreamPasswordController.text.trim(),
+        username: current.xtream.username.value.trim(),
+        password: current.xtream.password.value.trim(),
       );
 
       await ref.read(xtreamSessionProvider(configuration).future);
+
+      flowController.markStepSuccess(LoginTestStep.reachServer);
+      flowController.markStepSuccess(LoginTestStep.authenticate);
+      flowController.markStepSuccess(LoginTestStep.fetchChannels);
+      flowController.markStepSuccess(LoginTestStep.fetchEpg);
+      flowController.markStepSuccess(LoginTestStep.saveProfile);
+      flowController.resetTestProgress();
+      flowController.setBannerMessage(null);
       _showSuccessSnackBar('Xtream login success. Profile retrieved.');
     } on XtreamAuthenticationException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.authenticate,
+        message: error.message,
+      );
     } catch (error, stackTrace) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
       debugPrint('Xtream login error: $error\n$stackTrace');
-    } finally {
-      setState(() {
-        _isAuthenticating = false;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: error.toString(),
+      );
     }
   }
 
   Future<void> _handleM3uLogin() async {
-    if (!_m3uFormKey.currentState!.validate()) {
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+    if (!flowController.validateActiveForm()) {
+      flowController.setBannerMessage('Please review the highlighted fields.');
       return;
     }
 
-    setState(() {
-      _isAuthenticating = true;
-      _errorMessage = null;
-    });
+    flowController.beginTestSequence(includeEpgStep: true);
 
     try {
+      flowController.markStepActive(LoginTestStep.reachServer);
+      final current = ref.read(loginFlowControllerProvider);
+      final playlistInput = current.m3u.inputMode == M3uInputMode.url
+          ? current.m3u.playlistUrl.value
+          : current.m3u.playlistFilePath.value;
       final configuration = buildM3uConfiguration(
         portalId: 'm3u-${DateTime.now().millisecondsSinceEpoch}',
-        playlistInput: _m3uInputController.text,
-        username: _m3uUsernameController.text.trim().isEmpty
+        playlistInput: playlistInput,
+        username: current.m3u.username.value.trim().isEmpty
             ? null
-            : _m3uUsernameController.text.trim(),
-        password: _m3uPasswordController.text.trim().isEmpty
+            : current.m3u.username.value.trim(),
+        password: current.m3u.password.value.trim().isEmpty
             ? null
-            : _m3uPasswordController.text.trim(),
+            : current.m3u.password.value.trim(),
       );
 
       await ref.read(m3uXmlSessionProvider(configuration).future);
+
+      flowController.markStepSuccess(LoginTestStep.reachServer);
+      flowController.markStepSuccess(LoginTestStep.authenticate);
+      flowController.markStepSuccess(LoginTestStep.fetchChannels);
+      flowController.markStepSuccess(LoginTestStep.fetchEpg);
+      flowController.markStepSuccess(LoginTestStep.saveProfile);
+      flowController.resetTestProgress();
+      flowController.setBannerMessage(null);
       _showSuccessSnackBar('Playlist validated successfully.');
     } on M3uXmlAuthenticationException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.fetchChannels,
+        message: error.message,
+      );
     } catch (error, stackTrace) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
       debugPrint('M3U validation error: $error\n$stackTrace');
-    } finally {
-      setState(() {
-        _isAuthenticating = false;
-      });
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: error.toString(),
+      );
     }
   }
 
   void _showSuccessSnackBar(String message) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
   }
 }

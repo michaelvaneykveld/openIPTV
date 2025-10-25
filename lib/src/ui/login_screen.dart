@@ -19,6 +19,8 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
 
+enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
+
 /// A [TextInputFormatter] that coerces user input into an uppercase MAC
 /// address with colon separators (e.g. 0:1A:79:12:34:56).
 class MacAddressInputFormatter extends TextInputFormatter {
@@ -278,11 +280,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             icon: const Icon(Icons.help_outline),
           ),
           IconButton(
-            tooltip: 'Paste from clipboard',
-            onPressed: isBusy ? null : () => _handlePaste(context),
-            icon: const Icon(Icons.paste),
-          ),
-          IconButton(
             tooltip: 'Scan QR code',
             onPressed: isBusy ? null : () => _handleScanQr(context),
             icon: const Icon(Icons.qr_code_scanner),
@@ -412,6 +409,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               labelText: 'Portal URL',
               hintText: 'http://portal.example.com',
               errorText: flowState.stalker.portalUrl.error,
+              suffixIcon: IconButton(
+                tooltip: 'Paste from clipboard',
+                icon: const Icon(Icons.paste),
+                onPressed: isBusy
+                    ? null
+                    : () => _handlePaste(
+                        context,
+                        target: _PasteTarget.stalkerPortal,
+                      ),
+              ),
             ),
             onChanged: controller.updateStalkerPortalUrl,
           ),
@@ -461,6 +468,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               labelText: 'Base URL',
               hintText: 'http://example.com:8080',
               errorText: flowState.xtream.serverUrl.error,
+              suffixIcon: IconButton(
+                tooltip: 'Paste from clipboard',
+                icon: const Icon(Icons.paste),
+                onPressed: isBusy
+                    ? null
+                    : () => _handlePaste(
+                        context,
+                        target: _PasteTarget.xtreamBaseUrl,
+                      ),
+              ),
             ),
             onChanged: controller.updateXtreamServerUrl,
           ),
@@ -526,7 +543,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ? flowState.m3u.playlistUrl.error
                   : flowState.m3u.playlistFilePath.error,
               suffixIcon: isUrlMode
-                  ? null
+                  ? IconButton(
+                      tooltip: 'Paste from clipboard',
+                      icon: const Icon(Icons.paste),
+                      onPressed: isBusy
+                          ? null
+                          : () => _handlePaste(
+                              context,
+                              target: _PasteTarget.m3uUrl,
+                            ),
+                    )
                   : IconButton(
                       tooltip: 'Browse files',
                       icon: const Icon(Icons.folder_open),
@@ -1487,7 +1513,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   /// Attempts to paste clipboard text into the most relevant field.
-  Future<void> _handlePaste(BuildContext context) async {
+  Future<void> _handlePaste(
+    BuildContext context, {
+    _PasteTarget? target,
+  }) async {
     final messenger = ScaffoldMessenger.of(context);
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim();
@@ -1502,26 +1531,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final controller = ref.read(loginFlowControllerProvider.notifier);
     final flowState = ref.read(loginFlowControllerProvider);
 
-    switch (flowState.providerType) {
-      case LoginProviderType.stalker:
-        _portalUrlController.text = text;
-        _portalUrlController.selection = TextSelection.collapsed(
-          offset: text.length,
-        );
+    final resolvedTarget =
+        target ??
+        switch (flowState.providerType) {
+          LoginProviderType.stalker => _PasteTarget.stalkerPortal,
+          LoginProviderType.xtream => _PasteTarget.xtreamBaseUrl,
+          LoginProviderType.m3u =>
+            flowState.m3u.inputMode == M3uInputMode.url
+                ? _PasteTarget.m3uUrl
+                : _PasteTarget.m3uUrl,
+        };
+
+    switch (resolvedTarget) {
+      case _PasteTarget.stalkerPortal:
+        _portalUrlController
+          ..text = text
+          ..selection = TextSelection.collapsed(offset: text.length);
         controller.updateStalkerPortalUrl(text);
         break;
-      case LoginProviderType.xtream:
-        _xtreamUrlController.text = text;
-        _xtreamUrlController.selection = TextSelection.collapsed(
-          offset: text.length,
-        );
+      case _PasteTarget.xtreamBaseUrl:
+        _xtreamUrlController
+          ..text = text
+          ..selection = TextSelection.collapsed(offset: text.length);
         controller.updateXtreamServerUrl(text);
         break;
-      case LoginProviderType.m3u:
-        _m3uInputController.text = text;
-        _m3uInputController.selection = TextSelection.collapsed(
-          offset: text.length,
-        );
+      case _PasteTarget.m3uUrl:
+        _m3uInputController
+          ..text = text
+          ..selection = TextSelection.collapsed(offset: text.length);
         if (flowState.m3u.inputMode == M3uInputMode.url) {
           controller.updateM3uPlaylistUrl(text);
         } else {

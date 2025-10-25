@@ -49,6 +49,10 @@
 - Introduced a platform-aware file picker for the M3U file import path so the login flow now opens the native chooser and captures filename/size metadata (`lib/src/ui/login_screen.dart`).
 - Synced picker selections back into the flow controller and text controller, including graceful messaging for unsupported platforms and updated draft persistence.
 
+## Session Log - Contextual Paste Actions
+- Moved the clipboard paste affordance into the relevant URL fields for Stalker, Xtream, and M3U (URL mode) so users can insert addresses inline without reaching for a global toolbar icon (`lib/src/ui/login_screen.dart`).
+- Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `logindesign.md`.
+
 ## TODO - Login Experience Implementation
 - Draft the storage architecture that keeps provider metadata in Drift while isolating secrets in `flutter_secure_storage`, referencing the separation guidelines in `securestorage.md`. (todo)
 - Specify secure-store options and platform policies (Keychain accessibility, Android Keystore, backup exclusions, web constraints) so the abstraction can be configured per target. (todo)

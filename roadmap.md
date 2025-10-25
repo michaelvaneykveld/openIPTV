@@ -22,11 +22,15 @@
 ## Session Log — Login Layout Overhaul
 - Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
 
-## Session Log — Form Field Enhancements
+## Session Log - Form Field Enhancements
 - Upgraded provider forms to Material 3 text fields with helper and error text, added a MAC address generator, introduced file picker integration for M3U imports, and surfaced advanced-setting panels per protocol to meet the revised product brief.
 
-## TODO — Login Experience Implementation
-- Build the "Test & Connect" workflow: multi-step progress tracker, determinate linear indicator, and success summary card with channel/EPG counts. (todo)
+## Session Log - Test & Connect Workflow
+- Delivered the multi-step "Test & Connect" experience with a determinate progress indicator and per-step messaging wired through `LoginTestProgress` in `lib/src/ui/login_screen.dart`.
+- Introduced a success summary card backed by `LoginTestSummary`, surfacing channel counts and EPG coverage collected during protocol probes.
+- Enhanced Stalker, Xtream, and M3U flows to fetch lightweight metadata (playlist parsing, channel list probes, XMLTV windows) so the UI reports meaningful post-connection details.
+
+## TODO - Login Experience Implementation
 - Provide a "Save for later" draft flow that stores configurations without immediate testing. (todo)
 - Surface error feedback using top banners for systemic failures and field-level messages with fix-oriented microcopy. (todo)
 - Integrate authenticator providers for Stalker/Xtream/M3U tests, honoring TLS overrides and custom headers. (todo)

@@ -42,6 +42,19 @@ class LoginTestStepState {
 /// Simple status enum for each test step.
 enum StepStatus { pending, inProgress, success, failure }
 
+/// Captures the summary information displayed once all test steps succeed.
+class LoginTestSummary {
+  final LoginProviderType providerType;
+  final int? channelCount;
+  final int? epgDaySpan;
+
+  const LoginTestSummary({
+    required this.providerType,
+    this.channelCount,
+    this.epgDaySpan,
+  });
+}
+
 /// Shared shape for simple text field state. Maintains the current value and
 /// an optional validation error string that the UI can surface directly.
 @immutable
@@ -65,6 +78,8 @@ class M3uFormState {
   final M3uInputMode inputMode;
   final FieldState playlistUrl;
   final FieldState playlistFilePath;
+  final String? fileName;
+  final int? fileSizeBytes;
   final FieldState epgUrl;
   final FieldState username;
   final FieldState password;
@@ -76,6 +91,8 @@ class M3uFormState {
     this.inputMode = M3uInputMode.url,
     this.playlistUrl = const FieldState(),
     this.playlistFilePath = const FieldState(),
+    this.fileName,
+    this.fileSizeBytes,
     this.epgUrl = const FieldState(),
     this.username = const FieldState(),
     this.password = const FieldState(),
@@ -88,17 +105,24 @@ class M3uFormState {
     M3uInputMode? inputMode,
     FieldState? playlistUrl,
     FieldState? playlistFilePath,
+    String? fileName,
+    int? fileSizeBytes,
     FieldState? epgUrl,
     FieldState? username,
     FieldState? password,
     bool? autoUpdate,
     bool? followRedirects,
     bool? advancedExpanded,
+    bool clearFileSelection = false,
   }) {
     return M3uFormState(
       inputMode: inputMode ?? this.inputMode,
       playlistUrl: playlistUrl ?? this.playlistUrl,
       playlistFilePath: playlistFilePath ?? this.playlistFilePath,
+      fileName: clearFileSelection ? null : fileName ?? this.fileName,
+      fileSizeBytes: clearFileSelection
+          ? null
+          : fileSizeBytes ?? this.fileSizeBytes,
       epgUrl: epgUrl ?? this.epgUrl,
       username: username ?? this.username,
       password: password ?? this.password,
@@ -224,6 +248,7 @@ class LoginFlowState {
   final StalkerFormState stalker;
   final LoginTestProgress testProgress;
   final String? bannerMessage;
+  final LoginTestSummary? testSummary;
 
   const LoginFlowState({
     this.providerType = LoginProviderType.stalker,
@@ -232,6 +257,7 @@ class LoginFlowState {
     this.stalker = const StalkerFormState(),
     this.testProgress = const LoginTestProgress(),
     this.bannerMessage,
+    this.testSummary,
   });
 
   LoginFlowState copyWith({
@@ -242,6 +268,8 @@ class LoginFlowState {
     LoginTestProgress? testProgress,
     String? bannerMessage,
     bool clearBanner = false,
+    LoginTestSummary? testSummary,
+    bool clearSummary = false,
   }) {
     return LoginFlowState(
       providerType: providerType ?? this.providerType,
@@ -250,6 +278,7 @@ class LoginFlowState {
       stalker: stalker ?? this.stalker,
       testProgress: testProgress ?? this.testProgress,
       bannerMessage: clearBanner ? null : bannerMessage ?? this.bannerMessage,
+      testSummary: clearSummary ? null : testSummary ?? this.testSummary,
     );
   }
 }
@@ -303,6 +332,24 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
           value: value,
           clearError: true,
         ),
+        clearFileSelection: true,
+      ),
+    );
+  }
+
+  void setM3uFileSelection({
+    required String path,
+    required String fileName,
+    int? fileSizeBytes,
+  }) {
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        playlistFilePath: state.m3u.playlistFilePath.copyWith(
+          value: path,
+          clearError: true,
+        ),
+        fileName: fileName,
+        fileSizeBytes: fileSizeBytes,
       ),
     );
   }
@@ -411,6 +458,12 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
           clearError: true,
         ),
       ),
+    );
+  }
+
+  void updateStalkerDeviceProfile(String value) {
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(deviceProfile: value),
     );
   }
 
@@ -554,6 +607,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         steps: LoginTestProgress.initialSteps(includeEpg: includeEpgStep),
       ),
       clearBanner: true,
+      clearSummary: true,
     );
   }
 
@@ -604,6 +658,17 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         steps: updated,
       ),
       bannerMessage: message,
+      clearSummary: true,
+    );
+  }
+
+  /// Stores the success summary and marks the sequence as complete.
+  void setTestSummary(LoginTestSummary summary) {
+    final progress = state.testProgress;
+    state = state.copyWith(
+      testSummary: summary,
+      testProgress: progress.copyWith(inProgress: false, steps: progress.steps),
+      clearBanner: true,
     );
   }
 
@@ -612,6 +677,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     state = state.copyWith(
       testProgress: const LoginTestProgress(),
       clearBanner: true,
+      clearSummary: true,
     );
   }
 

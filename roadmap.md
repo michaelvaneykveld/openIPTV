@@ -1,26 +1,28 @@
-# OpenIPTV Rewrite Roadmap
+ï»¿# OpenIPTV Rewrite Roadmap
 
-## Session Log — Stalker Authentication Rewrite
+## Session Log â€” Stalker Authentication Rewrite
 - Established a dedicated protocol layer for Stalker/Ministra portals, introducing immutable configuration, HTTP client, handshake models, session state, and authenticator orchestration files under `lib/src/protocols/stalker/` to support a modular rewrite of MAC/token login flows.
 
-## Session Log — Xtream Authentication Rewrite
+## Session Log â€” Xtream Authentication Rewrite
 - Mirrored the modular protocol layer for Xtream Codes by adding configuration, HTTP client, login payload models, session utilities, and an authenticator under `lib/src/protocols/xtream/`, paving the way for reusable login/profile flows aligned with the rewrite guidelines.
 
-## Session Log — M3U/XMLTV Ingestion Rewrite
+## Session Log â€” M3U/XMLTV Ingestion Rewrite
 - Introduced a dedicated M3U/XMLTV protocol module (`lib/src/protocols/m3uxml/`) covering source descriptors for URL/file inputs, portal configuration, unified fetch client with compression awareness, session container, and an authenticator that validates playlists and optional XMLTV feeds for both remote and local imports.
 
-## Session Log — Protocol Riverpod Integration
+## Session Log â€” Protocol Riverpod Integration
 - Added Riverpod providers in `lib/src/application/providers/protocol_auth_providers.dart` that expose the new Stalker, Xtream, and M3U/XMLTV authenticators, along with helper families to bridge existing credential models into the modular session APIs for upcoming login refactors.
 - Wired the login screen to consume those providers so each protocol handshake now flows through the modular adapters while keeping active portal state (`portal_session_providers.dart`) in sync for future UI refactors.
 
-## Session Log — Minimal Shell Reset
+## Session Log â€” Minimal Shell Reset
 - Removed legacy repositories, database helpers, and UI stacks so the project now boots straight into a pared-down login experience powered solely by the modular protocol adapters (`lib/src/providers/protocol_auth_providers.dart`, `lib/src/ui/login_screen.dart`).
 
-## Session Log — Login Flow Controller
+## Session Log â€” Login Flow Controller
 - Introduced a Riverpod-driven controller/state layer (`lib/src/providers/login_flow_controller.dart`) and refactored `lib/src/ui/login_screen.dart` to use it for provider selection, field validation, and multi-step test progress management in line with the new login blueprint.
 
-## TODO — Login Experience Implementation
-- Replace the login scaffold with the full layout: header actions (Help, Paste, QR), provider SegmentedButtons, and dynamic form sections per protocol. (todo)
+## Session Log â€” Login Layout Overhaul
+- Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
+
+## TODO â€” Login Experience Implementation
 - Implement Material 3 text fields with helper/error text, MAC formatter/generator, file picker preview, and optional advanced panels per protocol. (todo)
 - Add clipboard paste detection, QR scan trigger (`mobile_scanner`), and M3U file selection via `file_picker`, preserving inputs while switching modes. (todo)
 - Expose advanced settings (custom headers, User-Agent, TLS toggle, auto-update, output format) behind expandable panels aligned with the design blueprint. (todo)

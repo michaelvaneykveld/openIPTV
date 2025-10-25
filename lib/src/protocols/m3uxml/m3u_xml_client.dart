@@ -20,9 +20,9 @@ class M3uXmlClient {
       : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(minutes: 2),
-                sendTimeout: const Duration(seconds: 30),
+                connectTimeout: Duration(seconds: 15),
+                receiveTimeout: Duration(minutes: 2),
+                sendTimeout: Duration(seconds: 30),
                 responseType: ResponseType.bytes,
               ),
             );
@@ -40,7 +40,7 @@ class M3uXmlClient {
     if (source is M3uFileSource) {
       return _fetchLocalFile(source.filePath);
     }
-    throw const UnsupportedError('Unknown M3U source descriptor.');
+    throw UnsupportedError('Unknown M3U source descriptor.');
   }
 
   /// Downloads the XMLTV feed when available. Returns null when the portal
@@ -58,7 +58,7 @@ class M3uXmlClient {
     if (source is XmltvFileSource) {
       return _fetchLocalFile(source.filePath);
     }
-    throw const UnsupportedError('Unknown XMLTV source descriptor.');
+    throw UnsupportedError('Unknown XMLTV source descriptor.');
   }
 
   /// Handles remote playlist downloads with proper headers and metadata.
@@ -66,20 +66,24 @@ class M3uXmlClient {
     M3uXmlPortalConfiguration configuration,
     M3uUrlSource source,
   ) async {
-    final uri = source.playlistUri;
+    var uri = source.playlistUri;
+    if (source.extraQuery.isNotEmpty) {
+      final merged = <String, String>{...uri.queryParameters};
+      source.extraQuery.forEach((key, value) {
+        merged[key] = value.toString();
+      });
+      uri = uri.replace(queryParameters: merged);
+    }
 
-    final response = await _dio.getUri(
-      uri,
-      queryParameters: source.extraQuery.isEmpty ? null : source.extraQuery,
-      options: Options(
-        headers: {
-          'User-Agent': configuration.defaultUserAgent,
-          ...source.headers,
-        },
-        responseType: ResponseType.bytes,
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
+    final response = await _dio.getUri(uri,
+        options: Options(
+          headers: {
+            'User-Agent': configuration.defaultUserAgent,
+            ...source.headers,
+          },
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 500,
+        ));
 
     return PlaylistFetchEnvelope(
       bytes: Uint8List.fromList(response.data is Uint8List
@@ -98,17 +102,15 @@ class M3uXmlClient {
     M3uXmlPortalConfiguration configuration,
     XmltvUrlSource source,
   ) async {
-    final response = await _dio.getUri(
-      source.epgUri,
-      options: Options(
-        headers: {
-          'User-Agent': configuration.defaultUserAgent,
-          ...source.headers,
-        },
-        responseType: ResponseType.bytes,
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
+    final response = await _dio.getUri(source.epgUri,
+        options: Options(
+          headers: {
+            'User-Agent': configuration.defaultUserAgent,
+            ...source.headers,
+          },
+          responseType: ResponseType.bytes,
+          validateStatus: (status) => status != null && status < 500,
+        ));
 
     return PlaylistFetchEnvelope(
       bytes: Uint8List.fromList(response.data is Uint8List
@@ -144,4 +146,3 @@ class M3uXmlClient {
     }
   }
 }
-

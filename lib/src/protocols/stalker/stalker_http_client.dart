@@ -19,9 +19,9 @@ class StalkerHttpClient {
       : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 10),
-                sendTimeout: const Duration(seconds: 10),
+                connectTimeout: Duration(seconds: 10),
+                receiveTimeout: Duration(seconds: 10),
+                sendTimeout: Duration(seconds: 10),
                 // Stalker portals are often self-signed; we will handle TLS
                 // overrides in a dedicated adapter later if required.
                 responseType: ResponseType.json,
@@ -38,19 +38,23 @@ class StalkerHttpClient {
   }) async {
     // Compose the absolute URL once. Using `resolve` ensures we respect any
     // portal that runs under a sub-path.
-    final url = configuration.baseUri.resolve('portal.php');
+    var uri = configuration.baseUri.resolve('portal.php');
+    if (queryParameters.isNotEmpty) {
+      final merged = <String, String>{...uri.queryParameters};
+      queryParameters.forEach((key, value) {
+        merged[key] = value?.toString() ?? '';
+      });
+      uri = uri.replace(queryParameters: merged);
+    }
 
     // Execute the HTTP call. We request a plain response so we can control
     // JSON decoding manually and surface clearer error messages.
-    final response = await _dio.getUri(
-      url,
-      queryParameters: queryParameters,
-      options: Options(
-        responseType: ResponseType.plain,
-        headers: headers,
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
+    final response = await _dio.getUri(uri,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: headers,
+          validateStatus: (status) => status != null && status < 500,
+        ));
 
     // Capture all `Set-Cookie` values so the session can rebuild the cookie
     // header later without hard-coding attribute stripping logic here.
@@ -90,4 +94,3 @@ class PortalResponseEnvelope {
     required this.cookies,
   });
 }
-

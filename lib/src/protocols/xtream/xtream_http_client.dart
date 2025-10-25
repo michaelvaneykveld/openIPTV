@@ -15,9 +15,9 @@ class XtreamHttpClient {
       : _dio = dio ??
             Dio(
               BaseOptions(
-                connectTimeout: const Duration(seconds: 10),
-                receiveTimeout: const Duration(seconds: 15),
-                sendTimeout: const Duration(seconds: 10),
+                connectTimeout: Duration(seconds: 10),
+                receiveTimeout: Duration(seconds: 15),
+                sendTimeout: Duration(seconds: 10),
                 responseType: ResponseType.json,
               ),
             );
@@ -29,27 +29,29 @@ class XtreamHttpClient {
     XtreamPortalConfiguration configuration, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    final resolved =
-        configuration.baseUri.resolve('player_api.php');
+    var uri = configuration.baseUri.resolve('player_api.php');
 
-    final mergedParams = <String, dynamic>{
+    final mergedParams = <String, String>{
+      ...uri.queryParameters,
       'username': configuration.username,
       'password': configuration.password,
-      ...?queryParameters,
     };
 
-    final response = await _dio.getUri(
-      resolved,
-      queryParameters: mergedParams,
-      options: Options(
-        responseType: ResponseType.json,
-        headers: {
-          'User-Agent': configuration.userAgent,
-          'Accept': 'application/json',
-        },
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
+    queryParameters?.forEach((key, value) {
+      mergedParams[key] = value?.toString() ?? '';
+    });
+
+    uri = uri.replace(queryParameters: mergedParams);
+
+    final response = await _dio.getUri(uri,
+        options: Options(
+          responseType: ResponseType.json,
+          headers: {
+            'User-Agent': configuration.userAgent,
+            'Accept': 'application/json',
+          },
+          validateStatus: (status) => status != null && status < 500,
+        ));
 
     return XtreamResponseEnvelope(
       body: response.data,
@@ -71,4 +73,3 @@ class XtreamResponseEnvelope {
     required this.headers,
   });
 }
-

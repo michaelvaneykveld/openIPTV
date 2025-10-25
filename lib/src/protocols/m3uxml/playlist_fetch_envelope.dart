@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 /// Represents the raw bytes fetched from a playlist or XMLTV source along
@@ -78,9 +79,8 @@ class PlaylistFetchEnvelope {
     }
     var data = bytes;
     if (isGzipEncoded) {
-      data = Uint8List.fromList(const GZipCodec().decode(bytes));
+      data = Uint8List.fromList(GZipCodec().decode(bytes));
     }
     return encoding.decode(data);
   }
 }
-

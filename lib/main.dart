@@ -1,47 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
-import 'dart:io' show Platform;
 
-import 'package:openiptv/src/app_router.dart';
-import 'package:openiptv/src/application/services/notification_service.dart';
+import 'package:openiptv/src/ui/login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.initialize();
-
-  if (Platform.isWindows || Platform.isLinux) {
-    // Initialize FFI
-    sqfliteFfiInit();
-    // Change the default factory
-    databaseFactory = databaseFactoryFfi;
-  }
-  runApp(const ProviderScope(child: MyApp()));
+  runApp(const ProviderScope(child: OpenIptvApp()));
 }
 
-class MyApp extends ConsumerWidget {
-  const MyApp({super.key});
+class OpenIptvApp extends StatelessWidget {
+  const OpenIptvApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-    return MaterialApp.router(
-      routerConfig: router,
+  Widget build(BuildContext context) {
+    return MaterialApp(
       title: 'OpenIPTV',
       theme: ThemeData.dark().copyWith(
-        primaryColor: Colors.deepPurple,
         colorScheme: ColorScheme.fromSwatch(
           primarySwatch: Colors.deepPurple,
           brightness: Brightness.dark,
         ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1F1F1F),
-          elevation: 0,
-        ),
       ),
+      home: const LoginScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
+
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
+import 'package:openiptv/src/providers/login_draft_repository.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
@@ -75,6 +77,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // Lightweight protocol clients used for follow-up probes during testing.
   late final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   late final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
+  ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
   void initState() {
@@ -94,62 +97,68 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _m3uUsernameController.text = flow.m3u.username.value;
     _m3uPasswordController.text = flow.m3u.password.value;
 
-    // Listen for state changes so manual edits triggered by the controller
-    // (for example, clipboard paste) remain in sync with the text fields.
-    ref.listen<LoginFlowState>(loginFlowControllerProvider, (previous, next) {
-      _syncControllerText(
-        previous?.stalker.portalUrl.value,
-        next.stalker.portalUrl.value,
-        _portalUrlController,
-      );
-      _syncControllerText(
-        previous?.stalker.macAddress.value,
-        next.stalker.macAddress.value,
-        _macAddressController,
-      );
-      _syncControllerText(
-        previous?.xtream.serverUrl.value,
-        next.xtream.serverUrl.value,
-        _xtreamUrlController,
-      );
-      _syncControllerText(
-        previous?.xtream.username.value,
-        next.xtream.username.value,
-        _xtreamUsernameController,
-      );
-      _syncControllerText(
-        previous?.xtream.password.value,
-        next.xtream.password.value,
-        _xtreamPasswordController,
-      );
-      final previousM3uInput = previous == null
-          ? null
-          : previous.m3u.inputMode == M3uInputMode.url
-          ? previous.m3u.playlistUrl.value
-          : previous.m3u.playlistFilePath.value;
-      final currentM3uInput = next.m3u.inputMode == M3uInputMode.url
-          ? next.m3u.playlistUrl.value
-          : next.m3u.playlistFilePath.value;
-      _syncControllerText(
-        previousM3uInput,
-        currentM3uInput,
-        _m3uInputController,
-      );
-      _syncControllerText(
-        previous?.m3u.username.value,
-        next.m3u.username.value,
-        _m3uUsernameController,
-      );
-      _syncControllerText(
-        previous?.m3u.password.value,
-        next.m3u.password.value,
-        _m3uPasswordController,
-      );
-    });
+    _flowSubscription = ref.listenManual<LoginFlowState>(
+      loginFlowControllerProvider,
+      (previous, next) {
+        if (!mounted) {
+          return;
+        }
+        _syncControllerText(
+          previous?.stalker.portalUrl.value,
+          next.stalker.portalUrl.value,
+          _portalUrlController,
+        );
+        _syncControllerText(
+          previous?.stalker.macAddress.value,
+          next.stalker.macAddress.value,
+          _macAddressController,
+        );
+        _syncControllerText(
+          previous?.xtream.serverUrl.value,
+          next.xtream.serverUrl.value,
+          _xtreamUrlController,
+        );
+        _syncControllerText(
+          previous?.xtream.username.value,
+          next.xtream.username.value,
+          _xtreamUsernameController,
+        );
+        _syncControllerText(
+          previous?.xtream.password.value,
+          next.xtream.password.value,
+          _xtreamPasswordController,
+        );
+        final previousM3uInput = previous == null
+            ? null
+            : previous.m3u.inputMode == M3uInputMode.url
+            ? previous.m3u.playlistUrl.value
+            : previous.m3u.playlistFilePath.value;
+        final currentM3uInput = next.m3u.inputMode == M3uInputMode.url
+            ? next.m3u.playlistUrl.value
+            : next.m3u.playlistFilePath.value;
+        _syncControllerText(
+          previousM3uInput,
+          currentM3uInput,
+          _m3uInputController,
+        );
+        _syncControllerText(
+          previous?.m3u.username.value,
+          next.m3u.username.value,
+          _m3uUsernameController,
+        );
+        _syncControllerText(
+          previous?.m3u.password.value,
+          next.m3u.password.value,
+          _m3uPasswordController,
+        );
+      },
+      fireImmediately: true,
+    );
   }
 
   @override
   void dispose() {
+    _flowSubscription?.close();
     // Dispose controllers to prevent memory leaks.
     _portalUrlController.dispose();
     _macAddressController.dispose();
@@ -364,10 +373,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onChanged: controller.updateStalkerMacAddress,
           ),
           const SizedBox(height: 24),
-          _buildActionButton(
-            label: 'Test & Connect',
+          _buildFormActions(
             isBusy: isBusy,
-            onPressed: isBusy ? null : () => _handleStalkerLogin(),
+            primaryLabel: 'Test & Connect',
+            onPrimary: _handleStalkerLogin,
           ),
         ],
       ),
@@ -420,10 +429,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onChanged: controller.updateXtreamPassword,
           ),
           const SizedBox(height: 24),
-          _buildActionButton(
-            label: 'Test & Connect',
+          _buildFormActions(
             isBusy: isBusy,
-            onPressed: isBusy ? null : () => _handleXtreamLogin(),
+            primaryLabel: 'Test & Connect',
+            onPrimary: _handleXtreamLogin,
           ),
         ],
       ),
@@ -478,10 +487,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onChanged: controller.updateM3uPassword,
           ),
           const SizedBox(height: 24),
-          _buildActionButton(
-            label: 'Test & Connect',
+          _buildFormActions(
             isBusy: isBusy,
-            onPressed: isBusy ? null : () => _handleM3uLogin(),
+            primaryLabel: 'Test & Connect',
+            onPrimary: _handleM3uLogin,
           ),
         ],
       ),
@@ -687,6 +696,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       case LoginProviderType.stalker:
         return 'Stalker/Ministra';
     }
+  }
+
+  /// Shared action row combining the save-for-later affordance with the
+  /// primary test button.
+  Widget _buildFormActions({
+    required bool isBusy,
+    required String primaryLabel,
+    required Future<void> Function() onPrimary,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: isBusy ? null : () => unawaited(_handleSaveDraft()),
+            child: const Text('Save for later'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _buildActionButton(
+            label: primaryLabel,
+            isBusy: isBusy,
+            onPressed: isBusy ? null : () => unawaited(onPrimary()),
+          ),
+        ),
+      ],
+    );
   }
 
   /// Reusable primary button with built-in busy indicator.
@@ -1166,6 +1202,219 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     messenger.showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
     );
+  }
+
+  Future<void> _handleSaveDraft() async {
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+    flowController.setBannerMessage(null);
+    final repository = await ref.read(loginDraftRepositoryProvider.future);
+    final current = ref.read(loginFlowControllerProvider);
+    final now = DateTime.now().toUtc();
+
+    final draft = _buildDraftFromState(current, now);
+    if (draft == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add provider details before saving a draft.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await repository.saveDraft(draft);
+      if (!mounted) return;
+      _showSuccessSnackBar('Draft saved for later.');
+    } catch (error, stackTrace) {
+      debugPrint('Draft save error: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save draft: $error')));
+    }
+  }
+
+  LoginDraft? _buildDraftFromState(LoginFlowState state, DateTime timestamp) {
+    final data = <String, dynamic>{};
+    final secrets = <String, String>{};
+    var hasContent = false;
+
+    switch (state.providerType) {
+      case LoginProviderType.stalker:
+        final portal = state.stalker.portalUrl.value.trim();
+        final mac = state.stalker.macAddress.value.trim();
+        data.addAll({
+          'displayName': _deriveDisplayName(
+            providerType: LoginProviderType.stalker,
+            portalUrl: portal,
+          ),
+          'portalUrl': portal,
+          'macAddress': mac,
+          'deviceProfile': state.stalker.deviceProfile,
+          'allowSelfSignedTls': state.stalker.allowSelfSignedTls,
+        });
+        hasContent = portal.isNotEmpty || mac.isNotEmpty;
+        break;
+      case LoginProviderType.xtream:
+        final baseUrl = state.xtream.serverUrl.value.trim();
+        final username = state.xtream.username.value.trim();
+        final password = state.xtream.password.value.trim();
+        data.addAll({
+          'displayName': _deriveDisplayName(
+            providerType: LoginProviderType.xtream,
+            baseUrl: baseUrl,
+          ),
+          'baseUrl': baseUrl,
+          'outputFormat': state.xtream.outputFormat,
+          'allowSelfSignedTls': state.xtream.allowSelfSignedTls,
+        });
+        if (username.isNotEmpty) {
+          secrets['username'] = username;
+        }
+        if (password.isNotEmpty) {
+          secrets['password'] = password;
+        }
+        hasContent = baseUrl.isNotEmpty || secrets.isNotEmpty;
+        break;
+      case LoginProviderType.m3u:
+        final playlistInput = state.m3u.inputMode == M3uInputMode.url
+            ? state.m3u.playlistUrl.value
+            : state.m3u.playlistFilePath.value;
+        final trimmedPlaylist = playlistInput.trim();
+        final epgUrl = state.m3u.epgUrl.value.trim();
+        final username = state.m3u.username.value.trim();
+        final password = state.m3u.password.value.trim();
+        data.addAll({
+          'displayName': _deriveDisplayName(
+            providerType: LoginProviderType.m3u,
+            playlistInput: trimmedPlaylist,
+            fileName: state.m3u.fileName,
+          ),
+          'inputMode': state.m3u.inputMode.name,
+          'autoUpdate': state.m3u.autoUpdate,
+          'followRedirects': state.m3u.followRedirects,
+          'epgUrl': epgUrl,
+          'fileName': state.m3u.fileName,
+          'fileSizeBytes': state.m3u.fileSizeBytes,
+        });
+        if (trimmedPlaylist.isNotEmpty) {
+          secrets['playlistInput'] = trimmedPlaylist;
+        }
+        if (username.isNotEmpty) {
+          secrets['username'] = username;
+        }
+        if (password.isNotEmpty) {
+          secrets['password'] = password;
+        }
+        hasContent =
+            trimmedPlaylist.isNotEmpty ||
+            epgUrl.isNotEmpty ||
+            secrets.isNotEmpty;
+        break;
+    }
+
+    if (!hasContent) {
+      return null;
+    }
+
+    _pruneEmptyData(data);
+    _pruneEmptySecrets(secrets);
+    data.putIfAbsent(
+      'displayName',
+      () => _fallbackDisplayName(state.providerType),
+    );
+
+    return LoginDraft(
+      id: LoginDraftRepository.allocateId(),
+      providerType: state.providerType,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      data: data,
+      secrets: secrets,
+    );
+  }
+
+  String _deriveDisplayName({
+    required LoginProviderType providerType,
+    String? portalUrl,
+    String? baseUrl,
+    String? playlistInput,
+    String? fileName,
+  }) {
+    switch (providerType) {
+      case LoginProviderType.stalker:
+        final value = portalUrl?.trim();
+        if (value != null && value.isNotEmpty) {
+          final uri = Uri.tryParse(value);
+          if (uri != null && uri.host.isNotEmpty) {
+            return uri.host;
+          }
+          return value;
+        }
+        break;
+      case LoginProviderType.xtream:
+        final value = baseUrl?.trim();
+        if (value != null && value.isNotEmpty) {
+          final uri = Uri.tryParse(value);
+          if (uri != null && uri.host.isNotEmpty) {
+            return uri.host;
+          }
+          return value;
+        }
+        break;
+      case LoginProviderType.m3u:
+        final trimmed = playlistInput?.trim();
+        if (trimmed != null && trimmed.isNotEmpty) {
+          final uri = Uri.tryParse(trimmed);
+          if (uri != null && uri.host.isNotEmpty) {
+            return uri.host;
+          }
+          return trimmed;
+        }
+        if (fileName != null && fileName.isNotEmpty) {
+          return fileName;
+        }
+        break;
+    }
+    return _fallbackDisplayName(providerType);
+  }
+
+  String _fallbackDisplayName(LoginProviderType providerType) {
+    switch (providerType) {
+      case LoginProviderType.stalker:
+        return 'Stalker draft';
+      case LoginProviderType.xtream:
+        return 'Xtream draft';
+      case LoginProviderType.m3u:
+        return 'M3U draft';
+    }
+  }
+
+  void _pruneEmptyData(Map<String, dynamic> map) {
+    final removalKeys = <String>[];
+    map.forEach((key, value) {
+      if (value == null) {
+        removalKeys.add(key);
+      } else if (value is String && value.trim().isEmpty) {
+        removalKeys.add(key);
+      }
+    });
+    for (final key in removalKeys) {
+      map.remove(key);
+    }
+  }
+
+  void _pruneEmptySecrets(Map<String, String> map) {
+    final removalKeys = <String>[];
+    map.forEach((key, value) {
+      if (value.trim().isEmpty) {
+        removalKeys.add(key);
+      }
+    });
+    for (final key in removalKeys) {
+      map.remove(key);
+    }
   }
 
   int? _estimateM3uChannelCount(String playlist) {

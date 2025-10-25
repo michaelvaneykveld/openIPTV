@@ -30,8 +30,12 @@
 - Introduced a success summary card backed by `LoginTestSummary`, surfacing channel counts and EPG coverage collected during protocol probes.
 - Enhanced Stalker, Xtream, and M3U flows to fetch lightweight metadata (playlist parsing, channel list probes, XMLTV windows) so the UI reports meaningful post-connection details.
 
+## Session Log - Save For Later Drafts
+- Implemented a secure draft repository combining `SharedPreferences` metadata with `FlutterSecureStorage` secrets (`lib/src/providers/login_draft_repository.dart`) so provider configs can be parked without immediate testing.
+- Added a shared "Save for later" action across login forms that serialises form state, filters out empty values, and persists protocol-specific secrets safely (`lib/src/ui/login_screen.dart`).
+- Surface snack-bar feedback on successful saves and validation guidance when drafts lack sufficient information, preparing the ground for a dedicated drafts picker.
+
 ## TODO - Login Experience Implementation
-- Provide a "Save for later" draft flow that stores configurations without immediate testing. (todo)
 - Surface error feedback using top banners for systemic failures and field-level messages with fix-oriented microcopy. (todo)
 - Integrate authenticator providers for Stalker/Xtream/M3U tests, honoring TLS overrides and custom headers. (todo)
 - Plan persistence hooks for validated profiles and drafts using a clean storage abstraction. (todo)

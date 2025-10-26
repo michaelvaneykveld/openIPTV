@@ -17,6 +17,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_discovery.dart';
+import 'package:openiptv/src/utils/input_classifier.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
@@ -24,6 +25,8 @@ import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
+
+enum _ClassificationSource { paste, validation }
 
 /// A [TextInputFormatter] that coerces user input into an uppercase MAC
 /// address with colon separators (e.g. 0:1A:79:12:34:56).
@@ -62,6 +65,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final InputClassifier _inputClassifier = const InputClassifier();
+
   /// Form keys are retained for future validation extensions even though
   /// validation currently lives inside the Riverpod controller.
   final GlobalKey<FormState> _stalkerFormKey = GlobalKey<FormState>();
@@ -1047,6 +1052,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     flowController.updateStalkerPortalUrl(normalizedPortalText);
     current = ref.read(loginFlowControllerProvider);
 
+    if (_applyInputClassification(
+      normalizedPortalText,
+      source: _ClassificationSource.validation,
+    )) {
+      return;
+    }
+
     final headerResult = parseHeaderInput(current.stalker.customHeaders.value);
     if (headerResult.error != null) {
       flowController.setStalkerFieldErrors(
@@ -1637,15 +1649,148 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  bool _applyInputClassification(
+    String rawInput, {
+    _ClassificationSource source = _ClassificationSource.validation,
+    ScaffoldMessengerState? messenger,
+  }) {
+    final classification = _inputClassifier.classify(rawInput);
+    final provider = classification.provider;
+    if (provider == null || provider == ProviderKind.stalker) {
+      return false;
+    }
+
+    final targetType = _loginProviderFor(provider);
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+    var flowState = ref.read(loginFlowControllerProvider);
+
+    final providerChanged = flowState.providerType != targetType;
+    if (providerChanged) {
+      flowController.selectProvider(targetType);
+      flowState = ref.read(loginFlowControllerProvider);
+    }
+
+    bool updated = false;
+
+    switch (targetType) {
+      case LoginProviderType.xtream:
+        final details = classification.xtream;
+        if (details != null) {
+          final base = details.baseUri.toString();
+          _syncControllerText(
+            flowState.xtream.serverUrl.value,
+            base,
+            _xtreamUrlController,
+          );
+          flowController.updateXtreamServerUrl(base);
+
+          if (details.username != null && details.username!.isNotEmpty) {
+            _syncControllerText(
+              flowState.xtream.username.value,
+              details.username!,
+              _xtreamUsernameController,
+            );
+            flowController.updateXtreamUsername(details.username!);
+          }
+
+          if (details.password != null && details.password!.isNotEmpty) {
+            _syncControllerText(
+              flowState.xtream.password.value,
+              details.password!,
+              _xtreamPasswordController,
+            );
+            flowController.updateXtreamPassword(details.password!);
+          }
+          updated = true;
+        }
+        break;
+      case LoginProviderType.m3u:
+        final details = classification.m3u;
+        if (details != null) {
+          final mode = details.isLocalFile
+              ? M3uInputMode.file
+              : M3uInputMode.url;
+          if (flowState.m3u.inputMode != mode) {
+            flowController.selectM3uInputMode(mode);
+            flowState = ref.read(loginFlowControllerProvider);
+          }
+
+          final resolved = details.resolvedInput;
+          if (resolved.isNotEmpty) {
+            final previousValue = flowState.m3u.inputMode == M3uInputMode.url
+                ? flowState.m3u.playlistUrl.value
+                : flowState.m3u.playlistFilePath.value;
+            _syncControllerText(previousValue, resolved, _m3uInputController);
+            if (mode == M3uInputMode.url) {
+              flowController.updateM3uPlaylistUrl(resolved);
+            } else {
+              flowController.updateM3uPlaylistFilePath(resolved);
+            }
+            updated = true;
+          }
+        }
+        break;
+      case LoginProviderType.stalker:
+        return false;
+    }
+
+    if (!providerChanged && !updated) {
+      return false;
+    }
+
+    if (providerChanged) {
+      final message = switch (targetType) {
+        LoginProviderType.xtream =>
+          'Detected Xtream link; switched to the Xtream form.',
+        LoginProviderType.m3u =>
+          'Detected M3U playlist; switched to the M3U form.',
+        LoginProviderType.stalker => '',
+      };
+
+      flowController.setBannerMessage(
+        '$message You can choose a different provider if this is incorrect.',
+      );
+
+      if (source == _ClassificationSource.paste && messenger != null) {
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } else if (updated) {
+      final providerLabel = targetType == LoginProviderType.xtream
+          ? 'Xtream'
+          : 'M3U';
+      flowController.setBannerMessage(
+        'Detected $providerLabel input and populated the form automatically.',
+      );
+      if (source == _ClassificationSource.paste && messenger != null) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Pasted $providerLabel details.')),
+        );
+      }
+    }
+
+    return true;
+  }
+
+  LoginProviderType _loginProviderFor(ProviderKind kind) {
+    switch (kind) {
+      case ProviderKind.stalker:
+        return LoginProviderType.stalker;
+      case ProviderKind.xtream:
+        return LoginProviderType.xtream;
+      case ProviderKind.m3u:
+        return LoginProviderType.m3u;
+    }
+  }
+
   /// Attempts to paste clipboard text into the most relevant field.
   Future<void> _handlePaste(
     BuildContext context, {
     _PasteTarget? target,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim();
-    if (!mounted) return;
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
     if (text == null || text.isEmpty) {
       messenger.showSnackBar(
         const SnackBar(content: Text('Clipboard is empty.')),
@@ -1655,6 +1800,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final controller = ref.read(loginFlowControllerProvider.notifier);
     final flowState = ref.read(loginFlowControllerProvider);
+
+    if (_applyInputClassification(
+      text,
+      source: _ClassificationSource.paste,
+      messenger: messenger,
+    )) {
+      return;
+    }
 
     final resolvedTarget =
         target ??

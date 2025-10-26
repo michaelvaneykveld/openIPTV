@@ -62,15 +62,12 @@
 - Refactored the Stalker adapter to implement the shared abstraction, emit sanitised probe telemetry, and respect unified discovery options (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
 - Updated the login flow to consume the new discovery options, surface friendly failures, and stream debug telemetry only in development builds (`lib/src/ui/login_screen.dart`).
 
+## Session Log - Input Classifier
+- Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
+- Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).
+- Wired the login flow to auto-switch providers on confident matches, prefill Xtream/M3U forms, and guard Stalker attempts with classifier feedback while preserving manual override controls (`lib/src/ui/login_screen.dart`).
+
 ## TODO - Login Experience Implementation
-- Unify portal discovery services across providers behind a shared `PortalDiscovery` abstraction. (done)
-  - Extract the existing Stalker normaliser, candidate generator, and probe loop into reusable implementations conforming to the shared interface. (done)
-  - Define `PortalDiscovery`, `DiscoveryResult`, and `DiscoveryOptions` (including UA/MAC/TLS knobs and logging redaction) for all adapters. (done)
-  - Align discovery logging/telemetry with the global redaction policy. (done)
-- Introduce an input classifier that routes pasted/typed values to the correct provider flow. (todo)
-  - Detect Xtream signatures (`player_api.php`, `get.php`, embedded credentials) and prefill username/password fields safely. (todo)
-  - Detect M3U playlists via extension or lightweight `#EXTM3U` sniff, reclassifying to Xtream when appropriate. (todo)
-  - Allow manual override in the UI when the classifier guesses incorrectly. (todo)
 - Expand shared normalization utilities for use by every protocol adapter. (todo)
   - Add helpers for canonicalising schemes, defaulting ports, stripping known file endpoints, and ensuring directory-style trailing slashes. (todo)
 - Implement Xtream discovery following the shared pattern. (todo)

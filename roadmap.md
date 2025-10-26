@@ -1,25 +1,25 @@
-﻿# OpenIPTV Rewrite Roadmap
+# OpenIPTV Rewrite Roadmap
 
-## Session Log — Stalker Authentication Rewrite
+## Session Log � Stalker Authentication Rewrite
 - Established a dedicated protocol layer for Stalker/Ministra portals, introducing immutable configuration, HTTP client, handshake models, session state, and authenticator orchestration files under `lib/src/protocols/stalker/` to support a modular rewrite of MAC/token login flows.
 
-## Session Log — Xtream Authentication Rewrite
+## Session Log � Xtream Authentication Rewrite
 - Mirrored the modular protocol layer for Xtream Codes by adding configuration, HTTP client, login payload models, session utilities, and an authenticator under `lib/src/protocols/xtream/`, paving the way for reusable login/profile flows aligned with the rewrite guidelines.
 
-## Session Log — M3U/XMLTV Ingestion Rewrite
+## Session Log � M3U/XMLTV Ingestion Rewrite
 - Introduced a dedicated M3U/XMLTV protocol module (`lib/src/protocols/m3uxml/`) covering source descriptors for URL/file inputs, portal configuration, unified fetch client with compression awareness, session container, and an authenticator that validates playlists and optional XMLTV feeds for both remote and local imports.
 
-## Session Log — Protocol Riverpod Integration
+## Session Log � Protocol Riverpod Integration
 - Added Riverpod providers in `lib/src/application/providers/protocol_auth_providers.dart` that expose the new Stalker, Xtream, and M3U/XMLTV authenticators, along with helper families to bridge existing credential models into the modular session APIs for upcoming login refactors.
 - Wired the login screen to consume those providers so each protocol handshake now flows through the modular adapters while keeping active portal state (`portal_session_providers.dart`) in sync for future UI refactors.
 
-## Session Log — Minimal Shell Reset
+## Session Log � Minimal Shell Reset
 - Removed legacy repositories, database helpers, and UI stacks so the project now boots straight into a pared-down login experience powered solely by the modular protocol adapters (`lib/src/providers/protocol_auth_providers.dart`, `lib/src/ui/login_screen.dart`).
 
-## Session Log — Login Flow Controller
+## Session Log � Login Flow Controller
 - Introduced a Riverpod-driven controller/state layer (`lib/src/providers/login_flow_controller.dart`) and refactored `lib/src/ui/login_screen.dart` to use it for provider selection, field validation, and multi-step test progress management in line with the new login blueprint.
 
-## Session Log — Login Layout Overhaul
+## Session Log � Login Layout Overhaul
 - Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
 
 ## Session Log - Form Field Enhancements
@@ -54,10 +54,28 @@
 - Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `logindesign.md`.
 
 ## TODO - Login Experience Implementation
+- Harden the Stalker portal discovery by normalizing user input, probing canonical endpoints, and caching the resolved base URL so subsequent handshakes target the correct backend. (todo)
+  - Build a normalization routine that enforces scheme/port defaults, trims superfluous paths, and prepares a canonical Uri. (done)
+  - Generate and prioritise candidate portal paths (`/stalker_portal/c/`, `/c/`, etc.) plus backend endpoints (`portal.php`, `server/load.php`) for discovery. (todo)
+  - Implement lightweight probes with STB-style headers (UA, MAC cookie), short timeouts, redirect handling, and TLS fallback to confirm a candidate before locking it in. (todo)
+  - Persist the resolved base (scheme, host, port, path) alongside any advanced settings so future sessions skip discovery and re-run it only on handshake failures. (todo)
 - Draft the storage architecture that keeps provider metadata in Drift while isolating secrets in `flutter_secure_storage`, referencing the separation guidelines in `securestorage.md`. (todo)
+  - Inventory existing profile/draft writes to understand required read/write surface. (todo)
+  - Sketch the data flow diagram showing Drift tables and secure vault interactions and identify DTO/domain models that straddle both. (todo)
+  - Produce an interface proposal (`CredentialsVaultRepository` and friends) with method signatures for save/load/delete and note async/error semantics. (todo)
+  - Align with the logging/telemetry plan to ensure secrets never appear in logs, crash reports, or exports. (todo)
 - Specify secure-store options and platform policies (Keychain accessibility, Android Keystore, backup exclusions, web constraints) so the abstraction can be configured per target. (todo)
+  - Document iOS/macOS Keychain settings (WhenUnlockedThisDeviceOnly + optional biometrics) and translate them into `IOSOptions`. (todo)
+  - Document Android Keystore + EncryptedSharedPrefs expectations, including `allowBackup=false` and auto-backup exclusions, referencing `securestorage.md`. (todo)
+  - Capture Windows/Linux configuration requirements (DPAPI/Secret Service) and how the app will detect unsupported scenarios. (todo)
+  - Decide the web stance (disallow by default vs. opt-in with disclaimer) and specify any feature flags/environment toggles. (todo)
 - Define the vault data model: key naming, JSON payload shape per provider, token rotation strategy, and how public rows reference vault entries without embedding secrets. (todo)
+  - Enumerate secret bundles per provider (Xtream passwords, Stalker tokens, M3U credentials) and their lifecycle hooks (creation, refresh, revoke). (todo)
+  - Choose key naming conventions and metadata (e.g., `secret:provider:<uuid>`) and capture them in a spec doc. (todo)
+  - Describe how vault entries link back to Drift rows (foreign keys vs. synthetic ids) and note migration steps for existing drafts. (todo)
+  - Plan rotation/cleanup flows (e.g., when a login succeeds, when the user wipes data) and the telemetry we need to confirm they run. (todo)
 - Design the repository API surface that login flows and the draft loader will call (save, load, revoke, clear), including failure semantics and biometric gating hooks. (todo)
-- Outline migration and test requirements: fallback when secure storage is unavailable, DFU/backup scenarios, and unit/UI tests covering opt-in “remember me” behaviour. (todo)
+- Outline migration and test requirements: fallback when secure storage is unavailable, DFU/backup scenarios, and unit/UI tests covering opt-in "remember me" behaviour. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
 - Add QA coverage: unit tests for validators and error mapping, widget tests for form switching/validation, integration tests with mocked protocol responses, and manual device checks. (todo)
+

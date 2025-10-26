@@ -14,6 +14,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
@@ -1016,6 +1017,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     final current = ref.read(loginFlowControllerProvider);
+    StalkerPortalNormalizationResult? normalization;
+    try {
+      normalization = normalizeStalkerPortalInput(
+        current.stalker.portalUrl.value,
+      );
+    } on FormatException catch (error) {
+      final message = error.message.isNotEmpty
+          ? error.message
+          : 'Enter a valid portal URL.';
+      flowController.setStalkerFieldErrors(portalMessage: message);
+      flowController.setBannerMessage(message);
+      return;
+    }
+    final normalizedPortalText = normalization.canonicalUri.toString();
+    if (_portalUrlController.text != normalizedPortalText) {
+      _portalUrlController
+        ..text = normalizedPortalText
+        ..selection = TextSelection.collapsed(
+          offset: normalizedPortalText.length,
+        );
+      flowController.updateStalkerPortalUrl(normalizedPortalText);
+    }
+
     final headerResult = parseHeaderInput(current.stalker.customHeaders.value);
     if (headerResult.error != null) {
       flowController.setStalkerFieldErrors(
@@ -1030,18 +1054,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      var portalUrl = current.stalker.portalUrl.value.trim();
-      if (!portalUrl.startsWith('http://') &&
-          !portalUrl.startsWith('https://')) {
-        portalUrl = 'http://$portalUrl';
-      }
-      portalUrl = portalUrl
-          .replaceAll('/c/', '/')
-          .replaceAll(RegExp(r'/+$'), '');
-
       final userAgentOverride = current.stalker.userAgent.value.trim();
       final configuration = StalkerPortalConfiguration(
-        baseUri: Uri.parse(portalUrl),
+        baseUri: normalization.canonicalUri,
         macAddress: current.stalker.macAddress.value.trim(),
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
         allowSelfSignedTls: current.stalker.allowSelfSignedTls,

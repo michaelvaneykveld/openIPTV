@@ -56,7 +56,7 @@
 ## TODO - Login Experience Implementation
 - Harden the Stalker portal discovery by normalizing user input, probing canonical endpoints, and caching the resolved base URL so subsequent handshakes target the correct backend. (todo)
   - Build a normalization routine that enforces scheme/port defaults, trims superfluous paths, and prepares a canonical Uri. (done)
-  - Generate and prioritise candidate portal paths (`/stalker_portal/c/`, `/c/`, etc.) plus backend endpoints (`portal.php`, `server/load.php`) for discovery. (todo)
+  - Generate and prioritise candidate portal paths (`/stalker_portal/c/`, `/c/`, etc.) plus backend endpoints (`portal.php`, `server/load.php`) for discovery. (done)
   - Implement lightweight probes with STB-style headers (UA, MAC cookie), short timeouts, redirect handling, and TLS fallback to confirm a candidate before locking it in. (todo)
   - Persist the resolved base (scheme, host, port, path) alongside any advanced settings so future sessions skip discovery and re-run it only on handshake failures. (todo)
 - Draft the storage architecture that keeps provider metadata in Drift while isolating secrets in `flutter_secure_storage`, referencing the separation guidelines in `securestorage.md`. (todo)

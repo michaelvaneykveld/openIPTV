@@ -38,7 +38,7 @@ StalkerPortalNormalizationResult normalizeStalkerPortalInput(String rawInput) {
   }
 
   final hasScheme = _looksLikeScheme(trimmed);
-  final provisional = canonicalizeScheme(trimmed);
+  final provisional = canonicalizeScheme(trimmed, defaultScheme: 'http');
 
   late Uri parsed;
   try {

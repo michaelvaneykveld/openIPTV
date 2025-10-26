@@ -62,6 +62,10 @@
 - Refactored the Stalker adapter to implement the shared abstraction, emit sanitised probe telemetry, and respect unified discovery options (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
 - Updated the login flow to consume the new discovery options, surface friendly failures, and stream debug telemetry only in development builds (`lib/src/ui/login_screen.dart`).
 
+## Session Log - Stalker Scheme Fallback
+- Hardened discovery when links are auto-upgraded to HTTPS by testing both the supplied scheme and an HTTP fallback before surfacing failures (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
+- Normalised probe telemetry so resolved URIs remain redacted while reflecting the scheme that ultimately matched (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
+
 ## Session Log - Input Classifier
 - Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).

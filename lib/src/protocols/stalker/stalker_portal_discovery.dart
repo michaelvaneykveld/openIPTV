@@ -33,7 +33,7 @@ class StalkerPortalDiscovery implements PortalDiscovery {
     final dio = _createClient(options);
     _applyTlsOverrides(dio, options.allowSelfSignedTls);
 
-    final candidates = generateStalkerPortalCandidates(normalized);
+    final candidates = _buildCandidateList(normalized);
 
     for (final candidate in candidates) {
       final matchedDirectory = await _probe(
@@ -186,6 +186,35 @@ class StalkerPortalDiscovery implements PortalDiscovery {
     );
   }
 
+  List<StalkerPortalCandidate> _buildCandidateList(
+    StalkerPortalNormalizationResult normalized,
+  ) {
+    final candidates = <StalkerPortalCandidate>[];
+    final visitedBases = <String>{};
+
+    // Always probe the supplied scheme then retry with the opposite scheme so
+    // clipboard links that default to HTTPS (or HTTP) still recover.
+    void addForBase(Uri baseUri) {
+      final key = baseUri.toString();
+      if (!visitedBases.add(key)) return;
+      final normalised = StalkerPortalNormalizationResult(
+        canonicalUri: baseUri,
+        hadExplicitScheme: true,
+        hadExplicitPort: baseUri.hasPort,
+      );
+      candidates.addAll(generateStalkerPortalCandidates(normalised));
+    }
+
+    addForBase(normalized.canonicalUri);
+
+    final flipped = _flipScheme(normalized.canonicalUri);
+    if (flipped != null) {
+      addForBase(flipped);
+    }
+
+    return candidates;
+  }
+
   void _applyTlsOverrides(Dio dio, bool allowSelfSigned) {
     final adapter = dio.httpClientAdapter;
     if (adapter is IOHttpClientAdapter) {
@@ -203,6 +232,15 @@ class StalkerPortalDiscovery implements PortalDiscovery {
 
   Uri _sanitizeUri(Uri uri) {
     return uri.replace(userInfo: '', query: null, fragment: null);
+  }
+
+  Uri? _flipScheme(Uri uri) {
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
+      return null;
+    }
+    final flipped = scheme == 'https' ? 'http' : 'https';
+    return uri.replace(scheme: flipped, port: null);
   }
 
   bool _looksLikePortal(Response<dynamic> response) {

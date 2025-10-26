@@ -72,6 +72,8 @@ class FieldState {
   }
 }
 
+const _unset = Object();
+
 /// Captures all user input associated with the M3U pathway.
 @immutable
 class M3uFormState {
@@ -196,6 +198,7 @@ class XtreamFormState {
 class StalkerFormState {
   final FieldState portalUrl;
   final FieldState macAddress;
+  final String? lockedBaseUri;
   final FieldState userAgent;
   final FieldState customHeaders;
   final String deviceProfile;
@@ -205,6 +208,7 @@ class StalkerFormState {
   const StalkerFormState({
     this.portalUrl = const FieldState(),
     this.macAddress = const FieldState(value: '00:1A:79:'),
+    this.lockedBaseUri,
     this.userAgent = const FieldState(),
     this.customHeaders = const FieldState(),
     this.deviceProfile = 'MAG250',
@@ -215,6 +219,7 @@ class StalkerFormState {
   StalkerFormState copyWith({
     FieldState? portalUrl,
     FieldState? macAddress,
+    Object? lockedBaseUri = _unset,
     FieldState? userAgent,
     FieldState? customHeaders,
     String? deviceProfile,
@@ -224,6 +229,9 @@ class StalkerFormState {
     return StalkerFormState(
       portalUrl: portalUrl ?? this.portalUrl,
       macAddress: macAddress ?? this.macAddress,
+      lockedBaseUri: lockedBaseUri == _unset
+          ? this.lockedBaseUri
+          : lockedBaseUri as String?,
       userAgent: userAgent ?? this.userAgent,
       customHeaders: customHeaders ?? this.customHeaders,
       deviceProfile: deviceProfile ?? this.deviceProfile,
@@ -574,12 +582,17 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   }
 
   void updateStalkerPortalUrl(String value) {
+    final trimmed = value.trim();
+    final shouldClearLock =
+        state.stalker.lockedBaseUri != null &&
+        state.stalker.lockedBaseUri != trimmed;
     state = state.copyWith(
       stalker: state.stalker.copyWith(
         portalUrl: state.stalker.portalUrl.copyWith(
-          value: value,
+          value: trimmed,
           clearError: true,
         ),
+        lockedBaseUri: shouldClearLock ? null : state.stalker.lockedBaseUri,
       ),
     );
   }
@@ -617,6 +630,28 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   void updateStalkerDeviceProfile(String value) {
     state = state.copyWith(
       stalker: state.stalker.copyWith(deviceProfile: value),
+    );
+  }
+
+  void setStalkerLockedBase(String baseUri) {
+    final trimmed = baseUri.trim();
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(
+        portalUrl: state.stalker.portalUrl.copyWith(
+          value: trimmed,
+          clearError: true,
+        ),
+        lockedBaseUri: trimmed,
+      ),
+    );
+  }
+
+  void clearStalkerLockedBase() {
+    if (state.stalker.lockedBaseUri == null) {
+      return;
+    }
+    state = state.copyWith(
+      stalker: state.stalker.copyWith(lockedBaseUri: null),
     );
   }
 

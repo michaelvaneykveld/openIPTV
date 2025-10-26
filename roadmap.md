@@ -40,6 +40,10 @@
 - Added protocol-specific field microcopy so authentication failures highlight the affected inputs with actionable fixes (e.g., Xtream credentials, Stalker portal URL, M3U playlist fields).
 - Centralised controller helpers for clearing/assigning field errors, enabling consistent recovery UX across retries (`lib/src/providers/login_flow_controller.dart`).
 
+## Session Log - Stalker Portal Discovery
+- Normalised portal input, generated canonical candidate endpoints, and implemented a lightweight probe loop that follows redirects and honours advanced headers before locking the working base (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/stalker/stalker_portal_discovery.dart`).
+- Cached the resolved base URI in the login state so future sessions skip discovery unless the user changes the address or the handshake fails (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
+
 ## Session Log - Advanced Connection Options
 - Wired the Stalker, Xtream, and M3U login flows to honour custom headers, user-agent overrides, and TLS trust settings end-to-end so authenticator probes and follow-up metadata fetches respect advanced input.
 - Refreshed the login UI with provider-specific advanced panels (headers, user-agent, redirect and TLS toggles) and persisted those values in drafts for future reuse (`lib/src/ui/login_screen.dart`, `lib/src/providers/login_flow_controller.dart`).
@@ -78,4 +82,5 @@
 - Outline migration and test requirements: fallback when secure storage is unavailable, DFU/backup scenarios, and unit/UI tests covering opt-in "remember me" behaviour. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
 - Add QA coverage: unit tests for validators and error mapping, widget tests for form switching/validation, integration tests with mocked protocol responses, and manual device checks. (todo)
+
 

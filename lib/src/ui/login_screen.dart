@@ -14,6 +14,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
@@ -93,6 +94,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // Lightweight protocol clients used for follow-up probes during testing.
   late final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   late final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
+  final StalkerPortalDiscovery _stalkerDiscovery =
+      const StalkerPortalDiscovery();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
@@ -1016,8 +1019,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final current = ref.read(loginFlowControllerProvider);
-    StalkerPortalNormalizationResult? normalization;
+    var current = ref.read(loginFlowControllerProvider);
+    late StalkerPortalNormalizationResult normalization;
     try {
       normalization = normalizeStalkerPortalInput(
         current.stalker.portalUrl.value,
@@ -1030,6 +1033,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setBannerMessage(message);
       return;
     }
+
     final normalizedPortalText = normalization.canonicalUri.toString();
     if (_portalUrlController.text != normalizedPortalText) {
       _portalUrlController
@@ -1037,8 +1041,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ..selection = TextSelection.collapsed(
           offset: normalizedPortalText.length,
         );
-      flowController.updateStalkerPortalUrl(normalizedPortalText);
     }
+    flowController.updateStalkerPortalUrl(normalizedPortalText);
+    current = ref.read(loginFlowControllerProvider);
 
     final headerResult = parseHeaderInput(current.stalker.customHeaders.value);
     if (headerResult.error != null) {
@@ -1054,9 +1059,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
+
+      Uri handshakeBase = normalization.canonicalUri;
+      final lockedBase = current.stalker.lockedBaseUri;
+      if (lockedBase == null || lockedBase != normalizedPortalText) {
+        flowController.clearStalkerLockedBase();
+        current = ref.read(loginFlowControllerProvider);
+
+        final discoveryHeaders = _buildStalkerDiscoveryHeaders(
+          normalization,
+          current,
+          headerResult.headers,
+        );
+
+        final discovery = await _stalkerDiscovery.discover(
+          normalization,
+          allowSelfSignedTls: current.stalker.allowSelfSignedTls,
+          headers: discoveryHeaders,
+        );
+
+        if (discovery == null) {
+          const message =
+              'Unable to locate a Stalker/Ministra portal at that address. Confirm the URL with your provider.';
+          flowController.setStalkerFieldErrors(portalMessage: message);
+          flowController.markStepFailure(
+            LoginTestStep.reachServer,
+            message: message,
+          );
+          return;
+        }
+
+        handshakeBase = discovery.candidate.baseUri;
+        final lockedBaseString = handshakeBase.toString();
+        flowController.setStalkerLockedBase(lockedBaseString);
+        if (_portalUrlController.text != lockedBaseString) {
+          _portalUrlController
+            ..text = lockedBaseString
+            ..selection = TextSelection.collapsed(
+              offset: lockedBaseString.length,
+            );
+        }
+        current = ref.read(loginFlowControllerProvider);
+      } else {
+        handshakeBase = Uri.parse(lockedBase);
+      }
+
       final userAgentOverride = current.stalker.userAgent.value.trim();
       final configuration = StalkerPortalConfiguration(
-        baseUri: normalization.canonicalUri,
+        baseUri: handshakeBase,
         macAddress: current.stalker.macAddress.value.trim(),
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
         allowSelfSignedTls: current.stalker.allowSelfSignedTls,
@@ -1120,6 +1170,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Handshake succeeded.');
     } on StalkerAuthenticationException catch (error) {
+      flowController.clearStalkerLockedBase();
       final message = _stalkerAuthFailureMessage(error.message);
       flowController.setStalkerFieldErrors(
         portalMessage:
@@ -1130,6 +1181,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: message,
       );
     } on DioException catch (dioError) {
+      flowController.clearStalkerLockedBase();
       debugPrint('Stalker login network error: $dioError');
       final friendly = _describeNetworkError(dioError);
       flowController.setStalkerFieldErrors(
@@ -1141,6 +1193,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: friendly,
       );
     } catch (error, stackTrace) {
+      flowController.clearStalkerLockedBase();
       debugPrint('Stalker login error: $error\n$stackTrace');
       flowController.markStepFailure(
         LoginTestStep.reachServer,
@@ -1295,6 +1348,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: _unexpectedErrorMessage(error),
       );
     }
+  }
+
+  Map<String, String> _buildStalkerDiscoveryHeaders(
+    StalkerPortalNormalizationResult normalization,
+    LoginFlowState state,
+    Map<String, String> customHeaders,
+  ) {
+    final headers = <String, String>{...customHeaders};
+    final mac = state.stalker.macAddress.value.trim().toLowerCase();
+    final userAgentOverride = state.stalker.userAgent.value.trim();
+
+    final headerConfig = StalkerPortalConfiguration(
+      baseUri: normalization.canonicalUri,
+      macAddress: mac.isEmpty ? '00:00:00:00:00:00' : mac,
+      userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+    );
+
+    headers['User-Agent'] = headerConfig.userAgent;
+    headers['X-User-Agent'] = headerConfig.userAgent;
+
+    if (mac.isNotEmpty) {
+      final cookiePieces = ['mac=', 'stb_lang=', 'timezone='];
+      headers['Cookie'] = cookiePieces.join('; ');
+    }
+
+    return headers;
   }
 
   Future<void> _pickM3uPlaylistFile() async {

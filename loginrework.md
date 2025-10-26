@@ -17,19 +17,19 @@
 * [x] Keep your **User-Agent / MAC / TLS** knobs in a shared `DiscoveryOptions`.
 * [x] Ensure your **logging + redaction** is used by all discoverers.
 
-This creates symmetry so Xtream/M3U feel like “more of the same.”
+This creates symmetry so Xtream/M3U feel like more of the same.
 
 ---
 
 # 1) Input classifier (front door for all three)
 
-* [x] Build `InputClassifier.classify(String s) → ProviderKind? + ParsedBits`.
+* [x] Build `InputClassifier.classify(String s) -> ProviderKind? + ParsedBits`.
 
   * Detect **Xtream** if `get.php`, `player_api.php`, `xmltv.php`, or `username=` & `password=` query params are present.
   * Detect **M3U** if `.m3u`/`.m3u8` present or `#EXTM3U` after a tiny GET (head/body sniff).
   * Else default to **Stalker** (your current flow), but allow **manual override** in UI.
 * [x] Extract creds from pasted Xtream URLs and prefill fields (do not store yet).
-* [x] If classifier says M3U but link is actually `get.php?username=…`, reclassify as **Xtream**.
+* [x] If classifier says M3U but link is actually `get.php?username=<value>&password=<value>`, reclassify as **Xtream**.
 
 ---
 
@@ -57,7 +57,7 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 * [ ] One **tiny GET** to `player_api.php?username=__probe__&password=__probe__`
 
   * Accept if response is JSON with keys like `user_info`/`server_info` (even if invalid creds).
-  * If **HTML/404**, flip scheme (https↔http) once and retry.
+  * If **HTML/404**, flip scheme (https->http) once and retry.
 * [ ] Follow redirects (max 5); adopt final URL as `lockedBase`.
 * [ ] If 403 on first try, retry with **custom UA** (configurable per provider).
 
@@ -79,7 +79,7 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 * URL mode:
 
   * [ ] Normalize URL (scheme/default ports).
-  * [ ] If it contains `get.php?username=…&password=…`, reclassify as **Xtream** and jump to §3.
+  * [ ] If it contains `get.php?username=&password=`, reclassify as **Xtream** and jump to 3.
 * File mode:
 
   * [ ] Verify extension `.m3u`/`.m3u8` and that file is readable; sniff first line for `#EXTM3U`.
@@ -89,7 +89,7 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 * [ ] Send **HEAD** first:
 
   * Accept `200` with `Content-Type` in `audio/x-mpegurl`, `application/x-mpegURL`, or `application/octet-stream`.
-* [ ] If HEAD blocked, send a **range GET** for first 2–4 KB and ensure it begins with `#EXTM3U`.
+* [ ] If HEAD blocked, send a **range GET** for first 2-4 KB and ensure it begins with `#EXTM3U`.
 * [ ] Follow redirects; some providers redirect to signed URLs.
 * [ ] If 403/406, retry once with a **media UA** (e.g., `VLC/3.0.18`).
 
@@ -106,19 +106,19 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 
 # 5) Retry & error taxonomy (shared)
 
-* [ ] **Timeouts** for probes: connect 1500–2500 ms, receive 1500–2500 ms.
+* [ ] **Timeouts** for probes: connect 1500-2500 ms, receive 1500-2500 ms.
 * [ ] **Redirects**: enabled, capped at 5; record the final resolved URL.
 * [ ] **TLS** errors:
 
-  * If user’s profile has “allow self-signed” enabled, retry the probe with permissive context (scoped to this request only).
+  * If user profile has allow self-signed enabled, retry the probe with permissive context (scoped to this request only).
   * Surface a clear message; do not silently downgrade to HTTP unless the user selects that option.
 * [ ] **HTTP 5xx**:
 
-  * Treat 503/512 as transient—retry once, then try the alternative scheme (https↔http).
+  * Treat 503/512 as transient - retry once, then try the alternative scheme (https->http).
 * [ ] **403**:
 
-  * Likely UA filtering—retry with custom UA; if success, store `needsUA=true`.
-* [ ] **“Connection closed before full header”**:
+  * Likely UA filtering - retry with custom UA; if success, store `needsUA=true`.
+* [ ] **Connection closed before full header**:
 
   * For probes, send `Connection: close`, disable gzip, and enforce HTTP/1.1.
 
@@ -129,20 +129,20 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 * [ ] Schema additions (non-secret DB):
 
   * `providers(id, kind, locked_base, needs_ua, allow_self_signed, last_ok_at, last_error)`
-  * `provider_secrets(id → secure vault key)` (no secrets here—just reference)
+  * `provider_secrets(id -> secure vault key)` (no secrets here-just reference)
 * [ ] Vault entries (secure storage):
 
   * `xtream`: `username`, `password`
   * `m3u`: any bearer or basic auth secrets (rare)
-* [ ] On successful login, **atomically** persist: non-secret profile → vault → verification ping.
+* [ ] On successful login, **atomically** persist: non-secret profile -> vault -> verification ping.
 
 ---
 
 # 7) UX consistency
 
 * [ ] Single input field that accepts **anything**; classifier decides which adapter path to show.
-* [ ] If classifier re-routes (e.g., pasted Xtream link in M3U mode), show a small non-blocking banner: “Detected Xtream link; adjusted settings.”
-* [ ] “Advanced” expands to **User-Agent**, **Allow self-signed**, **Custom headers** (per provider).
+* [ ] If classifier re-routes (e.g., pasted Xtream link in M3U mode), show a small non-blocking banner: Detected Xtream link; adjusted settings.
+* [ ] Advanced expands to **User-Agent**, **Allow self-signed**, **Custom headers** (per provider).
 
 ---
 
@@ -169,7 +169,7 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 * [ ] **Xtream**: mock server returning JSON for `player_api.php`, with redirect and with 403 UA block.
 * [ ] **M3U**: HEAD returns `application/octet-stream`; range GET starts with `#EXTM3U`; redirect chain to signed URL.
 * [ ] **TLS**: self-signed failure on first probe, success on permissive path when user enables the option.
-* [ ] **Regression**: “connection closed early” path uses `Connection: close` and succeeds on retry.
+* [ ] **Regression**: connection closed early path uses `Connection: close` and succeeds on retry.
 
 ---
 
@@ -183,7 +183,7 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 
 # 11) Security & privacy guardrails
 
-* [ ] Never log full URLs containing `username`, `password`, or tokens—your interceptor must redact.
+* [ ] Never log full URLs containing `username`, `password`, or tokens-your interceptor must redact.
 * [ ] Store **secrets in secure storage only**; non-secret endpoints in DB.
 * [x] Build any secret-bearing URLs **in memory** just-in-time; never persist them.
 
@@ -239,7 +239,7 @@ class M3uDiscovery implements PortalDiscovery {
 
 ### TL;DR implementation order
 
-1. **Classifier** → routes to adapter.
+1. **Classifier** routes to adapter.
 2. **Shared normalizers** (scheme/port/files/trailing slash).
 3. **XtreamDiscovery** (player_api probe + creds extraction).
 4. **M3uDiscovery** (HEAD/range GET + #EXTM3U).
@@ -247,4 +247,4 @@ class M3uDiscovery implements PortalDiscovery {
 6. **Retries/UA/TLS** knobs unified across adapters.
 7. **Tests** for redirects, UA blocks, TLS, early close.
 
-This mirrors your Stalker solution, so the whole login story becomes consistent: **any string in → correct portal out**.
+This mirrors your Stalker solution, so the whole login story becomes consistent: **any string in -> correct portal out**.

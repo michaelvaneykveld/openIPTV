@@ -1,3 +1,5 @@
+import 'package:openiptv/src/utils/url_normalization.dart';
+
 import 'm3u_source_descriptor.dart';
 import 'xmltv_source_descriptor.dart';
 
@@ -73,6 +75,11 @@ class M3uXmlPortalConfiguration {
     String? defaultUserAgent,
     bool followRedirects = true,
   }) {
+    final playlistUri = Uri.parse(canonicalizeScheme(playlistUrl));
+    final xmltvUri = xmltvUrl != null
+        ? Uri.parse(canonicalizeScheme(xmltvUrl))
+        : null;
+
     final mergedHeaders = <String, String>{
       ...?defaultHeaders,
       ...?playlistHeaders,
@@ -89,13 +96,13 @@ class M3uXmlPortalConfiguration {
       defaultUserAgent: defaultUserAgent,
       followRedirects: followRedirects,
       m3uSource: M3uUrlSource(
-        playlistUri: Uri.parse(playlistUrl),
+        playlistUri: playlistUri,
         headers: mergedHeaders,
         displayName: displayName,
       ),
       xmltvSource: xmltvUrl != null
           ? XmltvUrlSource(
-              epgUri: Uri.parse(xmltvUrl),
+              epgUri: xmltvUri!,
               headers: mergedXmltvHeaders,
               displayName: displayName,
             )

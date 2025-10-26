@@ -17,7 +17,7 @@ void main() {
       expect(result.xtream!.hasCredentials, isTrue);
       expect(result.xtream!.username, 'alice');
       expect(result.xtream!.password, 'secret');
-      expect(result.xtream!.baseUri.toString(), 'https://demo.example.com');
+      expect(result.xtream!.baseUri.toString(), 'https://demo.example.com/');
     });
 
     test('derives Xtream base path with nested segments', () {
@@ -27,7 +27,7 @@ void main() {
       final result = classifier.classify(input);
 
       expect(result.provider, ProviderKind.xtream);
-      expect(result.xtream!.baseUri.toString(), 'http://tv.example.net/sub');
+      expect(result.xtream!.baseUri.toString(), 'http://tv.example.net/sub/');
     });
 
     test('detects Xtream links without credentials', () {

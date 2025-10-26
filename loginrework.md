@@ -35,10 +35,10 @@ This creates symmetry so Xtream/M3U feel like “more of the same.”
 
 # 2) Shared normalization utilities (used by all)
 
-* [ ] `canonicalizeScheme(String)`: add `https://` if missing.
-* [ ] `normalizePort(Uri)`: keep explicit port if present; otherwise default 443/80 depending on scheme.
-* [ ] `stripKnownFiles(Uri)`: remove `player_api.php`, `get.php`, `xmltv.php`, `portal.php`, `index.php` and their query.
-* [ ] `ensureTrailingSlash(Uri)` for base endpoints that behave like directories.
+* [x] `canonicalizeScheme(String)`: add `https://` if missing.
+* [x] `normalizePort(Uri)`: keep explicit port if present; otherwise default 443/80 depending on scheme.
+* [x] `stripKnownFiles(Uri)`: remove `player_api.php`, `get.php`, `xmltv.php`, `portal.php`, `index.php` and their query.
+* [x] `ensureTrailingSlash(Uri)` for base endpoints that behave like directories.
 
 ---
 

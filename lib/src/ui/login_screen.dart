@@ -1041,7 +1041,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final normalizedPortalText = normalization.canonicalUri.toString();
+    final canonicalUri = normalization.canonicalUri;
+    final normalizedPortalText = normalization.hadExplicitPort
+        ? canonicalUri.toString()
+        : canonicalUri.replace(port: null).toString();
     if (_portalUrlController.text != normalizedPortalText) {
       _portalUrlController
         ..text = normalizedPortalText

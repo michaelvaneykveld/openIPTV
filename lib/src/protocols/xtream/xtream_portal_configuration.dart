@@ -1,3 +1,5 @@
+import 'package:openiptv/src/utils/url_normalization.dart';
+
 /// Static configuration required to connect to a single Xtream Codes portal.
 ///
 /// The aim mirrors the Stalker rewrite: capture immutable connection details
@@ -26,7 +28,7 @@ class XtreamPortalConfiguration {
   final Map<String, String> extraHeaders;
 
   /// Creates a configuration object with pragmatic defaults inspired by the
-  /// reference projects highlighted in `REWRITE.md`.
+  /// reference projects highlighted in REWRITE.md.
   XtreamPortalConfiguration({
     required Uri baseUri,
     required this.username,
@@ -53,8 +55,9 @@ class XtreamPortalConfiguration {
     bool allowSelfSignedTls = false,
     Map<String, String>? extraHeaders,
   }) {
+    final canonical = canonicalizeScheme(url);
     return XtreamPortalConfiguration(
-      baseUri: Uri.parse(url),
+      baseUri: Uri.parse(canonical),
       username: username,
       password: password,
       userAgent: userAgent,
@@ -64,13 +67,24 @@ class XtreamPortalConfiguration {
   }
 
   /// Ensures the base URI never ends with a trailing slash. This keeps future
-  /// URL construction deterministic when using `Uri.resolve`.
+  /// URL construction deterministic when using Uri.resolve.
   static Uri _normaliseBaseUri(Uri raw) {
-    final cleaned = raw.replace(
-      path: raw.path.endsWith('/')
-          ? raw.path.substring(0, raw.path.length - 1)
-          : raw.path,
+    final lowered = raw.replace(
+      scheme: raw.scheme.toLowerCase(),
+      host: raw.host.toLowerCase(),
     );
-    return cleaned;
+
+    final stripped = stripKnownFiles(
+      lowered,
+      knownFiles: const {
+        'player_api.php',
+        'get.php',
+        'xmltv.php',
+        'portal.php',
+        'index.php',
+      },
+    );
+
+    return ensureTrailingSlash(stripped);
   }
 }

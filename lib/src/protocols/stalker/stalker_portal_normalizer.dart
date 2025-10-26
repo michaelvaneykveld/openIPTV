@@ -1,5 +1,7 @@
 import 'dart:core';
 
+import 'package:openiptv/src/utils/url_normalization.dart';
+
 /// Result returned after normalising a user-supplied Stalker/Ministra portal
 /// address into a canonical URI that downstream discovery steps can consume.
 class StalkerPortalNormalizationResult {
@@ -26,9 +28,6 @@ class StalkerPortalNormalizationResult {
 /// * strip well-known file paths (portal.php, index.php, server/load.php, ...);
 /// * collapse duplicate slashes and ensure directory semantics (trailing slash).
 ///
-/// The routine intentionally keeps any user-specified scheme or port so that
-/// later discovery/probe stages can respect those preferences.
-///
 /// Throws [FormatException] when the input cannot be parsed into a usable URI.
 StalkerPortalNormalizationResult normalizeStalkerPortalInput(String rawInput) {
   final trimmed = rawInput.trim();
@@ -39,7 +38,7 @@ StalkerPortalNormalizationResult normalizeStalkerPortalInput(String rawInput) {
   }
 
   final hasScheme = _looksLikeScheme(trimmed);
-  final provisional = hasScheme ? trimmed : 'https://$trimmed';
+  final provisional = canonicalizeScheme(trimmed);
 
   late Uri parsed;
   try {
@@ -52,19 +51,17 @@ StalkerPortalNormalizationResult normalizeStalkerPortalInput(String rawInput) {
     throw const FormatException('Portal address is missing a host name.');
   }
 
-  final scheme = (hasScheme ? parsed.scheme : 'https').toLowerCase();
-
-  final sanitizedSegments = _sanitizeSegments(parsed.pathSegments, parsed.path);
-  final canonicalPath = sanitizedSegments.isEmpty
-      ? '/'
-      : '/${sanitizedSegments.join('/')}/';
-
-  final canonical = Uri(
-    scheme: scheme,
+  final lowered = parsed.replace(
+    scheme: parsed.scheme.toLowerCase(),
     host: parsed.host.toLowerCase(),
-    port: parsed.hasPort ? parsed.port : null,
-    path: canonicalPath == '//' ? '/' : canonicalPath,
   );
+
+  final stripped = stripKnownFiles(
+    lowered,
+    knownFiles: const {'portal.php', 'index.php', 'load.php', 'server.php'},
+  );
+
+  final canonical = ensureTrailingSlash(stripped);
 
   return StalkerPortalNormalizationResult(
     canonicalUri: canonical,
@@ -76,47 +73,6 @@ StalkerPortalNormalizationResult normalizeStalkerPortalInput(String rawInput) {
 bool _looksLikeScheme(String value) {
   final schemePattern = RegExp(r'^[a-zA-Z][a-zA-Z0-9+\-.]*://');
   return schemePattern.hasMatch(value);
-}
-
-List<String> _sanitizeSegments(List<String> segments, String originalPath) {
-  if (segments.isEmpty) {
-    return const [];
-  }
-
-  final cleaned = <String>[];
-  final buffer = List<String>.from(segments);
-
-  // Remove empty segments caused by leading/trailing slashes.
-  buffer.removeWhere((segment) => segment.isEmpty);
-
-  if (buffer.isEmpty) {
-    return const [];
-  }
-
-  // Drop file-like trailing segments (portal.php, index.php, load.php, etc.).
-  while (buffer.isNotEmpty && _isFileSegment(buffer.last)) {
-    buffer.removeLast();
-  }
-
-  cleaned.addAll(buffer);
-
-  // Preserve original trailing slash semantics when the path already ended in "/".
-  final hadTrailingSlash =
-      originalPath.isNotEmpty && originalPath.endsWith('/');
-  if (!hadTrailingSlash && cleaned.isNotEmpty) {
-    // No-op: canonical path builder will append a trailing slash anyway.
-  }
-
-  return cleaned;
-}
-
-bool _isFileSegment(String segment) {
-  final lower = segment.toLowerCase();
-  if (!lower.contains('.')) {
-    return false;
-  }
-  const knownFiles = {'portal.php', 'index.php', 'load.php', 'server.php'};
-  return knownFiles.contains(lower) || lower.endsWith('.php');
 }
 
 /// Represents a portal discovery candidate: the base URI that should be probed

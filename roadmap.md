@@ -67,9 +67,12 @@
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).
 - Wired the login flow to auto-switch providers on confident matches, prefill Xtream/M3U forms, and guard Stalker attempts with classifier feedback while preserving manual override controls (`lib/src/ui/login_screen.dart`).
 
+## Session Log - URL Normalization Utilities
+- Added shared helpers to canonicalise schemes, default ports, strip known file endpoints, and ensure directory-style bases across adapters (`lib/src/utils/url_normalization.dart`).
+- Refactored Stalker and Xtream configurations to reuse the helpers, lowering hosts and keeping probe bases consistent (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/xtream/xtream_portal_configuration.dart`).
+- Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
+
 ## TODO - Login Experience Implementation
-- Expand shared normalization utilities for use by every protocol adapter. (todo)
-  - Add helpers for canonicalising schemes, defaulting ports, stripping known file endpoints, and ensuring directory-style trailing slashes. (todo)
 - Implement Xtream discovery following the shared pattern. (todo)
   - Generate candidate endpoints (`player_api.php`, `get.php`, `xmltv.php`) and lightweight probes with redirects, scheme flips, and UA retries. (todo)
   - Parse credentials from pasted URLs, strip secrets from locked bases, and record discovery hints (e.g., `needsUA`). (todo)
@@ -101,5 +104,4 @@
 - Enforce security and privacy guardrails. (todo)
   - Ensure secrets never appear in logs, build secret-bearing URLs only in-memory, and store credentials in secure storage exclusively. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
-
 

@@ -1,4 +1,5 @@
 import 'package:meta/meta.dart';
+import 'package:openiptv/src/utils/url_normalization.dart';
 
 import '../protocols/discovery/portal_discovery.dart';
 
@@ -253,18 +254,11 @@ class InputClassifier {
   }
 
   Uri _deriveXtreamBaseUri(Uri uri) {
-    final segments = List<String>.from(uri.pathSegments);
-    if (segments.isNotEmpty && segments.last.toLowerCase().endsWith('.php')) {
-      segments.removeLast();
-    }
-
-    final newPath = segments.isEmpty ? null : '/${segments.join('/')}';
-
-    return Uri(
-      scheme: uri.scheme,
-      host: uri.host,
-      port: uri.hasPort ? uri.port : null,
-      path: newPath ?? '',
+    final lowered = uri.replace(
+      scheme: uri.scheme.toLowerCase(),
+      host: uri.host.toLowerCase(),
     );
+    final stripped = stripKnownFiles(lowered);
+    return ensureTrailingSlash(stripped);
   }
 }

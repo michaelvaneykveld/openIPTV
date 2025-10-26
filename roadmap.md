@@ -57,11 +57,16 @@
 - Moved the clipboard paste affordance into the relevant URL fields for Stalker, Xtream, and M3U (URL mode) so users can insert addresses inline without reaching for a global toolbar icon (`lib/src/ui/login_screen.dart`).
 - Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `logindesign.md`.
 
+## Session Log - Portal Discovery Abstraction
+- Introduced a shared `PortalDiscovery` contract with reusable options, telemetry, and redaction-aware logging hooks (`lib/src/protocols/discovery/portal_discovery.dart`).
+- Refactored the Stalker adapter to implement the shared abstraction, emit sanitised probe telemetry, and respect unified discovery options (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
+- Updated the login flow to consume the new discovery options, surface friendly failures, and stream debug telemetry only in development builds (`lib/src/ui/login_screen.dart`).
+
 ## TODO - Login Experience Implementation
-- Unify portal discovery services across providers behind a shared `PortalDiscovery` abstraction. (todo)
-  - Extract the existing Stalker normaliser, candidate generator, and probe loop into reusable implementations conforming to the shared interface. (todo)
-  - Define `PortalDiscovery`, `DiscoveryResult`, and `DiscoveryOptions` (including UA/MAC/TLS knobs and logging redaction) for all adapters. (todo)
-  - Align discovery logging/telemetry with the global redaction policy. (todo)
+- Unify portal discovery services across providers behind a shared `PortalDiscovery` abstraction. (done)
+  - Extract the existing Stalker normaliser, candidate generator, and probe loop into reusable implementations conforming to the shared interface. (done)
+  - Define `PortalDiscovery`, `DiscoveryResult`, and `DiscoveryOptions` (including UA/MAC/TLS knobs and logging redaction) for all adapters. (done)
+  - Align discovery logging/telemetry with the global redaction policy. (done)
 - Introduce an input classifier that routes pasted/typed values to the correct provider flow. (todo)
   - Detect Xtream signatures (`player_api.php`, `get.php`, embedded credentials) and prefill username/password fields safely. (todo)
   - Detect M3U playlists via extension or lightweight `#EXTM3U` sniff, reclassifying to Xtream when appropriate. (todo)

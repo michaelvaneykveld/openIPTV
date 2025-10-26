@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
@@ -1066,30 +1068,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         flowController.clearStalkerLockedBase();
         current = ref.read(loginFlowControllerProvider);
 
-        final discoveryHeaders = _buildStalkerDiscoveryHeaders(
+        final discoveryOptions = _buildStalkerDiscoveryOptions(
           normalization,
           current,
           headerResult.headers,
         );
 
-        final discovery = await _stalkerDiscovery.discover(
+        final discovery = await _stalkerDiscovery.discoverFromNormalized(
           normalization,
-          allowSelfSignedTls: current.stalker.allowSelfSignedTls,
-          headers: discoveryHeaders,
+          options: discoveryOptions,
         );
 
-        if (discovery == null) {
-          const message =
-              'Unable to locate a Stalker/Ministra portal at that address. Confirm the URL with your provider.';
-          flowController.setStalkerFieldErrors(portalMessage: message);
-          flowController.markStepFailure(
-            LoginTestStep.reachServer,
-            message: message,
-          );
-          return;
-        }
-
-        handshakeBase = discovery.candidate.baseUri;
+        handshakeBase = discovery.lockedBase;
         final lockedBaseString = handshakeBase.toString();
         flowController.setStalkerLockedBase(lockedBaseString);
         if (_portalUrlController.text != lockedBaseString) {
@@ -1169,6 +1159,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
       _showSuccessSnackBar('Handshake succeeded.');
+    } on DiscoveryException catch (error) {
+      flowController.clearStalkerLockedBase();
+      final message = error.message.isNotEmpty
+          ? error.message
+          : 'Unable to locate a Stalker/Ministra portal at that address.';
+      flowController.setStalkerFieldErrors(portalMessage: message);
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: message,
+      );
+      flowController.setBannerMessage(message);
+      if (kDebugMode && error.telemetry.hasProbes) {
+        for (final probe in error.telemetry.probes) {
+          debugPrint(
+            'Stalker discovery ${probe.stage} ${probe.uri} '
+            'status=${probe.statusCode ?? 'n/a'} '
+            'matched=${probe.matchedSignature} '
+            'error=${probe.error == null ? 'none' : probe.error.runtimeType}',
+          );
+        }
+      }
+      return;
     } on StalkerAuthenticationException catch (error) {
       flowController.clearStalkerLockedBase();
       final message = _stalkerAuthFailureMessage(error.message);
@@ -1350,13 +1362,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  Map<String, String> _buildStalkerDiscoveryHeaders(
+  DiscoveryOptions _buildStalkerDiscoveryOptions(
     StalkerPortalNormalizationResult normalization,
     LoginFlowState state,
     Map<String, String> customHeaders,
   ) {
     final headers = <String, String>{...customHeaders};
-    final mac = state.stalker.macAddress.value.trim().toLowerCase();
+    final mac = state.stalker.macAddress.value.trim();
     final userAgentOverride = state.stalker.userAgent.value.trim();
 
     final headerConfig = StalkerPortalConfiguration(
@@ -1365,15 +1377,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
     );
 
-    headers['User-Agent'] = headerConfig.userAgent;
-    headers['X-User-Agent'] = headerConfig.userAgent;
+    headers.putIfAbsent('Referer', () => headerConfig.refererUri.toString());
+    headers.putIfAbsent('X-User-Agent', () => headerConfig.userAgent);
 
     if (mac.isNotEmpty) {
-      final cookiePieces = ['mac=', 'stb_lang=', 'timezone='];
-      headers['Cookie'] = cookiePieces.join('; ');
+      headers.putIfAbsent(
+        'Cookie',
+        () =>
+            'mac=${mac.toLowerCase()}; stb_lang=${headerConfig.languageCode}; timezone=${headerConfig.timezone}',
+      );
     }
 
-    return headers;
+    return DiscoveryOptions(
+      allowSelfSignedTls: state.stalker.allowSelfSignedTls,
+      headers: headers,
+      userAgent: headerConfig.userAgent,
+      macAddress: mac.isEmpty ? null : mac.toLowerCase(),
+      logSink: kDebugMode ? _onStalkerDiscoveryLog : null,
+    );
+  }
+
+  void _onStalkerDiscoveryLog(DiscoveryProbeRecord record) {
+    debugPrint(
+      'Stalker discovery ${record.stage} ${record.uri} '
+      'status=${record.statusCode ?? 'n/a'} '
+      'matched=${record.matchedSignature} '
+      'error=${record.error == null ? 'none' : record.error.runtimeType} '
+      'elapsed=${record.elapsed.inMilliseconds}ms',
+    );
   }
 
   Future<void> _pickM3uPlaylistFile() async {

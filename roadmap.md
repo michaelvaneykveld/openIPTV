@@ -1,25 +1,25 @@
-# OpenIPTV Rewrite Roadmap
+﻿# OpenIPTV Rewrite Roadmap
 
-## Session Log � Stalker Authentication Rewrite
+## Session Log ´┐¢ Stalker Authentication Rewrite
 - Established a dedicated protocol layer for Stalker/Ministra portals, introducing immutable configuration, HTTP client, handshake models, session state, and authenticator orchestration files under `lib/src/protocols/stalker/` to support a modular rewrite of MAC/token login flows.
 
-## Session Log � Xtream Authentication Rewrite
+## Session Log ´┐¢ Xtream Authentication Rewrite
 - Mirrored the modular protocol layer for Xtream Codes by adding configuration, HTTP client, login payload models, session utilities, and an authenticator under `lib/src/protocols/xtream/`, paving the way for reusable login/profile flows aligned with the rewrite guidelines.
 
-## Session Log � M3U/XMLTV Ingestion Rewrite
+## Session Log ´┐¢ M3U/XMLTV Ingestion Rewrite
 - Introduced a dedicated M3U/XMLTV protocol module (`lib/src/protocols/m3uxml/`) covering source descriptors for URL/file inputs, portal configuration, unified fetch client with compression awareness, session container, and an authenticator that validates playlists and optional XMLTV feeds for both remote and local imports.
 
-## Session Log � Protocol Riverpod Integration
+## Session Log ´┐¢ Protocol Riverpod Integration
 - Added Riverpod providers in `lib/src/application/providers/protocol_auth_providers.dart` that expose the new Stalker, Xtream, and M3U/XMLTV authenticators, along with helper families to bridge existing credential models into the modular session APIs for upcoming login refactors.
 - Wired the login screen to consume those providers so each protocol handshake now flows through the modular adapters while keeping active portal state (`portal_session_providers.dart`) in sync for future UI refactors.
 
-## Session Log � Minimal Shell Reset
+## Session Log ´┐¢ Minimal Shell Reset
 - Removed legacy repositories, database helpers, and UI stacks so the project now boots straight into a pared-down login experience powered solely by the modular protocol adapters (`lib/src/providers/protocol_auth_providers.dart`, `lib/src/ui/login_screen.dart`).
 
-## Session Log � Login Flow Controller
+## Session Log ´┐¢ Login Flow Controller
 - Introduced a Riverpod-driven controller/state layer (`lib/src/providers/login_flow_controller.dart`) and refactored `lib/src/ui/login_screen.dart` to use it for provider selection, field validation, and multi-step test progress management in line with the new login blueprint.
 
-## Session Log � Login Layout Overhaul
+## Session Log ´┐¢ Login Layout Overhaul
 - Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
 
 ## Session Log - Form Field Enhancements
@@ -58,29 +58,46 @@
 - Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `logindesign.md`.
 
 ## TODO - Login Experience Implementation
-- Harden the Stalker portal discovery by normalizing user input, probing canonical endpoints, and caching the resolved base URL so subsequent handshakes target the correct backend. (todo)
-  - Build a normalization routine that enforces scheme/port defaults, trims superfluous paths, and prepares a canonical Uri. (done)
-  - Generate and prioritise candidate portal paths (`/stalker_portal/c/`, `/c/`, etc.) plus backend endpoints (`portal.php`, `server/load.php`) for discovery. (done)
-  - Implement lightweight probes with STB-style headers (UA, MAC cookie), short timeouts, redirect handling, and TLS fallback to confirm a candidate before locking it in. (todo)
-  - Persist the resolved base (scheme, host, port, path) alongside any advanced settings so future sessions skip discovery and re-run it only on handshake failures. (todo)
-- Draft the storage architecture that keeps provider metadata in Drift while isolating secrets in `flutter_secure_storage`, referencing the separation guidelines in `securestorage.md`. (todo)
-  - Inventory existing profile/draft writes to understand required read/write surface. (todo)
-  - Sketch the data flow diagram showing Drift tables and secure vault interactions and identify DTO/domain models that straddle both. (todo)
-  - Produce an interface proposal (`CredentialsVaultRepository` and friends) with method signatures for save/load/delete and note async/error semantics. (todo)
-  - Align with the logging/telemetry plan to ensure secrets never appear in logs, crash reports, or exports. (todo)
-- Specify secure-store options and platform policies (Keychain accessibility, Android Keystore, backup exclusions, web constraints) so the abstraction can be configured per target. (todo)
-  - Document iOS/macOS Keychain settings (WhenUnlockedThisDeviceOnly + optional biometrics) and translate them into `IOSOptions`. (todo)
-  - Document Android Keystore + EncryptedSharedPrefs expectations, including `allowBackup=false` and auto-backup exclusions, referencing `securestorage.md`. (todo)
-  - Capture Windows/Linux configuration requirements (DPAPI/Secret Service) and how the app will detect unsupported scenarios. (todo)
-  - Decide the web stance (disallow by default vs. opt-in with disclaimer) and specify any feature flags/environment toggles. (todo)
-- Define the vault data model: key naming, JSON payload shape per provider, token rotation strategy, and how public rows reference vault entries without embedding secrets. (todo)
-  - Enumerate secret bundles per provider (Xtream passwords, Stalker tokens, M3U credentials) and their lifecycle hooks (creation, refresh, revoke). (todo)
-  - Choose key naming conventions and metadata (e.g., `secret:provider:<uuid>`) and capture them in a spec doc. (todo)
-  - Describe how vault entries link back to Drift rows (foreign keys vs. synthetic ids) and note migration steps for existing drafts. (todo)
-  - Plan rotation/cleanup flows (e.g., when a login succeeds, when the user wipes data) and the telemetry we need to confirm they run. (todo)
-- Design the repository API surface that login flows and the draft loader will call (save, load, revoke, clear), including failure semantics and biometric gating hooks. (todo)
-- Outline migration and test requirements: fallback when secure storage is unavailable, DFU/backup scenarios, and unit/UI tests covering opt-in "remember me" behaviour. (todo)
+- Unify portal discovery services across providers behind a shared `PortalDiscovery` abstraction. (todo)
+  - Extract the existing Stalker normaliser, candidate generator, and probe loop into reusable implementations conforming to the shared interface. (todo)
+  - Define `PortalDiscovery`, `DiscoveryResult`, and `DiscoveryOptions` (including UA/MAC/TLS knobs and logging redaction) for all adapters. (todo)
+  - Align discovery logging/telemetry with the global redaction policy. (todo)
+- Introduce an input classifier that routes pasted/typed values to the correct provider flow. (todo)
+  - Detect Xtream signatures (`player_api.php`, `get.php`, embedded credentials) and prefill username/password fields safely. (todo)
+  - Detect M3U playlists via extension or lightweight `#EXTM3U` sniff, reclassifying to Xtream when appropriate. (todo)
+  - Allow manual override in the UI when the classifier guesses incorrectly. (todo)
+- Expand shared normalization utilities for use by every protocol adapter. (todo)
+  - Add helpers for canonicalising schemes, defaulting ports, stripping known file endpoints, and ensuring directory-style trailing slashes. (todo)
+- Implement Xtream discovery following the shared pattern. (todo)
+  - Generate candidate endpoints (`player_api.php`, `get.php`, `xmltv.php`) and lightweight probes with redirects, scheme flips, and UA retries. (todo)
+  - Parse credentials from pasted URLs, strip secrets from locked bases, and record discovery hints (e.g., `needsUA`). (todo)
+  - Persist locked bases and reuse them on subsequent launches, falling back to discovery only when health checks fail. (todo)
+- Implement M3U discovery for both URL and file modes. (todo)
+  - Normalise playlist URLs, reclassify Xtream-style links, and verify local files before import. (todo)
+  - Probe remote playlists with HEAD/range GET requests, retrying with media UAs on 403/406 and following redirect chains. (todo)
+  - Persist resolved playlist/EPG URLs (without secrets) and file metadata for change detection. (todo)
+- Codify retry and error taxonomy for all discovery probes. (todo)
+  - Standardise timeouts, redirect limits, TLS fallbacks, UA retries, and connection-close mitigation. (todo)
+- Build out the unified provider profile and storage architecture (Drift + secure vault). (todo)
+  - Inventory existing profile/draft writes to determine read/write needs. (todo)
+  - Sketch the Drift ↔ secure storage data flow and identify DTO/domain boundaries. (todo)
+  - Extend schemas (`providers`, `provider_secrets`, etc.) and define vault payloads per provider. (todo)
+  - Produce repository interfaces (`CredentialsVaultRepository`, discovery caches) and document async/error semantics. (todo)
+  - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (todo)
+  - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (todo)
+  - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in “remember me” flows. (todo)
+- Deliver the unified UX for login input and advanced options. (todo)
+  - Allow a single entry field that accepts any link and display non-blocking classifier feedback when re-routing. (todo)
+  - Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (todo)
+- Standardise networking knobs via shared Dio configuration. (todo)
+  - Provide per-provider defaults for timeouts, redirects, interceptors (redacting logger, retry), and user agents. (todo)
+- Strengthen automated and manual test coverage. (todo)
+  - Add unit tests for the classifier, discovery redirects/UA blocks/TLS paths, and regression cases (e.g., early connection close). (todo)
+  - Expand widget/integration tests for login flows, including opt-in storage and probe failure UX. (todo)
+- Introduce discovery caching and background revalidation. (todo)
+  - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (todo)
+- Enforce security and privacy guardrails. (todo)
+  - Ensure secrets never appear in logs, build secret-bearing URLs only in-memory, and store credentials in secure storage exclusively. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
-- Add QA coverage: unit tests for validators and error mapping, widget tests for form switching/validation, integration tests with mocked protocol responses, and manual device checks. (todo)
 
 

@@ -46,7 +46,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 ### Candidates
 
-* [ ] From normalized base: try **exact base** and base with/without trailing slash:
+* [x] From normalized base: try **exact base** and base with/without trailing slash:
 
   * `{base}/player_api.php`
   * `{base}/get.php` (only for classification and URL building)
@@ -54,21 +54,21 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 ### Probe (fast & deterministic)
 
-* [ ] One **tiny GET** to `player_api.php?username=__probe__&password=__probe__`
+* [x] One **tiny GET** to `player_api.php?username=__probe__&password=__probe__`
 
   * Accept if response is JSON with keys like `user_info`/`server_info` (even if invalid creds).
   * If **HTML/404**, flip scheme (https->http) once and retry.
-* [ ] Follow redirects (max 5); adopt final URL as `lockedBase`.
-* [ ] If 403 on first try, retry with **custom UA** (configurable per provider).
+* [x] Follow redirects (max 5); adopt final URL as `lockedBase`.
+* [x] If 403 on first try, retry with **custom UA** (configurable per provider).
 
 ### Credential hygiene
 
-* [ ] If user pasted a full M3U Xtream URL (with creds), parse out `username`/`password`, strip the query from `lockedBase`, and store creds in **secure storage** only after successful connect.
+* [x] If user pasted a full M3U Xtream URL (with creds), parse out `username`/`password`, strip the query from `lockedBase`, and store creds in **secure storage** only after successful connect.
 
 ### Lock-in & persistence
 
-* [ ] Persist `lockedBase` (scheme/host/port/path), plus discovered hints (e.g., `needsUA=true`).
-* [ ] On subsequent launches, **skip discovery** and hit `player_api.php` directly; if it fails (host changed/cert changed), fall back to discovery.
+* [x] Persist `lockedBase` (scheme/host/port/path), plus discovered hints (e.g., `needsUA=true`).
+* [x] On subsequent launches, **skip discovery** and hit `player_api.php` directly; if it fails (host changed/cert changed), fall back to discovery.
 
 ---
 

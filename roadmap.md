@@ -1,4 +1,4 @@
-﻿# OpenIPTV Rewrite Roadmap
+# OpenIPTV Rewrite Roadmap
 
 ## Session Log ´┐¢ Stalker Authentication Rewrite
 - Established a dedicated protocol layer for Stalker/Ministra portals, introducing immutable configuration, HTTP client, handshake models, session state, and authenticator orchestration files under `lib/src/protocols/stalker/` to support a modular rewrite of MAC/token login flows.
@@ -73,10 +73,6 @@
 - Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
 
 ## TODO - Login Experience Implementation
-- Implement Xtream discovery following the shared pattern. (todo)
-  - Generate candidate endpoints (`player_api.php`, `get.php`, `xmltv.php`) and lightweight probes with redirects, scheme flips, and UA retries. (todo)
-  - Parse credentials from pasted URLs, strip secrets from locked bases, and record discovery hints (e.g., `needsUA`). (todo)
-  - Persist locked bases and reuse them on subsequent launches, falling back to discovery only when health checks fail. (todo)
 - Implement M3U discovery for both URL and file modes. (todo)
   - Normalise playlist URLs, reclassify Xtream-style links, and verify local files before import. (todo)
   - Probe remote playlists with HEAD/range GET requests, retrying with media UAs on 403/406 and following redirect chains. (todo)

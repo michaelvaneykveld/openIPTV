@@ -158,6 +158,7 @@ class XtreamFormState {
   final String outputFormat;
   final bool allowSelfSignedTls;
   final bool advancedExpanded;
+  final String? lockedBaseUri;
 
   const XtreamFormState({
     this.serverUrl = const FieldState(),
@@ -168,6 +169,7 @@ class XtreamFormState {
     this.outputFormat = 'ts',
     this.allowSelfSignedTls = false,
     this.advancedExpanded = false,
+    this.lockedBaseUri,
   });
 
   XtreamFormState copyWith({
@@ -179,6 +181,7 @@ class XtreamFormState {
     String? outputFormat,
     bool? allowSelfSignedTls,
     bool? advancedExpanded,
+    Object? lockedBaseUri = _unset,
   }) {
     return XtreamFormState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -189,6 +192,9 @@ class XtreamFormState {
       outputFormat: outputFormat ?? this.outputFormat,
       allowSelfSignedTls: allowSelfSignedTls ?? this.allowSelfSignedTls,
       advancedExpanded: advancedExpanded ?? this.advancedExpanded,
+      lockedBaseUri: lockedBaseUri == _unset
+          ? this.lockedBaseUri
+          : lockedBaseUri as String?,
     );
   }
 }
@@ -486,12 +492,17 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   }
 
   void updateXtreamServerUrl(String value) {
+    final trimmed = value.trim();
+    final shouldClearLock =
+        state.xtream.lockedBaseUri != null &&
+        state.xtream.lockedBaseUri != trimmed;
     state = state.copyWith(
       xtream: state.xtream.copyWith(
         serverUrl: state.xtream.serverUrl.copyWith(
-          value: value,
+          value: trimmed,
           clearError: true,
         ),
+        lockedBaseUri: shouldClearLock ? null : state.xtream.lockedBaseUri,
       ),
     );
   }
@@ -504,6 +515,29 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
           clearError: true,
         ),
       ),
+    );
+  }
+
+  void setXtreamLockedBase(String baseUri) {
+    final trimmed = baseUri.trim();
+    state = state.copyWith(
+      xtream: state.xtream.copyWith(
+        serverUrl: state.xtream.serverUrl.copyWith(
+          value: trimmed,
+          clearError: true,
+        ),
+        lockedBaseUri: trimmed,
+      ),
+    );
+  }
+
+  /// Removes any stored locked base once we detect the probe is outdated.
+  void clearXtreamLockedBase() {
+    if (state.xtream.lockedBaseUri == null) {
+      return;
+    }
+    state = state.copyWith(
+      xtream: state.xtream.copyWith(lockedBaseUri: null),
     );
   }
 

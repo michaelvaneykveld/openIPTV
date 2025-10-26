@@ -17,6 +17,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_discovery.dart';
+import 'package:openiptv/src/protocols/xtream/xtream_portal_discovery.dart';
 import 'package:openiptv/src/utils/input_classifier.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
@@ -103,6 +104,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
   final StalkerPortalDiscovery _stalkerDiscovery =
       const StalkerPortalDiscovery();
+  final XtreamPortalDiscovery _xtreamDiscovery =
+      const XtreamPortalDiscovery();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
@@ -1253,19 +1256,54 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      var baseUrl = current.xtream.serverUrl.value.trim();
-      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        baseUrl = 'http://$baseUrl';
-      }
-      baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), '');
-
+      final baseInput = current.xtream.serverUrl.value.trim();
       final userAgentOverride = current.xtream.userAgent.value.trim();
+      final lockedBase = current.xtream.lockedBaseUri;
+      Uri handshakeBase;
+
+      if (lockedBase == null) {
+        // Resolve the canonical Xtream base URL before attempting auth so that
+        // subsequent runs can skip the expensive probe loop.
+        final discoveryOptions = DiscoveryOptions(
+          allowSelfSignedTls: current.xtream.allowSelfSignedTls,
+          headers: headerResult.headers,
+          userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+          logSink: kDebugMode ? _onXtreamDiscoveryLog : null,
+        );
+
+        final discovery = await _xtreamDiscovery.discover(
+          baseInput,
+          options: discoveryOptions,
+        );
+
+        handshakeBase = discovery.lockedBase;
+        final lockedBaseString = handshakeBase.toString();
+        flowController.setXtreamLockedBase(lockedBaseString);
+        if (_xtreamUrlController.text != lockedBaseString) {
+          _xtreamUrlController
+            ..text = lockedBaseString
+            ..selection = TextSelection.collapsed(
+              offset: lockedBaseString.length,
+            );
+        }
+
+        if (discovery.hints['needsUserAgent'] == 'true' &&
+            userAgentOverride.isEmpty) {
+          flowController.setBannerMessage(
+            'Server requires a specific User-Agent. Consider saving one in Advanced settings.',
+          );
+        }
+      } else {
+        handshakeBase = Uri.parse(lockedBase);
+      }
+
+      final refreshedState = ref.read(loginFlowControllerProvider);
       final configuration = XtreamPortalConfiguration(
-        baseUri: Uri.parse(baseUrl),
-        username: current.xtream.username.value.trim(),
-        password: current.xtream.password.value.trim(),
+        baseUri: handshakeBase,
+        username: refreshedState.xtream.username.value.trim(),
+        password: refreshedState.xtream.password.value.trim(),
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
-        allowSelfSignedTls: current.xtream.allowSelfSignedTls,
+        allowSelfSignedTls: refreshedState.xtream.allowSelfSignedTls,
         extraHeaders: headerResult.headers,
       );
 
@@ -1347,7 +1385,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
       _showSuccessSnackBar('Xtream login success.');
+    } on DiscoveryException catch (error) {
+      flowController.clearXtreamLockedBase();
+      final message = error.message.isNotEmpty
+          ? error.message
+          : 'Unable to locate an Xtream Codes server at that address.';
+      flowController.setXtreamFieldErrors(
+        baseUrlMessage: message,
+      );
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: message,
+      );
+      flowController.setBannerMessage(message);
+      if (kDebugMode && error.telemetry.hasProbes) {
+        for (final probe in error.telemetry.probes) {
+          debugPrint(
+            'Xtream discovery ${probe.stage} ${probe.uri} '
+            'status=${probe.statusCode ?? 'n/a'} '
+            'matched=${probe.matchedSignature} '
+            'error=${probe.error == null ? 'none' : probe.error.runtimeType}',
+          );
+        }
+      }
     } on XtreamAuthenticationException catch (error) {
+      flowController.clearXtreamLockedBase();
       final message = _xtreamAuthFailureMessage(error.message);
       flowController.setXtreamFieldErrors(
         usernameMessage: 'Credentials were rejected. Confirm your username.',
@@ -1358,6 +1420,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: message,
       );
     } on DioException catch (dioError) {
+      flowController.clearXtreamLockedBase();
       debugPrint('Xtream login network error: $dioError');
       final friendly = _describeNetworkError(dioError);
       flowController.setXtreamFieldErrors(
@@ -1369,6 +1432,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: friendly,
       );
     } catch (error, stackTrace) {
+      flowController.clearXtreamLockedBase();
       debugPrint('Xtream login error: $error\n$stackTrace');
       flowController.markStepFailure(
         LoginTestStep.reachServer,
@@ -1415,6 +1479,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   void _onStalkerDiscoveryLog(DiscoveryProbeRecord record) {
     debugPrint(
       'Stalker discovery ${record.stage} ${record.uri} '
+      'status=${record.statusCode ?? 'n/a'} '
+      'matched=${record.matchedSignature} '
+      'error=${record.error == null ? 'none' : record.error.runtimeType} '
+      'elapsed=${record.elapsed.inMilliseconds}ms',
+    );
+  }
+
+  void _onXtreamDiscoveryLog(DiscoveryProbeRecord record) {
+    debugPrint(
+      'Xtream discovery ${record.stage} ${record.uri} '
       'status=${record.statusCode ?? 'n/a'} '
       'matched=${record.matchedSignature} '
       'error=${record.error == null ? 'none' : record.error.runtimeType} '

@@ -5,6 +5,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_portal_configuration.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_session.dart';
+import 'package:openiptv/src/protocols/m3uxml/xmltv_source_descriptor.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
@@ -68,6 +69,8 @@ M3uXmlPortalConfiguration buildM3uConfiguration({
   Map<String, String>? customHeaders,
   bool allowSelfSignedTls = false,
   bool followRedirects = true,
+  String? xmltvInput,
+  Map<String, String>? xmltvHeaders,
 }) {
   final trimmed = playlistInput.trim();
   final isRemote = trimmed.contains('://');
@@ -79,13 +82,32 @@ M3uXmlPortalConfiguration buildM3uConfiguration({
     query['password'] = password;
   }
 
+  final resolvedHeaders = customHeaders ?? const {};
+  XmltvSourceDescriptor? xmltvSource;
+  if (xmltvInput != null && xmltvInput.trim().isNotEmpty) {
+    final trimmedXmltv = xmltvInput.trim();
+    if (trimmedXmltv.contains('://')) {
+      xmltvSource = XmltvUrlSource(
+        epgUri: Uri.parse(trimmedXmltv),
+        headers: xmltvHeaders ?? resolvedHeaders,
+      );
+    } else {
+      xmltvSource = XmltvFileSource(
+        filePath: trimmedXmltv,
+        originalFileName: displayName,
+        displayName: displayName,
+      );
+    }
+  }
+
   return M3uXmlPortalConfiguration(
     portalId: portalId,
     displayName: displayName ?? portalId,
     defaultUserAgent: userAgent,
     allowSelfSignedTls: allowSelfSignedTls,
-    defaultHeaders: customHeaders ?? const {},
+    defaultHeaders: resolvedHeaders,
     followRedirects: followRedirects,
+    xmltvSource: xmltvSource,
     m3uSource: isRemote
         ? M3uUrlSource(
             playlistUri: Uri.parse(trimmed),

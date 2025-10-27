@@ -96,7 +96,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 ### Optional EPG pairing
 
-* [ ] If user provides separate XMLTV URL, do a **HEAD** (allow gzip) and store it; otherwise rely on downstream protocol (Xtream) or let user add later.
+* [x] If user provides separate XMLTV URL, do a **HEAD** (allow gzip) and store it; otherwise rely on downstream protocol (Xtream) or let user add later.
 
 ### Lock-in & persistence
 

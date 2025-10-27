@@ -178,4 +178,67 @@ class M3uXmlClient {
       }
     }
   }
+
+  /// Issues a lightweight HEAD request against the provided XMLTV URI so we can
+  /// capture metadata without downloading the full guide.
+  Future<XmltvHeadMetadata> headXmltv({
+    required Uri uri,
+    Map<String, String>? headers,
+    String? userAgent,
+    bool allowSelfSignedTls = false,
+    bool followRedirects = true,
+  }) async {
+    _applyTlsOverrides(allowSelfSignedTls);
+
+    final requestHeaders = <String, String>{
+      if (userAgent != null && userAgent.isNotEmpty) 'User-Agent': userAgent,
+      ...?headers,
+    };
+
+    final response = await _dio.headUri(
+      uri,
+      options: Options(
+        headers: requestHeaders,
+        followRedirects: followRedirects,
+        validateStatus: (_) => true,
+        responseType: ResponseType.bytes,
+      ),
+    );
+
+    return XmltvHeadMetadata(
+      resolvedUri: response.realUri,
+      statusCode: response.statusCode ?? 0,
+      contentType: response.headers.value('content-type'),
+      contentEncoding: response.headers.value('content-encoding'),
+      etag: response.headers.value('etag'),
+      lastModified: _parseHttpDate(response.headers.value('last-modified')),
+    );
+  }
+}
+
+/// Captures the important headers returned by an XMLTV HEAD probe so the UI
+/// and caching layers can make informed decisions without downloading the
+/// entire guide payload.
+class XmltvHeadMetadata {
+  final Uri resolvedUri;
+  final int statusCode;
+  final String? contentType;
+  final String? contentEncoding;
+  final String? etag;
+  final DateTime? lastModified;
+
+  XmltvHeadMetadata({
+    required this.resolvedUri,
+    required this.statusCode,
+    this.contentType,
+    this.contentEncoding,
+    this.etag,
+    this.lastModified,
+  });
+
+  bool get isSuccessful => statusCode >= HttpStatus.ok && statusCode < 400;
+
+  bool get allowsFallback =>
+      statusCode == HttpStatus.methodNotAllowed ||
+      statusCode == HttpStatus.notImplemented;
 }

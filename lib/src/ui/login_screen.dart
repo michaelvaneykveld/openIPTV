@@ -26,6 +26,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
+import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
@@ -110,6 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       const StalkerPortalDiscovery();
   final XtreamPortalDiscovery _xtreamDiscovery = const XtreamPortalDiscovery();
   final M3uPortalDiscovery _m3uDiscovery = const M3uPortalDiscovery();
+  final M3uXmlClient _m3uClient = M3uXmlClient();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
@@ -1781,20 +1783,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       }
 
+      XmltvHeadMetadata? xmltvHead;
+      String? xmltvConfigInput;
       final resolvedState = ref.read(loginFlowControllerProvider);
       final epgInput = resolvedState.m3u.epgUrl.value.trim();
       if (epgInput.isNotEmpty) {
-        try {
-          final canonicalEpg = canonicalizeScheme(epgInput);
-          final epgUri = Uri.parse(canonicalEpg);
-          if (epgUri.host.isNotEmpty) {
-            flowController.setM3uLockedEpg(
-              _redactM3uSecrets(epgUri).toString(),
+        final isRemoteXmltv = epgInput.contains('://');
+        if (isRemoteXmltv) {
+          try {
+            final canonicalEpg = canonicalizeScheme(epgInput);
+            final epgUri = Uri.parse(canonicalEpg);
+            if (epgUri.host.isEmpty) {
+              throw const FormatException(
+                'XMLTV URL must include a host name.',
+              );
+            }
+            final headMetadata = await _probeXmltvHead(
+              uri: epgUri,
+              headers: headerResult.headers,
+              allowSelfSigned: initialState.m3u.allowSelfSignedTls,
+              followRedirects: initialState.m3u.followRedirects,
+              userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
             );
-          } else {
+            xmltvHead = headMetadata;
+            if (headMetadata.isSuccessful || headMetadata.allowsFallback) {
+              final resolvedUri = headMetadata.resolvedUri;
+              flowController.setM3uLockedEpg(
+                _redactM3uSecrets(resolvedUri).toString(),
+              );
+              xmltvConfigInput = resolvedUri.toString();
+              if (!headMetadata.isSuccessful && headMetadata.allowsFallback) {
+                flowController.setBannerMessage(
+                  'XMLTV server refused HEAD requests; continuing with full download.',
+                );
+              }
+            } else {
+              final message =
+                  'XMLTV probe failed (HTTP ${headMetadata.statusCode}).';
+              flowController.setM3uFieldErrors(epgMessage: message);
+              flowController.markStepFailure(
+                LoginTestStep.reachServer,
+                message: message,
+              );
+              return;
+            }
+          } on FormatException catch (error) {
+            flowController.setM3uFieldErrors(epgMessage: error.message);
             flowController.setM3uLockedEpg(null);
+            flowController.markStepFailure(
+              LoginTestStep.reachServer,
+              message: error.message,
+            );
+            return;
+          } on DioException catch (dioError) {
+            final friendly = _describeNetworkError(dioError);
+            flowController.setM3uFieldErrors(
+              epgMessage: 'Unable to reach the XMLTV feed. $friendly',
+            );
+            flowController.setM3uLockedEpg(null);
+            flowController.markStepFailure(
+              LoginTestStep.reachServer,
+              message: friendly,
+            );
+            return;
+          } catch (error, stackTrace) {
+            debugPrint('XMLTV head probe error: $error\n$stackTrace');
+            final message = _unexpectedErrorMessage(error);
+            flowController.setM3uFieldErrors(epgMessage: message);
+            flowController.setM3uLockedEpg(null);
+            flowController.markStepFailure(
+              LoginTestStep.reachServer,
+              message: message,
+            );
+            return;
           }
-        } catch (_) {
+        } else {
+          xmltvConfigInput = epgInput;
           flowController.setM3uLockedEpg(null);
         }
       } else {
@@ -1822,6 +1886,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         customHeaders: headerResult.headers,
         allowSelfSignedTls: effectiveState.m3u.allowSelfSignedTls,
         followRedirects: effectiveState.m3u.followRedirects,
+        xmltvInput: xmltvConfigInput,
+        xmltvHeaders: headerResult.headers,
       );
 
       final session = await ref.read(
@@ -1919,6 +1985,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
         if (epgInput.isNotEmpty) {
           secrets['epgUrl'] = epgInput;
+        }
+        if (xmltvHead != null) {
+          final head = xmltvHead;
+          hints['xmltvHeadStatus'] = head.statusCode.toString();
+          final contentType = head.contentType;
+          if (contentType != null && contentType.isNotEmpty) {
+            hints['xmltvContentType'] = contentType;
+          }
+          final lastModified = head.lastModified;
+          if (lastModified != null) {
+            hints['xmltvLastModified'] = lastModified.toIso8601String();
+          }
+          hints['xmltvResolvedUri'] = _redactM3uSecrets(
+            head.resolvedUri,
+          ).toString();
         }
         await _persistProviderProfile(
           kind: ProviderKind.m3u,
@@ -2084,6 +2165,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _encodeHeaders(Map<String, String> headers) {
     if (headers.isEmpty) return null;
     return jsonEncode(headers);
+  }
+
+  Future<XmltvHeadMetadata> _probeXmltvHead({
+    required Uri uri,
+    required Map<String, String> headers,
+    required bool allowSelfSigned,
+    required bool followRedirects,
+    String? userAgent,
+  }) {
+    return _m3uClient.headXmltv(
+      uri: uri,
+      headers: headers,
+      userAgent: userAgent,
+      allowSelfSignedTls: allowSelfSigned,
+      followRedirects: followRedirects,
+    );
   }
 
   bool _applyInputClassification(

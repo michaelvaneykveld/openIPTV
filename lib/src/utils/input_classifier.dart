@@ -42,10 +42,12 @@ class InputClassification {
   factory InputClassification.xtream({
     required XtreamClassification details,
     required String original,
+    M3uClassification? playlist,
   }) => InputClassification._(
     provider: ProviderKind.xtream,
     isConfident: true,
     xtream: details,
+    m3u: playlist,
     uri: details.baseUri,
     original: original,
   );
@@ -121,11 +123,15 @@ class InputClassifier {
     final uri = _parseFlexibleHttpUri(trimmed);
 
     final xtream = _detectXtream(trimmed, lowered, uri);
+    final m3u = _detectM3u(trimmed, lowered, uri);
     if (xtream != null) {
-      return InputClassification.xtream(details: xtream, original: raw);
+      return InputClassification.xtream(
+        details: xtream,
+        original: raw,
+        playlist: m3u,
+      );
     }
 
-    final m3u = _detectM3u(trimmed, lowered, uri);
     if (m3u != null) {
       return InputClassification.m3u(details: m3u, original: raw);
     }
@@ -162,12 +168,6 @@ class InputClassifier {
     final query = workingUri.queryParameters;
     final hasCredentialParams =
         query.containsKey('username') && query.containsKey('password');
-    final hasPlaylistHints = _looksLikePlaylistQuery(query);
-    if (pathLower.contains('get.php') && hasPlaylistHints) {
-      // Playlist endpoints often reuse Xtream parameters; prefer M3U handling.
-      return null;
-    }
-
     final hasXtreamMarkers =
         pathLower.contains('player_api.php') ||
         pathLower.contains('get.php') ||
@@ -212,12 +212,6 @@ class InputClassifier {
 
     final carriesCredentials =
         query.containsKey('username') && query.containsKey('password');
-    final allowCredentials = playlistHints || !looksLikeGetEndpoint;
-
-    if (carriesCredentials && !allowCredentials) {
-      // Likely an Xtream API URL masquerading as M3U without explicit hints.
-      return null;
-    }
 
     return M3uClassification(
       playlistUri: candidate,

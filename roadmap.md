@@ -93,6 +93,7 @@
 - Added a Drift-backed database with provider and vault mapping tables so profile metadata lives alongside migration-friendly schema definitions (`lib/storage/provider_database.dart`, `lib/storage/provider_database.g.dart`).
 - Built a `ProviderProfileRepository` that bridges Drift and `FlutterSecureStorage`, exposing a clean API for persisting non-secret configuration and sensitive credentials per provider (`lib/storage/provider_profile_repository.dart`).
 - Updated the Stalker, Xtream, and M3U login flows to capture discovery hints, configuration, and secrets into the repository when connections succeed, surfacing friendly failure messaging when persistence fails (`lib/src/ui/login_screen.dart`).
+- Wired sqflite FFI initialisation for desktop targets so profile persistence works on Windows/Linux without manual bootstrap steps (`lib/storage/provider_database.dart`).
 
 ## TODO - Login Experience Implementation
 - Build out the unified provider profile and storage architecture (Drift + secure vault). (in-progress)

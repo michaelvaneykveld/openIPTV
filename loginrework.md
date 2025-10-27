@@ -139,6 +139,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 * [x] On successful login, **atomically** persist: non-secret profile -> vault -> verification ping.
 
   * Login flows now call the repository after probes succeed so configuration, discovery hints, and secrets survive restarts (`lib/src/ui/login_screen.dart`).
+* [x] Desktop runtime support: auto-initialise sqflite FFI on Windows/Linux/Mac before opening the Drift database (`lib/storage/provider_database.dart`).
 
 ---
 

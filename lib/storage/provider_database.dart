@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:drift/drift.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart' as sqflite;
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
@@ -82,10 +86,24 @@ class ProviderSecrets extends Table {
 
 LazyDatabase _openProviderConnection() {
   return LazyDatabase(() async {
+    _ensureSqfliteFactoryForDesktop();
     final directory = await getApplicationSupportDirectory();
     final path = p.join(directory.path, 'provider_profiles.sqlite');
     return SqfliteQueryExecutor(path: path, logStatements: false);
   });
+}
+
+bool _sqfliteFactoryInitialised = false;
+
+void _ensureSqfliteFactoryForDesktop() {
+  if (_sqfliteFactoryInitialised || kIsWeb) {
+    return;
+  }
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    sqfliteFfiInit();
+    sqflite.databaseFactory = databaseFactoryFfi;
+    _sqfliteFactoryInitialised = true;
+  }
 }
 
 /// Central database that stores provider profiles and secure storage mappings.

@@ -66,6 +66,10 @@
 - Hardened discovery when links are auto-upgraded to HTTPS by testing both the supplied scheme and an HTTP fallback before surfacing failures (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
 - Normalised probe telemetry so resolved URIs remain redacted while reflecting the scheme that ultimately matched (`lib/src/protocols/stalker/stalker_portal_discovery.dart`).
 
+## Session Log - Xtream HTML Signature
+- Accepted control panels that return HTML `INVALID_CREDENTIALS` banners as valid Xtream signatures so branded skins still lock the base (`lib/src/protocols/xtream/xtream_portal_discovery.dart`).
+- Added a regression test that spins up a fake XUI endpoint to guarantee the HTML detection path stays covered (`test/protocols/xtream_portal_discovery_test.dart`).
+
 ## Session Log - Input Classifier
 - Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).

@@ -51,9 +51,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       needsUaHint = needsUaHint || outcome.needsUserAgent;
 
       if (outcome.matched) {
-        final hints = <String, String>{
-          'matchedEndpoint': 'player_api.php',
-        };
+        final hints = <String, String>{'matchedEndpoint': 'player_api.php'};
         if (needsUaHint) {
           hints['needsUserAgent'] = 'true';
         }
@@ -104,10 +102,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
     required DiscoveryOptions options,
     required List<DiscoveryProbeRecord> telemetry,
   }) async {
-    const probeCredentials = {
-      'username': '__probe__',
-      'password': '__probe__',
-    };
+    const probeCredentials = {'username': '__probe__', 'password': '__probe__'};
 
     final query = Map<String, String>.from(candidate.playerApi.queryParameters)
       ..addAll(probeCredentials);
@@ -146,10 +141,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
 
       if (retryOutcome.matched) {
         final lockedBase = _deriveLockedBase(retryOutcome.sanitizedUri);
-        return _ProbeOutcome.matched(
-          lockedBase,
-          needsUserAgent: true,
-        );
+        return _ProbeOutcome.matched(lockedBase, needsUserAgent: true);
       }
     }
 
@@ -165,9 +157,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
   }) async {
     final stopwatch = Stopwatch()..start();
     try {
-      final requestHeaders = <String, String>{
-        ...options.headers,
-      };
+      final requestHeaders = <String, String>{...options.headers};
       final ua = options.userAgent?.trim();
       if (ua != null && ua.isNotEmpty) {
         requestHeaders['User-Agent'] = ua;
@@ -273,8 +263,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
     }
 
     if (baseUri.scheme == 'https' || baseUri.scheme == 'http') {
-      final flippedScheme =
-          baseUri.scheme == 'https' ? 'http' : 'https';
+      final flippedScheme = baseUri.scheme == 'https' ? 'http' : 'https';
       add(baseUri.replace(scheme: flippedScheme));
       if (baseUri.path != '/') {
         add(baseUri.replace(scheme: flippedScheme, path: '/'));
@@ -287,25 +276,44 @@ class XtreamPortalDiscovery implements PortalDiscovery {
   bool _looksLikeXtream(Response<dynamic> response) {
     final data = response.data;
     if (data is Map) {
-      final keys =
-          data.keys.map((key) => key.toString().toLowerCase()).toSet();
+      final keys = data.keys.map((key) => key.toString().toLowerCase()).toSet();
       if (keys.contains('user_info') || keys.contains('server_info')) {
         return true;
       }
     }
 
     final body = data?.toString().toLowerCase() ?? '';
-    return body.contains('user_info') || body.contains('server_info');
+    if (body.isEmpty) {
+      return false;
+    }
+
+    if (body.contains('user_info') || body.contains('server_info')) {
+      return true;
+    }
+
+    // Some Control Panel skins (e.g. XUI.one) return an HTML error page with an
+    // INVALID_CREDENTIALS banner instead of JSON when fake credentials are
+    // supplied. Treat those branded responses as a positive signature so
+    // discovery still locks the base URL.
+    const htmlSignatures = <String>{
+      'invalid_credentials',
+      'username or password is invalid',
+      'xui.one',
+      'xtream ui',
+    };
+    for (final signature in htmlSignatures) {
+      if (body.contains(signature)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   Uri _deriveLockedBase(Uri uri) {
     final stripped = stripKnownFiles(
       uri,
-      knownFiles: const {
-        'player_api.php',
-        'get.php',
-        'xmltv.php',
-      },
+      knownFiles: const {'player_api.php', 'get.php', 'xmltv.php'},
     );
     return ensureTrailingSlash(stripped);
   }
@@ -322,10 +330,10 @@ class XtreamPortalDiscovery implements PortalDiscovery {
 
 class _XtreamCandidate {
   _XtreamCandidate(Uri base)
-      : baseUri = base,
-        playerApi = base.resolve('player_api.php'),
-        getPhp = base.resolve('get.php'),
-        xmltv = base.resolve('xmltv.php');
+    : baseUri = base,
+      playerApi = base.resolve('player_api.php'),
+      getPhp = base.resolve('get.php'),
+      xmltv = base.resolve('xmltv.php');
 
   final Uri baseUri;
   final Uri playerApi;
@@ -360,12 +368,11 @@ class _ProbeOutcome {
   factory _ProbeOutcome.matched(
     Uri lockedBase, {
     bool needsUserAgent = false,
-  }) =>
-      _ProbeOutcome._(
-        matched: true,
-        lockedBase: lockedBase,
-        needsUserAgent: needsUserAgent,
-      );
+  }) => _ProbeOutcome._(
+    matched: true,
+    lockedBase: lockedBase,
+    needsUserAgent: needsUserAgent,
+  );
 
   factory _ProbeOutcome.failure({DioException? error}) =>
       _ProbeOutcome._(matched: false, error: error);

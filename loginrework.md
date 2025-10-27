@@ -78,20 +78,20 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 * URL mode:
 
-  * [ ] Normalize URL (scheme/default ports).
-  * [ ] If it contains `get.php?username=&password=`, reclassify as **Xtream** and jump to 3.
+  * [x] Normalize URL (scheme/default ports).
+  * [x] If it contains `get.php?username=&password=`, reclassify as **Xtream** and jump to 3.
 * File mode:
 
-  * [ ] Verify extension `.m3u`/`.m3u8` and that file is readable; sniff first line for `#EXTM3U`.
+  * [x] Verify extension `.m3u`/`.m3u8` and that file is readable; sniff first line for `#EXTM3U`.
 
 ### Probe (URL mode)
 
-* [ ] Send **HEAD** first:
+* [x] Send **HEAD** first:
 
   * Accept `200` with `Content-Type` in `audio/x-mpegurl`, `application/x-mpegURL`, or `application/octet-stream`.
-* [ ] If HEAD blocked, send a **range GET** for first 2-4 KB and ensure it begins with `#EXTM3U`.
-* [ ] Follow redirects; some providers redirect to signed URLs.
-* [ ] If 403/406, retry once with a **media UA** (e.g., `VLC/3.0.18`).
+* [x] If HEAD blocked, send a **range GET** for first 2-4 KB and ensure it begins with `#EXTM3U`.
+* [x] Follow redirects; some providers redirect to signed URLs.
+* [x] If 403/406, retry once with a **media UA** (e.g., `VLC/3.0.18`).
 
 ### Optional EPG pairing
 
@@ -99,8 +99,8 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 ### Lock-in & persistence
 
-* [ ] Persist the final resolved playlist URL (without secrets embedded if any), plus UA hint.
-* [ ] For **file** playlists, persist file handle/path and last modified time; schedule a re-parse when file changes.
+* [x] Persist the final resolved playlist URL (without secrets embedded if any), plus UA hint.
+* [x] For **file** playlists, persist file handle/path and last modified time; schedule a re-parse when file changes.
 
 ---
 

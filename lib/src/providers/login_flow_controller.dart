@@ -82,6 +82,7 @@ class M3uFormState {
   final FieldState playlistFilePath;
   final String? fileName;
   final int? fileSizeBytes;
+  final DateTime? fileLastModified;
   final FieldState epgUrl;
   final FieldState username;
   final FieldState password;
@@ -91,6 +92,9 @@ class M3uFormState {
   final bool followRedirects;
   final bool allowSelfSignedTls;
   final bool advancedExpanded;
+  final String? lockedPlaylistUri;
+  final String? redactedPlaylistUri;
+  final String? lockedEpgUri;
 
   const M3uFormState({
     this.inputMode = M3uInputMode.url,
@@ -98,6 +102,7 @@ class M3uFormState {
     this.playlistFilePath = const FieldState(),
     this.fileName,
     this.fileSizeBytes,
+    this.fileLastModified,
     this.epgUrl = const FieldState(),
     this.username = const FieldState(),
     this.password = const FieldState(),
@@ -107,6 +112,9 @@ class M3uFormState {
     this.followRedirects = true,
     this.allowSelfSignedTls = false,
     this.advancedExpanded = false,
+    this.lockedPlaylistUri,
+    this.redactedPlaylistUri,
+    this.lockedEpgUri,
   });
 
   M3uFormState copyWith({
@@ -115,6 +123,7 @@ class M3uFormState {
     FieldState? playlistFilePath,
     String? fileName,
     int? fileSizeBytes,
+    DateTime? fileLastModified,
     FieldState? epgUrl,
     FieldState? username,
     FieldState? password,
@@ -124,7 +133,12 @@ class M3uFormState {
     bool? followRedirects,
     bool? allowSelfSignedTls,
     bool? advancedExpanded,
+    String? lockedPlaylistUri,
+    String? redactedPlaylistUri,
+    String? lockedEpgUri,
     bool clearFileSelection = false,
+    bool clearLockedPlaylist = false,
+    bool clearLockedEpg = false,
   }) {
     return M3uFormState(
       inputMode: inputMode ?? this.inputMode,
@@ -134,6 +148,9 @@ class M3uFormState {
       fileSizeBytes: clearFileSelection
           ? null
           : fileSizeBytes ?? this.fileSizeBytes,
+      fileLastModified: clearFileSelection
+          ? null
+          : fileLastModified ?? this.fileLastModified,
       epgUrl: epgUrl ?? this.epgUrl,
       username: username ?? this.username,
       password: password ?? this.password,
@@ -143,6 +160,13 @@ class M3uFormState {
       followRedirects: followRedirects ?? this.followRedirects,
       allowSelfSignedTls: allowSelfSignedTls ?? this.allowSelfSignedTls,
       advancedExpanded: advancedExpanded ?? this.advancedExpanded,
+      lockedPlaylistUri: clearLockedPlaylist
+          ? null
+          : lockedPlaylistUri ?? this.lockedPlaylistUri,
+      redactedPlaylistUri: clearLockedPlaylist
+          ? null
+          : redactedPlaylistUri ?? this.redactedPlaylistUri,
+      lockedEpgUri: clearLockedEpg ? null : lockedEpgUri ?? this.lockedEpgUri,
     );
   }
 }
@@ -352,6 +376,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         playlistFilePath: mode == M3uInputMode.file
             ? state.m3u.playlistFilePath.copyWith(clearError: true)
             : state.m3u.playlistFilePath,
+        clearLockedPlaylist: true,
       ),
     );
   }
@@ -363,6 +388,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
           value: value,
           clearError: true,
         ),
+        clearLockedPlaylist: true,
       ),
     );
   }
@@ -375,6 +401,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
           clearError: true,
         ),
         clearFileSelection: true,
+        clearLockedPlaylist: true,
       ),
     );
   }
@@ -383,6 +410,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     required String path,
     required String fileName,
     int? fileSizeBytes,
+    DateTime? lastModified,
   }) {
     state = state.copyWith(
       m3u: state.m3u.copyWith(
@@ -392,6 +420,17 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
         ),
         fileName: fileName,
         fileSizeBytes: fileSizeBytes,
+        fileLastModified: lastModified,
+        clearLockedPlaylist: true,
+      ),
+    );
+  }
+
+  void updateM3uFileMetadata({int? fileSizeBytes, DateTime? lastModified}) {
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        fileSizeBytes: fileSizeBytes ?? state.m3u.fileSizeBytes,
+        fileLastModified: lastModified ?? state.m3u.fileLastModified,
       ),
     );
   }
@@ -400,6 +439,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     state = state.copyWith(
       m3u: state.m3u.copyWith(
         epgUrl: state.m3u.epgUrl.copyWith(value: value, clearError: true),
+        clearLockedEpg: true,
       ),
     );
   }
@@ -491,6 +531,27 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     );
   }
 
+  void setM3uLockedPlaylist({required String raw, required String redacted}) {
+    state = state.copyWith(
+      m3u: state.m3u.copyWith(
+        lockedPlaylistUri: raw,
+        redactedPlaylistUri: redacted,
+      ),
+    );
+  }
+
+  void clearM3uLockedPlaylist() {
+    state = state.copyWith(m3u: state.m3u.copyWith(clearLockedPlaylist: true));
+  }
+
+  void setM3uLockedEpg(String? redacted) {
+    if (redacted == null) {
+      state = state.copyWith(m3u: state.m3u.copyWith(clearLockedEpg: true));
+    } else {
+      state = state.copyWith(m3u: state.m3u.copyWith(lockedEpgUri: redacted));
+    }
+  }
+
   void updateXtreamServerUrl(String value) {
     final trimmed = value.trim();
     final shouldClearLock =
@@ -536,9 +597,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
     if (state.xtream.lockedBaseUri == null) {
       return;
     }
-    state = state.copyWith(
-      xtream: state.xtream.copyWith(lockedBaseUri: null),
-    );
+    state = state.copyWith(xtream: state.xtream.copyWith(lockedBaseUri: null));
   }
 
   void updateXtreamPassword(String value) {

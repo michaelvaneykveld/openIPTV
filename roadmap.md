@@ -70,6 +70,11 @@
 - Accepted control panels that return HTML `INVALID_CREDENTIALS` banners as valid Xtream signatures so branded skins still lock the base (`lib/src/protocols/xtream/xtream_portal_discovery.dart`).
 - Added a regression test that spins up a fake XUI endpoint to guarantee the HTML detection path stays covered (`test/protocols/xtream_portal_discovery_test.dart`).
 
+## Session Log - M3U Discovery Hardening
+- Introduced a dedicated M3U discovery adapter that normalises playlist URLs, reclassifies disguised Xtream links, and adds scheme flipping plus media User-Agent retries (`lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).
+- Verified remote playlists with HEAD and range GET probes, redacting telemetry and logging only sanitized endpoints in debug builds (`lib/src/ui/login_screen.dart`).
+- Synced the login flow to persist redacted playlist/EPG URLs and refreshed file metadata so subsequent sessions reuse the resolved locations safely (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
+
 ## Session Log - Input Classifier
 - Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).
@@ -81,10 +86,6 @@
 - Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
 
 ## TODO - Login Experience Implementation
-- Implement M3U discovery for both URL and file modes. (todo)
-  - Normalise playlist URLs, reclassify Xtream-style links, and verify local files before import. (todo)
-  - Probe remote playlists with HEAD/range GET requests, retrying with media UAs on 403/406 and following redirect chains. (todo)
-  - Persist resolved playlist/EPG URLs (without secrets) and file metadata for change detection. (todo)
 - Codify retry and error taxonomy for all discovery probes. (todo)
   - Standardise timeouts, redirect limits, TLS fallbacks, UA retries, and connection-close mitigation. (todo)
 - Build out the unified provider profile and storage architecture (Drift + secure vault). (todo)
@@ -108,4 +109,3 @@
 - Enforce security and privacy guardrails. (todo)
   - Ensure secrets never appear in logs, build secret-bearing URLs only in-memory, and store credentials in secure storage exclusively. (todo)
 - Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)
-

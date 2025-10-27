@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
+import 'package:openiptv/src/protocols/m3uxml/m3u_portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
@@ -20,6 +21,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_discovery.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_discovery.dart';
 import 'package:openiptv/src/utils/input_classifier.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
+import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
@@ -67,6 +69,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final InputClassifier _inputClassifier = const InputClassifier();
+  static const _m3uSensitiveQueryKeys = {'username', 'password', 'token'};
 
   /// Form keys are retained for future validation extensions even though
   /// validation currently lives inside the Riverpod controller.
@@ -104,8 +107,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
   final StalkerPortalDiscovery _stalkerDiscovery =
       const StalkerPortalDiscovery();
-  final XtreamPortalDiscovery _xtreamDiscovery =
-      const XtreamPortalDiscovery();
+  final XtreamPortalDiscovery _xtreamDiscovery = const XtreamPortalDiscovery();
+  final M3uPortalDiscovery _m3uDiscovery = const M3uPortalDiscovery();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
 
   @override
@@ -1390,9 +1393,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final message = error.message.isNotEmpty
           ? error.message
           : 'Unable to locate an Xtream Codes server at that address.';
-      flowController.setXtreamFieldErrors(
-        baseUrlMessage: message,
-      );
+      flowController.setXtreamFieldErrors(baseUrlMessage: message);
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: message,
@@ -1496,6 +1497,36 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  void _onM3uDiscoveryLog(DiscoveryProbeRecord record) {
+    debugPrint(
+      'M3U discovery ${record.stage} ${record.uri} '
+      'status=${record.statusCode ?? 'n/a'} '
+      'matched=${record.matchedSignature} '
+      'error=${record.error == null ? 'none' : record.error.runtimeType} '
+      'elapsed=${record.elapsed.inMilliseconds}ms',
+    );
+  }
+
+  Uri _redactM3uSecrets(Uri uri) {
+    Map<String, String> sanitized = const {};
+    if (uri.hasQuery) {
+      try {
+        sanitized = Uri.splitQueryString(uri.query);
+      } catch (_) {
+        sanitized = {};
+      }
+      sanitized = Map.of(sanitized);
+      sanitized.removeWhere(
+        (key, value) => _m3uSensitiveQueryKeys.contains(key.toLowerCase()),
+      );
+    }
+
+    return uri.replace(
+      userInfo: '',
+      queryParameters: sanitized.isEmpty ? null : sanitized,
+    );
+  }
+
   Future<void> _pickM3uPlaylistFile() async {
     final flowState = ref.read(loginFlowControllerProvider);
     if (flowState.testProgress.inProgress) {
@@ -1562,8 +1593,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final current = ref.read(loginFlowControllerProvider);
-    final headerResult = parseHeaderInput(current.m3u.customHeaders.value);
+    final initialState = ref.read(loginFlowControllerProvider);
+    final headerResult = parseHeaderInput(initialState.m3u.customHeaders.value);
     if (headerResult.error != null) {
       flowController.setM3uFieldErrors(customHeaderMessage: headerResult.error);
       flowController.setBannerMessage(headerResult.error);
@@ -1575,26 +1606,119 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final playlistInput = current.m3u.inputMode == M3uInputMode.url
-          ? current.m3u.playlistUrl.value
-          : current.m3u.playlistFilePath.value;
-      final userAgentOverride = current.m3u.userAgent.value.trim();
+      final isUrlMode = initialState.m3u.inputMode == M3uInputMode.url;
+      final playlistInput = isUrlMode
+          ? initialState.m3u.playlistUrl.value.trim()
+          : initialState.m3u.playlistFilePath.value.trim();
+      final userAgentOverride = initialState.m3u.userAgent.value.trim();
+
+      final discoveryOptions = DiscoveryOptions(
+        allowSelfSignedTls: initialState.m3u.allowSelfSignedTls,
+        headers: headerResult.headers,
+        userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+        logSink: kDebugMode && isUrlMode ? _onM3uDiscoveryLog : null,
+      );
+
+      final discovery = await _m3uDiscovery.discover(
+        playlistInput,
+        options: discoveryOptions,
+      );
+
+      if (discovery.kind == ProviderKind.xtream) {
+        flowController.markStepFailure(
+          LoginTestStep.reachServer,
+          message: 'Detected an Xtream link; switching to Xtream login.',
+        );
+        flowController.setBannerMessage(
+          'Detected an Xtream playlist link. Switched to the Xtream form so you can continue there.',
+        );
+        if (!mounted) {
+          return;
+        }
+        _applyInputClassification(
+          discovery.lockedBase.toString(),
+          source: _ClassificationSource.validation,
+          messenger: ScaffoldMessenger.of(context),
+        );
+        return;
+      }
+
+      var resolvedPlaylist = discovery.lockedBase.toString();
+      if (isUrlMode) {
+        if (_m3uInputController.text != resolvedPlaylist) {
+          _m3uInputController
+            ..text = resolvedPlaylist
+            ..selection = TextSelection.collapsed(
+              offset: resolvedPlaylist.length,
+            );
+        }
+        flowController.updateM3uPlaylistUrl(resolvedPlaylist);
+        flowController.setM3uLockedPlaylist(
+          raw: resolvedPlaylist,
+          redacted: discovery.hints['sanitizedPlaylist'] ?? resolvedPlaylist,
+        );
+        if (discovery.hints['needsMediaUserAgent'] == 'true' &&
+            userAgentOverride.isEmpty) {
+          flowController.setBannerMessage(
+            'Playlist server expects a media-player User-Agent. Add one under Advanced settings for reliable access.',
+          );
+        }
+      } else {
+        flowController.setM3uLockedPlaylist(
+          raw: resolvedPlaylist,
+          redacted: discovery.hints['sanitizedPlaylist'] ?? resolvedPlaylist,
+        );
+        final updatedSize = int.tryParse(discovery.hints['fileBytes'] ?? '');
+        final updatedModified = DateTime.tryParse(
+          discovery.hints['modifiedAt'] ?? '',
+        );
+        flowController.updateM3uFileMetadata(
+          fileSizeBytes: updatedSize,
+          lastModified: updatedModified,
+        );
+      }
+
+      final resolvedState = ref.read(loginFlowControllerProvider);
+      final epgInput = resolvedState.m3u.epgUrl.value.trim();
+      if (epgInput.isNotEmpty) {
+        try {
+          final canonicalEpg = canonicalizeScheme(epgInput);
+          final epgUri = Uri.parse(canonicalEpg);
+          if (epgUri.host.isNotEmpty) {
+            flowController.setM3uLockedEpg(
+              _redactM3uSecrets(epgUri).toString(),
+            );
+          } else {
+            flowController.setM3uLockedEpg(null);
+          }
+        } catch (_) {
+          flowController.setM3uLockedEpg(null);
+        }
+      } else {
+        flowController.setM3uLockedEpg(null);
+      }
+
+      final effectiveState = ref.read(loginFlowControllerProvider);
+      resolvedPlaylist = effectiveState.m3u.inputMode == M3uInputMode.url
+          ? effectiveState.m3u.playlistUrl.value.trim()
+          : effectiveState.m3u.playlistFilePath.value.trim();
+
       final configuration = buildM3uConfiguration(
         portalId: 'm3u-',
-        playlistInput: playlistInput,
-        displayName: current.m3u.inputMode == M3uInputMode.url
-            ? playlistInput
-            : current.m3u.fileName ?? 'Local playlist',
-        username: current.m3u.username.value.trim().isEmpty
+        playlistInput: resolvedPlaylist,
+        displayName: effectiveState.m3u.inputMode == M3uInputMode.url
+            ? resolvedPlaylist
+            : effectiveState.m3u.fileName ?? 'Local playlist',
+        username: effectiveState.m3u.username.value.trim().isEmpty
             ? null
-            : current.m3u.username.value.trim(),
-        password: current.m3u.password.value.trim().isEmpty
+            : effectiveState.m3u.username.value.trim(),
+        password: effectiveState.m3u.password.value.trim().isEmpty
             ? null
-            : current.m3u.password.value.trim(),
+            : effectiveState.m3u.password.value.trim(),
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
         customHeaders: headerResult.headers,
-        allowSelfSignedTls: current.m3u.allowSelfSignedTls,
-        followRedirects: current.m3u.followRedirects,
+        allowSelfSignedTls: effectiveState.m3u.allowSelfSignedTls,
+        followRedirects: effectiveState.m3u.followRedirects,
       );
 
       final session = await ref.read(
@@ -1658,6 +1782,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       if (!mounted) return;
       _showSuccessSnackBar('Playlist validated successfully.');
+    } on FormatException catch (error) {
+      flowController.clearM3uLockedPlaylist();
+      flowController.setM3uFieldErrors(playlistMessage: error.message);
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: error.message,
+      );
+      flowController.setBannerMessage(error.message);
+    } on DiscoveryException catch (error) {
+      flowController.clearM3uLockedPlaylist();
+      flowController.setM3uFieldErrors(playlistMessage: error.message);
+      flowController.markStepFailure(
+        LoginTestStep.reachServer,
+        message: error.message,
+      );
+      if (kDebugMode && error.telemetry.hasProbes) {
+        for (final record in error.telemetry.probes) {
+          _onM3uDiscoveryLog(record);
+        }
+      }
     } on M3uXmlAuthenticationException catch (error) {
       final lower = error.message.toLowerCase();
       final targetsXmltv = lower.contains('xmltv');

@@ -74,7 +74,9 @@
 - Introduced a dedicated M3U discovery adapter that normalises playlist URLs, reclassifies disguised Xtream links, and adds scheme flipping plus media User-Agent retries (`lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).
 - Verified remote playlists with HEAD and range GET probes, redacting telemetry and logging only sanitized endpoints in debug builds (`lib/src/ui/login_screen.dart`).
 - Synced the login flow to persist redacted playlist/EPG URLs and refreshed file metadata so subsequent sessions reuse the resolved locations safely (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
-- Added an XMLTV HEAD probe so remote guides are validated before download, surfacing content-type/last-modified hints and persisting the resolved EPG endpoint for profiles (`lib/src/protocols/m3uxml/m3u_xml_client.dart`, `lib/src/ui/login_screen.dart`).
+- Added an XMLTV HEAD probe
+- Added test coverage for redirect-to-signed playlist URLs so discovery tracks the resolved endpoint and stores a sanitized hint (	est/protocols/m3u_portal_discovery_test.dart).
+ so remote guides are validated before download, surfacing content-type/last-modified hints and persisting the resolved EPG endpoint for profiles (`lib/src/protocols/m3uxml/m3u_xml_client.dart`, `lib/src/ui/login_screen.dart`).
 
 ## Session Log - Discovery Retry Policy
 - Codified transient retry handling across Stalker, Xtream, and M3U discovery clients so 503/512 responses, connection drop-outs, and UA blocks trigger a single scoped retry before flipping schemes (`lib/src/protocols/stalker/stalker_portal_discovery.dart`, `lib/src/protocols/xtream/xtream_portal_discovery.dart`, `lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).

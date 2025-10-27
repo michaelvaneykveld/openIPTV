@@ -587,10 +587,19 @@ class M3uPortalDiscovery implements PortalDiscovery {
       );
     }
 
-    return uri.replace(
-      userInfo: '',
-      queryParameters: sanitized.isEmpty ? null : sanitized,
-    );
+    final queryString = sanitized.isEmpty
+        ? ''
+        : Uri(queryParameters: sanitized).query;
+
+    final cleaned = uri.replace(userInfo: '', query: queryString);
+    if (sanitized.isEmpty) {
+      final value = cleaned.toString();
+      final separatorIndex = value.indexOf('?');
+      if (separatorIndex != -1) {
+        return Uri.parse(value.substring(0, separatorIndex));
+      }
+    }
+    return cleaned;
   }
 }
 

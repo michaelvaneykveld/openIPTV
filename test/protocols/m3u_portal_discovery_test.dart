@@ -166,5 +166,48 @@ void main() {
       expect(result.lockedBase.toString(), 'http://example.com/');
       expect(result.hints['redirect'], 'xtream');
     });
+
+    test('follows redirects to signed playlist URLs', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+
+      server.listen((request) async {
+        if (request.requestedUri.path == '/playlist.m3u') {
+          request.response
+            ..statusCode = HttpStatus.found
+            ..headers.set(
+              HttpHeaders.locationHeader,
+              '/signed/playlist.m3u?token=secret',
+            );
+        } else if (request.requestedUri.path == '/signed/playlist.m3u') {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType('application', 'x-mpegurl')
+            ..write('#EXTM3U\n#EXTINF:-1,Channel\nhttp://example.com/stream');
+        } else {
+          request.response.statusCode = HttpStatus.notFound;
+        }
+        await request.response.close();
+      });
+
+      final discovery = M3uPortalDiscovery();
+      final uri = 'http://127.0.0.1:${server.port}/playlist.m3u';
+
+      final result = await discovery.discover(
+        uri,
+        options: DiscoveryOptions.defaults,
+      );
+
+      expect(result.kind, ProviderKind.m3u);
+      expect(result.lockedBase.toString(), contains('/signed/playlist.m3u'));
+      final sanitized = result.hints['sanitizedPlaylist'];
+      expect(sanitized, isNotNull);
+      expect(sanitized, contains('/signed/playlist.m3u'));
+      expect(sanitized, isNot(contains('token')));
+      expect(
+        result.hints['matchedStage'],
+        anyOf('HEAD', 'RANGE', 'RANGE (UA retry)'),
+      );
+    });
   });
 }

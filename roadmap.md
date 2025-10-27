@@ -1,25 +1,25 @@
 # OpenIPTV Rewrite Roadmap
 
-## Session Log ´┐¢ Stalker Authentication Rewrite
+## Session Log - Stalker Authentication Rewrite
 - Established a dedicated protocol layer for Stalker/Ministra portals, introducing immutable configuration, HTTP client, handshake models, session state, and authenticator orchestration files under `lib/src/protocols/stalker/` to support a modular rewrite of MAC/token login flows.
 
-## Session Log ´┐¢ Xtream Authentication Rewrite
+## Session Log - Xtream Authentication Rewrite
 - Mirrored the modular protocol layer for Xtream Codes by adding configuration, HTTP client, login payload models, session utilities, and an authenticator under `lib/src/protocols/xtream/`, paving the way for reusable login/profile flows aligned with the rewrite guidelines.
 
-## Session Log ´┐¢ M3U/XMLTV Ingestion Rewrite
+## Session Log - M3U/XMLTV Ingestion Rewrite
 - Introduced a dedicated M3U/XMLTV protocol module (`lib/src/protocols/m3uxml/`) covering source descriptors for URL/file inputs, portal configuration, unified fetch client with compression awareness, session container, and an authenticator that validates playlists and optional XMLTV feeds for both remote and local imports.
 
-## Session Log ´┐¢ Protocol Riverpod Integration
+## Session Log - Protocol Riverpod Integration
 - Added Riverpod providers in `lib/src/application/providers/protocol_auth_providers.dart` that expose the new Stalker, Xtream, and M3U/XMLTV authenticators, along with helper families to bridge existing credential models into the modular session APIs for upcoming login refactors.
 - Wired the login screen to consume those providers so each protocol handshake now flows through the modular adapters while keeping active portal state (`portal_session_providers.dart`) in sync for future UI refactors.
 
-## Session Log ´┐¢ Minimal Shell Reset
+## Session Log - Minimal Shell Reset
 - Removed legacy repositories, database helpers, and UI stacks so the project now boots straight into a pared-down login experience powered solely by the modular protocol adapters (`lib/src/providers/protocol_auth_providers.dart`, `lib/src/ui/login_screen.dart`).
 
-## Session Log ´┐¢ Login Flow Controller
+## Session Log - Login Flow Controller
 - Introduced a Riverpod-driven controller/state layer (`lib/src/providers/login_flow_controller.dart`) and refactored `lib/src/ui/login_screen.dart` to use it for provider selection, field validation, and multi-step test progress management in line with the new login blueprint.
 
-## Session Log ´┐¢ Login Layout Overhaul
+## Session Log - Login Layout Overhaul
 - Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
 
 ## Session Log - Form Field Enhancements
@@ -89,17 +89,20 @@
 - Refactored Stalker and Xtream configurations to reuse the helpers, lowering hosts and keeping probe bases consistent (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/xtream/xtream_portal_configuration.dart`).
 - Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
 
+## Session Log - Provider Profile Store
+- Added a Drift-backed database with provider and vault mapping tables so profile metadata lives alongside migration-friendly schema definitions (`lib/storage/provider_database.dart`, `lib/storage/provider_database.g.dart`).
+- Built a `ProviderProfileRepository` that bridges Drift and `FlutterSecureStorage`, exposing a clean API for persisting non-secret configuration and sensitive credentials per provider (`lib/storage/provider_profile_repository.dart`).
+- Updated the Stalker, Xtream, and M3U login flows to capture discovery hints, configuration, and secrets into the repository when connections succeed, surfacing friendly failure messaging when persistence fails (`lib/src/ui/login_screen.dart`).
+
 ## TODO - Login Experience Implementation
-- Codify retry and error taxonomy for all discovery probes. (todo)
-  - Standardise timeouts, redirect limits, TLS fallbacks, UA retries, and connection-close mitigation. (todo)
-- Build out the unified provider profile and storage architecture (Drift + secure vault). (todo)
-  - Inventory existing profile/draft writes to determine read/write needs. (todo)
-  - Sketch the Drift ↔ secure storage data flow and identify DTO/domain boundaries. (todo)
-  - Extend schemas (`providers`, `provider_secrets`, etc.) and define vault payloads per provider. (todo)
-  - Produce repository interfaces (`CredentialsVaultRepository`, discovery caches) and document async/error semantics. (todo)
-  - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (todo)
-  - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (todo)
-  - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in “remember me” flows. (todo)
+- Build out the unified provider profile and storage architecture (Drift + secure vault). (in-progress)
+  - Inventory existing profile/draft writes to determine read/write needs. (done)
+  - Sketch the Drift <-> secure storage data flow and identify DTO/domain boundaries. (done)
+  - Extend schemas (`providers`, `provider_secrets`, etc.) and define vault payloads per provider. (done)
+  - Produce repository interfaces (`CredentialsVaultRepository`, discovery caches) and document async/error semantics. (done)
+  - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (done)
+  - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (done)
+  - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (todo)
 - Deliver the unified UX for login input and advanced options. (todo)
   - Allow a single entry field that accepts any link and display non-blocking classifier feedback when re-routing. (todo)
   - Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (todo)

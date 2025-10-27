@@ -26,6 +26,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
+import 'package:openiptv/storage/provider_profile_repository.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
@@ -1173,10 +1174,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      flowController.markStepSuccess(
-        LoginTestStep.saveProfile,
-        message: 'Profile ready to save',
-      );
+      try {
+        final persistedState = ref.read(loginFlowControllerProvider);
+        final displayName = _deriveDisplayName(
+          providerType: LoginProviderType.stalker,
+          portalUrl: handshakeBase.toString(),
+        );
+        final config = <String, String>{
+          'macAddress': configuration.macAddress,
+          'deviceProfile': persistedState.stalker.deviceProfile,
+        };
+        final userAgentValue = userAgentOverride;
+        if (userAgentValue.isNotEmpty) {
+          config['userAgent'] = userAgentValue;
+        }
+        final encodedHeaders = _encodeHeaders(headerResult.headers);
+        if (encodedHeaders != null) {
+          config['customHeaders'] = encodedHeaders;
+        }
+        final hints = <String, String>{};
+        if (discoveryResult != null) {
+          hints.addAll(discoveryResult.hints);
+        }
+        await _persistProviderProfile(
+          kind: ProviderKind.stalker,
+          displayName: displayName,
+          lockedBase: handshakeBase,
+          configuration: config,
+          hints: hints,
+          needsUserAgent:
+              hints['needsUserAgent'] == 'true' || userAgentValue.isNotEmpty,
+          allowSelfSignedTls: configuration.allowSelfSignedTls,
+          followRedirects: true,
+        );
+        flowController.markStepSuccess(
+          LoginTestStep.saveProfile,
+          message: 'Profile saved',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Stalker profile save error: $error\n$stackTrace');
+        final friendly = _profileSaveFriendlyMessage(error);
+        flowController.markStepFailure(
+          LoginTestStep.saveProfile,
+          message: friendly,
+        );
+        flowController.setBannerMessage(friendly);
+        return;
+      }
 
       flowController.setStalkerFieldErrors();
       flowController.setTestSummary(
@@ -1271,6 +1315,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final userAgentOverride = current.xtream.userAgent.value.trim();
       final lockedBase = current.xtream.lockedBaseUri;
       Uri handshakeBase;
+      DiscoveryResult? discoveryResult;
 
       if (lockedBase == null) {
         // Resolve the canonical Xtream base URL before attempting auth so that
@@ -1286,6 +1331,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           baseInput,
           options: discoveryOptions,
         );
+        discoveryResult = discovery;
 
         handshakeBase = discovery.lockedBase;
         final lockedBaseString = handshakeBase.toString();
@@ -1380,10 +1426,59 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      flowController.markStepSuccess(
-        LoginTestStep.saveProfile,
-        message: 'Profile ready to save',
-      );
+      try {
+        final latestState = ref.read(loginFlowControllerProvider);
+        final displayName = _deriveDisplayName(
+          providerType: LoginProviderType.xtream,
+          baseUrl: handshakeBase.toString(),
+        );
+        final config = <String, String>{
+          'outputFormat': latestState.xtream.outputFormat,
+        };
+        if (userAgentOverride.isNotEmpty) {
+          config['userAgent'] = userAgentOverride;
+        }
+        final encodedHeaders = _encodeHeaders(headerResult.headers);
+        if (encodedHeaders != null) {
+          config['customHeaders'] = encodedHeaders;
+        }
+        final hints = <String, String>{};
+        if (discoveryResult != null) {
+          hints.addAll(discoveryResult.hints);
+        }
+        final secrets = <String, String>{};
+        if (configuration.username.trim().isNotEmpty) {
+          secrets['username'] = configuration.username.trim();
+        }
+        if (configuration.password.trim().isNotEmpty) {
+          secrets['password'] = configuration.password.trim();
+        }
+        await _persistProviderProfile(
+          kind: ProviderKind.xtream,
+          displayName: displayName,
+          lockedBase: handshakeBase,
+          configuration: config,
+          hints: hints,
+          secrets: secrets,
+          needsUserAgent:
+              hints['needsUserAgent'] == 'true' || userAgentOverride.isNotEmpty,
+          allowSelfSignedTls: configuration.allowSelfSignedTls,
+          followRedirects: true,
+        );
+        flowController.markStepSuccess(
+          LoginTestStep.saveProfile,
+          message: 'Profile saved',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Xtream profile save error: $error\n$stackTrace');
+        final friendly = _profileSaveFriendlyMessage(error);
+        flowController.markStepFailure(
+          LoginTestStep.saveProfile,
+          message: friendly,
+        );
+        flowController.setBannerMessage(friendly);
+        return;
+      }
 
       flowController.setXtreamFieldErrors();
       flowController.setTestSummary(
@@ -1774,10 +1869,84 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      flowController.markStepSuccess(
-        LoginTestStep.saveProfile,
-        message: 'Profile ready to save',
-      );
+      try {
+        final latestState = ref.read(loginFlowControllerProvider);
+        final displayName = _deriveDisplayName(
+          providerType: LoginProviderType.m3u,
+          playlistInput: resolvedPlaylist,
+          fileName: latestState.m3u.fileName,
+        );
+        final config = <String, String>{
+          'inputMode': latestState.m3u.inputMode.name,
+          'autoUpdate': latestState.m3u.autoUpdate ? 'true' : 'false',
+        };
+        if (latestState.m3u.fileName?.trim().isNotEmpty == true) {
+          config['fileName'] = latestState.m3u.fileName!.trim();
+        }
+        if (latestState.m3u.fileSizeBytes != null) {
+          config['fileSizeBytes'] = latestState.m3u.fileSizeBytes!.toString();
+        }
+        final userAgentOverride = latestState.m3u.userAgent.value.trim();
+        if (userAgentOverride.isNotEmpty) {
+          config['userAgent'] = userAgentOverride;
+        }
+        final encodedHeaders = _encodeHeaders(headerResult.headers);
+        if (encodedHeaders != null) {
+          config['customHeaders'] = encodedHeaders;
+        }
+        final redactedPlaylist = latestState.m3u.redactedPlaylistUri;
+        if (redactedPlaylist != null && redactedPlaylist.isNotEmpty) {
+          config['redactedPlaylist'] = redactedPlaylist;
+        }
+        final lockedEpg = latestState.m3u.lockedEpgUri;
+        if (lockedEpg != null && lockedEpg.isNotEmpty) {
+          config['lockedEpg'] = lockedEpg;
+        }
+        final hints = Map<String, String>.from(discovery.hints);
+        final secrets = <String, String>{};
+        if (latestState.m3u.inputMode == M3uInputMode.url) {
+          secrets['playlistUrl'] = resolvedPlaylist;
+        } else {
+          config['playlistFilePath'] = resolvedPlaylist;
+        }
+        final username = latestState.m3u.username.value.trim();
+        if (username.isNotEmpty) {
+          secrets['username'] = username;
+        }
+        final password = latestState.m3u.password.value.trim();
+        if (password.isNotEmpty) {
+          secrets['password'] = password;
+        }
+        if (epgInput.isNotEmpty) {
+          secrets['epgUrl'] = epgInput;
+        }
+        await _persistProviderProfile(
+          kind: ProviderKind.m3u,
+          displayName: displayName,
+          lockedBase: discovery.lockedBase,
+          configuration: config,
+          hints: hints,
+          secrets: secrets,
+          needsUserAgent:
+              hints['needsMediaUserAgent'] == 'true' ||
+              userAgentOverride.isNotEmpty,
+          allowSelfSignedTls: latestState.m3u.allowSelfSignedTls,
+          followRedirects: latestState.m3u.followRedirects,
+        );
+        flowController.markStepSuccess(
+          LoginTestStep.saveProfile,
+          message: 'Profile saved',
+        );
+      } catch (error, stackTrace) {
+        debugPrint('M3U profile save error: $error\n$stackTrace');
+        final friendly = _profileSaveFriendlyMessage(error);
+        flowController.markStepFailure(
+          LoginTestStep.saveProfile,
+          message: friendly,
+        );
+        flowController.setBannerMessage(friendly);
+        return;
+      }
 
       flowController.setM3uFieldErrors();
       flowController.setTestSummary(
@@ -1876,6 +2045,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
       },
     );
+  }
+
+  Future<ProviderProfileRecord> _persistProviderProfile({
+    required ProviderKind kind,
+    required String displayName,
+    required Uri lockedBase,
+    Map<String, String> configuration = const <String, String>{},
+    Map<String, String> hints = const <String, String>{},
+    Map<String, String> secrets = const <String, String>{},
+    bool needsUserAgent = false,
+    bool allowSelfSignedTls = false,
+    bool followRedirects = true,
+  }) {
+    final repository = ref.read(providerProfileRepositoryProvider);
+    return repository.saveProfile(
+      kind: kind,
+      lockedBase: lockedBase,
+      displayName: displayName,
+      configuration: configuration,
+      hints: hints,
+      secrets: secrets,
+      needsUserAgent: needsUserAgent,
+      allowSelfSignedTls: allowSelfSignedTls,
+      followRedirects: followRedirects,
+      successAt: DateTime.now().toUtc(),
+    );
+  }
+
+  String _profileSaveFriendlyMessage(Object error) {
+    final description = error.toString();
+    if (description.isEmpty || description == 'Exception') {
+      return 'Unable to save the profile. Please try again.';
+    }
+    return 'Unable to save the profile: $description';
+  }
+
+  String? _encodeHeaders(Map<String, String> headers) {
+    if (headers.isEmpty) return null;
+    return jsonEncode(headers);
   }
 
   bool _applyInputClassification(

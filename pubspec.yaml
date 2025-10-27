@@ -46,6 +46,8 @@ dependencies:
   path: ^1.9.1
   shared_preferences: ^2.5.3
   sqflite_common_ffi: ^2.3.6
+  drift: ^2.18.0
+  drift_sqflite: ^2.0.1
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
   collection: ^1.19.1
@@ -70,6 +72,7 @@ dev_dependencies:
   riverpod_generator: ^2.6.5
   freezed: ^3.0.0
   json_serializable: ^6.8.0
+  drift_dev: ^2.18.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

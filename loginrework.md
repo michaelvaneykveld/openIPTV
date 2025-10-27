@@ -126,15 +126,19 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 6) Unified provider profile & storage
 
-* [ ] Schema additions (non-secret DB):
+* [x] Schema additions (non-secret DB):
 
   * `providers(id, kind, locked_base, needs_ua, allow_self_signed, last_ok_at, last_error)`
   * `provider_secrets(id -> secure vault key)` (no secrets here-just reference)
-* [ ] Vault entries (secure storage):
+  * Implemented via `ProviderDatabase` using Drift with generated companions (`lib/storage/provider_database.dart`).
+* [x] Vault entries (secure storage):
 
   * `xtream`: `username`, `password`
-  * `m3u`: any bearer or basic auth secrets (rare)
-* [ ] On successful login, **atomically** persist: non-secret profile -> vault -> verification ping.
+  * `m3u`: playlist URL, optional XMLTV URL, inline credentials
+  * Stored through `SecureCredentialsVault` + `FlutterSecureStorage` inside `ProviderProfileRepository`.
+* [x] On successful login, **atomically** persist: non-secret profile -> vault -> verification ping.
+
+  * Login flows now call the repository after probes succeed so configuration, discovery hints, and secrets survive restarts (`lib/src/ui/login_screen.dart`).
 
 ---
 

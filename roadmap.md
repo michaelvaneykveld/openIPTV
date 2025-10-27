@@ -75,6 +75,10 @@
 - Verified remote playlists with HEAD and range GET probes, redacting telemetry and logging only sanitized endpoints in debug builds (`lib/src/ui/login_screen.dart`).
 - Synced the login flow to persist redacted playlist/EPG URLs and refreshed file metadata so subsequent sessions reuse the resolved locations safely (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
 
+## Session Log - Discovery Retry Policy
+- Codified transient retry handling across Stalker, Xtream, and M3U discovery clients so 503/512 responses, connection drop-outs, and UA blocks trigger a single scoped retry before flipping schemes (`lib/src/protocols/stalker/stalker_portal_discovery.dart`, `lib/src/protocols/xtream/xtream_portal_discovery.dart`, `lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).
+- Surfaced `needsUserAgent` hints and debug telemetry for retry attempts, allowing the login flow to prompt users for STB/media UA overrides where required (`lib/src/ui/login_screen.dart`).
+
 ## Session Log - Input Classifier
 - Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).

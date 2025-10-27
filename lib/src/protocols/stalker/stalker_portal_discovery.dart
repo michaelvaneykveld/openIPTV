@@ -11,6 +11,11 @@ import 'stalker_portal_normalizer.dart';
 class StalkerPortalDiscovery implements PortalDiscovery {
   const StalkerPortalDiscovery();
 
+  static const _fallbackUserAgent =
+      'Mozilla/5.0 (QtEmbedded; Linux; U; en) stbapp';
+  static const _transientStatuses = <int>{HttpStatus.serviceUnavailable, 512};
+  static const _maxProbeRetries = 1;
+
   @override
   ProviderKind get kind => ProviderKind.stalker;
 
@@ -44,11 +49,13 @@ class StalkerPortalDiscovery implements PortalDiscovery {
         telemetry: telemetryRecords,
         options: options,
       );
-      if (matchedDirectory) {
+      var needsUserAgentHint = matchedDirectory.needsUserAgent;
+      if (matchedDirectory.matched) {
         return _buildResult(
           candidate: candidate,
-          matchedStage: 'base-directory',
+          matchedStage: matchedDirectory.stageLabel,
           telemetryRecords: telemetryRecords,
+          needsUserAgent: needsUserAgentHint,
         );
       }
 
@@ -60,11 +67,14 @@ class StalkerPortalDiscovery implements PortalDiscovery {
         telemetry: telemetryRecords,
         options: options,
       );
-      if (matchedPortalPhp) {
+      needsUserAgentHint =
+          needsUserAgentHint || matchedPortalPhp.needsUserAgent;
+      if (matchedPortalPhp.matched) {
         return _buildResult(
           candidate: candidate,
-          matchedStage: 'portal.php',
+          matchedStage: matchedPortalPhp.stageLabel,
           telemetryRecords: telemetryRecords,
+          needsUserAgent: needsUserAgentHint,
         );
       }
 
@@ -78,11 +88,14 @@ class StalkerPortalDiscovery implements PortalDiscovery {
           telemetry: telemetryRecords,
           options: options,
         );
-        if (matchedBackend) {
+        needsUserAgentHint =
+            needsUserAgentHint || matchedBackend.needsUserAgent;
+        if (matchedBackend.matched) {
           return _buildResult(
             candidate: candidate,
-            matchedStage: 'server/load.php',
+            matchedStage: matchedBackend.stageLabel,
             telemetryRecords: telemetryRecords,
+            needsUserAgent: needsUserAgentHint,
           );
         }
       }
@@ -114,7 +127,7 @@ class StalkerPortalDiscovery implements PortalDiscovery {
 
     final baseOptions = BaseOptions(
       connectTimeout: const Duration(milliseconds: 1500),
-      receiveTimeout: const Duration(milliseconds: 1500),
+      receiveTimeout: const Duration(milliseconds: 2000),
       followRedirects: true,
       maxRedirects: 5,
       headers: headers,
@@ -124,21 +137,58 @@ class StalkerPortalDiscovery implements PortalDiscovery {
     return Dio(baseOptions);
   }
 
-  Future<bool> _probe({
+  Future<_StalkerProbeResult> _probe({
     required Dio dio,
     required Uri uri,
     required String stage,
     required bool Function(Response<dynamic>) matcher,
     required List<DiscoveryProbeRecord> telemetry,
     required DiscoveryOptions options,
+  }) {
+    return _probeInternal(
+      dio: dio,
+      uri: uri,
+      stage: stage,
+      matcher: matcher,
+      telemetry: telemetry,
+      options: options,
+    );
+  }
+
+  Future<_StalkerProbeResult> _probeInternal({
+    required Dio dio,
+    required Uri uri,
+    required String stage,
+    required bool Function(Response<dynamic>) matcher,
+    required List<DiscoveryProbeRecord> telemetry,
+    required DiscoveryOptions options,
+    String? overrideUserAgent,
+    bool userAgentRetry = false,
+    int attempt = 0,
   }) async {
     final stopwatch = Stopwatch()..start();
+    final requestHeaders = <String, String>{};
+    dio.options.headers.forEach((key, value) {
+      if (value != null) {
+        requestHeaders[key] = value.toString();
+      }
+    });
+
+    if (overrideUserAgent != null && overrideUserAgent.isNotEmpty) {
+      requestHeaders['User-Agent'] = overrideUserAgent;
+      requestHeaders['X-User-Agent'] = overrideUserAgent;
+    }
+
     try {
       final response = await dio.getUri<dynamic>(
         uri,
-        options: Options(responseType: ResponseType.plain),
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: requestHeaders,
+        ),
       );
       stopwatch.stop();
+      final status = response.statusCode ?? 0;
       final matched = matcher(response);
       final record = DiscoveryProbeRecord(
         kind: kind,
@@ -150,7 +200,47 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       );
       telemetry.add(record);
       options.logSink?.call(record);
-      return matched;
+      if (!matched &&
+          attempt < _maxProbeRetries &&
+          _shouldRetryStatus(status)) {
+        return _probeInternal(
+          dio: dio,
+          uri: uri,
+          stage: '$stage (retry)',
+          matcher: matcher,
+          telemetry: telemetry,
+          options: options,
+          overrideUserAgent: overrideUserAgent,
+          userAgentRetry: userAgentRetry,
+          attempt: attempt + 1,
+        );
+      }
+
+      if (status == HttpStatus.forbidden &&
+          !userAgentRetry &&
+          _shouldAttemptUserAgentRetry(options)) {
+        final fallback = await _probeInternal(
+          dio: dio,
+          uri: uri,
+          stage: '$stage (UA retry)',
+          matcher: matcher,
+          telemetry: telemetry,
+          options: options,
+          overrideUserAgent: _fallbackUserAgent,
+          userAgentRetry: true,
+          attempt: attempt,
+        );
+        if (fallback.matched) {
+          return fallback.copyWith(needsUserAgent: true);
+        }
+        return fallback;
+      }
+
+      return _StalkerProbeResult(
+        matched: matched,
+        needsUserAgent: userAgentRetry && matched,
+        stageLabel: stage,
+      );
     } on DioException catch (error) {
       stopwatch.stop();
       final record = DiscoveryProbeRecord(
@@ -163,7 +253,60 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       );
       telemetry.add(record);
       options.logSink?.call(record);
-      return false;
+      if (attempt < _maxProbeRetries &&
+          _shouldRetryStatus(error.response?.statusCode)) {
+        return _probeInternal(
+          dio: dio,
+          uri: uri,
+          stage: '$stage (retry)',
+          matcher: matcher,
+          telemetry: telemetry,
+          options: options,
+          overrideUserAgent: overrideUserAgent,
+          userAgentRetry: userAgentRetry,
+          attempt: attempt + 1,
+        );
+      }
+
+      if (attempt < _maxProbeRetries && _shouldRetryException(error)) {
+        return _probeInternal(
+          dio: dio,
+          uri: uri,
+          stage: '$stage (retry)',
+          matcher: matcher,
+          telemetry: telemetry,
+          options: options,
+          overrideUserAgent: overrideUserAgent,
+          userAgentRetry: userAgentRetry,
+          attempt: attempt + 1,
+        );
+      }
+
+      if (!userAgentRetry &&
+          _isForbidden(error.response?.statusCode) &&
+          _shouldAttemptUserAgentRetry(options)) {
+        final fallback = await _probeInternal(
+          dio: dio,
+          uri: uri,
+          stage: '$stage (UA retry)',
+          matcher: matcher,
+          telemetry: telemetry,
+          options: options,
+          overrideUserAgent: _fallbackUserAgent,
+          userAgentRetry: true,
+          attempt: attempt,
+        );
+        if (fallback.matched) {
+          return fallback.copyWith(needsUserAgent: true);
+        }
+        return fallback;
+      }
+
+      return _StalkerProbeResult(
+        matched: false,
+        needsUserAgent: false,
+        stageLabel: stage,
+      );
     }
   }
 
@@ -171,11 +314,15 @@ class StalkerPortalDiscovery implements PortalDiscovery {
     required StalkerPortalCandidate candidate,
     required String matchedStage,
     required List<DiscoveryProbeRecord> telemetryRecords,
+    bool needsUserAgent = false,
   }) {
     final hints = <String, String>{
       'matchedStage': matchedStage,
       'portalPath': candidate.portalPhpUri.path,
     };
+    if (needsUserAgent) {
+      hints['needsUserAgent'] = 'true';
+    }
     final telemetry = DiscoveryTelemetry(probes: telemetryRecords);
 
     return DiscoveryResult(
@@ -263,4 +410,44 @@ class StalkerPortalDiscovery implements PortalDiscovery {
         body.contains('token') &&
         body.contains('mac');
   }
+
+  bool _shouldRetryStatus(int? status) {
+    if (status == null) return false;
+    return _transientStatuses.contains(status);
+  }
+
+  bool _shouldRetryException(DioException error) {
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.unknown) {
+      final message = error.message ?? error.error?.toString() ?? '';
+      return message.contains('Connection closed before full header') ||
+          message.contains('Connection reset by peer');
+    }
+    return false;
+  }
+
+  bool _shouldAttemptUserAgentRetry(DiscoveryOptions options) {
+    final userAgent = options.userAgent?.trim();
+    return userAgent == null || userAgent.isEmpty;
+  }
+
+  bool _isForbidden(int? status) => status == HttpStatus.forbidden;
+}
+
+class _StalkerProbeResult {
+  const _StalkerProbeResult({
+    required this.matched,
+    required this.stageLabel,
+    this.needsUserAgent = false,
+  });
+
+  final bool matched;
+  final String stageLabel;
+  final bool needsUserAgent;
+
+  _StalkerProbeResult copyWith({bool? needsUserAgent}) => _StalkerProbeResult(
+    matched: matched,
+    stageLabel: stageLabel,
+    needsUserAgent: needsUserAgent ?? this.needsUserAgent,
+  );
 }

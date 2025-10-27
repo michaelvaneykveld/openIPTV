@@ -106,19 +106,19 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 5) Retry & error taxonomy (shared)
 
-* [ ] **Timeouts** for probes: connect 1500-2500 ms, receive 1500-2500 ms.
-* [ ] **Redirects**: enabled, capped at 5; record the final resolved URL.
-* [ ] **TLS** errors:
+* [x] **Timeouts** for probes: connect 1500-2500 ms, receive 1500-2500 ms.
+* [x] **Redirects**: enabled, capped at 5; record the final resolved URL.
+* [x] **TLS** errors:
 
   * If user profile has allow self-signed enabled, retry the probe with permissive context (scoped to this request only).
   * Surface a clear message; do not silently downgrade to HTTP unless the user selects that option.
-* [ ] **HTTP 5xx**:
+* [x] **HTTP 5xx**:
 
   * Treat 503/512 as transient - retry once, then try the alternative scheme (https->http).
-* [ ] **403**:
+* [x] **403**:
 
   * Likely UA filtering - retry with custom UA; if success, store `needsUA=true`.
-* [ ] **Connection closed before full header**:
+* [x] **Connection closed before full header**:
 
   * For probes, send `Connection: close`, disable gzip, and enforce HTTP/1.1.
 
@@ -169,7 +169,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 * [ ] **Xtream**: mock server returning JSON for `player_api.php`, with redirect and with 403 UA block.
   * [x] Ensure HTML `INVALID_CREDENTIALS` banners emitted by branded panels are recognised during discovery.
 * [ ] **M3U**: HEAD returns `application/octet-stream`; range GET starts with `#EXTM3U`; redirect chain to signed URL.
-* [ ] **TLS**: self-signed failure on first probe, success on permissive path when user enables the option.
+* [x] **TLS**: self-signed failure on first probe, success on permissive path when user enables the option.
 * [ ] **Regression**: connection closed early path uses `Connection: close` and succeeds on retry.
 
 ---
@@ -249,3 +249,4 @@ class M3uDiscovery implements PortalDiscovery {
 7. **Tests** for redirects, UA blocks, TLS, early close.
 
 This mirrors your Stalker solution, so the whole login story becomes consistent: **any string in -> correct portal out**.
+

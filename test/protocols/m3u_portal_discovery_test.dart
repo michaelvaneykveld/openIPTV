@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
@@ -34,6 +34,42 @@ void main() {
       expect(result.kind, ProviderKind.m3u);
       expect(result.lockedBase.toString(), uri);
       expect(result.hints['matchedStage'], 'HEAD');
+    });
+
+    test('retries transient HEAD failures once before succeeding', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+
+      var headHits = 0;
+      server.listen((request) async {
+        if (request.method == 'HEAD') {
+          headHits += 1;
+          if (headHits == 1) {
+            request.response.statusCode = HttpStatus.serviceUnavailable;
+          } else {
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..headers.contentType = ContentType('application', 'x-mpegurl');
+          }
+        } else {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..write('#EXTM3U\n');
+        }
+        await request.response.close();
+      });
+
+      final discovery = M3uPortalDiscovery();
+      final uri = 'http://127.0.0.1:${server.port}/playlist.m3u8';
+
+      final result = await discovery.discover(
+        uri,
+        options: DiscoveryOptions.defaults,
+      );
+
+      expect(result.kind, ProviderKind.m3u);
+      expect(result.lockedBase.toString(), uri);
+      expect(result.hints['matchedStage'], 'HEAD (retry)');
     });
 
     test('falls back to range GET with media UA on 403', () async {

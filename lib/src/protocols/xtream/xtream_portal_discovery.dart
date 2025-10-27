@@ -13,6 +13,7 @@ class XtreamPortalDiscovery implements PortalDiscovery {
   const XtreamPortalDiscovery({Dio? dio}) : _overrideDio = dio;
 
   final Dio? _overrideDio;
+  static const _transientStatuses = <int>{HttpStatus.serviceUnavailable, 512};
 
   @override
   ProviderKind get kind => ProviderKind.xtream;
@@ -108,13 +109,40 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       ..addAll(probeCredentials);
     final probeUri = candidate.playerApi.replace(queryParameters: query);
 
-    final outcome = await _attemptProbe(
+    var outcome = await _attemptProbe(
       dio: dio,
       uri: probeUri,
       stage: 'player_api.php',
       options: options,
       telemetry: telemetry,
     );
+
+    var hasRetried = false;
+    if (!outcome.matched &&
+        _shouldRetryStatus(outcome.statusCode) &&
+        !hasRetried) {
+      outcome = await _attemptProbe(
+        dio: dio,
+        uri: probeUri,
+        stage: 'player_api.php (retry)',
+        options: options,
+        telemetry: telemetry,
+      );
+      hasRetried = true;
+    }
+
+    if (!outcome.matched &&
+        _shouldRetryException(outcome.error) &&
+        !hasRetried) {
+      outcome = await _attemptProbe(
+        dio: dio,
+        uri: probeUri,
+        stage: 'player_api.php (retry)',
+        options: options,
+        telemetry: telemetry,
+      );
+      hasRetried = true;
+    }
 
     if (outcome.matched) {
       final lockedBase = _deriveLockedBase(outcome.sanitizedUri);
@@ -271,6 +299,22 @@ class XtreamPortalDiscovery implements PortalDiscovery {
     }
 
     return candidates;
+  }
+
+  bool _shouldRetryStatus(int? status) {
+    if (status == null) return false;
+    return _transientStatuses.contains(status);
+  }
+
+  bool _shouldRetryException(DioException? error) {
+    if (error == null) return false;
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.unknown) {
+      final message = error.message ?? error.error?.toString() ?? '';
+      return message.contains('Connection closed before full header') ||
+          message.contains('Connection reset by peer');
+    }
+    return false;
   }
 
   bool _looksLikeXtream(Response<dynamic> response) {

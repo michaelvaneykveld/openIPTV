@@ -13,6 +13,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
   const M3uPortalDiscovery({Dio? dio}) : _overrideDio = dio;
 
   final Dio? _overrideDio;
+  static const _transientStatuses = <int>{HttpStatus.serviceUnavailable, 512};
 
   static const _m3uContentTypes = <String>{
     'application/x-mpegurl',
@@ -243,7 +244,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
     required DiscoveryOptions options,
     required List<DiscoveryProbeRecord> telemetry,
   }) async {
-    final headOutcome = await _attemptHead(
+    var headOutcome = await _attemptHead(
       dio: dio,
       uri: candidate.uri,
       options: options,
@@ -251,10 +252,37 @@ class M3uPortalDiscovery implements PortalDiscovery {
       stage: 'HEAD',
     );
 
+    var hasRetriedHead = false;
+    if (!headOutcome.matched &&
+        _shouldRetryStatus(headOutcome.statusCode) &&
+        !hasRetriedHead) {
+      headOutcome = await _attemptHead(
+        dio: dio,
+        uri: candidate.uri,
+        options: options,
+        telemetry: telemetry,
+        stage: 'HEAD (retry)',
+      );
+      hasRetriedHead = true;
+    }
+
+    if (!headOutcome.matched &&
+        _shouldRetryException(headOutcome.error) &&
+        !hasRetriedHead) {
+      headOutcome = await _attemptHead(
+        dio: dio,
+        uri: candidate.uri,
+        options: options,
+        telemetry: telemetry,
+        stage: 'HEAD (retry)',
+      );
+      hasRetriedHead = true;
+    }
+
     if (headOutcome.matched) {
       return _ProbeOutcome.matched(
         headOutcome.resolvedUri,
-        matchedStage: 'HEAD',
+        matchedStage: headOutcome.stageLabel,
       );
     }
 
@@ -271,10 +299,37 @@ class M3uPortalDiscovery implements PortalDiscovery {
         telemetry: telemetry,
         stage: 'RANGE',
       );
+      var hasRetriedRange = false;
+      if (!rangeOutcome.matched &&
+          _shouldRetryStatus(rangeOutcome.statusCode) &&
+          !hasRetriedRange) {
+        rangeOutcome = await _attemptRangeGet(
+          dio: dio,
+          uri: candidate.uri,
+          options: options,
+          telemetry: telemetry,
+          stage: 'RANGE (retry)',
+        );
+        hasRetriedRange = true;
+      }
+
+      if (!rangeOutcome.matched &&
+          _shouldRetryException(rangeOutcome.error) &&
+          !hasRetriedRange) {
+        rangeOutcome = await _attemptRangeGet(
+          dio: dio,
+          uri: candidate.uri,
+          options: options,
+          telemetry: telemetry,
+          stage: 'RANGE (retry)',
+        );
+        hasRetriedRange = true;
+      }
+
       if (rangeOutcome.matched) {
         return _ProbeOutcome.matched(
           rangeOutcome.resolvedUri,
-          matchedStage: 'RANGE',
+          matchedStage: rangeOutcome.stageLabel,
         );
       }
     }
@@ -353,6 +408,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
         matched: matched,
         sanitizedUri: record.uri,
         resolvedUri: resolved,
+        stageLabel: stage,
         statusCode: response.statusCode,
       );
     } on DioException catch (error) {
@@ -372,6 +428,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
         matched: false,
         sanitizedUri: record.uri,
         resolvedUri: error.response?.realUri ?? uri,
+        stageLabel: stage,
         statusCode: error.response?.statusCode,
         error: error,
       );
@@ -419,6 +476,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
         matched: matched,
         sanitizedUri: record.uri,
         resolvedUri: response.realUri,
+        stageLabel: stage,
         statusCode: response.statusCode,
       );
     } on DioException catch (error) {
@@ -438,6 +496,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
         matched: false,
         sanitizedUri: record.uri,
         resolvedUri: error.response?.realUri ?? uri,
+        stageLabel: stage,
         statusCode: error.response?.statusCode,
         error: error,
       );
@@ -492,6 +551,22 @@ class M3uPortalDiscovery implements PortalDiscovery {
     }
     final lower = type.toLowerCase();
     return _m3uContentTypes.any(lower.contains);
+  }
+
+  bool _shouldRetryStatus(int? status) {
+    if (status == null) return false;
+    return _transientStatuses.contains(status);
+  }
+
+  bool _shouldRetryException(DioException? error) {
+    if (error == null) return false;
+    if (error.type == DioExceptionType.connectionError ||
+        error.type == DioExceptionType.unknown) {
+      final message = error.message ?? error.error?.toString() ?? '';
+      return message.contains('Connection closed before full header') ||
+          message.contains('Connection reset by peer');
+    }
+    return false;
   }
 
   bool _looksLikeM3uBody(String body) {
@@ -554,6 +629,7 @@ class _AttemptOutcome {
     required this.matched,
     required this.sanitizedUri,
     required this.resolvedUri,
+    required this.stageLabel,
     this.statusCode,
     this.error,
   });
@@ -561,6 +637,7 @@ class _AttemptOutcome {
   final bool matched;
   final Uri sanitizedUri;
   final Uri resolvedUri;
+  final String stageLabel;
   final int? statusCode;
   final DioException? error;
 

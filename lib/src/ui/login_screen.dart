@@ -1085,6 +1085,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       Uri handshakeBase = normalization.canonicalUri;
       final lockedBase = current.stalker.lockedBaseUri;
+      DiscoveryResult? discoveryResult;
       if (lockedBase == null || lockedBase != normalizedPortalText) {
         flowController.clearStalkerLockedBase();
         current = ref.read(loginFlowControllerProvider);
@@ -1099,6 +1100,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           normalization,
           options: discoveryOptions,
         );
+        discoveryResult = discovery;
 
         handshakeBase = discovery.lockedBase;
         final lockedBaseString = handshakeBase.toString();
@@ -1116,6 +1118,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       final userAgentOverride = current.stalker.userAgent.value.trim();
+      if (discoveryResult?.hints['needsUserAgent'] == 'true' &&
+          userAgentOverride.isEmpty) {
+        flowController.setBannerMessage(
+          'Portal expects a set-top box User-Agent. Add one under Advanced settings for reliable access.',
+        );
+      }
       final configuration = StalkerPortalConfiguration(
         baseUri: handshakeBase,
         macAddress: current.stalker.macAddress.value.trim(),

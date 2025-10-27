@@ -83,6 +83,7 @@
 - Implemented a protocol-aware `InputClassifier` that recognises Xtream, M3U, and Stalker inputs, extracts embedded credentials, and returns normalised hints (`lib/src/utils/input_classifier.dart`).
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).
 - Wired the login flow to auto-switch providers on confident matches, prefill Xtream/M3U forms, and guard Stalker attempts with classifier feedback while preserving manual override controls (`lib/src/ui/login_screen.dart`).
+- Updated playlist heuristics so credential-bearing `get.php` links with `type=m3u` style parameters stay in the M3U flow first, only falling back to Xtream when discovery confirms it (`lib/src/utils/input_classifier.dart`, `lib/src/ui/login_screen.dart`).
 
 ## Session Log - URL Normalization Utilities
 - Added shared helpers to canonicalise schemes, default ports, strip known file endpoints, and ensure directory-style bases across adapters (`lib/src/utils/url_normalization.dart`).

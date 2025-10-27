@@ -30,6 +30,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
   * Else default to **Stalker** (your current flow), but allow **manual override** in UI.
 * [x] Extract creds from pasted Xtream URLs and prefill fields (do not store yet).
 * [x] If classifier says M3U but link is actually `get.php?username=<value>&password=<value>`, reclassify as **Xtream**.
+* [x] Prefer M3U discovery first for playlist-style `get.php` links that advertise `type=m3u*` or `output=m3u`, even when credentials are embedded.
 
 ---
 

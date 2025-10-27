@@ -2165,6 +2165,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             }
             updated = true;
           }
+
+          if (!details.isLocalFile && details.username != null) {
+            final username = details.username!;
+            if (username.isNotEmpty) {
+              _syncControllerText(
+                flowState.m3u.username.value,
+                username,
+                _m3uUsernameController,
+              );
+              flowController.updateM3uUsername(username);
+              updated = true;
+            }
+          }
+
+          if (!details.isLocalFile && details.password != null) {
+            final password = details.password!;
+            if (password.isNotEmpty) {
+              _syncControllerText(
+                flowState.m3u.password.value,
+                password,
+                _m3uPasswordController,
+              );
+              flowController.updateM3uPassword(password);
+              updated = true;
+            }
+          }
         }
         break;
       case LoginProviderType.stalker:

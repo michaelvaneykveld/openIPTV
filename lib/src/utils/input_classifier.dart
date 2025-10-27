@@ -90,11 +90,15 @@ class M3uClassification {
   final Uri? playlistUri;
   final String? localPath;
   final bool isLocalFile;
+  final String? username;
+  final String? password;
 
   const M3uClassification({
     this.playlistUri,
     this.localPath,
     required this.isLocalFile,
+    this.username,
+    this.password,
   });
 
   String get resolvedInput =>
@@ -158,6 +162,12 @@ class InputClassifier {
     final query = workingUri.queryParameters;
     final hasCredentialParams =
         query.containsKey('username') && query.containsKey('password');
+    final hasPlaylistHints = _looksLikePlaylistQuery(query);
+    if (pathLower.contains('get.php') && hasPlaylistHints) {
+      // Playlist endpoints often reuse Xtream parameters; prefer M3U handling.
+      return null;
+    }
+
     final hasXtreamMarkers =
         pathLower.contains('player_api.php') ||
         pathLower.contains('get.php') ||
@@ -191,23 +201,30 @@ class InputClassifier {
       return null;
     }
 
-    final endsWithM3u = _m3uExtensions.any(
-      (extension) => candidate.path.toLowerCase().endsWith(extension),
-    );
-
-    if (!endsWithM3u) {
+    final pathLower = candidate.path.toLowerCase();
+    final endsWithM3u = _m3uExtensions.any(pathLower.endsWith);
+    final looksLikeGetEndpoint = pathLower.contains('get.php');
+    final query = candidate.queryParameters;
+    final playlistHints = _looksLikePlaylistQuery(query);
+    if (!endsWithM3u && !(looksLikeGetEndpoint && playlistHints)) {
       return null;
     }
 
-    final query = candidate.queryParameters;
     final carriesCredentials =
         query.containsKey('username') && query.containsKey('password');
-    if (carriesCredentials) {
-      // Treat as an Xtream disguised playlist; the Xtream detector handles it.
+    final allowCredentials = playlistHints || !looksLikeGetEndpoint;
+
+    if (carriesCredentials && !allowCredentials) {
+      // Likely an Xtream API URL masquerading as M3U without explicit hints.
       return null;
     }
 
-    return M3uClassification(playlistUri: candidate, isLocalFile: false);
+    return M3uClassification(
+      playlistUri: candidate,
+      isLocalFile: false,
+      username: carriesCredentials ? query['username'] : null,
+      password: carriesCredentials ? query['password'] : null,
+    );
   }
 
   Uri? _parseFlexibleHttpUri(String input) {
@@ -251,6 +268,24 @@ class InputClassifier {
 
   bool _looksLikeAbsolutePath(String value) {
     return value.startsWith('/') || value.startsWith(r'\\');
+  }
+
+  bool _looksLikePlaylistQuery(Map<String, String> query) {
+    if (query.isEmpty) return false;
+    final playlistIndicators = [
+      query['type'],
+      query['output'],
+      query['format'],
+      query['extension'],
+    ];
+    for (final value in playlistIndicators) {
+      if (value == null) continue;
+      final lowered = value.toLowerCase();
+      if (lowered.contains('m3u') || lowered.contains('playlist')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Uri _deriveXtreamBaseUri(Uri uri) {

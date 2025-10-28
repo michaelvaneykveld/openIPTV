@@ -283,7 +283,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Constructs the page header with title and contextual action buttons.
   Widget _buildHeader(BuildContext context, LoginFlowState flowState) {
-    final isBusy = flowState.testProgress.inProgress;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Row(
@@ -298,11 +297,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             tooltip: 'Help',
             onPressed: () => _showHelpSheet(context),
             icon: const Icon(Icons.help_outline),
-          ),
-          IconButton(
-            tooltip: 'Scan QR code',
-            onPressed: isBusy ? null : () => _handleScanQr(context),
-            icon: const Icon(Icons.qr_code_scanner),
           ),
         ],
       ),
@@ -2421,14 +2415,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'Channel browser coming soon.',
         ),
       ),
-    );
-  }
-
-  /// Placeholder QR handler; real scanner integration will arrive in a later
-  /// task when the design calls for camera access.
-  void _handleScanQr(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('QR scanning will be available soon.')),
     );
   }
 

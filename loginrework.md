@@ -2,18 +2,7 @@
 # 0) Unify what you already have (from Stalker)
 
 * [x] Extract your Stalker URL normalizer + candidate generator + probe into a reusable service: `PortalDiscovery`.
-* [x] Interface:
-
-  ```dart
-  abstract class PortalDiscovery {
-    Future<DiscoveryResult> discover(String userInput);
-  }
-  class DiscoveryResult {
-    final ProviderKind kind;      // stalker | xtream | m3u
-    final Uri lockedBase;         // canonical base
-    final Map<String, String> hints; // { "needsUA": "true", ... }
-  }
-  ```
+* [x] Interface defined for the shared `PortalDiscovery` contract.
 * [x] Keep your **User-Agent / MAC / TLS** knobs in a shared `DiscoveryOptions`.
 * [x] Ensure your **logging + redaction** is used by all discoverers.
 
@@ -146,8 +135,6 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 7) UX consistency
 
-* [ ] Single input field that accepts **anything**; classifier decides which adapter path to show.
-* [ ] If classifier re-routes (e.g., pasted Xtream link in M3U mode), show a small non-blocking banner: Detected Xtream link; adjusted settings.
 * [ ] Advanced expands to **User-Agent**, **Allow self-signed**, **Custom headers** (per provider).
 
 ---
@@ -196,63 +183,4 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 ---
 
-## Minimal code shapes to add
-
-### `XtreamDiscovery` (sketch)
-
-```dart
-class XtreamDiscovery implements PortalDiscovery {
-  final Dio dio;
-  XtreamDiscovery(this.dio);
-
-  @override
-  Future<DiscoveryResult> discover(String input) async {
-    final base = _canonicalXtreamBase(input);
-    final probe = await dio.getUri(
-      base.replace(path: '${base.path}player_api.php', queryParameters: {'username':'__probe__','password':'__probe__'}),
-      options: Options(followRedirects: true, validateStatus: (_) => true),
-    );
-    if (_looksLikeXtreamJson(probe)) {
-      return DiscoveryResult(kind: ProviderKind.xtream, lockedBase: probe.realUri ?? base, hints: {});
-    }
-    // Try scheme flip & UA retry...
-    throw DiscoveryException('Not an Xtream endpoint');
-  }
-}
-```
-
-### `M3uDiscovery` (sketch)
-
-```dart
-class M3uDiscovery implements PortalDiscovery {
-  final Dio dio;
-  M3uDiscovery(this.dio);
-
-  @override
-  Future<DiscoveryResult> discover(String input) async {
-    final url = _canonicalizeUrl(input);
-    final head = await dio.headUri(url, options: Options(validateStatus: (_) => true));
-    if (_isM3uContentType(head.headers)) {
-      return DiscoveryResult(kind: ProviderKind.m3u, lockedBase: head.realUri ?? url, hints: {});
-    }
-    // Fallback: small GET, check #EXTM3U; UA retry on 403/406
-    // Redirects auto-resolved via dio
-    throw DiscoveryException('Not a valid M3U endpoint/file');
-  }
-}
-```
-
----
-
-### TL;DR implementation order
-
-1. **Classifier** routes to adapter.
-2. **Shared normalizers** (scheme/port/files/trailing slash).
-3. **XtreamDiscovery** (player_api probe + creds extraction).
-4. **M3uDiscovery** (HEAD/range GET + #EXTM3U).
-5. **Lock-in & persistence** (profile + vault).
-6. **Retries/UA/TLS** knobs unified across adapters.
-7. **Tests** for redirects, UA blocks, TLS, early close.
-
-This mirrors your Stalker solution, so the whole login story becomes consistent: **any string in -> correct portal out**.
 

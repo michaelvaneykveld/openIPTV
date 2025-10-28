@@ -74,9 +74,9 @@
 - Introduced a dedicated M3U discovery adapter that normalises playlist URLs, reclassifies disguised Xtream links, and adds scheme flipping plus media User-Agent retries (`lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).
 - Verified remote playlists with HEAD and range GET probes, redacting telemetry and logging only sanitized endpoints in debug builds (`lib/src/ui/login_screen.dart`).
 - Synced the login flow to persist redacted playlist/EPG URLs and refreshed file metadata so subsequent sessions reuse the resolved locations safely (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
-- Added an XMLTV HEAD probe
-- Added test coverage for redirect-to-signed playlist URLs so discovery tracks the resolved endpoint and stores a sanitized hint (	est/protocols/m3u_portal_discovery_test.dart).
- so remote guides are validated before download, surfacing content-type/last-modified hints and persisting the resolved EPG endpoint for profiles (`lib/src/protocols/m3uxml/m3u_xml_client.dart`, `lib/src/ui/login_screen.dart`).
+- Added an XMLTV HEAD probe so remote guides are validated before download, surfacing content-type/last-modified hints and persisting the resolved EPG endpoint for profiles (`lib/src/protocols/m3uxml/m3u_xml_client.dart`, `lib/src/ui/login_screen.dart`).
+- Added test coverage for redirect-to-signed playlist URLs so discovery tracks the resolved endpoint and stores a sanitized hint (`test/protocols/m3u_portal_discovery_test.dart`).
+- Introduced shared discovery interceptors for redacted logging and retry jitter across Stalker, Xtream, and M3U probes (`lib/src/protocols/discovery/discovery_interceptors.dart`, `lib/src/protocols/*/*_portal_discovery.dart`).
 
 ## Session Log - Discovery Retry Policy
 - Codified transient retry handling across Stalker, Xtream, and M3U discovery clients so 503/512 responses, connection drop-outs, and UA blocks trigger a single scoped retry before flipping schemes (`lib/src/protocols/stalker/stalker_portal_discovery.dart`, `lib/src/protocols/xtream/xtream_portal_discovery.dart`, `lib/src/protocols/m3uxml/m3u_portal_discovery.dart`).
@@ -108,11 +108,7 @@
   - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (done)
   - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (done)
   - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (todo)
-- Deliver the unified UX for login input and advanced options. (todo)
-  - Allow a single entry field that accepts any link and display non-blocking classifier feedback when re-routing. (todo)
-  - Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (todo)
-- Standardise networking knobs via shared Dio configuration. (todo)
-  - Provide per-provider defaults for timeouts, redirects, interceptors (redacting logger, retry), and user agents. (todo)
+- Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (todo)
 - Strengthen automated and manual test coverage. (todo)
   - Add unit tests for the classifier, discovery redirects/UA blocks/TLS paths, and regression cases (e.g., early connection close). (todo)
   - Expand widget/integration tests for login flows, including opt-in storage and probe failure UX. (todo)

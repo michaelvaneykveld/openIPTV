@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import '../discovery/portal_discovery.dart';
+import '../discovery/discovery_interceptors.dart';
 import '../../utils/url_normalization.dart';
 
 /// Discovers and validates M3U playlists (remote URLs or local files).
@@ -235,7 +236,19 @@ class M3uPortalDiscovery implements PortalDiscovery {
       validateStatus: (status) => status != null && status < 600,
     );
 
-    return Dio(baseOptions);
+    final dio = Dio(baseOptions);
+    final logEnabled = discoveryLoggingEnabled();
+    if (logEnabled) {
+      dio.interceptors.add(
+        DiscoveryLogInterceptor(
+          enableLogging: logEnabled,
+          redactor: _redactSecrets,
+          protocolLabel: 'M3U',
+        ),
+      );
+    }
+    dio.interceptors.add(DiscoveryRetryInterceptor(dio: dio, maxRetries: 1));
+    return dio;
   }
 
   Future<_ProbeOutcome> _probeCandidate({

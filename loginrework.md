@@ -154,15 +154,15 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 8) Networking knobs (shared `Dio` instance per provider)
 
-* [ ] Base options:
+* [x] Base options:
 
   * `followRedirects: true`, `maxRedirects: 5`
   * Timeouts configurable; tighter for probes than for normal API calls.
-* [ ] Interceptors:
+* [x] Interceptors:
 
   * **Redacting logger** (active only when debug is on).
   * **Retry** policy (idempotent GETs only) with jitter.
-* [ ] UA strategy:
+* [x] UA strategy:
 
   * Default UA per **kind** (Stalker-like, Media-like, Neutral).
   * Allow per-provider override saved in profile.

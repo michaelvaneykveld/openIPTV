@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import '../discovery/portal_discovery.dart';
+import '../discovery/discovery_interceptors.dart';
 import 'stalker_portal_normalizer.dart';
 
 /// Concrete discovery adapter for Stalker/Ministra portals.
@@ -134,7 +135,19 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       validateStatus: (status) => status != null && status < 600,
     );
 
-    return Dio(baseOptions);
+    final dio = Dio(baseOptions);
+    final logEnabled = discoveryLoggingEnabled();
+    if (logEnabled) {
+      dio.interceptors.add(
+        DiscoveryLogInterceptor(
+          enableLogging: logEnabled,
+          redactor: _sanitizeUri,
+          protocolLabel: 'Stalker',
+        ),
+      );
+    }
+    dio.interceptors.add(DiscoveryRetryInterceptor(dio: dio));
+    return dio;
   }
 
   Future<_StalkerProbeResult> _probe({

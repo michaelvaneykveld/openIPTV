@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import '../discovery/portal_discovery.dart';
+import '../discovery/discovery_interceptors.dart';
 import '../../utils/url_normalization.dart';
 
 /// Discovers a working Xtream Codes base endpoint by probing candidate URLs.
@@ -94,7 +95,19 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       validateStatus: (status) => status != null && status < 600,
     );
 
-    return Dio(baseOptions);
+    final dio = Dio(baseOptions);
+    final logEnabled = discoveryLoggingEnabled();
+    if (logEnabled) {
+      dio.interceptors.add(
+        DiscoveryLogInterceptor(
+          enableLogging: logEnabled,
+          redactor: _sanitizeUri,
+          protocolLabel: 'Xtream',
+        ),
+      );
+    }
+    dio.interceptors.add(DiscoveryRetryInterceptor(dio: dio));
+    return dio;
   }
 
   Future<_ProbeOutcome> _probeCandidate({

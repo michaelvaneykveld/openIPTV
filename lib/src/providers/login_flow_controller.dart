@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openiptv/src/utils/url_normalization.dart';
 
 /// Supported IPTV protocol types. Keeping this scoped to the login flow
 /// avoids scattering string literals across the UI layer.
@@ -992,7 +993,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   bool _looksLikeUrl(String input) {
     final value = input.trim();
     if (value.isEmpty) return false;
-    return value.startsWith('http://') || value.startsWith('https://');
+    return tryParseLenientHttpUri(value) != null;
   }
 
   bool _looksLikeMac(String input) {

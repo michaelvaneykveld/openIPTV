@@ -117,6 +117,16 @@ void main() {
             'https://example.org/get.php?username=alice&password=secret&type=m3u_plus');
       });
 
+      test('handles bare Xtream host with explicit port', () {
+        const input = 'host.example.com:8081';
+
+        final result = classifier.classify(input);
+
+        expect(result.provider, ProviderKind.xtream);
+        expect(result.xtream, isNotNull);
+        expect(result.xtream!.baseUri.toString(), 'https://host.example.com:8081/');
+      });
+
       test('detects playlist URLs with signed tokens as M3U', () {
         const input =
             'https://cdn.example.com/playlist.m3u8?token=abc123&type=playlist';

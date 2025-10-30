@@ -18,6 +18,7 @@
 
 ## Session Log - Login Flow Controller
 - Introduced a Riverpod-driven controller/state layer (`lib/src/providers/login_flow_controller.dart`) and refactored `lib/src/ui/login_screen.dart` to use it for provider selection, field validation, and multi-step test progress management in line with the new login blueprint.
+- Broadened URL validation to accept bare domains, IPs, and IPv6 hosts by reusing the lenient HTTP parser, with regression coverage keeping the form checks in sync (`lib/src/providers/login_flow_controller.dart`, `lib/src/utils/url_normalization.dart`, `test/providers/login_flow_controller_validation_test.dart`).
 
 ## Session Log - Login Layout Overhaul
 - Rebuilt the login UI to match the design blueprint with header actions (Help/Paste/QR), Material 3 segmented buttons for provider and M3U selection, and provider-specific forms backed by `lib/src/ui/login_screen.dart` and the shared flow controller.
@@ -43,6 +44,7 @@
 ## Session Log - Stalker Portal Discovery
 - Normalised portal input, generated canonical candidate endpoints, and implemented a lightweight probe loop that follows redirects and honours advanced headers before locking the working base (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/stalker/stalker_portal_discovery.dart`).
 - Cached the resolved base URI in the login state so future sessions skip discovery unless the user changes the address or the handshake fails (`lib/src/providers/login_flow_controller.dart`, `lib/src/ui/login_screen.dart`).
+- Added regression coverage ensuring scheme flip fallbacks and User-Agent retries stay operational (`test/protocols/stalker_portal_discovery_test.dart`).
 
 ## Session Log - Advanced Connection Options
 - Wired the Stalker, Xtream, and M3U login flows to honour custom headers, user-agent overrides, and TLS trust settings end-to-end so authenticator probes and follow-up metadata fetches respect advanced input.
@@ -87,11 +89,13 @@
 - Added unit coverage for credential extraction, playlist heuristics, and fallback logic (`test/utils/input_classifier_test.dart`).
 - Wired the login flow to auto-switch providers on confident matches, prefill Xtream/M3U forms, and guard Stalker attempts with classifier feedback while preserving manual override controls (`lib/src/ui/login_screen.dart`).
 - Updated playlist heuristics so credential-bearing `get.php` links with `type=m3u` style parameters stay in the M3U flow first, only falling back to Xtream when discovery confirms it (`lib/src/utils/input_classifier.dart`, `lib/src/ui/login_screen.dart`).
+- Extended the ambiguous-input heuristics to detect bare Xtream hosts with explicit ports and locked the behaviour in with regression coverage (`lib/src/utils/input_classifier.dart`, `test/utils/input_classifier_test.dart`).
 
 ## Session Log - URL Normalization Utilities
 - Added shared helpers to canonicalise schemes, default ports, strip known file endpoints, and ensure directory-style bases across adapters (`lib/src/utils/url_normalization.dart`).
 - Refactored Stalker and Xtream configurations to reuse the helpers, lowering hosts and keeping probe bases consistent (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/xtream/xtream_portal_configuration.dart`).
 - Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
+- Expanded the utilities with a lenient HTTP parser and filesystem detection so odd provider domains, naked IPs, and IPv6 hosts are accepted consistently across classifiers, form validators, and discovery flows (`lib/src/utils/url_normalization.dart`, `lib/src/utils/input_classifier.dart`, `lib/src/providers/login_flow_controller.dart`, `test/utils/url_normalization_test.dart`, `test/providers/login_flow_controller_validation_test.dart`).
 
 ## Session Log - Provider Profile Store
 - Added a Drift-backed database with provider and vault mapping tables so profile metadata lives alongside migration-friendly schema definitions (`lib/storage/provider_database.dart`, `lib/storage/provider_database.g.dart`).

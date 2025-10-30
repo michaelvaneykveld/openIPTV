@@ -123,8 +123,8 @@ class InputClassifier {
     final uri = _parseFlexibleHttpUri(trimmed);
 
     final xtream = _detectXtream(trimmed, lowered, uri);
-    final m3u = _detectM3u(trimmed, lowered, uri);
     if (xtream != null) {
+      final m3u = _detectM3u(trimmed, lowered, uri);
       return InputClassification.xtream(
         details: xtream,
         original: raw,
@@ -132,6 +132,12 @@ class InputClassifier {
       );
     }
 
+    final bareXtream = _detectBareXtreamHost(trimmed);
+    if (bareXtream != null) {
+      return InputClassification.xtream(details: bareXtream, original: raw);
+    }
+
+    final m3u = _detectM3u(trimmed, lowered, uri);
     if (m3u != null) {
       return InputClassification.m3u(details: m3u, original: raw);
     }
@@ -222,17 +228,9 @@ class InputClassifier {
   }
 
   Uri? _parseFlexibleHttpUri(String input) {
-    final direct = Uri.tryParse(input);
-    if (_isHttpUri(direct)) {
-      return direct;
-    }
-    if (!input.contains('://') &&
-        !_looksLikeLocalPath(input) &&
-        !_looksLikeAbsolutePath(input)) {
-      final withHttps = Uri.tryParse('https://$input');
-      if (_isHttpUri(withHttps)) {
-        return withHttps;
-      }
+    final candidate = tryParseLenientHttpUri(input);
+    if (_isHttpUri(candidate)) {
+      return candidate;
     }
     return null;
   }
@@ -248,20 +246,10 @@ class InputClassifier {
   }
 
   bool _looksLikeLocalPlaylist(String original, String lowered) {
-    if (!_looksLikeLocalPath(original)) {
+    if (!isLikelyFilesystemPath(original)) {
       return false;
     }
     return _m3uExtensions.any(lowered.endsWith);
-  }
-
-  bool _looksLikeLocalPath(String value) {
-    final windowsPath = RegExp(r'^[a-zA-Z]:\\');
-    final unixPath = value.startsWith('/') || value.startsWith('~/');
-    return windowsPath.hasMatch(value) || unixPath;
-  }
-
-  bool _looksLikeAbsolutePath(String value) {
-    return value.startsWith('/') || value.startsWith(r'\\');
   }
 
   bool _looksLikePlaylistQuery(Map<String, String> query) {
@@ -282,6 +270,48 @@ class InputClassifier {
     return false;
   }
 
+  XtreamClassification? _detectBareXtreamHost(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty || trimmed.contains('://')) return null;
+    final hasPort = trimmed.contains(':');
+    final hasIllegalPath = trimmed.contains('/') || trimmed.contains('?');
+    if (!hasPort || hasIllegalPath) {
+      return null;
+    }
+
+    final canonical = canonicalizeScheme(trimmed, defaultScheme: 'https');
+    final parsed = Uri.tryParse(canonical);
+    if (parsed == null || parsed.host.isEmpty || !parsed.hasPort) {
+      return null;
+    }
+
+    final port = parsed.port;
+    const likelyXtreamPorts = {8000, 8080, 8081, 8880, 8881, 2086};
+    final looksXtreamHost = _isLikelyXtreamHost(trimmed);
+    if (!looksXtreamHost && !likelyXtreamPorts.contains(port)) {
+      return null;
+    }
+
+    final base = _deriveXtreamHostOnly(trimmed);
+    return XtreamClassification(baseUri: base, originalUri: parsed);
+  }
+
+  bool _isLikelyXtreamHost(String input) {
+    final value = input.trim();
+    if (value.isEmpty || value.contains('://')) return false;
+    final withScheme = canonicalizeScheme(value, defaultScheme: 'https');
+    final uri = Uri.tryParse(withScheme);
+    if (uri == null || uri.host.isEmpty) return false;
+    final host = uri.host.toLowerCase();
+    return host.contains('xtream') || host.contains('stbt') || host.contains('iptv');
+  }
+
+  Uri _deriveXtreamHostOnly(String input) {
+    final canonical = canonicalizeScheme(input, defaultScheme: 'https');
+    final uri = Uri.parse(canonical);
+    return ensureTrailingSlash(uri);
+  }
+
   Uri _deriveXtreamBaseUri(Uri uri) {
     final lowered = uri.replace(
       scheme: uri.scheme.toLowerCase(),
@@ -290,4 +320,5 @@ class InputClassifier {
     final stripped = stripKnownFiles(lowered);
     return ensureTrailingSlash(stripped);
   }
+
 }

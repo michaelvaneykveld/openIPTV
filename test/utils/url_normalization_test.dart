@@ -15,6 +15,54 @@ void main() {
     });
   });
 
+  group('tryParseLenientHttpUri', () {
+    test('parses bare domains by adding default scheme', () {
+      final uri = tryParseLenientHttpUri('open.iptv.me');
+      expect(uri, isNotNull);
+      expect(uri!.scheme, 'https');
+      expect(uri.host, 'open.iptv.me');
+    });
+
+    test('recognises IPv4 with explicit port', () {
+      final uri = tryParseLenientHttpUri('192.168.1.20:8080/api');
+      expect(uri, isNotNull);
+      expect(uri!.host, '192.168.1.20');
+      expect(uri.port, 8080);
+      expect(uri.path, '/api');
+    });
+
+    test('recognises IPv6 hosts without brackets', () {
+      final uri = tryParseLenientHttpUri('2001:db8::1:8443/playlist.m3u8');
+      expect(uri, isNotNull);
+      expect(uri!.host, '2001:db8::1');
+      expect(uri.port, 8443);
+      expect(uri.path, '/playlist.m3u8');
+    });
+
+    test('rejects filesystem-looking paths', () {
+      final uri = tryParseLenientHttpUri(r'C:\iptv\channels.m3u');
+      expect(uri, isNull);
+    });
+  });
+
+  group('isLikelyFilesystemPath', () {
+    test('detects windows drive paths', () {
+      expect(isLikelyFilesystemPath(r'D:\media\playlist.m3u8'), isTrue);
+    });
+
+    test('detects unix absolute paths', () {
+      expect(isLikelyFilesystemPath('/var/media/playlist.m3u8'), isTrue);
+    });
+
+    test('detects UNC paths', () {
+      expect(isLikelyFilesystemPath(r'\\nas\iptv\playlist.m3u'), isTrue);
+    });
+
+    test('ignores remote hosts', () {
+      expect(isLikelyFilesystemPath('open.iptv.me'), isFalse);
+    });
+  });
+
   group('normalizePort', () {
     test('preserves explicit port', () {
       final uri = Uri.parse('https://example.com:8443/path');

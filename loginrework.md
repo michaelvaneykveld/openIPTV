@@ -164,6 +164,8 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 * [x] **M3U**: HEAD returns `application/octet-stream`; range GET starts with `#EXTM3U`; redirect chain to signed URL.
 * [x] **TLS**: self-signed failure on first probe, success on permissive path when user enables the option.
 * [x] **Regression**: connection closed early path uses `Connection: close` and succeeds on retry.
+* [x] **Stalker**: scheme flip fallback and UA retry paths covered so portal discovery heuristics stay locked in.
+* [x] **Forms**: controller-level validation accepts bare domains, IPv4/IPv6 hosts, and rejects filesystem paths consistently across provider flows.
 
 ---
 

@@ -158,7 +158,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 9) Tests (must-have)
 
-* [ ] **Classifier**: unit tests for ambiguous inputs (Xtream as M3U, naked host, with/without scheme, with port).
+* [x] **Classifier**: unit tests for ambiguous inputs (Xtream as M3U, naked host, with/without scheme, with port).
 * [ ] **Xtream**: mock server returning JSON for `player_api.php`, with redirect and with 403 UA block.
   * [x] Ensure HTML `INVALID_CREDENTIALS` banners emitted by branded panels are recognised during discovery.
 * [x] **M3U**: HEAD returns `application/octet-stream`; range GET starts with `#EXTM3U`; redirect chain to signed URL.

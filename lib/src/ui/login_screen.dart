@@ -604,91 +604,120 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  List<Widget> _buildAdvancedCommonFields({
+    required TextEditingController userAgentController,
+    required ValueChanged<String> onUserAgentChanged,
+    required String userAgentHelperText,
+    required TextEditingController headersController,
+    required ValueChanged<String> onHeadersChanged,
+    required String headersHelperText,
+    String? headersErrorText,
+    required bool allowSelfSigned,
+    required ValueChanged<bool> onToggleSelfSigned,
+    required bool isBusy,
+    required Key tlsSwitchKey,
+    Widget? additionalToggle,
+    bool tlsToggleEnabled = true,
+  }) {
+    final widgets = <Widget>[
+      TextFormField(
+        controller: userAgentController,
+        enabled: !isBusy,
+        decoration: InputDecoration(
+          labelText: 'User-Agent override',
+          helperText: userAgentHelperText,
+        ),
+        onChanged: onUserAgentChanged,
+      ),
+      const SizedBox(height: 12),
+      TextFormField(
+        controller: headersController,
+        enabled: !isBusy,
+        minLines: 2,
+        maxLines: 4,
+        decoration: InputDecoration(
+          labelText: 'Custom headers',
+          helperText: headersHelperText,
+          errorText: headersErrorText,
+        ),
+        onChanged: onHeadersChanged,
+      ),
+    ];
+
+    if (additionalToggle != null) {
+      widgets.add(const SizedBox(height: 12));
+      widgets.add(additionalToggle);
+    }
+
+    widgets.add(const SizedBox(height: 12));
+    widgets.add(
+      SwitchListTile(
+        key: tlsSwitchKey,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Allow self-signed TLS'),
+        subtitle: const Text(
+          'Accept certificates that are not trusted by the system CA store.',
+        ),
+        value: allowSelfSigned,
+        onChanged:
+            !isBusy && tlsToggleEnabled ? onToggleSelfSigned : null,
+      ),
+    );
+
+    return widgets;
+  }
+
   /// Builds the advanced settings panel for Stalker portals.
   Widget _buildStalkerAdvancedSection(LoginFlowState flowState, bool isBusy) {
     final controller = ref.read(loginFlowControllerProvider.notifier);
+    final children = _buildAdvancedCommonFields(
+      userAgentController: _stalkerUserAgentController,
+      onUserAgentChanged: controller.updateStalkerUserAgent,
+      userAgentHelperText:
+          'Leave blank to use the default Infomir agent.',
+      headersController: _stalkerHeadersController,
+      onHeadersChanged: controller.updateStalkerCustomHeaders,
+      headersHelperText: 'One header per line, e.g. X-Api-Key: secret',
+      headersErrorText: flowState.stalker.customHeaders.error,
+      allowSelfSigned: flowState.stalker.allowSelfSignedTls,
+      onToggleSelfSigned: controller.toggleStalkerTlsOverride,
+      isBusy: isBusy,
+      tlsSwitchKey: const ValueKey('stalkerSelfSignedSwitch'),
+    );
     return ExpansionTile(
+      key: const ValueKey('stalkerAdvancedTile'),
       title: const Text('Advanced options'),
       initiallyExpanded: flowState.stalker.advancedExpanded,
       onExpansionChanged: controller.toggleStalkerAdvanced,
       childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
-      children: [
-        TextFormField(
-          controller: _stalkerUserAgentController,
-          enabled: !isBusy,
-          decoration: const InputDecoration(
-            labelText: 'User-Agent override',
-            helperText: 'Leave blank to use the default Infomir agent.',
-          ),
-          onChanged: controller.updateStalkerUserAgent,
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _stalkerHeadersController,
-          enabled: !isBusy,
-          minLines: 2,
-          maxLines: 4,
-          decoration: InputDecoration(
-            labelText: 'Custom headers',
-            helperText: 'One header per line, e.g. X-Api-Key: secret',
-            errorText: flowState.stalker.customHeaders.error,
-          ),
-          onChanged: controller.updateStalkerCustomHeaders,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Allow self-signed TLS'),
-          subtitle: const Text(
-            'Accept certificates that are not trusted by the system CA store.',
-          ),
-          value: flowState.stalker.allowSelfSignedTls,
-          onChanged: isBusy ? null : controller.toggleStalkerTlsOverride,
-        ),
-      ],
+      children: children,
     );
   }
 
   /// Builds the advanced settings panel for Xtream portals.
   Widget _buildXtreamAdvancedSection(LoginFlowState flowState, bool isBusy) {
     final controller = ref.read(loginFlowControllerProvider.notifier);
+    final children = _buildAdvancedCommonFields(
+      userAgentController: _xtreamUserAgentController,
+      onUserAgentChanged: controller.updateXtreamUserAgent,
+      userAgentHelperText:
+          'Leave blank to use the default Xtream agent.',
+      headersController: _xtreamHeadersController,
+      onHeadersChanged: controller.updateXtreamCustomHeaders,
+      headersHelperText: 'One header per line, e.g. X-Device: Flutter',
+      headersErrorText: flowState.xtream.customHeaders.error,
+      allowSelfSigned: flowState.xtream.allowSelfSignedTls,
+      onToggleSelfSigned: controller.toggleXtreamTlsOverride,
+      isBusy: isBusy,
+      tlsSwitchKey: const ValueKey('xtreamSelfSignedSwitch'),
+    );
     return ExpansionTile(
+      key: const ValueKey('xtreamAdvancedTile'),
       title: const Text('Advanced options'),
       initiallyExpanded: flowState.xtream.advancedExpanded,
       onExpansionChanged: controller.toggleXtreamAdvanced,
       childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
-      children: [
-        TextFormField(
-          controller: _xtreamUserAgentController,
-          enabled: !isBusy,
-          decoration: const InputDecoration(
-            labelText: 'User-Agent override',
-            helperText: 'Leave blank to use the default Xtream agent.',
-          ),
-          onChanged: controller.updateXtreamUserAgent,
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _xtreamHeadersController,
-          enabled: !isBusy,
-          minLines: 2,
-          maxLines: 4,
-          decoration: InputDecoration(
-            labelText: 'Custom headers',
-            helperText: 'One header per line, e.g. X-Device: Flutter',
-            errorText: flowState.xtream.customHeaders.error,
-          ),
-          onChanged: controller.updateXtreamCustomHeaders,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Allow self-signed TLS'),
-          subtitle: const Text(
-            'Trust self-signed certificates when contacting this server.',
-          ),
-          value: flowState.xtream.allowSelfSignedTls,
-          onChanged: isBusy ? null : controller.toggleXtreamTlsOverride,
-        ),
-      ],
+      children: children,
     );
   }
 
@@ -699,57 +728,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     bool isUrlMode,
   ) {
     final controller = ref.read(loginFlowControllerProvider.notifier);
+    final followRedirectToggle = SwitchListTile(
+      key: const ValueKey('m3uFollowRedirectSwitch'),
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Follow redirects automatically'),
+      subtitle: const Text(
+        'Disable when your provider expects strict URLs.',
+      ),
+      value: flowState.m3u.followRedirects,
+      onChanged: !isBusy && isUrlMode
+          ? controller.toggleM3uFollowRedirects
+          : null,
+    );
+
+    final children = _buildAdvancedCommonFields(
+      userAgentController: _m3uUserAgentController,
+      onUserAgentChanged: controller.updateM3uUserAgent,
+      userAgentHelperText:
+          'Leave blank to use the default playlist agent.',
+      headersController: _m3uHeadersController,
+      onHeadersChanged: controller.updateM3uCustomHeaders,
+      headersHelperText:
+          'One header per line, e.g. Authorization: Bearer token',
+      headersErrorText: flowState.m3u.customHeaders.error,
+      allowSelfSigned: flowState.m3u.allowSelfSignedTls,
+      onToggleSelfSigned: controller.toggleM3uTlsOverride,
+      isBusy: isBusy,
+      tlsSwitchKey: const ValueKey('m3uSelfSignedSwitch'),
+      additionalToggle: followRedirectToggle,
+      tlsToggleEnabled: isUrlMode,
+    );
+
     return ExpansionTile(
+      key: const ValueKey('m3uAdvancedTile'),
       title: const Text('Advanced options'),
       initiallyExpanded: flowState.m3u.advancedExpanded,
       onExpansionChanged: controller.toggleM3uAdvanced,
       childrenPadding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
-      children: [
-        TextFormField(
-          controller: _m3uUserAgentController,
-          enabled: !isBusy,
-          decoration: const InputDecoration(
-            labelText: 'User-Agent override',
-            helperText: 'Leave blank to use the default playlist agent.',
-          ),
-          onChanged: controller.updateM3uUserAgent,
-        ),
-        const SizedBox(height: 12),
-        TextFormField(
-          controller: _m3uHeadersController,
-          enabled: !isBusy,
-          minLines: 2,
-          maxLines: 4,
-          decoration: InputDecoration(
-            labelText: 'Custom headers',
-            helperText: 'One header per line, e.g. Authorization: Bearer token',
-            errorText: flowState.m3u.customHeaders.error,
-          ),
-          onChanged: controller.updateM3uCustomHeaders,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Follow redirects automatically'),
-          subtitle: const Text(
-            'Disable when your provider expects strict URLs.',
-          ),
-          value: flowState.m3u.followRedirects,
-          onChanged: isBusy || !isUrlMode
-              ? null
-              : controller.toggleM3uFollowRedirects,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Allow self-signed TLS'),
-          subtitle: const Text(
-            'Accept certificates that are not trusted by the system CA store.',
-          ),
-          value: flowState.m3u.allowSelfSignedTls,
-          onChanged: isBusy || !isUrlMode
-              ? null
-              : controller.toggleM3uTlsOverride,
-        ),
-      ],
+      children: children,
     );
   }
 

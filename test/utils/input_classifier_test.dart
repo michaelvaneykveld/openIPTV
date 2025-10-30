@@ -83,5 +83,52 @@ void main() {
 
       expect(result.hasMatch, isFalse);
     });
+
+    group('ambiguous inputs', () {
+      test('treats playlist-style get.php links as Xtream with playlist hints',
+          () {
+        const input =
+            'http://1tv41.icu:8080/get.php?username=ahx4CN&password=815233&type=m3u_plus&output=ts';
+
+        final result = classifier.classify(input);
+
+        expect(result.provider, ProviderKind.xtream);
+        expect(result.xtream, isNotNull);
+        expect(result.xtream!.baseUri.toString(), 'http://1tv41.icu:8080/');
+        expect(result.xtream!.hasCredentials, isTrue);
+        expect(result.xtream!.username, 'ahx4CN');
+        expect(result.xtream!.password, '815233');
+
+        expect(result.m3u, isNotNull, reason: 'playlist hints should persist');
+        expect(result.m3u!.playlistUri!.toString(), input);
+        expect(result.m3u!.username, 'ahx4CN');
+        expect(result.m3u!.password, '815233');
+      });
+
+      test('canonicalises scheme for bare Xtream playlist links', () {
+        const input =
+            'example.org/get.php?username=alice&password=secret&type=m3u_plus';
+
+        final result = classifier.classify(input);
+
+        expect(result.provider, ProviderKind.xtream);
+        expect(result.xtream!.baseUri.toString(), 'https://example.org/');
+        expect(result.xtream!.originalUri!.toString(),
+            'https://example.org/get.php?username=alice&password=secret&type=m3u_plus');
+      });
+
+      test('detects playlist URLs with signed tokens as M3U', () {
+        const input =
+            'https://cdn.example.com/playlist.m3u8?token=abc123&type=playlist';
+
+        final result = classifier.classify(input);
+
+        expect(result.provider, ProviderKind.m3u);
+        expect(result.m3u, isNotNull);
+        expect(result.m3u!.playlistUri!.toString(), input);
+        expect(result.m3u!.username, isNull);
+        expect(result.m3u!.password, isNull);
+      });
+    });
   });
 }

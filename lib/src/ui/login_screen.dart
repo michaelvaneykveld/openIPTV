@@ -29,6 +29,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
+import 'package:openiptv/src/ui/discovery_cache_manager.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
@@ -114,6 +115,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final M3uPortalDiscovery _m3uDiscovery = const M3uPortalDiscovery();
   final M3uXmlClient _m3uClient = M3uXmlClient();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
+  late final DiscoveryCacheManager _discoveryCacheManager;
+  static const String _discoveryCacheStorageKey = 'discovery_cache_v1';
+  static const Duration _discoveryCacheTtl = Duration(hours: 24);
 
   void _debugPrintSafe(String message) {
     debugPrint(redactSensitiveText(message));
@@ -129,6 +133,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  void _logDiscoveryCacheError(
+    String message,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    _logError(message, error, stackTrace);
+  }
+
   void _logDioError(String prefix, DioException error) {
     final base = redactSensitiveText(prefix);
     debugPrint('$base: ${describeDioError(error)}');
@@ -137,6 +149,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    _discoveryCacheManager = DiscoveryCacheManager(
+      storageKey: _discoveryCacheStorageKey,
+      ttl: _discoveryCacheTtl,
+      errorLogger: _logDiscoveryCacheError,
+    );
+    unawaited(_discoveryCacheManager.ensureLoaded());
 
     // Hydrate the controllers with the persisted Riverpod state so that the
     // UI reflects previously stored credentials immediately after launch.
@@ -1110,26 +1128,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
 
-      Uri handshakeBase = normalization.canonicalUri;
       final lockedBase = current.stalker.lockedBaseUri;
       DiscoveryResult? discoveryResult;
+      Uri handshakeBase;
+
+      final discoveryOptions = _buildStalkerDiscoveryOptions(
+        normalization,
+        current,
+        headerResult.headers,
+      );
+
       if (lockedBase == null || lockedBase != normalizedPortalText) {
         flowController.clearStalkerLockedBase();
         current = ref.read(loginFlowControllerProvider);
 
-        final discoveryOptions = _buildStalkerDiscoveryOptions(
-          normalization,
-          current,
-          headerResult.headers,
+        final cacheKey = DiscoveryCacheManager.buildKey(
+          kind: ProviderKind.stalker,
+          identifier: normalization.canonicalUri.toString(),
+          headers: discoveryOptions.headers,
+          allowSelfSignedTls: discoveryOptions.allowSelfSignedTls,
+          userAgent: discoveryOptions.userAgent,
+          macAddress: discoveryOptions.macAddress,
         );
 
-        final discovery = await _stalkerDiscovery.discoverFromNormalized(
-          normalization,
-          options: discoveryOptions,
-        );
-        discoveryResult = discovery;
+        try {
+          discoveryResult = await _discoveryCacheManager.get(
+            cacheKey: cacheKey,
+          );
+        } catch (error, stackTrace) {
+          _logError('Stalker cache read error', error, stackTrace);
+        }
 
-        handshakeBase = discovery.lockedBase;
+        if (discoveryResult == null) {
+          // Fall back to live discovery when no cached endpoint is available.
+          final discovery = await _stalkerDiscovery.discoverFromNormalized(
+            normalization,
+            options: discoveryOptions,
+          );
+          discoveryResult = discovery;
+          try {
+            await _discoveryCacheManager.store(
+              cacheKey: cacheKey,
+              result: discovery,
+            );
+          } catch (error, stackTrace) {
+            _logError('Stalker cache write error', error, stackTrace);
+          }
+        }
+
+        handshakeBase = discoveryResult.lockedBase;
         final lockedBaseString = handshakeBase.toString();
         flowController.setStalkerLockedBase(lockedBaseString);
         if (_portalUrlController.text != lockedBaseString) {
@@ -1346,23 +1393,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       Uri handshakeBase;
       DiscoveryResult? discoveryResult;
 
+      final discoveryOptions = DiscoveryOptions(
+        allowSelfSignedTls: current.xtream.allowSelfSignedTls,
+        headers: headerResult.headers,
+        userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+        logSink: kDebugMode ? _onXtreamDiscoveryLog : null,
+      );
+
       if (lockedBase == null) {
-        // Resolve the canonical Xtream base URL before attempting auth so that
-        // subsequent runs can skip the expensive probe loop.
-        final discoveryOptions = DiscoveryOptions(
-          allowSelfSignedTls: current.xtream.allowSelfSignedTls,
-          headers: headerResult.headers,
-          userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
-          logSink: kDebugMode ? _onXtreamDiscoveryLog : null,
+        final cacheKey = DiscoveryCacheManager.buildKey(
+          kind: ProviderKind.xtream,
+          identifier: baseInput,
+          headers: discoveryOptions.headers,
+          allowSelfSignedTls: discoveryOptions.allowSelfSignedTls,
+          userAgent: discoveryOptions.userAgent,
         );
 
-        final discovery = await _xtreamDiscovery.discover(
-          baseInput,
-          options: discoveryOptions,
-        );
-        discoveryResult = discovery;
+        try {
+          discoveryResult = await _discoveryCacheManager.get(
+            cacheKey: cacheKey,
+          );
+        } catch (error, stackTrace) {
+          _logError('Xtream cache read error', error, stackTrace);
+        }
 
-        handshakeBase = discovery.lockedBase;
+        if (discoveryResult == null) {
+          // Probe the server when cache does not have a fresh entry.
+          final discovery = await _xtreamDiscovery.discover(
+            baseInput,
+            options: discoveryOptions,
+          );
+          discoveryResult = discovery;
+          try {
+            await _discoveryCacheManager.store(
+              cacheKey: cacheKey,
+              result: discovery,
+            );
+          } catch (error, stackTrace) {
+            _logError('Xtream cache write error', error, stackTrace);
+          }
+        }
+
+        handshakeBase = discoveryResult.lockedBase;
         final lockedBaseString = handshakeBase.toString();
         flowController.setXtreamLockedBase(lockedBaseString);
         if (_xtreamUrlController.text != lockedBaseString) {
@@ -1373,7 +1445,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             );
         }
 
-        if (discovery.hints['needsUserAgent'] == 'true' &&
+        if (discoveryResult.hints['needsUserAgent'] == 'true' &&
             userAgentOverride.isEmpty) {
           flowController.setBannerMessage(
             'Server requires a specific User-Agent. Consider saving one in Advanced settings.',
@@ -1752,10 +1824,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         logSink: kDebugMode && isUrlMode ? _onM3uDiscoveryLog : null,
       );
 
-      final discovery = await _m3uDiscovery.discover(
+      DiscoveryResult? discovery;
+      String? cacheKey;
+      var cacheHit = false;
+      if (isUrlMode) {
+        cacheKey = DiscoveryCacheManager.buildKey(
+          kind: ProviderKind.m3u,
+          identifier: playlistInput,
+          headers: discoveryOptions.headers,
+          allowSelfSignedTls: discoveryOptions.allowSelfSignedTls,
+          userAgent: discoveryOptions.userAgent,
+          followRedirects: initialState.m3u.followRedirects,
+        );
+        try {
+          discovery = await _discoveryCacheManager.get(cacheKey: cacheKey);
+          cacheHit = discovery != null;
+        } catch (error, stackTrace) {
+          _logError('M3U cache read error', error, stackTrace);
+        }
+      }
+
+      // Execute remote probes if the cache did not yield a hit.
+      discovery ??= await _m3uDiscovery.discover(
         playlistInput,
         options: discoveryOptions,
       );
+
+      if (isUrlMode && cacheKey != null) {
+        try {
+          await _discoveryCacheManager.store(
+            cacheKey: cacheKey,
+            result: discovery,
+          );
+        } catch (error, stackTrace) {
+          if (!cacheHit) {
+            _logError('M3U cache write error', error, stackTrace);
+          } else {
+            _logError('M3U cache refresh error', error, stackTrace);
+          }
+        }
+      }
 
       if (discovery.kind == ProviderKind.xtream) {
         flowController.markStepFailure(

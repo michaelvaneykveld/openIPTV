@@ -107,6 +107,11 @@
 - Updated the Stalker, Xtream, and M3U login flows to capture discovery hints, configuration, and secrets into the repository when connections succeed, surfacing friendly failure messaging when persistence fails (`lib/src/ui/login_screen.dart`).
 - Wired sqflite FFI initialisation for desktop targets so profile persistence works on Windows/Linux without manual bootstrap steps (`lib/storage/provider_database.dart`).
 
+## Session Log - Discovery Cache Wiring
+- Added a `DiscoveryCacheManager` that persists discovery results with hashed option fingerprints so TTL reuse never leaks credentials (`lib/src/ui/discovery_cache_manager.dart`).
+- Updated the Stalker, Xtream, and M3U login handlers to consult the cache before probing and refresh entries when live discovery runs, trimming redundant network hops (`lib/src/ui/login_screen.dart`).
+- Extended regression coverage with cache hit/expiry tests to lock in the sanitisation and TTL semantics (`test/ui/discovery_cache_manager_test.dart`).
+
 ## TODO - Login Experience Implementation
 - Build out the unified provider profile and storage architecture (Drift + secure vault). (in-progress)
   - Inventory existing profile/draft writes to determine read/write needs. (done)
@@ -126,8 +131,9 @@
     - Added Xtream discovery tests for redirects and UA fallback handling (`test/protocols/xtream_portal_discovery_test.dart`). (done)
     - Added M3U discovery regression test for premature connection close retries (`test/protocols/m3u_portal_discovery_test.dart`). (done)
   - Expand widget/integration tests for login flows, including opt-in storage and probe failure UX. (todo)
-- Introduce discovery caching and background revalidation. (todo)
-  - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (todo)
+- Introduce discovery caching and background revalidation. (in-progress)
+  - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (done)
+  - Add background revalidation trigger so cached bases refresh after TTL or failed connects. (todo)
 - Enforce security and privacy guardrails. (in-progress)
   - Ensure secrets never appear in logs or telemetry; sanitise URLs and free-form messages before logging. (done)
     - Added shared redaction helpers to purge credentials from discovery interceptors and login debug output (`lib/src/utils/url_redaction.dart`, `lib/src/protocols/*/*_portal_discovery.dart`, `lib/src/ui/login_screen.dart`).

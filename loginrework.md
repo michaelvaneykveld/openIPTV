@@ -171,9 +171,9 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 10) Performance & caching
 
-* [ ] Cache discovery **per provider** (keyed by user-visible name + host) and **skip probes** on subsequent app launches.
-* [ ] Keep a short TTL (e.g., 24h) to re-validate base URLs in the background; if the portal changed path/scheme, silently update the profile.
-* [ ] For M3U, cache small HEAD/meta to avoid re-downloading full playlists during login.
+* [x] Cache discovery **per provider** (keyed by user-visible name + host) and **skip probes** on subsequent app launches.
+* [x] Keep a short TTL (e.g., 24h) to re-validate base URLs in the background; if the portal changed path/scheme, silently update the profile.
+* [x] For M3U, cache small HEAD/meta to avoid re-downloading full playlists during login.
 
 ---
 

@@ -111,7 +111,10 @@
   - Produce repository interfaces (`CredentialsVaultRepository`, discovery caches) and document async/error semantics. (done)
   - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (done)
   - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (done)
-  - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (todo)
+  - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (done)
+    - Documented a two-phase migration plan: schema bump + secure vault seeding with rollback guardrails, and a dry-run mode that validates existing rows before committing secrets (`loginrework.md`, Secure Storage section).
+    - Added test matrix covering device bootstraps with missing `FlutterSecureStorage`, simulator/web shims, and toggled "remember me" flows to ensure drafts fall back to in-memory caches without user-visible errors.
+    - Captured QA acceptance steps for upgrading from legacy preferences (verify automatic vault population, ensure opt-in flag surfaces in UI, confirm disable path purges secrets) so release sign-off is unambiguous.
 - Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (done)
 - Strengthen automated and manual test coverage. (in-progress)
   - Add unit tests for the classifier, discovery redirects/UA blocks/TLS paths, and regression cases (e.g., early connection close). (in-progress)
@@ -123,4 +126,3 @@
   - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (todo)
 - Enforce security and privacy guardrails. (todo)
   - Ensure secrets never appear in logs, build secret-bearing URLs only in-memory, and store credentials in secure storage exclusively. (todo)
-- Ensure accessibility: focus traversal for TV remotes, screen-reader labels/errors, large text scaling, and high-contrast visuals. (todo)

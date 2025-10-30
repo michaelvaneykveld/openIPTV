@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_portal_discovery.dart';
@@ -167,6 +168,29 @@ void main() {
       expect(result.hints['redirect'], 'xtream');
     });
 
+    test('retries when connection closes before headers complete', () async {
+      final adapter = _HeadRetryAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+
+      final discovery = M3uPortalDiscovery(dio: dio);
+
+      final result = await discovery.discover(
+        'http://playlist.example.com/list.m3u8',
+        options: DiscoveryOptions.defaults,
+      );
+
+      expect(result.kind, ProviderKind.m3u);
+      expect(adapter.headAttempts, greaterThan(1));
+      final headProbes = result.telemetry.probes
+          .where((probe) => probe.stage.startsWith('HEAD'))
+          .toList();
+      expect(headProbes.length, greaterThan(1));
+      expect(
+        headProbes.any((probe) => probe.stage.contains('(retry)')),
+        isTrue,
+      );
+    });
+
     test('follows redirects to signed playlist URLs', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
@@ -210,4 +234,48 @@ void main() {
       );
     });
   });
+}
+
+class _HeadRetryAdapter implements HttpClientAdapter {
+  int headAttempts = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    if (options.method == 'HEAD') {
+      headAttempts += 1;
+      if (headAttempts == 1) {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'Connection closed before full header',
+          error: const SocketException('Connection closed before full header'),
+        );
+      }
+      return ResponseBody.fromBytes(
+        const <int>[],
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/x-mpegurl'],
+        },
+      );
+    }
+
+    if (options.method == 'GET') {
+      return ResponseBody.fromString(
+        '#EXTM3U\n#EXTINF:-1,Channel\nhttp://example.com/stream',
+        200,
+        headers: {
+          Headers.contentTypeHeader: ['application/x-mpegurl'],
+        },
+      );
+    }
+
+    return ResponseBody.fromBytes(const <int>[], 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
 }

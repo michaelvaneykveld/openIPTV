@@ -163,7 +163,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
   * [x] Ensure HTML `INVALID_CREDENTIALS` banners emitted by branded panels are recognised during discovery.
 * [x] **M3U**: HEAD returns `application/octet-stream`; range GET starts with `#EXTM3U`; redirect chain to signed URL.
 * [x] **TLS**: self-signed failure on first probe, success on permissive path when user enables the option.
-* [ ] **Regression**: connection closed early path uses `Connection: close` and succeeds on retry.
+* [x] **Regression**: connection closed early path uses `Connection: close` and succeeds on retry.
 
 ---
 

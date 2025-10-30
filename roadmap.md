@@ -113,6 +113,7 @@
   - Add unit tests for the classifier, discovery redirects/UA blocks/TLS paths, and regression cases (e.g., early connection close). (in-progress)
     - Added classifier coverage for ambiguous Xtream vs M3U inputs (`test/utils/input_classifier_test.dart`). (done)
     - Added Xtream discovery tests for redirects and UA fallback handling (`test/protocols/xtream_portal_discovery_test.dart`). (done)
+    - Added M3U discovery regression test for premature connection close retries (`test/protocols/m3u_portal_discovery_test.dart`). (done)
   - Expand widget/integration tests for login flows, including opt-in storage and probe failure UX. (todo)
 - Introduce discovery caching and background revalidation. (todo)
   - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (todo)

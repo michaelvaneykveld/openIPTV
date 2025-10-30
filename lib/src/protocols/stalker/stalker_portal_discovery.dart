@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:openiptv/src/utils/url_redaction.dart';
 
 import '../discovery/portal_discovery.dart';
 import '../discovery/discovery_interceptors.dart';
@@ -141,7 +142,6 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       dio.interceptors.add(
         DiscoveryLogInterceptor(
           enableLogging: logEnabled,
-          redactor: _sanitizeUri,
           protocolLabel: 'Stalker',
         ),
       );
@@ -206,7 +206,7 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _sanitizeUri(response.realUri),
+        uri: redactSensitiveUri(response.realUri, dropAllQuery: true),
         statusCode: response.statusCode,
         elapsed: stopwatch.elapsed,
         matchedSignature: matched,
@@ -259,7 +259,10 @@ class StalkerPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _sanitizeUri(error.response?.realUri ?? uri),
+        uri: redactSensitiveUri(
+          error.response?.realUri ?? uri,
+          dropAllQuery: true,
+        ),
         statusCode: error.response?.statusCode,
         elapsed: stopwatch.elapsed,
         error: error,
@@ -388,10 +391,6 @@ class StalkerPortalDiscovery implements PortalDiscovery {
         adapter.createHttpClient = null;
       }
     }
-  }
-
-  Uri _sanitizeUri(Uri uri) {
-    return uri.replace(userInfo: '', query: null, fragment: null);
   }
 
   Uri? _flipScheme(Uri uri) {

@@ -22,6 +22,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_discovery.dart';
 import 'package:openiptv/src/utils/input_classifier.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_normalizer.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
+import 'package:openiptv/src/utils/url_redaction.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
@@ -113,6 +114,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final M3uPortalDiscovery _m3uDiscovery = const M3uPortalDiscovery();
   final M3uXmlClient _m3uClient = M3uXmlClient();
   ProviderSubscription<LoginFlowState>? _flowSubscription;
+
+  void _debugPrintSafe(String message) {
+    debugPrint(redactSensitiveText(message));
+  }
+
+  void _logError(String prefix, Object error, [StackTrace? stackTrace]) {
+    final base = redactSensitiveText(prefix);
+    final details = redactSensitiveText(error.toString());
+    if (stackTrace != null) {
+      debugPrint('$base: $details\n$stackTrace');
+    } else {
+      debugPrint('$base: $details');
+    }
+  }
+
+  void _logDioError(String prefix, DioException error) {
+    final base = redactSensitiveText(prefix);
+    debugPrint('$base: ${describeDioError(error)}');
+  }
 
   @override
   void initState() {
@@ -659,8 +679,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'Accept certificates that are not trusted by the system CA store.',
         ),
         value: allowSelfSigned,
-        onChanged:
-            !isBusy && tlsToggleEnabled ? onToggleSelfSigned : null,
+        onChanged: !isBusy && tlsToggleEnabled ? onToggleSelfSigned : null,
       ),
     );
 
@@ -673,8 +692,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final children = _buildAdvancedCommonFields(
       userAgentController: _stalkerUserAgentController,
       onUserAgentChanged: controller.updateStalkerUserAgent,
-      userAgentHelperText:
-          'Leave blank to use the default Infomir agent.',
+      userAgentHelperText: 'Leave blank to use the default Infomir agent.',
       headersController: _stalkerHeadersController,
       onHeadersChanged: controller.updateStalkerCustomHeaders,
       headersHelperText: 'One header per line, e.g. X-Api-Key: secret',
@@ -700,8 +718,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final children = _buildAdvancedCommonFields(
       userAgentController: _xtreamUserAgentController,
       onUserAgentChanged: controller.updateXtreamUserAgent,
-      userAgentHelperText:
-          'Leave blank to use the default Xtream agent.',
+      userAgentHelperText: 'Leave blank to use the default Xtream agent.',
       headersController: _xtreamHeadersController,
       onHeadersChanged: controller.updateXtreamCustomHeaders,
       headersHelperText: 'One header per line, e.g. X-Device: Flutter',
@@ -732,9 +749,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       key: const ValueKey('m3uFollowRedirectSwitch'),
       contentPadding: EdgeInsets.zero,
       title: const Text('Follow redirects automatically'),
-      subtitle: const Text(
-        'Disable when your provider expects strict URLs.',
-      ),
+      subtitle: const Text('Disable when your provider expects strict URLs.'),
       value: flowState.m3u.followRedirects,
       onChanged: !isBusy && isUrlMode
           ? controller.toggleM3uFollowRedirects
@@ -744,8 +759,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final children = _buildAdvancedCommonFields(
       userAgentController: _m3uUserAgentController,
       onUserAgentChanged: controller.updateM3uUserAgent,
-      userAgentHelperText:
-          'Leave blank to use the default playlist agent.',
+      userAgentHelperText: 'Leave blank to use the default playlist agent.',
       headersController: _m3uHeadersController,
       onHeadersChanged: controller.updateM3uCustomHeaders,
       headersHelperText:
@@ -1175,7 +1189,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         channelCount = _extractStalkerChannelCount(channelResponse.body);
       } catch (error, stackTrace) {
-        debugPrint('Stalker channel fetch error: $error\n$stackTrace');
+        _logError('Stalker channel fetch error', error, stackTrace);
       }
 
       flowController.markStepSuccess(
@@ -1224,7 +1238,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           message: 'Profile saved',
         );
       } catch (error, stackTrace) {
-        debugPrint('Stalker profile save error: $error\n$stackTrace');
+        _logError('Stalker profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
         flowController.markStepFailure(
           LoginTestStep.saveProfile,
@@ -1257,7 +1271,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setBannerMessage(message);
       if (kDebugMode && error.telemetry.hasProbes) {
         for (final probe in error.telemetry.probes) {
-          debugPrint(
+          _debugPrintSafe(
             'Stalker discovery ${probe.stage} ${probe.uri} '
             'status=${probe.statusCode ?? 'n/a'} '
             'matched=${probe.matchedSignature} '
@@ -1279,7 +1293,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } on DioException catch (dioError) {
       flowController.clearStalkerLockedBase();
-      debugPrint('Stalker login network error: $dioError');
+      _logDioError('Stalker login network error', dioError);
       final friendly = _describeNetworkError(dioError);
       flowController.setStalkerFieldErrors(
         portalMessage:
@@ -1291,7 +1305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } catch (error, stackTrace) {
       flowController.clearStalkerLockedBase();
-      debugPrint('Stalker login error: $error\n$stackTrace');
+      _logError('Stalker login error', error, stackTrace);
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
@@ -1402,7 +1416,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _asList(_asMap(channelResponse.body)?['data']);
         channelCount = streams?.length;
       } catch (error, stackTrace) {
-        debugPrint('Xtream channel fetch error: $error\n$stackTrace');
+        _logError('Xtream channel fetch error', error, stackTrace);
       }
 
       flowController.markStepSuccess(
@@ -1426,7 +1440,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
           epgDaySpan = _calculateXtreamEpgSpan(epgResponse.body);
         } catch (error, stackTrace) {
-          debugPrint('Xtream EPG fetch error: $error\n$stackTrace');
+          _logError('Xtream EPG fetch error', error, stackTrace);
         }
       }
 
@@ -1482,7 +1496,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           message: 'Profile saved',
         );
       } catch (error, stackTrace) {
-        debugPrint('Xtream profile save error: $error\n$stackTrace');
+        _logError('Xtream profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
         flowController.markStepFailure(
           LoginTestStep.saveProfile,
@@ -1516,7 +1530,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setBannerMessage(message);
       if (kDebugMode && error.telemetry.hasProbes) {
         for (final probe in error.telemetry.probes) {
-          debugPrint(
+          _debugPrintSafe(
             'Xtream discovery ${probe.stage} ${probe.uri} '
             'status=${probe.statusCode ?? 'n/a'} '
             'matched=${probe.matchedSignature} '
@@ -1537,7 +1551,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } on DioException catch (dioError) {
       flowController.clearXtreamLockedBase();
-      debugPrint('Xtream login network error: $dioError');
+      _logDioError('Xtream login network error', dioError);
       final friendly = _describeNetworkError(dioError);
       flowController.setXtreamFieldErrors(
         baseUrlMessage:
@@ -1549,7 +1563,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } catch (error, stackTrace) {
       flowController.clearXtreamLockedBase();
-      debugPrint('Xtream login error: $error\n$stackTrace');
+      _logError('Xtream login error', error, stackTrace);
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
@@ -1593,7 +1607,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _onStalkerDiscoveryLog(DiscoveryProbeRecord record) {
-    debugPrint(
+    _debugPrintSafe(
       'Stalker discovery ${record.stage} ${record.uri} '
       'status=${record.statusCode ?? 'n/a'} '
       'matched=${record.matchedSignature} '
@@ -1603,7 +1617,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _onXtreamDiscoveryLog(DiscoveryProbeRecord record) {
-    debugPrint(
+    _debugPrintSafe(
       'Xtream discovery ${record.stage} ${record.uri} '
       'status=${record.statusCode ?? 'n/a'} '
       'matched=${record.matchedSignature} '
@@ -1613,7 +1627,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _onM3uDiscoveryLog(DiscoveryProbeRecord record) {
-    debugPrint(
+    _debugPrintSafe(
       'M3U discovery ${record.stage} ${record.uri} '
       'status=${record.statusCode ?? 'n/a'} '
       'matched=${record.matchedSignature} '
@@ -1684,7 +1698,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         offset: path.length,
       );
     } on PlatformException catch (error) {
-      debugPrint('M3U file picker error: $error');
+      _logError('M3U file picker error', error);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1692,7 +1706,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
       );
     } catch (error, stackTrace) {
-      debugPrint('M3U file picker unexpected error: $error\n$stackTrace');
+      _logError('M3U file picker unexpected error', error, stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to pick a playlist file.')),
@@ -1857,7 +1871,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             );
             return;
           } catch (error, stackTrace) {
-            debugPrint('XMLTV head probe error: $error\n$stackTrace');
+            _logError('XMLTV head probe error', error, stackTrace);
             final message = _unexpectedErrorMessage(error);
             flowController.setM3uFieldErrors(epgMessage: message);
             flowController.setM3uLockedEpg(null);
@@ -2029,7 +2043,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           message: 'Profile saved',
         );
       } catch (error, stackTrace) {
-        debugPrint('M3U profile save error: $error\n$stackTrace');
+        _logError('M3U profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
         flowController.markStepFailure(
           LoginTestStep.saveProfile,
@@ -2091,7 +2105,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: _m3uFailureMessage(error.message),
       );
     } on DioException catch (dioError) {
-      debugPrint('M3U validation network error: $dioError');
+      _logDioError('M3U validation network error', dioError);
       final friendly = _describeNetworkError(dioError);
       flowController.setM3uFieldErrors(
         playlistMessage:
@@ -2102,7 +2116,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         message: friendly,
       );
     } catch (error, stackTrace) {
-      debugPrint('M3U validation error: $error\n$stackTrace');
+      _logError('M3U validation error', error, stackTrace);
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
@@ -2480,7 +2494,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       _showSuccessSnackBar('Draft saved for later.');
     } catch (error, stackTrace) {
-      debugPrint('Draft save error: $error\n$stackTrace');
+      _logError('Draft save error', error, stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
@@ -3004,7 +3018,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final fallback = _asList(map['data']) ?? _asList(map['results']);
       return fallback?.length;
     } catch (error, stackTrace) {
-      debugPrint('Stalker count parse error: $error\n$stackTrace');
+      _logError('Stalker count parse error', error, stackTrace);
       return null;
     }
   }

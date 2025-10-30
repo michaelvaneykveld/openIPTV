@@ -179,7 +179,8 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 11) Security & privacy guardrails
 
-* [ ] Never log full URLs containing `username`, `password`, or tokens-your interceptor must redact.
+* [x] Never log full URLs containing `username`, `password`, or tokens-your interceptor must redact.
+  * Centralised URI/text redaction ensures interceptors, discovery telemetry, and debug logs strip sensitive query/user info, with new helpers feeding `DiscoveryLogInterceptor` and error logging (`lib/src/utils/url_redaction.dart`, `lib/src/ui/login_screen.dart`).
 * [ ] Store **secrets in secure storage only**; non-secret endpoints in DB.
 * [x] Build any secret-bearing URLs **in memory** just-in-time; never persist them.
 

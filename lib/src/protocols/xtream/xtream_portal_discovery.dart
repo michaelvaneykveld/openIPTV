@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:openiptv/src/utils/url_redaction.dart';
 
 import '../discovery/portal_discovery.dart';
 import '../discovery/discovery_interceptors.dart';
@@ -101,7 +102,6 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       dio.interceptors.add(
         DiscoveryLogInterceptor(
           enableLogging: logEnabled,
-          redactor: _sanitizeUri,
           protocolLabel: 'Xtream',
         ),
       );
@@ -213,7 +213,10 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       );
       stopwatch.stop();
 
-      final sanitized = _sanitizeUri(response.realUri);
+      final sanitized = redactSensitiveUri(
+        response.realUri,
+        dropAllQuery: true,
+      );
       final matched = _looksLikeXtream(response);
 
       final record = DiscoveryProbeRecord(
@@ -234,7 +237,10 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       );
     } on DioException catch (error) {
       stopwatch.stop();
-      final sanitized = _sanitizeUri(error.response?.realUri ?? uri);
+      final sanitized = redactSensitiveUri(
+        error.response?.realUri ?? uri,
+        dropAllQuery: true,
+      );
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
@@ -373,15 +379,6 @@ class XtreamPortalDiscovery implements PortalDiscovery {
       knownFiles: const {'player_api.php', 'get.php', 'xmltv.php'},
     );
     return ensureTrailingSlash(stripped);
-  }
-
-  Uri _sanitizeUri(Uri uri) {
-    return Uri(
-      scheme: uri.scheme,
-      host: uri.host,
-      port: uri.hasPort ? uri.port : null,
-      path: uri.path,
-    );
   }
 }
 

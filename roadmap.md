@@ -96,6 +96,10 @@
 - Refactored Stalker and Xtream configurations to reuse the helpers, lowering hosts and keeping probe bases consistent (`lib/src/protocols/stalker/stalker_portal_normalizer.dart`, `lib/src/protocols/xtream/xtream_portal_configuration.dart`).
 - Applied scheme normalisation to M3U/XMLTV builders so remote playlists benefit from the same hygiene (`lib/src/protocols/m3uxml/m3u_xml_portal_configuration.dart`).
 - Expanded the utilities with a lenient HTTP parser and filesystem detection so odd provider domains, naked IPs, and IPv6 hosts are accepted consistently across classifiers, form validators, and discovery flows (`lib/src/utils/url_normalization.dart`, `lib/src/utils/input_classifier.dart`, `lib/src/providers/login_flow_controller.dart`, `test/utils/url_normalization_test.dart`, `test/providers/login_flow_controller_validation_test.dart`).
+## Session Log - Security Logging Safeguards
+## Session Log - Security Logging Safeguards
+- Added shared URL and text redaction helpers so discovery logs and failure telemetry no longer expose credentials (lib/src/utils/url_redaction.dart, lib/src/protocols/*/*_portal_discovery.dart).
+- Routed login debug output through the redactor-aware helpers to sanitise Dio exception messages and stack traces before printing (lib/src/ui/login_screen.dart).
 
 ## Session Log - Provider Profile Store
 - Added a Drift-backed database with provider and vault mapping tables so profile metadata lives alongside migration-friendly schema definitions (`lib/storage/provider_database.dart`, `lib/storage/provider_database.g.dart`).
@@ -124,5 +128,7 @@
   - Expand widget/integration tests for login flows, including opt-in storage and probe failure UX. (todo)
 - Introduce discovery caching and background revalidation. (todo)
   - Cache discovery results per provider with short TTLs and silent refresh when endpoints change. (todo)
-- Enforce security and privacy guardrails. (todo)
-  - Ensure secrets never appear in logs, build secret-bearing URLs only in-memory, and store credentials in secure storage exclusively. (todo)
+- Enforce security and privacy guardrails. (in-progress)
+  - Ensure secrets never appear in logs or telemetry; sanitise URLs and free-form messages before logging. (done)
+    - Added shared redaction helpers to purge credentials from discovery interceptors and login debug output (`lib/src/utils/url_redaction.dart`, `lib/src/protocols/*/*_portal_discovery.dart`, `lib/src/ui/login_screen.dart`).
+  - Store **secrets in secure storage only**; non-secret endpoints in DB. (todo)

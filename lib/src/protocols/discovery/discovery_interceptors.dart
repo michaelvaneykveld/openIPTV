@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:openiptv/src/utils/url_redaction.dart';
 
 typedef UriRedactor = Uri Function(Uri uri);
 
@@ -18,10 +19,11 @@ bool _isDebugBuild() {
 class DiscoveryLogInterceptor extends Interceptor {
   DiscoveryLogInterceptor({
     required bool enableLogging,
-    required UriRedactor redactor,
+    UriRedactor? redactor,
     String protocolLabel = 'discovery',
   }) : _enabled = enableLogging,
-       _redactor = redactor,
+       _redactor =
+           redactor ?? ((uri) => redactSensitiveUri(uri, dropAllQuery: true)),
        _protocolLabel = protocolLabel;
 
   final bool _enabled;

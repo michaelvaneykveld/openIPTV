@@ -8,6 +8,7 @@ import 'package:dio/io.dart';
 import '../discovery/portal_discovery.dart';
 import '../discovery/discovery_interceptors.dart';
 import '../../utils/url_normalization.dart';
+import '../../utils/url_redaction.dart';
 
 /// Discovers and validates M3U playlists (remote URLs or local files).
 class M3uPortalDiscovery implements PortalDiscovery {
@@ -27,8 +28,6 @@ class M3uPortalDiscovery implements PortalDiscovery {
 
   static const _fallbackUserAgent =
       'VLC/3.0.18 (Live IPTV) Flutter/OpenIPTV M3UProbe';
-
-  static const _sensitiveQueryKeys = {'username', 'password', 'token'};
 
   @override
   ProviderKind get kind => ProviderKind.m3u;
@@ -191,7 +190,9 @@ class M3uPortalDiscovery implements PortalDiscovery {
       if (outcome.matched) {
         final hints = <String, String>{
           'matchedStage': outcome.matchedStage ?? 'unknown',
-          'sanitizedPlaylist': _redactSecrets(outcome.lockedUri!).toString(),
+          'sanitizedPlaylist': redactSensitiveUri(
+            outcome.lockedUri!,
+          ).toString(),
         };
         if (needsUaHint || outcome.needsUserAgent) {
           hints['needsMediaUserAgent'] = 'true';
@@ -242,7 +243,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
       dio.interceptors.add(
         DiscoveryLogInterceptor(
           enableLogging: logEnabled,
-          redactor: _redactSecrets,
+          redactor: (uri) => redactSensitiveUri(uri),
           protocolLabel: 'M3U',
         ),
       );
@@ -409,7 +410,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _redactSecrets(resolved),
+        uri: redactSensitiveUri(resolved),
         statusCode: response.statusCode,
         elapsed: stopwatch.elapsed,
         matchedSignature: matched,
@@ -429,7 +430,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _redactSecrets(error.response?.realUri ?? uri),
+        uri: redactSensitiveUri(error.response?.realUri ?? uri),
         statusCode: error.response?.statusCode,
         elapsed: stopwatch.elapsed,
         error: error,
@@ -477,7 +478,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _redactSecrets(response.realUri),
+        uri: redactSensitiveUri(response.realUri),
         statusCode: response.statusCode,
         elapsed: stopwatch.elapsed,
         matchedSignature: matched,
@@ -497,7 +498,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
       final record = DiscoveryProbeRecord(
         kind: kind,
         stage: stage,
-        uri: _redactSecrets(error.response?.realUri ?? uri),
+        uri: redactSensitiveUri(error.response?.realUri ?? uri),
         statusCode: error.response?.statusCode,
         elapsed: stopwatch.elapsed,
         error: error,
@@ -584,35 +585,6 @@ class M3uPortalDiscovery implements PortalDiscovery {
 
   bool _looksLikeM3uBody(String body) {
     return body.toUpperCase().contains('#EXTM3U');
-  }
-
-  Uri _redactSecrets(Uri uri) {
-    Map<String, String> sanitized = const {};
-    if (uri.hasQuery) {
-      try {
-        sanitized = Uri.splitQueryString(uri.query, encoding: utf8);
-      } catch (_) {
-        sanitized = {};
-      }
-      sanitized = Map.of(sanitized);
-      sanitized.removeWhere(
-        (key, value) => _sensitiveQueryKeys.contains(key.toLowerCase()),
-      );
-    }
-
-    final queryString = sanitized.isEmpty
-        ? ''
-        : Uri(queryParameters: sanitized).query;
-
-    final cleaned = uri.replace(userInfo: '', query: queryString);
-    if (sanitized.isEmpty) {
-      final value = cleaned.toString();
-      final separatorIndex = value.indexOf('?');
-      if (separatorIndex != -1) {
-        return Uri.parse(value.substring(0, separatorIndex));
-      }
-    }
-    return cleaned;
   }
 }
 

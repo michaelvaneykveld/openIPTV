@@ -108,7 +108,7 @@
   - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (done)
   - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (done)
   - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (todo)
-- Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (todo)
+- Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (done)
 - Strengthen automated and manual test coverage. (in-progress)
   - Add unit tests for the classifier, discovery redirects/UA blocks/TLS paths, and regression cases (e.g., early connection close). (in-progress)
     - Added classifier coverage for ambiguous Xtream vs M3U inputs (`test/utils/input_classifier_test.dart`). (done)

@@ -118,6 +118,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   late final DiscoveryCacheManager _discoveryCacheManager;
   static const String _discoveryCacheStorageKey = 'discovery_cache_v1';
   static const Duration _discoveryCacheTtl = Duration(hours: 24);
+  static const Duration _discoveryCacheRefreshLeeway = Duration(hours: 2);
 
   void _debugPrintSafe(String message) {
     debugPrint(redactSensitiveText(message));
@@ -139,6 +140,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     StackTrace stackTrace,
   ) {
     _logError(message, error, stackTrace);
+  }
+
+  void _scheduleDiscoveryRefresh({
+    required String label,
+    required String cacheKey,
+    required Future<DiscoveryResult> Function() operation,
+  }) {
+    unawaited(() async {
+      try {
+        final refreshed = await operation();
+        await _discoveryCacheManager.store(
+          cacheKey: cacheKey,
+          result: refreshed,
+        );
+      } catch (error, stackTrace) {
+        _logError(label, error, stackTrace);
+      }
+    }());
   }
 
   void _logDioError(String prefix, DioException error) {
@@ -1125,6 +1144,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     flowController.beginTestSequence(includeEpgStep: false);
     flowController.setStalkerFieldErrors();
 
+    String? cacheKey;
+    var usedCachedEntry = false;
+    var needsCacheRefresh = false;
+    late final DiscoveryOptions discoveryOptions;
+
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
 
@@ -1132,7 +1156,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       DiscoveryResult? discoveryResult;
       Uri handshakeBase;
 
-      final discoveryOptions = _buildStalkerDiscoveryOptions(
+      discoveryOptions = _buildStalkerDiscoveryOptions(
         normalization,
         current,
         headerResult.headers,
@@ -1142,7 +1166,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         flowController.clearStalkerLockedBase();
         current = ref.read(loginFlowControllerProvider);
 
-        final cacheKey = DiscoveryCacheManager.buildKey(
+        cacheKey = DiscoveryCacheManager.buildKey(
           kind: ProviderKind.stalker,
           identifier: normalization.canonicalUri.toString(),
           headers: discoveryOptions.headers,
@@ -1152,9 +1176,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         try {
-          discoveryResult = await _discoveryCacheManager.get(
+          final cacheHit = await _discoveryCacheManager.get(
             cacheKey: cacheKey,
+            refreshLeeway: _discoveryCacheRefreshLeeway,
           );
+          if (cacheHit != null) {
+            discoveryResult = cacheHit.result;
+            usedCachedEntry = true;
+            needsCacheRefresh = cacheHit.shouldRefresh;
+          }
         } catch (error, stackTrace) {
           _logError('Stalker cache read error', error, stackTrace);
         }
@@ -1174,6 +1204,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           } catch (error, stackTrace) {
             _logError('Stalker cache write error', error, stackTrace);
           }
+          needsCacheRefresh = false;
+          usedCachedEntry = false;
         }
 
         handshakeBase = discoveryResult.lockedBase;
@@ -1298,6 +1330,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
+      if (needsCacheRefresh && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Stalker cache refresh',
+          cacheKey: cacheKey,
+          operation: () => _stalkerDiscovery.discoverFromNormalized(
+            normalization,
+            options: discoveryOptions,
+          ),
+        );
+      }
+
       flowController.setStalkerFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
@@ -1344,6 +1387,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } on DioException catch (dioError) {
       flowController.clearStalkerLockedBase();
       _logDioError('Stalker login network error', dioError);
+      if (usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Stalker cache refresh after failure',
+          cacheKey: cacheKey,
+          operation: () => _stalkerDiscovery.discoverFromNormalized(
+            normalization,
+            options: discoveryOptions,
+          ),
+        );
+      }
       final friendly = _describeNetworkError(dioError);
       flowController.setStalkerFieldErrors(
         portalMessage:
@@ -1356,6 +1409,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (error, stackTrace) {
       flowController.clearStalkerLockedBase();
       _logError('Stalker login error', error, stackTrace);
+      if (usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Stalker cache refresh after error',
+          cacheKey: cacheKey,
+          operation: () => _stalkerDiscovery.discoverFromNormalized(
+            normalization,
+            options: discoveryOptions,
+          ),
+        );
+      }
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
@@ -1385,15 +1448,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     flowController.setM3uFieldErrors();
     flowController.setXtreamFieldErrors();
 
+    String? cacheKey;
+    var usedCachedEntry = false;
+    var needsCacheRefresh = false;
+    late final String baseInput;
+    late final DiscoveryOptions discoveryOptions;
+
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final baseInput = current.xtream.serverUrl.value.trim();
+      baseInput = current.xtream.serverUrl.value.trim();
       final userAgentOverride = current.xtream.userAgent.value.trim();
       final lockedBase = current.xtream.lockedBaseUri;
       Uri handshakeBase;
       DiscoveryResult? discoveryResult;
 
-      final discoveryOptions = DiscoveryOptions(
+      discoveryOptions = DiscoveryOptions(
         allowSelfSignedTls: current.xtream.allowSelfSignedTls,
         headers: headerResult.headers,
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
@@ -1401,7 +1470,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       if (lockedBase == null) {
-        final cacheKey = DiscoveryCacheManager.buildKey(
+        cacheKey = DiscoveryCacheManager.buildKey(
           kind: ProviderKind.xtream,
           identifier: baseInput,
           headers: discoveryOptions.headers,
@@ -1410,9 +1479,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
 
         try {
-          discoveryResult = await _discoveryCacheManager.get(
+          final cacheHit = await _discoveryCacheManager.get(
             cacheKey: cacheKey,
+            refreshLeeway: _discoveryCacheRefreshLeeway,
           );
+          if (cacheHit != null) {
+            discoveryResult = cacheHit.result;
+            usedCachedEntry = true;
+            needsCacheRefresh = cacheHit.shouldRefresh;
+          }
         } catch (error, stackTrace) {
           _logError('Xtream cache read error', error, stackTrace);
         }
@@ -1432,6 +1507,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           } catch (error, stackTrace) {
             _logError('Xtream cache write error', error, stackTrace);
           }
+          needsCacheRefresh = false;
+          usedCachedEntry = false;
         }
 
         handshakeBase = discoveryResult.lockedBase;
@@ -1582,6 +1659,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
+      if (needsCacheRefresh && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Xtream cache refresh',
+          cacheKey: cacheKey,
+          operation: () => _xtreamDiscovery.discover(
+            baseInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
+
       flowController.setXtreamFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
@@ -1595,6 +1683,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _showSuccessSnackBar('Xtream login success.');
     } on DiscoveryException catch (error) {
       flowController.clearXtreamLockedBase();
+      if (usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Xtream cache refresh after discovery failure',
+          cacheKey: cacheKey,
+          operation: () => _xtreamDiscovery.discover(
+            baseInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       final message = error.message.isNotEmpty
           ? error.message
           : 'Unable to locate an Xtream Codes server at that address.';
@@ -1628,6 +1726,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } on DioException catch (dioError) {
       flowController.clearXtreamLockedBase();
       _logDioError('Xtream login network error', dioError);
+      if (usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Xtream cache refresh after failure',
+          cacheKey: cacheKey,
+          operation: () => _xtreamDiscovery.discover(
+            baseInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       final friendly = _describeNetworkError(dioError);
       flowController.setXtreamFieldErrors(
         baseUrlMessage:
@@ -1640,6 +1748,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } catch (error, stackTrace) {
       flowController.clearXtreamLockedBase();
       _logError('Xtream login error', error, stackTrace);
+      if (usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'Xtream cache refresh after error',
+          cacheKey: cacheKey,
+          operation: () => _xtreamDiscovery.discover(
+            baseInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),
@@ -1809,24 +1927,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     flowController.beginTestSequence(includeEpgStep: true);
     flowController.setM3uFieldErrors();
 
+    String? cacheKey;
+    var usedCachedEntry = false;
+    var hadCacheResult = false;
+    var needsCacheRefresh = false;
+    late final bool isUrlMode;
+    late final String playlistInput;
+    late final DiscoveryOptions discoveryOptions;
+
     try {
       flowController.markStepActive(LoginTestStep.reachServer);
-      final isUrlMode = initialState.m3u.inputMode == M3uInputMode.url;
-      final playlistInput = isUrlMode
+      isUrlMode = initialState.m3u.inputMode == M3uInputMode.url;
+      playlistInput = isUrlMode
           ? initialState.m3u.playlistUrl.value.trim()
           : initialState.m3u.playlistFilePath.value.trim();
       final userAgentOverride = initialState.m3u.userAgent.value.trim();
 
-      final discoveryOptions = DiscoveryOptions(
+      discoveryOptions = DiscoveryOptions(
         allowSelfSignedTls: initialState.m3u.allowSelfSignedTls,
         headers: headerResult.headers,
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
         logSink: kDebugMode && isUrlMode ? _onM3uDiscoveryLog : null,
       );
-
       DiscoveryResult? discovery;
-      String? cacheKey;
-      var cacheHit = false;
       if (isUrlMode) {
         cacheKey = DiscoveryCacheManager.buildKey(
           kind: ProviderKind.m3u,
@@ -1837,8 +1960,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           followRedirects: initialState.m3u.followRedirects,
         );
         try {
-          discovery = await _discoveryCacheManager.get(cacheKey: cacheKey);
-          cacheHit = discovery != null;
+          final cacheHit = await _discoveryCacheManager.get(
+            cacheKey: cacheKey,
+            refreshLeeway: _discoveryCacheRefreshLeeway,
+          );
+          if (cacheHit != null) {
+            discovery = cacheHit.result;
+            usedCachedEntry = true;
+            hadCacheResult = true;
+            needsCacheRefresh = cacheHit.shouldRefresh;
+          }
         } catch (error, stackTrace) {
           _logError('M3U cache read error', error, stackTrace);
         }
@@ -1856,8 +1987,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             cacheKey: cacheKey,
             result: discovery,
           );
+          needsCacheRefresh = false;
+          usedCachedEntry = false;
         } catch (error, stackTrace) {
-          if (!cacheHit) {
+          if (!hadCacheResult) {
             _logError('M3U cache write error', error, stackTrace);
           } else {
             _logError('M3U cache refresh error', error, stackTrace);
@@ -2166,6 +2299,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return;
       }
 
+      if (isUrlMode && needsCacheRefresh && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'M3U cache refresh',
+          cacheKey: cacheKey,
+          operation: () => _m3uDiscovery.discover(
+            playlistInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
+
       flowController.setM3uFieldErrors();
       flowController.setTestSummary(
         LoginTestSummary(
@@ -2187,6 +2331,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setBannerMessage(error.message);
     } on DiscoveryException catch (error) {
       flowController.clearM3uLockedPlaylist();
+      if (isUrlMode && usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'M3U cache refresh after failure',
+          cacheKey: cacheKey,
+          operation: () => _m3uDiscovery.discover(
+            playlistInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       flowController.setM3uFieldErrors(playlistMessage: error.message);
       flowController.markStepFailure(
         LoginTestStep.reachServer,
@@ -2219,6 +2373,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } on DioException catch (dioError) {
       _logDioError('M3U validation network error', dioError);
+      if (isUrlMode && usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'M3U cache refresh after failure',
+          cacheKey: cacheKey,
+          operation: () => _m3uDiscovery.discover(
+            playlistInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       final friendly = _describeNetworkError(dioError);
       flowController.setM3uFieldErrors(
         playlistMessage:
@@ -2230,6 +2394,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
     } catch (error, stackTrace) {
       _logError('M3U validation error', error, stackTrace);
+      if (isUrlMode && usedCachedEntry && cacheKey != null) {
+        _scheduleDiscoveryRefresh(
+          label: 'M3U cache refresh after error',
+          cacheKey: cacheKey,
+          operation: () => _m3uDiscovery.discover(
+            playlistInput,
+            options: discoveryOptions,
+          ),
+        );
+      }
       flowController.markStepFailure(
         LoginTestStep.reachServer,
         message: _unexpectedErrorMessage(error),

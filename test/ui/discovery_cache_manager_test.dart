@@ -39,8 +39,9 @@ void main() {
     );
 
     expect(fetched, isNotNull);
-    expect(fetched!.lockedBase, result.lockedBase);
-    expect(fetched.hints['needsUserAgent'], equals('true'));
+    expect(fetched!.result.lockedBase, result.lockedBase);
+    expect(fetched.result.hints['needsUserAgent'], equals('true'));
+    expect(fetched.shouldRefresh, isFalse);
   });
 
   test('evicts expired cache entries based on TTL', () async {
@@ -68,6 +69,35 @@ void main() {
     );
 
     expect(fetched, isNull);
+  });
+
+  test('signals when cached entry should be refreshed', () async {
+    final manager = DiscoveryCacheManager(
+      ttl: const Duration(hours: 24),
+    );
+    final cacheKey = DiscoveryCacheManager.buildKey(
+      kind: ProviderKind.m3u,
+      identifier: 'https://playlist.example.com/live.m3u8',
+    );
+    final result = DiscoveryResult(
+      kind: ProviderKind.m3u,
+      lockedBase: Uri.parse('https://playlist.example.com/live.m3u8'),
+    );
+
+    await manager.store(
+      cacheKey: cacheKey,
+      result: result,
+      now: DateTime.utc(2024, 6, 1, 0),
+    );
+
+    final fetched = await manager.get(
+      cacheKey: cacheKey,
+      now: DateTime.utc(2024, 6, 1, 23, 0),
+      refreshLeeway: const Duration(hours: 2),
+    );
+
+    expect(fetched, isNotNull);
+    expect(fetched!.shouldRefresh, isTrue);
   });
 
   test('buildKey redacts credential query parameters', () {

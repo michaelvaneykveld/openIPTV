@@ -135,7 +135,7 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 # 7) UX consistency
 
-* [ ] Advanced expands to **User-Agent**, **Allow self-signed**, **Custom headers** (per provider).
+* [x] Advanced expands to **User-Agent**, **Allow self-signed**, **Custom headers** (per provider).
 
 ---
 

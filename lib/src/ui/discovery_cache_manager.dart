@@ -13,6 +13,20 @@ typedef DiscoveryCacheErrorLogger = void Function(
   StackTrace stackTrace,
 );
 
+/// Snapshot returned when fetching from the cache.
+@immutable
+class DiscoveryCacheHit {
+  const DiscoveryCacheHit({
+    required this.result,
+    required this.storedAt,
+    required this.shouldRefresh,
+  });
+
+  final DiscoveryResult result;
+  final DateTime storedAt;
+  final bool shouldRefresh;
+}
+
 /// Persisted payload for previously discovered portal endpoints.
 @immutable
 @visibleForTesting
@@ -31,6 +45,16 @@ class CachedDiscoveryEntry {
 
   bool isExpired(Duration ttl, DateTime now) {
     return storedAt.add(ttl).isBefore(now);
+  }
+
+  bool shouldRefresh(
+    Duration ttl,
+    DateTime now,
+    Duration refreshLeeway,
+  ) {
+    final leeway = refreshLeeway > ttl ? ttl : refreshLeeway;
+    final refreshPoint = storedAt.add(ttl).subtract(leeway);
+    return !refreshPoint.isAfter(now);
   }
 
   Map<String, dynamic> toJson() => {
@@ -164,9 +188,10 @@ class DiscoveryCacheManager {
     }
   }
 
-  Future<DiscoveryResult?> get({
+  Future<DiscoveryCacheHit?> get({
     required String cacheKey,
     DateTime? now,
+    Duration refreshLeeway = const Duration(hours: 1),
   }) async {
     await ensureLoaded(now: now);
     final entry = _entries[cacheKey];
@@ -179,7 +204,13 @@ class DiscoveryCacheManager {
       await _persist();
       return null;
     }
-    return entry.toDiscoveryResult();
+    final shouldRefresh =
+        entry.shouldRefresh(_ttl, currentTime, refreshLeeway);
+    return DiscoveryCacheHit(
+      result: entry.toDiscoveryResult(),
+      storedAt: entry.storedAt,
+      shouldRefresh: shouldRefresh,
+    );
   }
 
   Future<void> store({

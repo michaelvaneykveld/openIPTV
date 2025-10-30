@@ -107,6 +107,43 @@ class ProviderProfileRepository {
   final DateTime Function() _now;
 
   static final Random _random = Random.secure();
+  static const Set<String> _sensitiveExactKeys = {
+    'username',
+    'user_name',
+    'password',
+    'pass',
+    'pwd',
+    'token',
+    'access_token',
+    'refresh_token',
+    'auth_token',
+    'authorization',
+    'authorizationheader',
+    'authheader',
+    'api_key',
+    'apikey',
+    'client_secret',
+    'secret',
+    'signature',
+    'session',
+    'sessionid',
+    'sid',
+    'playlisturl',
+    'playlist_url',
+    'epgurl',
+    'epg_url',
+    'xmltvurl',
+    'xmltv_url',
+    'credentials',
+  };
+  static const List<String> _sensitiveKeySuffixes = <String>[
+    'password',
+    'token',
+    'secret',
+    'apikey',
+    'api_key',
+    'authorization',
+  ];
 
   /// Allocates a stable identifier for provider profiles.
   static String allocateProfileId() {
@@ -140,8 +177,10 @@ class ProviderProfileRepository {
     return _database.transaction(() async {
       final existing = await _getProfileRow(id);
 
-      final cleanedConfig = _cleanMap(configuration);
-      final cleanedHints = _cleanMap(hints);
+      final payload = _sanitizeProfilePayloads(configuration, hints, secrets);
+      final cleanedConfig = _cleanMap(payload.config);
+      final cleanedHints = _cleanMap(payload.hints);
+      final cleanedSecrets = _cleanMap(payload.secrets);
 
       final profileCompanion = ProviderProfilesCompanion(
         id: Value(id),
@@ -171,10 +210,10 @@ class ProviderProfileRepository {
 
       final existingSecret = await _getSecretRow(id);
 
-      final hasSecrets = secrets.isNotEmpty;
+      final hasSecrets = cleanedSecrets.isNotEmpty;
       if (hasSecrets) {
         final vaultKey = existingSecret?.vaultKey ?? _allocateVaultKey(id);
-        await _vault.write(vaultKey, _cleanMap(secrets));
+        await _vault.write(vaultKey, cleanedSecrets);
         final secretCompanion = ProviderSecretsCompanion(
           providerId: Value(id),
           vaultKey: Value(vaultKey),
@@ -309,6 +348,79 @@ class ProviderProfileRepository {
       ..limit(1);
     final result = await query.get();
     return result.isNotEmpty;
+  }
+
+  ({
+    Map<String, String> config,
+    Map<String, String> hints,
+    Map<String, String> secrets,
+  })
+  _sanitizeProfilePayloads(
+    Map<String, String> configuration,
+    Map<String, String> hints,
+    Map<String, String> secrets,
+  ) {
+    final secretAccumulator = Map<String, String>.from(secrets);
+    final sanitizedConfig = _sanitizeMap(
+      configuration,
+      secretAccumulator,
+      markCustomHeaders: true,
+    );
+    final sanitizedHints = _sanitizeMap(hints, secretAccumulator);
+    return (
+      config: sanitizedConfig,
+      hints: sanitizedHints,
+      secrets: secretAccumulator,
+    );
+  }
+
+  Map<String, String> _sanitizeMap(
+    Map<String, String> source,
+    Map<String, String> secretAccumulator, {
+    bool markCustomHeaders = false,
+  }) {
+    if (source.isEmpty) {
+      return const <String, String>{};
+    }
+    final sanitized = <String, String>{};
+    var sawCustomHeaders = false;
+    source.forEach((key, value) {
+      final trimmedKey = key.trim();
+      final trimmedValue = value.trim();
+      if (trimmedKey.isEmpty || trimmedValue.isEmpty) {
+        return;
+      }
+      final lowerKey = trimmedKey.toLowerCase();
+      if (lowerKey == 'customheaders') {
+        if (trimmedValue.isNotEmpty) {
+          secretAccumulator['customHeaders'] = trimmedValue;
+          sawCustomHeaders = true;
+        }
+        return;
+      }
+      if (_isSensitiveKey(lowerKey)) {
+        secretAccumulator[trimmedKey] = trimmedValue;
+        return;
+      }
+      sanitized[trimmedKey] = trimmedValue;
+    });
+    if (markCustomHeaders &&
+        (sawCustomHeaders || secretAccumulator.containsKey('customHeaders'))) {
+      sanitized['hasCustomHeaders'] = 'true';
+    }
+    return sanitized;
+  }
+
+  bool _isSensitiveKey(String lowerKey) {
+    if (_sensitiveExactKeys.contains(lowerKey)) {
+      return true;
+    }
+    for (final suffix in _sensitiveKeySuffixes) {
+      if (lowerKey.endsWith(suffix)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Map<String, String> _cleanMap(Map<String, String> source) {

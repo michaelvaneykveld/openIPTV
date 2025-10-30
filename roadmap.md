@@ -131,4 +131,7 @@
 - Enforce security and privacy guardrails. (in-progress)
   - Ensure secrets never appear in logs or telemetry; sanitise URLs and free-form messages before logging. (done)
     - Added shared redaction helpers to purge credentials from discovery interceptors and login debug output (`lib/src/utils/url_redaction.dart`, `lib/src/protocols/*/*_portal_discovery.dart`, `lib/src/ui/login_screen.dart`).
-  - Store **secrets in secure storage only**; non-secret endpoints in DB. (todo)
+  - Store **secrets in secure storage only**; non-secret endpoints in DB. (done)
+    - Provider profile persistence now strips sensitive keys from configuration/hints and keeps credentials/custom headers exclusively in the secure vault (`lib/storage/provider_profile_repository.dart`, `lib/src/ui/login_screen.dart`).
+
+

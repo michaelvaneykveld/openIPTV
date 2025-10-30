@@ -181,7 +181,8 @@ This creates symmetry so Xtream/M3U feel like more of the same.
 
 * [x] Never log full URLs containing `username`, `password`, or tokens-your interceptor must redact.
   * Centralised URI/text redaction ensures interceptors, discovery telemetry, and debug logs strip sensitive query/user info, with new helpers feeding `DiscoveryLogInterceptor` and error logging (`lib/src/utils/url_redaction.dart`, `lib/src/ui/login_screen.dart`).
-* [ ] Store **secrets in secure storage only**; non-secret endpoints in DB.
+* [x] Store **secrets in secure storage only**; non-secret endpoints in DB.
+  * Provider profile saves strip sensitive keys, funnel credentials and custom headers into the secure vault, and persist only non-secret hints in Drift (`lib/storage/provider_profile_repository.dart`, `lib/src/ui/login_screen.dart`).
 * [x] Build any secret-bearing URLs **in memory** just-in-time; never persist them.
 
 ---

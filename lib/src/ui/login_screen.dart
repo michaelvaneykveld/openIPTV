@@ -1210,13 +1210,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           'macAddress': configuration.macAddress,
           'deviceProfile': persistedState.stalker.deviceProfile,
         };
+        final secrets = <String, String>{};
         final userAgentValue = userAgentOverride;
         if (userAgentValue.isNotEmpty) {
           config['userAgent'] = userAgentValue;
         }
         final encodedHeaders = _encodeHeaders(headerResult.headers);
         if (encodedHeaders != null) {
-          config['customHeaders'] = encodedHeaders;
+          secrets['customHeaders'] = encodedHeaders;
+          config['hasCustomHeaders'] = 'true';
         }
         final hints = <String, String>{};
         if (discoveryResult != null) {
@@ -1228,6 +1230,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           lockedBase: handshakeBase,
           configuration: config,
           hints: hints,
+          secrets: secrets,
           needsUserAgent:
               hints['needsUserAgent'] == 'true' || userAgentValue.isNotEmpty,
           allowSelfSignedTls: configuration.allowSelfSignedTls,
@@ -1464,15 +1467,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (userAgentOverride.isNotEmpty) {
           config['userAgent'] = userAgentOverride;
         }
-        final encodedHeaders = _encodeHeaders(headerResult.headers);
-        if (encodedHeaders != null) {
-          config['customHeaders'] = encodedHeaders;
-        }
         final hints = <String, String>{};
         if (discoveryResult != null) {
           hints.addAll(discoveryResult.hints);
         }
         final secrets = <String, String>{};
+        final encodedHeaders = _encodeHeaders(headerResult.headers);
+        if (encodedHeaders != null) {
+          secrets['customHeaders'] = encodedHeaders;
+          config['hasCustomHeaders'] = 'true';
+        }
         if (configuration.username.trim().isNotEmpty) {
           secrets['username'] = configuration.username.trim();
         }
@@ -1980,10 +1984,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (userAgentOverride.isNotEmpty) {
           config['userAgent'] = userAgentOverride;
         }
-        final encodedHeaders = _encodeHeaders(headerResult.headers);
-        if (encodedHeaders != null) {
-          config['customHeaders'] = encodedHeaders;
-        }
         final redactedPlaylist = latestState.m3u.redactedPlaylistUri;
         if (redactedPlaylist != null && redactedPlaylist.isNotEmpty) {
           config['redactedPlaylist'] = redactedPlaylist;
@@ -1994,6 +1994,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
         final hints = Map<String, String>.from(discovery.hints);
         final secrets = <String, String>{};
+        final encodedHeaders = _encodeHeaders(headerResult.headers);
+        if (encodedHeaders != null) {
+          secrets['customHeaders'] = encodedHeaders;
+          config['hasCustomHeaders'] = 'true';
+        }
         if (latestState.m3u.inputMode == M3uInputMode.url) {
           secrets['playlistUrl'] = resolvedPlaylist;
         } else {

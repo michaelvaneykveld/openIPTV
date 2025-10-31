@@ -2,10 +2,13 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:openiptv/src/ui/login_screen.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/storage/provider_database.dart';
+import 'package:openiptv/src/providers/login_draft_repository.dart';
 
 class _InMemoryVault implements CredentialsVault {
   final Map<String, Map<String, String>> _storage = {};
@@ -114,4 +117,133 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Save for later requires provider details before persisting',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final draftRepository = _RecordingDraftRepository(
+        preferences: preferences,
+        secureStorage: const FlutterSecureStorage(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            providerProfileRepositoryProvider.overrideWithValue(repository),
+            loginDraftRepositoryProvider.overrideWith(
+              (ref) => Future.value(draftRepository),
+            ),
+          ],
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('M3U'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Save for later'));
+      await tester.pump();
+
+      expect(draftRepository.saveCalled, isFalse);
+      expect(
+        find.text('Add provider details before saving a draft.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Save for later persists drafts when details are provided',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final draftRepository = _RecordingDraftRepository(
+        preferences: preferences,
+        secureStorage: const FlutterSecureStorage(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            providerProfileRepositoryProvider.overrideWithValue(repository),
+            loginDraftRepositoryProvider.overrideWith(
+              (ref) => Future.value(draftRepository),
+            ),
+          ],
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Portal URL'),
+        'http://portal.example.com',
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Save for later'));
+      await tester.pump();
+
+      expect(draftRepository.saveCalled, isTrue);
+      expect(
+        find.text('Draft saved for later.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Shows banner when validation fails before probing',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+      final draftRepository = _RecordingDraftRepository(
+        preferences: preferences,
+        secureStorage: const FlutterSecureStorage(),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            providerProfileRepositoryProvider.overrideWithValue(repository),
+            loginDraftRepositoryProvider.overrideWith(
+              (ref) => Future.value(draftRepository),
+            ),
+          ],
+          child: const MaterialApp(home: LoginScreen()),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Test & Connect'));
+      await tester.pump();
+
+      expect(
+        find.text('Please review the highlighted fields.'),
+        findsOneWidget,
+      );
+    },
+  );
+}
+
+class _RecordingDraftRepository extends LoginDraftRepository {
+  _RecordingDraftRepository({
+    required super.preferences,
+    required super.secureStorage,
+  });
+
+  bool saveCalled = false;
+  LoginDraft? capturedDraft;
+
+  @override
+  Future<void> saveDraft(LoginDraft draft) async {
+    saveCalled = true;
+    capturedDraft = draft;
+  }
 }

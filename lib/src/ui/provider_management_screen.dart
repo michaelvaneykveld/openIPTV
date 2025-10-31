@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:openiptv/src/providers/provider_profiles_provider.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 /// Entry screen for managing saved provider logins alongside new additions.
 class ProviderManagementScreen extends ConsumerStatefulWidget {
@@ -65,8 +66,7 @@ class _ProviderManagementScreenState
             final savedLoginsSection = FocusTraversalOrder(
               order: const NumericFocusOrder(2),
               child: _SavedLoginsPanel(
-                onRequestDelete: (record) =>
-                    _handleDeleteProfile(context, record),
+                onRequestDelete: _handleDeleteProfile,
                 onConnect: (record) =>
                     _showSnack('Connecting to ${record.displayName}'),
                 onEdit: (record) =>
@@ -105,10 +105,7 @@ class _ProviderManagementScreenState
     );
   }
 
-  Future<void> _handleDeleteProfile(
-    BuildContext context,
-    ProviderProfileRecord record,
-  ) async {
+  Future<void> _handleDeleteProfile(ProviderProfileRecord record) async {
     final repository = ref.read(providerProfileRepositoryProvider);
     final confirm = await showDialog<bool>(
       context: context,
@@ -132,12 +129,14 @@ class _ProviderManagementScreenState
       },
     );
 
+    if (!mounted) return;
+
     if (confirm != true) {
       return;
     }
 
     final secretsSnapshot =
-        await repository.getSecretsForProfile(record.id);
+        await repository.loadSecrets(record.id);
 
     await repository.deleteProfile(record.id);
 
@@ -202,7 +201,7 @@ class _AddProviderCard extends StatelessWidget {
       child: Column(
         children: [
           Material(
-            color: Theme.of(context).colorScheme.surfaceVariant,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: const TabBar(
               tabs: [
                 Tab(text: 'Stalker'),
@@ -403,7 +402,7 @@ class _SavedLoginsPanel extends ConsumerWidget {
                   onDelete: () => onRequestDelete(record),
                 );
               },
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (context, _) => const Divider(height: 1),
               itemCount: profiles.length,
             );
           },
@@ -455,10 +454,12 @@ class _EmptySavedLogins extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(
-            Icons.inventory_2_outlined,
-            size: 64,
-            semanticLabel: 'Empty saved logins',
+          Semantics(
+            label: 'No saved logins',
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
@@ -498,7 +499,10 @@ class _SavedLoginTile extends StatelessWidget {
       label: 'Connect ${record.displayName}',
       child: ListTile(
         onTap: onConnect,
-        leading: Icon(iconData, semanticLabel: semanticLabel),
+        leading: Semantics(
+          label: semanticLabel,
+          child: Icon(iconData),
+        ),
         title: Text(record.displayName),
         subtitle: Text(subtitle),
         trailing: Wrap(
@@ -508,7 +512,6 @@ class _SavedLoginTile extends StatelessWidget {
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Delete ${record.displayName}',
               onPressed: onDelete,
-              semanticLabel: 'Delete ${record.displayName}',
             ),
             PopupMenuButton<_SavedLoginMenuAction>(
               tooltip: 'Actions for ${record.displayName}',
@@ -539,7 +542,10 @@ class _SavedLoginTile extends StatelessWidget {
                   child: const Text('Delete'),
                 ),
               ],
-              child: const Icon(Icons.more_vert, semanticLabel: 'More actions'),
+              child: Semantics(
+                label: 'More actions for ${record.displayName}',
+                child: const Icon(Icons.more_vert),
+              ),
             ),
           ],
         ),
@@ -557,27 +563,17 @@ class _SavedLoginTile extends StatelessWidget {
     return '$host • Last sync: $formattedDate';
   }
 
-  IconData _iconFor(ProviderKind kind) {
-    switch (kind) {
-      case ProviderKind.stalker:
-        return Icons.router;
-      case ProviderKind.xtream:
-        return Icons.tv;
-      case ProviderKind.m3u:
-        return Icons.playlist_play;
-    }
-  }
+  IconData _iconFor(ProviderKind kind) => switch (kind) {
+        ProviderKind.stalker => Icons.router,
+        ProviderKind.xtream => Icons.tv,
+        ProviderKind.m3u => Icons.playlist_play,
+      };
 
-  String _semanticLabelFor(ProviderKind kind) {
-    switch (kind) {
-      case ProviderKind.stalker:
-        return 'Stalker provider';
-      case ProviderKind.xtream:
-        return 'Xtream provider';
-      case ProviderKind.m3u:
-        return 'M3U provider';
-    }
-  }
+  String _semanticLabelFor(ProviderKind kind) => switch (kind) {
+        ProviderKind.stalker => 'Stalker provider',
+        ProviderKind.xtream => 'Xtream provider',
+        ProviderKind.m3u => 'M3U provider',
+      };
 }
 
 enum _SavedLoginMenuAction { connect, edit, delete }

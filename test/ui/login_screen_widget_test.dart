@@ -9,6 +9,7 @@ import 'package:openiptv/src/ui/login_screen.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/storage/provider_database.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
+import 'package:openiptv/src/providers/provider_profiles_provider.dart';
 
 class _InMemoryVault implements CredentialsVault {
   final Map<String, Map<String, String>> _storage = {};
@@ -51,10 +52,20 @@ void main() {
   testWidgets(
     'Advanced sections expose shared controls across providers',
     (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             providerProfileRepositoryProvider.overrideWithValue(repository),
+            savedProfilesStreamProvider.overrideWith(
+              (ref) => Stream.value(const <ProviderProfileRecord>[]),
+            ),
           ],
           child: const MaterialApp(
             home: LoginScreen(),
@@ -67,6 +78,7 @@ void main() {
       Future<void> expectCommonAdvancedControls(ValueKey<String> key) async {
         final tileFinder = find.byKey(key);
         expect(tileFinder, findsOneWidget);
+        await tester.ensureVisible(tileFinder);
         await tester.tap(tileFinder);
         await tester.pumpAndSettle();
 
@@ -121,6 +133,13 @@ void main() {
   testWidgets(
     'Save for later requires provider details before persisting',
     (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final draftRepository = _RecordingDraftRepository(
@@ -134,6 +153,9 @@ void main() {
             providerProfileRepositoryProvider.overrideWithValue(repository),
             loginDraftRepositoryProvider.overrideWith(
               (ref) => Future.value(draftRepository),
+            ),
+            savedProfilesStreamProvider.overrideWith(
+              (ref) => Stream.value(const <ProviderProfileRecord>[]),
             ),
           ],
           child: const MaterialApp(home: LoginScreen()),
@@ -159,6 +181,13 @@ void main() {
   testWidgets(
     'Save for later persists drafts when details are provided',
     (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final draftRepository = _RecordingDraftRepository(
@@ -172,6 +201,9 @@ void main() {
             providerProfileRepositoryProvider.overrideWithValue(repository),
             loginDraftRepositoryProvider.overrideWith(
               (ref) => Future.value(draftRepository),
+            ),
+            savedProfilesStreamProvider.overrideWith(
+              (ref) => Stream.value(const <ProviderProfileRecord>[]),
             ),
           ],
           child: const MaterialApp(home: LoginScreen()),
@@ -200,6 +232,13 @@ void main() {
   testWidgets(
     'Shows banner when validation fails before probing',
     (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       SharedPreferences.setMockInitialValues({});
       final preferences = await SharedPreferences.getInstance();
       final draftRepository = _RecordingDraftRepository(
@@ -214,6 +253,9 @@ void main() {
             loginDraftRepositoryProvider.overrideWith(
               (ref) => Future.value(draftRepository),
             ),
+            savedProfilesStreamProvider.overrideWith(
+              (ref) => Stream.value(const <ProviderProfileRecord>[]),
+            ),
           ],
           child: const MaterialApp(home: LoginScreen()),
         ),
@@ -223,6 +265,7 @@ void main() {
 
       await tester.tap(find.text('Test & Connect'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
 
       expect(
         find.text('Please review the highlighted fields.'),

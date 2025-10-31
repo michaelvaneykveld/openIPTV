@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
+import 'package:openiptv/src/providers/provider_profiles_provider.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
@@ -61,6 +62,219 @@ class MacAddressInputFormatter extends TextInputFormatter {
     );
   }
 }
+
+class _SavedLoginsPanel extends ConsumerWidget {
+  const _SavedLoginsPanel({
+    required this.onRequestDelete,
+    required this.onConnect,
+    required this.onEdit,
+  });
+
+  final Future<void> Function(ProviderProfileRecord) onRequestDelete;
+  final void Function(ProviderProfileRecord) onConnect;
+  final void Function(ProviderProfileRecord) onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedLoginsAsync = ref.watch(savedProfilesStreamProvider);
+
+    return Card(
+      margin: const EdgeInsets.all(16),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: savedLoginsAsync.when(
+          data: (profiles) {
+            if (profiles.isEmpty) {
+              return const _EmptySavedLogins();
+            }
+            return ListView.separated(
+              itemCount: profiles.length,
+              itemBuilder: (context, index) {
+                final record = profiles[index];
+                return _SavedLoginTile(
+                  record: record,
+                  onConnect: () => onConnect(record),
+                  onEdit: () => onEdit(record),
+                  onDelete: () => onRequestDelete(record),
+                );
+              },
+              separatorBuilder: (context, _) => const Divider(height: 1),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, stackTrace) => _SavedLoginsError(
+            error: error,
+            stackTrace: stackTrace,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedLoginsError extends StatelessWidget {
+  const _SavedLoginsError({
+    required this.error,
+    required this.stackTrace,
+  });
+
+  final Object error;
+  final StackTrace stackTrace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+        const SizedBox(height: 12),
+        Text(
+          'Failed to load saved logins',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          error.toString(),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptySavedLogins extends StatelessWidget {
+  const _EmptySavedLogins();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Semantics(
+            label: 'No saved logins',
+            child: const Icon(
+              Icons.inventory_2_outlined,
+              size: 64,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No saved logins yet',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavedLoginTile extends StatelessWidget {
+  const _SavedLoginTile({
+    required this.record,
+    required this.onConnect,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final ProviderProfileRecord record;
+  final VoidCallback onConnect;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final host = record.lockedBase.host.isEmpty
+        ? record.lockedBase.toString()
+        : record.lockedBase.host;
+    final subtitle = _buildSubtitle(context, host, record.lastOkAt);
+    final iconData = _iconFor(record.kind);
+    final semanticLabel = _semanticLabelFor(record.kind);
+
+    return Semantics(
+      button: true,
+      label: 'Connect ${record.displayName}',
+      child: ListTile(
+        onTap: onConnect,
+        leading: Semantics(
+          label: semanticLabel,
+          child: Icon(iconData),
+        ),
+        title: Text(record.displayName),
+        subtitle: Text(subtitle),
+        trailing: Wrap(
+          spacing: 4,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Delete ${record.displayName}',
+              onPressed: onDelete,
+            ),
+            PopupMenuButton<_SavedLoginMenuAction>(
+              tooltip: 'Actions for ${record.displayName}',
+              onSelected: (action) {
+                switch (action) {
+                  case _SavedLoginMenuAction.connect:
+                    onConnect();
+                    break;
+                  case _SavedLoginMenuAction.edit:
+                    onEdit();
+                    break;
+                  case _SavedLoginMenuAction.delete:
+                    onDelete();
+                    break;
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: _SavedLoginMenuAction.connect,
+                  child: Text('Connect'),
+                ),
+                PopupMenuItem(
+                  value: _SavedLoginMenuAction.edit,
+                  child: Text('Edit'),
+                ),
+                PopupMenuItem(
+                  value: _SavedLoginMenuAction.delete,
+                  child: Text('Delete'),
+                ),
+              ],
+              child: Semantics(
+                label: 'More actions for ${record.displayName}',
+                child: const Icon(Icons.more_vert),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _buildSubtitle(BuildContext context, String host, DateTime? lastOk) {
+    final localization = MaterialLocalizations.of(context);
+    final formattedDate = lastOk != null
+        ? '${localization.formatShortDate(lastOk.toLocal())} '
+            '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(lastOk.toLocal()))}'
+        : 'Never';
+
+    return '$host • Last sync: $formattedDate';
+  }
+
+  IconData _iconFor(ProviderKind kind) => switch (kind) {
+        ProviderKind.stalker => Icons.router,
+        ProviderKind.xtream => Icons.tv,
+        ProviderKind.m3u => Icons.playlist_play,
+      };
+
+  String _semanticLabelFor(ProviderKind kind) => switch (kind) {
+        ProviderKind.stalker => 'Stalker provider',
+        ProviderKind.xtream => 'Xtream provider',
+        ProviderKind.m3u => 'M3U provider',
+      };
+}
+
+enum _SavedLoginMenuAction { connect, edit, delete }
 
 /// Login experience entry point that wires UI state to Riverpod controllers
 /// while presenting provider-specific forms according to the design brief.
@@ -313,26 +527,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(context, flowState),
-            if (flowState.bannerMessage != null)
-              _buildBanner(context, flowState.bannerMessage!),
-            _buildProviderSelectors(flowState, isBusy),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeInCubic,
-                child: SingleChildScrollView(
-                  key: ValueKey(flowState.providerType),
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                  child: _buildActiveContent(context, flowState, isBusy),
-                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 960;
+
+            final addProviderColumn = Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildProviderSelectors(flowState, isBusy),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: SingleChildScrollView(
+                        key: ValueKey(flowState.providerType),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                        child: _buildActiveContent(context, flowState, isBusy),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            );
+
+            final savedLoginsPanel = SizedBox(
+              width: isWide ? constraints.maxWidth * 0.32 : double.infinity,
+              child: _SavedLoginsPanel(
+                onRequestDelete: _handleDeleteProfile,
+                onConnect: (record) =>
+                    _showSnack('Connecting to ${record.displayName}'),
+                onEdit: (record) =>
+                    _showSnack('Edit flow for ${record.displayName}'),
+              ),
+            );
+
+            final header = _buildHeader(context, flowState);
+            final banner = flowState.bannerMessage != null
+                ? _buildBanner(context, flowState.bannerMessage!)
+                : null;
+
+            if (isWide) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  header,
+                  if (banner != null) banner,
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        addProviderColumn,
+                        const VerticalDivider(width: 1),
+                        savedLoginsPanel,
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                header,
+                if (banner != null) banner,
+                _buildProviderSelectors(flowState, isBusy),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: SingleChildScrollView(
+                      key: ValueKey(flowState.providerType),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                      child: _buildActiveContent(context, flowState, isBusy),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 320),
+                  child: savedLoginsPanel,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -2755,6 +3038,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
       SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+    ));
+  }
+
+  Future<void> _handleDeleteProfile(ProviderProfileRecord record) async {
+    final repository = ref.read(providerProfileRepositoryProvider);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Delete ${record.displayName}?'),
+          content: const Text(
+            'Delete this saved login? This removes credentials.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted || confirm != true) {
+      return;
+    }
+
+    final secretsSnapshot = await repository.loadSecrets(record.id);
+
+    await repository.deleteProfile(record.id);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Deleted ${record.displayName}'),
+        duration: const Duration(seconds: 6),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () {
+            unawaited(
+              repository.saveProfile(
+                profileId: record.id,
+                kind: record.kind,
+                lockedBase: record.lockedBase,
+                displayName: record.displayName,
+                configuration: Map<String, String>.from(record.configuration),
+                hints: Map<String, String>.from(record.hints),
+                secrets: secretsSnapshot?.secrets ?? const <String, String>{},
+                needsUserAgent: record.needsUserAgent,
+                allowSelfSignedTls: record.allowSelfSignedTls,
+                followRedirects: record.followRedirects,
+                successAt: record.lastOkAt,
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 

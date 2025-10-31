@@ -264,6 +264,22 @@ class ProviderProfileRepository {
         .toList(growable: false);
   }
 
+  /// Emits profile lists whenever the underlying table changes.
+  Stream<List<ProviderProfileRecord>> watchProfiles() {
+    final query = _database.select(_database.providerProfiles)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.updatedAt)]);
+
+    return query.watch().asyncMap((rows) async {
+      final secrets = await _database.select(_database.providerSecrets).get();
+      final secretIds = secrets.map((row) => row.providerId).toSet();
+      return rows
+          .map(
+            (row) => _mapProfile(row, hasSecrets: secretIds.contains(row.id)),
+          )
+          .toList(growable: false);
+    });
+  }
+
   /// Loads a single profile, including a flag describing whether secrets exist.
   Future<ProviderProfileRecord?> getProfile(String id) async {
     final row = await _getProfileRow(id);

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:openiptv/src/ui/login_screen.dart';
+import 'package:openiptv/src/ui/provider_management_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,7 +21,7 @@ class OpenIptvApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const LoginScreen(),
+      home: const ProviderManagementScreen(),
       debugShowCheckedModeBanner: false,
     );
   }

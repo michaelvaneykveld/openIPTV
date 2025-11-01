@@ -46,11 +46,13 @@ enum StepStatus { pending, inProgress, success, failure }
 /// Captures the summary information displayed once all test steps succeed.
 class LoginTestSummary {
   final LoginProviderType providerType;
+  final String profileId;
   final int? channelCount;
   final int? epgDaySpan;
 
   const LoginTestSummary({
     required this.providerType,
+    required this.profileId,
     this.channelCount,
     this.epgDaySpan,
   });

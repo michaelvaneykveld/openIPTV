@@ -29,8 +29,10 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
+import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/ui/discovery_cache_manager.dart';
+import 'package:openiptv/src/ui/player/player_shell.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
@@ -103,10 +105,8 @@ class _SavedLoginsPanel extends ConsumerWidget {
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => _SavedLoginsError(
-            error: error,
-            stackTrace: stackTrace,
-          ),
+          error: (error, stackTrace) =>
+              _SavedLoginsError(error: error, stackTrace: stackTrace),
         ),
       ),
     );
@@ -114,10 +114,7 @@ class _SavedLoginsPanel extends ConsumerWidget {
 }
 
 class _SavedLoginsError extends StatelessWidget {
-  const _SavedLoginsError({
-    required this.error,
-    required this.stackTrace,
-  });
+  const _SavedLoginsError({required this.error, required this.stackTrace});
 
   final Object error;
   final StackTrace stackTrace;
@@ -134,10 +131,7 @@ class _SavedLoginsError extends StatelessWidget {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        Text(
-          error.toString(),
-          textAlign: TextAlign.center,
-        ),
+        Text(error.toString(), textAlign: TextAlign.center),
       ],
     );
   }
@@ -154,10 +148,7 @@ class _EmptySavedLogins extends StatelessWidget {
         children: [
           Semantics(
             label: 'No saved logins',
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              size: 64,
-            ),
+            child: const Icon(Icons.inventory_2_outlined, size: 64),
           ),
           const SizedBox(height: 12),
           Text(
@@ -197,10 +188,7 @@ class _SavedLoginTile extends StatelessWidget {
       label: 'Connect ${record.displayName}',
       child: ListTile(
         onTap: onConnect,
-        leading: Semantics(
-          label: semanticLabel,
-          child: Icon(iconData),
-        ),
+        leading: Semantics(label: semanticLabel, child: Icon(iconData)),
         title: Text(record.displayName),
         subtitle: Text(subtitle),
         trailing: Wrap(
@@ -255,23 +243,23 @@ class _SavedLoginTile extends StatelessWidget {
     final localization = MaterialLocalizations.of(context);
     final formattedDate = lastOk != null
         ? '${localization.formatShortDate(lastOk.toLocal())} '
-            '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(lastOk.toLocal()))}'
+              '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(lastOk.toLocal()))}'
         : 'Never';
 
     return '$host • Last sync: $formattedDate';
   }
 
   IconData _iconFor(ProviderKind kind) => switch (kind) {
-        ProviderKind.stalker => Icons.router,
-        ProviderKind.xtream => Icons.tv,
-        ProviderKind.m3u => Icons.playlist_play,
-      };
+    ProviderKind.stalker => Icons.router,
+    ProviderKind.xtream => Icons.tv,
+    ProviderKind.m3u => Icons.playlist_play,
+  };
 
   String _semanticLabelFor(ProviderKind kind) => switch (kind) {
-        ProviderKind.stalker => 'Stalker provider',
-        ProviderKind.xtream => 'Xtream provider',
-        ProviderKind.m3u => 'M3U provider',
-      };
+    ProviderKind.stalker => 'Stalker provider',
+    ProviderKind.xtream => 'Xtream provider',
+    ProviderKind.m3u => 'M3U provider',
+  };
 }
 
 enum _SavedLoginMenuAction { connect, edit, delete }
@@ -558,8 +546,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               width: isWide ? constraints.maxWidth * 0.32 : double.infinity,
               child: _SavedLoginsPanel(
                 onRequestDelete: _handleDeleteProfile,
-                onConnect: (record) =>
-                    _showSnack('Connecting to ${record.displayName}'),
+                onConnect: (record) {
+                  _connectSavedProfile(record);
+                },
                 onEdit: (record) =>
                     _showSnack('Edit flow for ${record.displayName}'),
               ),
@@ -1562,6 +1551,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
+      late final ProviderProfileRecord savedProfile;
       try {
         final persistedState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -1586,7 +1576,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (discoveryResult != null) {
           hints.addAll(discoveryResult.hints);
         }
-        await _persistProviderProfile(
+        savedProfile = await _persistProviderProfile(
           kind: ProviderKind.stalker,
           displayName: displayName,
           lockedBase: handshakeBase,
@@ -1628,6 +1618,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.stalker,
+          profileId: savedProfile.id,
           channelCount: channelCount,
         ),
       );
@@ -1887,6 +1878,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
+      late final ProviderProfileRecord savedProfile;
       try {
         final latestState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -1915,7 +1907,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (configuration.password.trim().isNotEmpty) {
           secrets['password'] = configuration.password.trim();
         }
-        await _persistProviderProfile(
+        savedProfile = await _persistProviderProfile(
           kind: ProviderKind.xtream,
           displayName: displayName,
           lockedBase: handshakeBase,
@@ -1946,10 +1938,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'Xtream cache refresh',
           cacheKey: cacheKey,
-          operation: () => _xtreamDiscovery.discover(
-            baseInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
         );
       }
 
@@ -1957,6 +1947,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.xtream,
+          profileId: savedProfile.id,
           channelCount: channelCount,
           epgDaySpan: epgDaySpan,
         ),
@@ -1970,10 +1961,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'Xtream cache refresh after discovery failure',
           cacheKey: cacheKey,
-          operation: () => _xtreamDiscovery.discover(
-            baseInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
         );
       }
       final message = error.message.isNotEmpty
@@ -2013,10 +2002,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'Xtream cache refresh after failure',
           cacheKey: cacheKey,
-          operation: () => _xtreamDiscovery.discover(
-            baseInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
         );
       }
       final friendly = _describeNetworkError(dioError);
@@ -2035,10 +2022,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'Xtream cache refresh after error',
           cacheKey: cacheKey,
-          operation: () => _xtreamDiscovery.discover(
-            baseInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
         );
       }
       flowController.markStepFailure(
@@ -2487,6 +2472,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       flowController.markStepActive(LoginTestStep.saveProfile);
+      late final ProviderProfileRecord savedProfile;
       try {
         final latestState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -2554,7 +2540,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             head.resolvedUri,
           ).toString();
         }
-        await _persistProviderProfile(
+        savedProfile = await _persistProviderProfile(
           kind: ProviderKind.m3u,
           displayName: displayName,
           lockedBase: discovery.lockedBase,
@@ -2586,10 +2572,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'M3U cache refresh',
           cacheKey: cacheKey,
-          operation: () => _m3uDiscovery.discover(
-            playlistInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _m3uDiscovery.discover(playlistInput, options: discoveryOptions),
         );
       }
 
@@ -2597,6 +2581,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       flowController.setTestSummary(
         LoginTestSummary(
           providerType: LoginProviderType.m3u,
+          profileId: savedProfile.id,
           channelCount: channelCount,
           epgDaySpan: epgDaySpan,
         ),
@@ -2618,10 +2603,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'M3U cache refresh after failure',
           cacheKey: cacheKey,
-          operation: () => _m3uDiscovery.discover(
-            playlistInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _m3uDiscovery.discover(playlistInput, options: discoveryOptions),
         );
       }
       flowController.setM3uFieldErrors(playlistMessage: error.message);
@@ -2660,10 +2643,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'M3U cache refresh after failure',
           cacheKey: cacheKey,
-          operation: () => _m3uDiscovery.discover(
-            playlistInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _m3uDiscovery.discover(playlistInput, options: discoveryOptions),
         );
       }
       final friendly = _describeNetworkError(dioError);
@@ -2681,10 +2662,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _scheduleDiscoveryRefresh(
           label: 'M3U cache refresh after error',
           cacheKey: cacheKey,
-          operation: () => _m3uDiscovery.discover(
-            playlistInput,
-            options: discoveryOptions,
-          ),
+          operation: () =>
+              _m3uDiscovery.discover(playlistInput, options: discoveryOptions),
         );
       }
       flowController.markStepFailure(
@@ -2746,6 +2725,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       followRedirects: followRedirects,
       successAt: DateTime.now().toUtc(),
     );
+  }
+
+  Future<ResolvedProviderProfile?> _loadResolvedProfile({
+    required String profileId,
+    ProviderProfileRecord? record,
+  }) async {
+    try {
+      final repository = ref.read(providerProfileRepositoryProvider);
+      final profileRecord = record ?? await repository.getProfile(profileId);
+      if (profileRecord == null) {
+        return null;
+      }
+      Map<String, String> secrets = const {};
+      if (profileRecord.hasSecrets) {
+        final snapshot = await repository.loadSecrets(profileRecord.id);
+        secrets = snapshot?.secrets ?? const {};
+      }
+      return ResolvedProviderProfile(record: profileRecord, secrets: secrets);
+    } catch (error, stackTrace) {
+      _logError('Provider profile load error', error, stackTrace);
+      return null;
+    }
   }
 
   String _profileSaveFriendlyMessage(Object error) {
@@ -3006,14 +3007,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   /// Temporary handler for the "Continue" affordance in the success summary.
-  void _handleContinue(LoginTestSummary summary) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          '${_providerLabel(summary.providerType)} profile saved. '
-          'Channel browser coming soon.',
-        ),
+  Future<void> _handleContinue(LoginTestSummary summary) async {
+    final resolved = await _loadResolvedProfile(profileId: summary.profileId);
+    if (resolved == null) {
+      _showSnack('Unable to open the saved profile. Please try again.');
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PlayerShell(profile: resolved),
+      ),
+    );
+  }
+
+  Future<void> _connectSavedProfile(ProviderProfileRecord record) async {
+    final resolved = await _loadResolvedProfile(
+      profileId: record.id,
+      record: record,
+    );
+    if (resolved == null) {
+      _showSnack('Unable to open ${record.displayName}.');
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PlayerShell(profile: resolved),
       ),
     );
   }
@@ -3043,9 +3063,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _showSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(message),
-    ));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleDeleteProfile(ProviderProfileRecord record) async {

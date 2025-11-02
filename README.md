@@ -1,116 +1,120 @@
-# OpenIPTV
+🎬 OpenIPTV — Modular IPTV Framework (Flutter)
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.x-blue.svg)](https://flutter.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Build Status](https://img.shields.io/badge/CI-local-blueviolet.svg)](#)
+OpenIPTV is a modern, modular IPTV client written in Flutter, supporting Stalker/Ministra, Xtream Codes, and M3U/XMLTV portals.
+Built with clean architecture, secure storage, and a world-class login experience — entirely open source, and powered by community support.
 
-OpenIPTV is a modern, cross‑platform IPTV player built with Flutter. It brings live TV, VOD, and series catalogs from M3U playlists, Xtream Codes, and Stalker/Ministra portals together in a single experience that runs on mobile, desktop, and the web.
+🌍 Overview
 
----
+OpenIPTV is an open-source initiative to modernize the IPTV ecosystem — focusing on speed, privacy, and elegance.
+It’s a full-stack, cross-platform IPTV solution designed to be as robust for developers as it is friendly for users.
 
-## Highlights
+🚀 Core Features
 
-- **Multi‑protocol ingestion** — authenticate against Xtream and Stalker portals or load traditional M3U playlists.
-- **Cross‑platform delivery** — the Flutter shell targets Android, iOS, Windows, macOS, Linux, and the web from a single codebase.
-- **Rich navigation tree** — live, VOD, and series content is normalised into a unified tree with search and responsive layouts.
-- **Channel management** — reorder channels, rename, regroup, or hide entries with overrides stored per portal.
-- **Background synchronisation** — opt‑in scheduler refreshes playlists/EPG automatically with Wi‑Fi‑only safeguards.
-- **Personal DVR tooling** — schedule or start recordings instantly and track local files with resume/status metadata.
-- **EPG reminders** — queue notifications before programmes start; reminders survive restarts and rehydrate on boot.
-- **Multi‑account switching** — maintain multiple portal credentials and swap profiles in-app without signing out.
-- **Desktop friendly** — keyboard shortcuts, navigation rail layouts, and focus traversal built with large screens in mind.
+🧩 Unified Discovery System
+	•	One engine that detects, normalizes, and connects to Stalker, Xtream, or M3U portals automatically.
+	•	Handles messy URLs, ports, and redirects with retry and HTTPS fallback logic.
 
----
+🔍 Intelligent Portal Recognition
+	•	Smart classification of user inputs.
+	•	Auto-extracts credentials, reconstructs valid endpoints, and autofills forms.
+	•	Seamlessly reclassifies Xtream-based M3U links.
 
-## Feature Overview
+⚙️ Protocol Support
+	•	Stalker / Ministra: Token + MAC handshake, profile retrieval, and category lists.
+	•	Xtream Codes: Player API integration with live, VOD, and series metadata counts.
+	•	M3U/XMLTV: Tag-aware playlist parsing with heuristic grouping.
 
-| Area | Details |
-| ---- | ------- |
-| **Sync Scheduler** | Toggle auto refresh, select 30–360 minute intervals, and enforce Wi‑Fi‑only syncs. Runs immediately after settings change and cycles through all saved portals. |
-| **Channel Manager** | Drag **ReorderableListView** to change ordering, rename or regroup channels, and toggle visibility. Overrides persist in the SQLite backing store. |
-| **Recording Centre** | Browse scheduled/active/completed recordings, launch ad‑hoc or scheduled jobs, and stop/cancel existing tasks. Recordings write TS files under a portal-specific directory. |
-| **Reminder Centre** | Create, list, and remove programme reminders. Utilises the local notifications plugin with automatic rescheduling after restarts. |
-| **Player Screen** | Video playback via `video_player` with inline record toggle, stream URL diagnostics, and contextual error messaging. |
-| **Navigation Tree** | Builds a portal-scoped content tree, respecting channel overrides and grouping by provider metadata or manual folders. |
+💾 Secure Storage & Persistence
+	•	Drift database for non-secret configuration.
+	•	Flutter Secure Storage for passwords and tokens.
+	•	Cached discovery results with silent revalidation.
 
----
+🧱 Modular Architecture
+	•	Clean separation between adapters, services, and UI layers.
+	•	Riverpod-driven state management and dependency injection.
+	•	Dio-based unified network client with smart error handling.
 
-## Architecture
+🧠 Modern UI & UX
+	•	Single Connect button with optional “Save for later” checkbox.
+	•	Responsive layout with side-by-side panels on desktop and stacked mobile design.
+	•	Animated feedback for success, retries, and errors.
 
-```
-lib/
- ├─ src/application/   ← Riverpod providers, schedulers, services
- ├─ src/core/          ← Data models and SQLite helper
- ├─ src/data/          ← Protocol repositories and adapters
- ├─ src/ui/            ← Feature screens and responsive layouts
- └─ utils/             ← Shared helpers (logging, etc.)
-```
+🔐 Security First
+	•	Secrets only built in memory.
+	•	Redacted logs, configurable debug switch.
+	•	Secure defaults with optional “allow self-signed” for advanced users.
 
-- **State management**: Riverpod/StateNotifier for deterministic, testable flows.
-- **Persistence**: `sqflite` (+ ffi) powers the local catalogue, overrides, recordings, and reminders.
-- **Background work**: Timer-based scheduler handles sync and reminder restoration after restarts.
-- **Navigation**: `go_router` backs deep linking between login, home, player, and management screens.
+🧪 Tested & Reliable
+	•	Mocked portal adapters and end-to-end regression tests.
+	•	Verified behaviors for redirects, UA blocking, and TLS fallback.
+	•	Strict type safety and error taxonomy.
 
----
 
-## Platform Support
 
-| Platform | Status | Notes |
-| -------- | ------ | ----- |
-| Android / iOS | ✅ | Uses secure storage for credentials, `path_provider` for DVR output. |
-| Windows / macOS / Linux | ✅ | Bundles `sqflite_common_ffi` for native desktop persistence. |
-| Web | ✅ | Navigation tree and management screens render responsively; DVR/notifications are no‑ops. |
+📡 Player Page (Preview)
+	•	Displays grouped categories for Live TV, VOD, Series, and Radio — no bulk channel fetching.
+	•	Fetches and shows portal metadata: user info, expiration, active connections, and counts.
+	•	Built to evolve into a full player module for live and on-demand content.
 
-> Tip: desktop targets require the Flutter FFI tooling (`sqflite_common_ffi`) which is already initialised in `main.dart`.
 
----
 
-## Getting Started
+✨ Highlights
 
-```bash
-# Install dependencies
-flutter pub get
+Area	Description
+Login Flow	Unified for all provider types with clear progress feedback.
+Persistence	Only saves credentials when the user opts in.
+Performance	Optimized discovery with adaptive retries and caching.
+Code Quality	Modular, clean, and testable for long-term stability.
 
-# Run the application
-flutter run -d windows   # or macos, linux, chrome, android, ios
 
-# Static analysis
-flutter analyze
 
-# Format Dart sources
-dart format lib test
-```
+🧭 Roadmap — What’s Next
 
-A valid IPTV account (M3U URL, Xtream credentials, or Stalker portal) is required to exercise the app end‑to‑end.
+The groundwork is done. The next leap turns OpenIPTV into a fully-featured player.
 
----
+🔮 Upcoming Milestones
+	1.	Channel & EPG Database — build a scalable local database for storing categories, channels, and guide data.
+	2.	Player Engine — implement adaptive streaming, playback controls, subtitles, and overlays.
+	3.	Next-Gen UI — craft a sleek, immersive media experience that feels natively at home across platforms.
 
-## Roadmap
 
-- **Short term**
-  - Finalise 10‑foot / TV layouts.
-  - Expose DVR file browser with playback integrations.
-  - Expand reminder UI with per-programme notification offsets.
 
-- **Long term**
-  - Parental controls and PIN locking.
-  - Integrated transcoding/proxy service for CORS-limited streams.
-  - Smart TV packaging (Android TV, tvOS).
+☕ Support the Project
 
-Progress is tracked via GitHub issues; contributions to any of the above are welcome.
+OpenIPTV is 100% open source and built with passion.
+If you love the idea of a free, privacy-respecting IPTV framework that keeps getting better — consider fueling it with a coffee.
 
----
+Every donation helps fund:
+	•	AI-assisted development time 🧠
+	•	Advanced testing and player research 🧪
+	•	UI/UX design improvements 🎨
+	•	And yes, the real coffee ☕
 
-## Contributing
+👉 Support the project on Ko-fi: https://ko-fi.com/openiptv￼
 
-1. Fork the repository and create a feature branch.
-2. Run `flutter analyze` and `dart format` before committing.
-3. Submit a pull request describing your change and steps to validate it.
 
-Bug reports, feature ideas, and UI/UX suggestions are encouraged via the issue tracker.
 
----
+🧩 Tech Stack
 
-## License
+Component	Technology
+Frontend	Flutter (Material 3)
+State Management	Riverpod
+Networking	Dio
+Storage	Drift + Flutter Secure Storage
+Testing	Flutter Test, Mocktail
+Architecture	Clean, modular, DI-ready
 
-OpenIPTV is released under the [MIT License](LICENSE). Feel free to use it commercially or privately with attribution.
+
+
+🤝 Contributing
+
+Contributions are welcome!
+Whether it’s code, docs, testing, or design — your effort helps shape the future of open IPTV software.
+
+Join in, open a PR, or share ideas — every bit of energy makes this project better.
+
+
+🧡 Vision
+
+OpenIPTV aims to redefine what free and open IPTV software can be: fast, secure, transparent, and beautiful.
+No ads. No tracking. Just open innovation — built by the community, for the community.

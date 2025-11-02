@@ -85,7 +85,7 @@ OpenIPTV is 100% open source and built with passion.
 If you love the idea of a free, privacy-respecting IPTV framework that keeps getting better — consider fueling it with a coffee.
 
 Every donation helps fund:
-	•	AI-assisted development time 🧠
+	•	development time 🧠
 	•	Advanced testing and player research 🧪
 	•	UI/UX design improvements 🎨
 	•	And yes, the real coffee ☕

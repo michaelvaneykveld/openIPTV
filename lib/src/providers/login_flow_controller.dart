@@ -318,6 +318,7 @@ class LoginFlowState {
   final LoginTestProgress testProgress;
   final String? bannerMessage;
   final LoginTestSummary? testSummary;
+  final bool saveForLater;
 
   const LoginFlowState({
     this.providerType = LoginProviderType.stalker,
@@ -327,6 +328,7 @@ class LoginFlowState {
     this.testProgress = const LoginTestProgress(),
     this.bannerMessage,
     this.testSummary,
+    this.saveForLater = true,
   });
 
   LoginFlowState copyWith({
@@ -339,6 +341,7 @@ class LoginFlowState {
     bool clearBanner = false,
     LoginTestSummary? testSummary,
     bool clearSummary = false,
+    bool? saveForLater,
   }) {
     return LoginFlowState(
       providerType: providerType ?? this.providerType,
@@ -348,6 +351,7 @@ class LoginFlowState {
       testProgress: testProgress ?? this.testProgress,
       bannerMessage: clearBanner ? null : bannerMessage ?? this.bannerMessage,
       testSummary: clearSummary ? null : testSummary ?? this.testSummary,
+      saveForLater: saveForLater ?? this.saveForLater,
     );
   }
 }
@@ -986,6 +990,13 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
       clearBanner: true,
       clearSummary: true,
     );
+  }
+
+  void setSaveForLater(bool value) {
+    if (state.saveForLater == value) {
+      return;
+    }
+    state = state.copyWith(saveForLater: value);
   }
 
   /// Returns the list of step states for convenience.

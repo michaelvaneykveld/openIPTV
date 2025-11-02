@@ -27,6 +27,13 @@ class CategoryEntry {
 
 typedef CategoryMap = Map<ContentBucket, List<CategoryEntry>>;
 
+class _CategorySeed {
+  const _CategorySeed({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
 final categoriesCoordinatorProvider = Provider<_CategoriesCoordinator>(
   (ref) => _CategoriesCoordinator(ref),
 );
@@ -189,69 +196,38 @@ class _StalkerCategoriesFetcher {
       final session = sessionLoader != null
           ? await sessionLoader(config)
           : await _ref
-                .read(stalkerSessionProvider(config).future)
-                .timeout(const Duration(seconds: 3));
+              .read(stalkerSessionProvider(config).future)
+              .timeout(const Duration(seconds: 3));
       final headers = session.buildAuthenticatedHeaders();
 
-      Future<List<CategoryEntry>> load(String type) async {
-        try {
-          final response = await _client.getPortal(
-            config,
-            queryParameters: {
-              'type': type,
-              'action': 'get_categories',
-              'JsHttpRequest': '1-xml',
-            },
-            headers: headers,
-          );
-          final data = _decodePortalMap(response.body);
-          final items =
-              data['categories'] ??
-              data['data'] ??
-              data['js']?['data'] ??
-              data['js']?['categories'];
-          if (items is List) {
-            return items
-                .map((entry) {
-                  if (entry is Map) {
-                    final title =
-                        entry['title']?.toString() ?? entry['name']?.toString();
-                    if (title == null || title.trim().isEmpty) {
-                      return null;
-                    }
-                    final countValue =
-                        entry['items_count'] ??
-                        entry['total_items'] ??
-                        entry['series_count'];
-                    final count = countValue == null
-                        ? null
-                        : int.tryParse(countValue.toString());
-                    return CategoryEntry(name: title.trim(), count: count);
-                  }
-                  return null;
-                })
-                .whereType<CategoryEntry>()
-                .toList(growable: false);
-          }
-        } catch (error, stackTrace) {
-          if (kDebugMode) {
-            debugPrint(
-              redactSensitiveText(
-                'Stalker categories $type failed: $error\n$stackTrace',
-              ),
-            );
-          }
+      Future<List<CategoryEntry>> load(String module) async {
+        final seeds = await _fetchCategorySeeds(
+          config: config,
+          session: session,
+          headers: headers,
+          module: module,
+        );
+        if (seeds.isEmpty) {
+          return const [];
         }
-        return const [];
+        return _attachCategoryCounts(
+          config: config,
+          session: session,
+          headers: headers,
+          module: module,
+          seeds: seeds,
+        );
       }
 
       final live = await load('itv');
       final vod = await load('vod');
+      final series = await load('series');
       final radio = await load('radio');
 
       final map = <ContentBucket, List<CategoryEntry>>{};
       if (live.isNotEmpty) map[ContentBucket.live] = live;
       if (vod.isNotEmpty) map[ContentBucket.films] = vod;
+      if (series.isNotEmpty) map[ContentBucket.series] = series;
       if (radio.isNotEmpty) map[ContentBucket.radio] = radio;
       return map;
     } catch (error, stackTrace) {
@@ -264,6 +240,129 @@ class _StalkerCategoriesFetcher {
       }
       return {};
     }
+  }
+
+  Future<List<_CategorySeed>> _fetchCategorySeeds({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+  }) async {
+    try {
+      final response = await _client
+          .getPortal(
+            config,
+            queryParameters: {
+              'type': module,
+              'action': 'get_categories',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 3));
+      final data = _decodePortalMap(response.body);
+      final items =
+          data['categories'] ??
+          data['data'] ??
+          data['js']?['data'] ??
+          data['js']?['categories'];
+      if (items is List) {
+        return items
+            .map((entry) {
+              if (entry is Map) {
+                final rawName =
+                    entry['title']?.toString() ?? entry['name']?.toString();
+                final rawId =
+                    entry['id'] ??
+                    entry['category_id'] ??
+                    entry['categoryid'] ??
+                    entry['genre_id'];
+                if (rawName == null || rawId == null) return null;
+                final name = rawName.trim();
+                if (name.isEmpty) return null;
+                final id = rawId.toString().trim();
+                if (id.isEmpty) return null;
+                return _CategorySeed(id: id, name: name);
+              }
+              return null;
+            })
+            .whereType<_CategorySeed>()
+            .toList(growable: false);
+      }
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker categories $module failed: $error\n$stackTrace',
+          ),
+        );
+      }
+    }
+    return const [];
+  }
+
+  Future<List<CategoryEntry>> _attachCategoryCounts({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+    required List<_CategorySeed> seeds,
+  }) async {
+    final results = <CategoryEntry>[];
+    final tasks = <Future<CategoryEntry?>>[];
+
+    Future<CategoryEntry?> loadCount(_CategorySeed seed) async {
+      try {
+        final response = await _client
+            .getPortal(
+              config,
+              queryParameters: {
+                'type': module,
+                'action': 'get_ordered_list',
+                'genre': seed.id,
+                'p': '1',
+                'JsHttpRequest': '1-xml',
+                'token': session.token,
+                'mac': config.macAddress.toLowerCase(),
+              },
+              headers: headers,
+            )
+            .timeout(const Duration(seconds: 3));
+        final total = _extractTotalItems(response.body);
+        return CategoryEntry(
+          name: seed.name,
+          count: total > 0 ? total : null,
+        );
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker $module genre ${seed.id} failed: $error\n$stackTrace',
+            ),
+          );
+        }
+        return CategoryEntry(name: seed.name, count: null);
+      }
+    }
+
+    for (final seed in seeds) {
+      tasks.add(loadCount(seed));
+      if (tasks.length == 4) {
+        final chunk = await Future.wait(tasks);
+        results.addAll(chunk.whereType<CategoryEntry>());
+        tasks.clear();
+      }
+    }
+
+    if (tasks.isNotEmpty) {
+      final chunk = await Future.wait(tasks);
+      results.addAll(chunk.whereType<CategoryEntry>());
+    }
+
+    results.sort((a, b) => a.name.compareTo(b.name));
+    return results;
   }
 
   StalkerPortalConfiguration _buildConfiguration(
@@ -331,10 +430,24 @@ class _M3uCategoriesFetcher {
         uri,
         options: Options(headers: _decodeCustomHeaders(profile)),
       );
-      final stream = response.data.stream
+      final responseBody = response.data;
+      if (responseBody is! ResponseBody) {
+        throw const FormatException('Unexpected playlist response payload.');
+      }
+      final stream = responseBody.stream
+          .map<List<int>>((chunk) => chunk)
           .transform(utf8.decoder)
           .transform(const LineSplitter());
       return _consumeLines(stream);
+    } on FormatException catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'M3U categories parse failed: $error\n$stackTrace',
+          ),
+        );
+      }
+      return {};
     } on DioException catch (error) {
       if (kDebugMode) {
         debugPrint(redactSensitiveText('M3U categories fetch failed: $error'));
@@ -348,6 +461,7 @@ class _M3uCategoriesFetcher {
     if (!await file.exists()) return {};
     final stream = file
         .openRead()
+        .map<List<int>>((chunk) => chunk)
         .transform(utf8.decoder)
         .transform(const LineSplitter());
     return _consumeLines(stream);
@@ -483,6 +597,16 @@ bool _looksLikeSeriesGroup(String group) {
 
 bool _looksLikeRadioGroup(String group) {
   return group.contains('radio') || group.contains('audio');
+}
+
+int _extractTotalItems(dynamic body) {
+  final map = _decodePortalMap(body);
+  final total = map['total_items'];
+  if (total is int) return total;
+  if (total is String) {
+    return int.tryParse(total) ?? 0;
+  }
+  return 0;
 }
 
 Uri _withQuery(Uri base, Map<String, dynamic> params) {

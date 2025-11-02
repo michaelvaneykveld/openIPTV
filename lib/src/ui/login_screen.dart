@@ -782,7 +782,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
-            primaryLabel: 'Test & Connect',
+            saveForLater: flowState.saveForLater,
+            onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleStalkerLogin,
           ),
         ],
@@ -850,7 +851,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
-            primaryLabel: 'Test & Connect',
+            saveForLater: flowState.saveForLater,
+            onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleXtreamLogin,
           ),
         ],
@@ -925,7 +927,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           const SizedBox(height: 24),
           _buildFormActions(
             isBusy: isBusy,
-            primaryLabel: 'Test & Connect',
+            saveForLater: flowState.saveForLater,
+            onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleM3uLogin,
           ),
         ],
@@ -1299,23 +1302,34 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// primary test button.
   Widget _buildFormActions({
     required bool isBusy,
-    required String primaryLabel,
+    required bool saveForLater,
+    required ValueChanged<bool> onSaveToggle,
     required Future<void> Function() onPrimary,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: OutlinedButton(
-            onPressed: isBusy ? null : () => unawaited(_handleSaveDraft()),
-            child: const Text('Save for later'),
+          child: _buildActionButton(
+            label: 'Connect',
+            isBusy: isBusy,
+            onPressed: isBusy ? null : () => unawaited(onPrimary()),
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(
-          child: _buildActionButton(
-            label: primaryLabel,
-            isBusy: isBusy,
-            onPressed: isBusy ? null : () => unawaited(onPrimary()),
+        Flexible(
+          child: CheckboxListTile(
+            value: saveForLater,
+            onChanged: isBusy
+                ? null
+                : (value) {
+                    if (value != null) {
+                      onSaveToggle(value);
+                    }
+                  },
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Save this portal for later'),
           ),
         ),
       ],
@@ -1551,7 +1565,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      late final ProviderProfileRecord savedProfile;
       try {
         final persistedState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -1576,22 +1589,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (discoveryResult != null) {
           hints.addAll(discoveryResult.hints);
         }
-        savedProfile = await _persistProviderProfile(
+        final result = await _finalizeProfile(
           kind: ProviderKind.stalker,
-          displayName: displayName,
           lockedBase: handshakeBase,
+          displayName: displayName,
           configuration: config,
           hints: hints,
           secrets: secrets,
-          needsUserAgent:
-              hints['needsUserAgent'] == 'true' || userAgentValue.isNotEmpty,
           allowSelfSignedTls: configuration.allowSelfSignedTls,
           followRedirects: true,
+          needsUserAgent:
+              hints['needsUserAgent'] == 'true' || userAgentValue.isNotEmpty,
         );
         flowController.markStepSuccess(
           LoginTestStep.saveProfile,
-          message: 'Profile saved',
+          message: result.persisted ? 'Profile saved' : 'Connected (not saved)',
         );
+
+        if (needsCacheRefresh && cacheKey != null) {
+          _scheduleDiscoveryRefresh(
+            label: 'Stalker cache refresh',
+            cacheKey: cacheKey,
+            operation: () => _stalkerDiscovery.discoverFromNormalized(
+              normalization,
+              options: discoveryOptions,
+            ),
+          );
+        }
+
+        flowController.setStalkerFieldErrors();
+        _showSuccessSnackBar('Connected successfully.');
+        await _navigateToPlayer(result.profile);
+        flowController.resetTestProgress();
+        return;
       } catch (error, stackTrace) {
         _logError('Stalker profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
@@ -1602,29 +1632,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         flowController.setBannerMessage(friendly);
         return;
       }
-
-      if (needsCacheRefresh && cacheKey != null) {
-        _scheduleDiscoveryRefresh(
-          label: 'Stalker cache refresh',
-          cacheKey: cacheKey,
-          operation: () => _stalkerDiscovery.discoverFromNormalized(
-            normalization,
-            options: discoveryOptions,
-          ),
-        );
-      }
-
-      flowController.setStalkerFieldErrors();
-      flowController.setTestSummary(
-        LoginTestSummary(
-          providerType: LoginProviderType.stalker,
-          profileId: savedProfile.id,
-          channelCount: channelCount,
-        ),
-      );
-
-      if (!mounted) return;
-      _showSuccessSnackBar('Handshake succeeded.');
     } on DiscoveryException catch (error) {
       flowController.clearStalkerLockedBase();
       final message = error.message.isNotEmpty
@@ -1878,7 +1885,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       );
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      late final ProviderProfileRecord savedProfile;
       try {
         final latestState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -1907,22 +1913,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (configuration.password.trim().isNotEmpty) {
           secrets['password'] = configuration.password.trim();
         }
-        savedProfile = await _persistProviderProfile(
+        final result = await _finalizeProfile(
           kind: ProviderKind.xtream,
-          displayName: displayName,
           lockedBase: handshakeBase,
+          displayName: displayName,
           configuration: config,
           hints: hints,
           secrets: secrets,
-          needsUserAgent:
-              hints['needsUserAgent'] == 'true' || userAgentOverride.isNotEmpty,
           allowSelfSignedTls: configuration.allowSelfSignedTls,
           followRedirects: true,
+          needsUserAgent:
+              hints['needsUserAgent'] == 'true' || userAgentOverride.isNotEmpty,
         );
         flowController.markStepSuccess(
           LoginTestStep.saveProfile,
-          message: 'Profile saved',
+          message: result.persisted ? 'Profile saved' : 'Connected (not saved)',
         );
+
+        if (needsCacheRefresh && cacheKey != null) {
+          _scheduleDiscoveryRefresh(
+            label: 'Xtream cache refresh',
+            cacheKey: cacheKey,
+            operation: () =>
+                _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
+          );
+        }
+
+        flowController.setXtreamFieldErrors();
+        _showSuccessSnackBar('Connected successfully.');
+        await _navigateToPlayer(result.profile);
+        flowController.resetTestProgress();
+        return;
       } catch (error, stackTrace) {
         _logError('Xtream profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
@@ -1933,28 +1954,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         flowController.setBannerMessage(friendly);
         return;
       }
-
-      if (needsCacheRefresh && cacheKey != null) {
-        _scheduleDiscoveryRefresh(
-          label: 'Xtream cache refresh',
-          cacheKey: cacheKey,
-          operation: () =>
-              _xtreamDiscovery.discover(baseInput, options: discoveryOptions),
-        );
-      }
-
-      flowController.setXtreamFieldErrors();
-      flowController.setTestSummary(
-        LoginTestSummary(
-          providerType: LoginProviderType.xtream,
-          profileId: savedProfile.id,
-          channelCount: channelCount,
-          epgDaySpan: epgDaySpan,
-        ),
-      );
-
-      if (!mounted) return;
-      _showSuccessSnackBar('Xtream login success.');
     } on DiscoveryException catch (error) {
       flowController.clearXtreamLockedBase();
       if (usedCachedEntry && cacheKey != null) {
@@ -2472,7 +2471,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
 
       flowController.markStepActive(LoginTestStep.saveProfile);
-      late final ProviderProfileRecord savedProfile;
       try {
         final latestState = ref.read(loginFlowControllerProvider);
         final displayName = _deriveDisplayName(
@@ -2540,23 +2538,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             head.resolvedUri,
           ).toString();
         }
-        savedProfile = await _persistProviderProfile(
+        final result = await _finalizeProfile(
           kind: ProviderKind.m3u,
-          displayName: displayName,
           lockedBase: discovery.lockedBase,
+          displayName: displayName,
           configuration: config,
           hints: hints,
           secrets: secrets,
+          allowSelfSignedTls: latestState.m3u.allowSelfSignedTls,
+          followRedirects: latestState.m3u.followRedirects,
           needsUserAgent:
               hints['needsMediaUserAgent'] == 'true' ||
               userAgentOverride.isNotEmpty,
-          allowSelfSignedTls: latestState.m3u.allowSelfSignedTls,
-          followRedirects: latestState.m3u.followRedirects,
         );
         flowController.markStepSuccess(
           LoginTestStep.saveProfile,
-          message: 'Profile saved',
+          message: result.persisted ? 'Profile saved' : 'Connected (not saved)',
         );
+
+        if (isUrlMode && needsCacheRefresh && cacheKey != null) {
+          _scheduleDiscoveryRefresh(
+            label: 'M3U cache refresh',
+            cacheKey: cacheKey,
+            operation: () => _m3uDiscovery.discover(
+              playlistInput,
+              options: discoveryOptions,
+            ),
+          );
+        }
+
+        flowController.setM3uFieldErrors();
+        _showSuccessSnackBar('Connected successfully.');
+        await _navigateToPlayer(result.profile);
+        flowController.resetTestProgress();
+        return;
       } catch (error, stackTrace) {
         _logError('M3U profile save error', error, stackTrace);
         final friendly = _profileSaveFriendlyMessage(error);
@@ -2567,28 +2582,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         flowController.setBannerMessage(friendly);
         return;
       }
-
-      if (isUrlMode && needsCacheRefresh && cacheKey != null) {
-        _scheduleDiscoveryRefresh(
-          label: 'M3U cache refresh',
-          cacheKey: cacheKey,
-          operation: () =>
-              _m3uDiscovery.discover(playlistInput, options: discoveryOptions),
-        );
-      }
-
-      flowController.setM3uFieldErrors();
-      flowController.setTestSummary(
-        LoginTestSummary(
-          providerType: LoginProviderType.m3u,
-          profileId: savedProfile.id,
-          channelCount: channelCount,
-          epgDaySpan: epgDaySpan,
-        ),
-      );
-
-      if (!mounted) return;
-      _showSuccessSnackBar('Playlist validated successfully.');
     } on FormatException catch (error) {
       flowController.clearM3uLockedPlaylist();
       flowController.setM3uFieldErrors(playlistMessage: error.message);
@@ -2747,6 +2740,72 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _logError('Provider profile load error', error, stackTrace);
       return null;
     }
+  }
+
+  Future<({ResolvedProviderProfile profile, bool persisted})> _finalizeProfile({
+    required ProviderKind kind,
+    required Uri lockedBase,
+    required String displayName,
+    required Map<String, String> configuration,
+    required Map<String, String> hints,
+    required Map<String, String> secrets,
+    required bool allowSelfSignedTls,
+    required bool followRedirects,
+    required bool needsUserAgent,
+  }) async {
+    final shouldSave = ref.read(loginFlowControllerProvider).saveForLater;
+    if (shouldSave) {
+      final record = await _persistProviderProfile(
+        kind: kind,
+        displayName: displayName,
+        lockedBase: lockedBase,
+        configuration: configuration,
+        hints: hints,
+        secrets: secrets,
+        needsUserAgent: needsUserAgent,
+        allowSelfSignedTls: allowSelfSignedTls,
+        followRedirects: followRedirects,
+      );
+      final resolved = await _loadResolvedProfile(
+        profileId: record.id,
+        record: record,
+      );
+      if (resolved == null) {
+        throw StateError('Unable to load saved profile for navigation.');
+      }
+      return (profile: resolved, persisted: true);
+    }
+
+    final now = DateTime.now().toUtc();
+    final record = ProviderProfileRecord(
+      id: ProviderProfileRepository.allocateProfileId(),
+      kind: kind,
+      displayName: displayName,
+      lockedBase: lockedBase,
+      needsUserAgent: needsUserAgent,
+      allowSelfSignedTls: allowSelfSignedTls,
+      followRedirects: followRedirects,
+      configuration: Map.unmodifiable(Map<String, String>.from(configuration)),
+      hints: Map.unmodifiable(Map<String, String>.from(hints)),
+      createdAt: now,
+      updatedAt: now,
+      lastOkAt: now,
+      hasSecrets: secrets.isNotEmpty,
+    );
+    final resolved = ResolvedProviderProfile(
+      record: record,
+      secrets: Map.unmodifiable(Map<String, String>.from(secrets)),
+    );
+    return (profile: resolved, persisted: false);
+  }
+
+  Future<void> _navigateToPlayer(ResolvedProviderProfile profile) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PlayerShell(profile: profile),
+      ),
+    );
   }
 
   String _profileSaveFriendlyMessage(Object error) {
@@ -3013,12 +3072,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _showSnack('Unable to open the saved profile. Please try again.');
       return;
     }
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => PlayerShell(profile: resolved),
-      ),
-    );
+    await _navigateToPlayer(resolved);
   }
 
   Future<void> _connectSavedProfile(ProviderProfileRecord record) async {
@@ -3030,12 +3084,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _showSnack('Unable to open ${record.displayName}.');
       return;
     }
-    if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (context) => PlayerShell(profile: resolved),
-      ),
-    );
+    await _navigateToPlayer(resolved);
   }
 
   /// Convenience helper to copy controller text updates without duplicate work.
@@ -3130,6 +3179,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _handleSaveDraft() async {
     final flowController = ref.read(loginFlowControllerProvider.notifier);
     flowController.setBannerMessage(null);

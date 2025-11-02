@@ -208,7 +208,7 @@ void main() {
     expect(summary.fields['Status'], 'Active');
     expect(summary.fields['Expires'], '2030-01-01');
     expect(summary.fields['Port'], '8080');
-    expect(summary.fields['Radio'], 'Not available via player_api');
+    expect(summary.fields.containsKey('Radio'), isFalse);
   });
 
   test(
@@ -370,3 +370,4 @@ class _FakeStalkerHttpClient extends StalkerHttpClient {
     );
   }
 }
+

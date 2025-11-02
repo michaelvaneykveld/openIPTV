@@ -49,6 +49,10 @@ void resetSummaryTestOverrides() {
   summaryTestStalkerSessionLoader = null;
 }
 
+const String _mediaUserAgent = 'VLC/3.0.18 LibVLC/3.0.18';
+const String _m3uAcceptHeader =
+    'application/x-mpegurl, audio/mpegurl;q=0.9, application/vnd.apple.mpegurl;q=0.9, */*;q=0.1';
+
 class _SummaryCoordinator {
   _SummaryCoordinator(this._ref);
 
@@ -121,62 +125,54 @@ class _XtreamSummaryFetcher {
     final serverMap =
         userInfo['server_info'] as Map<String, dynamic>? ?? const {};
 
-    void recordField(String label, dynamic value) {
+    void assign(String label, String? value) {
       if (value == null) return;
-      final text = value.toString().trim();
+      final text = value.trim();
       if (text.isEmpty) return;
       fields[label] = text;
     }
 
-    recordField('Status', userMap['status']);
-    recordField('Expires', userMap['exp_date']);
-    recordField('Trial', userMap['is_trial']);
-    recordField('Active connections', userMap['active_cons']);
-    recordField('Created', userMap['created_at']);
-    recordField('Max connections', userMap['max_connections']);
+    assign('Status', _stringValue(userMap['status']));
+    assign('Expires', _formatDateValue(userMap['exp_date']));
+    assign('Trial', _stringValue(userMap['is_trial']));
+    assign('Active connections', _stringValue(userMap['active_cons']));
+    assign('Created', _formatDateValue(userMap['created_at']));
+    assign('Max connections', _stringValue(userMap['max_connections']));
 
     final formats = userMap['allowed_output_formats'];
     if (formats is List && formats.isNotEmpty) {
-      recordField('Output formats', formats.join(', '));
+      assign('Output formats', formats.join(', '));
     }
 
-    recordField('Server', serverMap['url']);
-    recordField('Protocol', serverMap['server_protocol']);
-    recordField('Port', serverMap['port']);
-    recordField('Current time', serverMap['time_now']);
-    recordField('Timezone', serverMap['timezone']);
-
-    Future<int> countAction(String action) async {
-      final data = await _withRetry(() async {
-        final response = await dio.getUri(
-          _withQuery(playerUri, {
-            'username': credentials.username,
-            'password': credentials.password,
-            'action': action,
-          }),
-          options: Options(headers: headers),
-        );
-        return response.data;
-      });
-
-      if (data is List) {
-        return data.length;
-      }
-      if (data is Map && data['data'] is List) {
-        return (data['data'] as List).length;
-      }
-      return 0;
-    }
+    assign('Server', _stringValue(serverMap['url']));
+    assign('Protocol', _stringValue(serverMap['server_protocol']));
+    assign('Port', _stringValue(serverMap['port']));
+    assign('Current time', _formatDateTimeValue(serverMap['time_now']));
+    assign('Timezone', _stringValue(serverMap['timezone']));
 
     final counts = <String, int>{
-      'Live': await countAction('get_live_streams'),
-      'VOD': await countAction('get_vod_streams'),
-      'Series': await countAction('get_series'),
-    };
-
-    if (!fields.containsKey('Radio')) {
-      fields['Radio'] = 'Not available via player_api';
-    }
+      'Live': await _countXtreamCategory(
+        dio,
+        playerUri,
+        headers,
+        credentials,
+        'get_live_streams',
+      ),
+      'VOD': await _countXtreamCategory(
+        dio,
+        playerUri,
+        headers,
+        credentials,
+        'get_vod_streams',
+      ),
+      'Series': await _countXtreamCategory(
+        dio,
+        playerUri,
+        headers,
+        credentials,
+        'get_series',
+      ),
+    }..removeWhere((_, value) => value <= 0);
 
     return SummaryData(
       kind: ProviderKind.xtream,
@@ -219,18 +215,22 @@ class _StalkerSummaryFetcher {
           ? await sessionLoader(config)
           : await _ref
                 .read(stalkerSessionProvider(config).future)
-                .timeout(const Duration(seconds: 10));
+                .timeout(const Duration(seconds: 3));
       final headers = session.buildAuthenticatedHeaders();
 
-      final profileResponse = await _client.getPortal(
-        config,
-        queryParameters: const {
-          'type': 'stb',
-          'action': 'get_profile',
-          'JsHttpRequest': '1-xml',
-        },
-        headers: headers,
-      );
+      final profileResponse = await _client
+          .getPortal(
+            config,
+            queryParameters: {
+              'type': 'stb',
+              'action': 'get_profile',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 3));
 
       final profileMap = _decodePortalMap(profileResponse.body);
       final fields = <String, String>{};
@@ -240,23 +240,25 @@ class _StalkerSummaryFetcher {
       _collectIfPresent(profileMap, fields, 'subscription_date');
 
       try {
-        final accountResponse = await _client.getPortal(
-          config,
-          queryParameters: const {
-            'type': 'account_info',
-            'action': 'get_main_info',
-            'JsHttpRequest': '1-xml',
-          },
-          headers: headers,
-        );
+        final accountResponse = await _client
+            .getPortal(
+              config,
+              queryParameters: {
+                'type': 'account_info',
+                'action': 'get_main_info',
+                'JsHttpRequest': '1-xml',
+                'token': session.token,
+                'mac': config.macAddress.toLowerCase(),
+              },
+              headers: headers,
+            )
+            .timeout(const Duration(seconds: 3));
         final accountMap = _decodePortalMap(accountResponse.body);
         for (final entry in accountMap.entries) {
-          final value = entry.value;
-          if (value == null) continue;
-          final text = value.toString().trim();
-          if (text.isEmpty) continue;
+          final formatted = _formatSummaryValue(entry.key, entry.value);
+          if (formatted == null) continue;
           final label = _humanise(entry.key);
-          fields.putIfAbsent(label, () => text);
+          fields.putIfAbsent(label, () => formatted);
         }
       } catch (error, stackTrace) {
         if (kDebugMode) {
@@ -272,8 +274,9 @@ class _StalkerSummaryFetcher {
 
       final liveCount = await _loadTotalSafe(
         config: config,
+        session: session,
         headers: headers,
-        category: 'itv',
+        portalType: 'itv',
       );
       if (liveCount != null) {
         counts['Live'] = liveCount;
@@ -281,8 +284,9 @@ class _StalkerSummaryFetcher {
 
       final vodCount = await _loadTotalSafe(
         config: config,
+        session: session,
         headers: headers,
-        category: 'vod',
+        portalType: 'vod',
       );
       if (vodCount != null) {
         counts['VOD'] = vodCount;
@@ -290,23 +294,24 @@ class _StalkerSummaryFetcher {
 
       final seriesCount = await _loadTotalSafe(
         config: config,
+        session: session,
         headers: headers,
-        category: 'series',
+        portalType: 'series',
       );
       if (seriesCount != null) {
         counts['Series'] = seriesCount;
-      } else {
-        fields.putIfAbsent('Series catalogue', () => 'Not available');
       }
 
       final radioCount = await _loadTotalSafe(
         config: config,
+        session: session,
         headers: headers,
-        category: 'radio',
+        portalType: 'radio',
       );
       if (radioCount != null) {
         counts['Radio'] = radioCount;
       }
+      counts.removeWhere((_, value) => value <= 0);
 
       return SummaryData(
         kind: ProviderKind.stalker,
@@ -328,27 +333,32 @@ class _StalkerSummaryFetcher {
 
   Future<int?> _loadTotalSafe({
     required StalkerPortalConfiguration config,
+    required StalkerSession session,
     required Map<String, String> headers,
-    required String category,
+    required String portalType,
   }) async {
     try {
-      final response = await _client.getPortal(
-        config,
-        queryParameters: {
-          'type': category,
-          'action': 'get_ordered_list',
-          'p': '1',
-          'JsHttpRequest': '1-xml',
-        },
-        headers: headers,
-      );
+      final response = await _client
+          .getPortal(
+            config,
+            queryParameters: {
+              'type': portalType,
+              'action': 'get_ordered_list',
+              'p': '1',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 3));
       final total = _extractTotalItems(response.body);
       return total >= 0 ? total : null;
     } catch (error, stackTrace) {
       if (kDebugMode) {
         debugPrint(
           redactSensitiveText(
-            'Stalker $category total fetch failed: $error\n$stackTrace',
+            'Stalker $portalType total fetch failed: $error\n$stackTrace',
           ),
         );
       }
@@ -379,10 +389,9 @@ class _StalkerSummaryFetcher {
     String key,
   ) {
     final value = source[key];
-    if (value == null) return;
-    final text = value.toString().trim();
-    if (text.isEmpty) return;
-    target[_humanise(key)] = text;
+    final formatted = _formatSummaryValue(key, value);
+    if (formatted == null) return;
+    target[_humanise(key)] = formatted;
   }
 
   String _humanise(String key) {
@@ -457,14 +466,42 @@ class _M3uSummaryFetcher {
         validateStatus: (status) => status != null && status < 600,
       ),
     );
+    final adapterOverride = summaryTestHttpClientAdapter;
+    if (adapterOverride != null) {
+      dio.httpClientAdapter = adapterOverride;
+    }
     _applyTlsOverrides(dio, profile.record.allowSelfSignedTls);
 
-    final response = await dio.getUri(
-      playlistUri,
-      options: Options(headers: _decodeCustomHeaders(profile)),
+    final baseHeaders = _decodeCustomHeaders(profile);
+    final probe = await _attemptPlaylistHead(
+      dio: dio,
+      uri: playlistUri,
+      headers: baseHeaders,
     );
 
-    final stream = response.data.stream
+    final effectiveHeaders = Map<String, String>.from(baseHeaders);
+    if (probe.needsMediaUserAgent && !_hasUserAgent(effectiveHeaders)) {
+      effectiveHeaders['User-Agent'] = _mediaUserAgent;
+      await _attemptPlaylistHead(
+        dio: dio,
+        uri: playlistUri,
+        headers: effectiveHeaders,
+      );
+    }
+
+    final response = await _performPlaylistGet(
+      dio: dio,
+      uri: playlistUri,
+      headers: effectiveHeaders,
+    );
+
+    final responseBody = response.data;
+    if (responseBody is! ResponseBody) {
+      throw const FormatException('Unexpected playlist response payload.');
+    }
+
+    final stream = responseBody.stream
+        .map<List<int>>((chunk) => chunk)
         .transform(utf8.decoder)
         .transform(const LineSplitter());
 
@@ -528,6 +565,7 @@ class _M3uSummaryFetcher {
       } else if (_looksLikeVodGroup(groupTitle) ||
           lowered.contains('catchup="vod"') ||
           name.contains('movie') ||
+          name.contains('film') ||
           name.contains('vod')) {
         vod++;
       } else {
@@ -535,7 +573,14 @@ class _M3uSummaryFetcher {
       }
     }
 
-    return {'Live': live, 'VOD': vod, 'Series': series, 'Radio': radio};
+    final counts = <String, int>{
+      'Live': live,
+      'VOD': vod,
+      'Series': series,
+      'Radio': radio,
+    };
+    counts.removeWhere((_, value) => value <= 0);
+    return counts;
   }
 
   String? _extractAttribute(String line, String name) {
@@ -556,9 +601,9 @@ class _M3uSummaryFetcher {
   bool _looksLikeVodGroup(String group) {
     if (group.isEmpty) return false;
     return group.contains('movie') ||
-        group.contains('vod') ||
         group.contains('film') ||
-        group.contains('filme');
+        group.contains('vod') ||
+        group.contains('catchup');
   }
 
   bool _looksLikeSeriesGroup(String group) {
@@ -572,6 +617,221 @@ class _M3uSummaryFetcher {
     if (group.isEmpty) return false;
     return group.contains('radio') || group.contains('audio');
   }
+}
+
+class _HeadProbeResult {
+  const _HeadProbeResult({
+    required this.accepted,
+    this.statusCode,
+    this.needsMediaUserAgent = false,
+  });
+
+  final bool accepted;
+  final int? statusCode;
+  final bool needsMediaUserAgent;
+}
+
+Future<_HeadProbeResult> _attemptPlaylistHead({
+  required Dio dio,
+  required Uri uri,
+  required Map<String, String> headers,
+}) async {
+  final requestHeaders = _augmentPlaylistHeaders(headers, includeRange: false);
+  try {
+    final response = await dio.headUri(
+      uri,
+      options: Options(
+        headers: requestHeaders,
+        responseType: ResponseType.plain,
+      ),
+    );
+    final status = response.statusCode;
+    final contentType =
+        response.headers.value('content-type')?.toLowerCase() ?? '';
+    final accepted = status != null &&
+        status >= 200 &&
+        status < 400 &&
+        (contentType.isEmpty ||
+            contentType.contains('mpegurl') ||
+            contentType.contains('audio/mpegurl') ||
+            contentType.contains('application/octet-stream'));
+
+    final needsMediaUa = status != null &&
+        (status == 403 || status == 406) &&
+        !_hasUserAgent(headers);
+
+    return _HeadProbeResult(
+      accepted: accepted,
+      statusCode: status,
+      needsMediaUserAgent: needsMediaUa,
+    );
+  } on DioException catch (error) {
+    final status = error.response?.statusCode;
+    final needsMediaUa = status != null &&
+        (status == 403 || status == 406) &&
+        !_hasUserAgent(headers);
+    return _HeadProbeResult(
+      accepted: false,
+      statusCode: status,
+      needsMediaUserAgent: needsMediaUa,
+    );
+  }
+}
+
+Future<Response<ResponseBody>> _performPlaylistGet({
+  required Dio dio,
+  required Uri uri,
+  required Map<String, String> headers,
+}) async {
+  final requestHeaders = _augmentPlaylistHeaders(headers);
+  try {
+    return await dio.getUri(
+      uri,
+      options: Options(headers: requestHeaders),
+    );
+  } on DioException catch (error) {
+    final status = error.response?.statusCode;
+    if (status != null &&
+        (status == 403 || status == 406) &&
+        !_hasUserAgent(headers)) {
+      final fallbackHeaders = Map<String, String>.from(headers)
+        ..['User-Agent'] = _mediaUserAgent;
+      return await dio.getUri(
+        uri,
+        options: Options(headers: _augmentPlaylistHeaders(fallbackHeaders)),
+      );
+    }
+    rethrow;
+  }
+}
+
+Map<String, String> _augmentPlaylistHeaders(
+  Map<String, String> headers, {
+  bool includeRange = true,
+}) {
+  final normalized = <String, String>{};
+  headers.forEach((key, value) {
+    normalized[key] = value;
+  });
+
+  if (!_hasHeader(normalized, 'accept')) {
+    normalized['Accept'] = _m3uAcceptHeader;
+  }
+  if (includeRange && !_hasHeader(normalized, 'range')) {
+    normalized['Range'] = 'bytes=0-16383';
+  }
+  if (!_hasHeader(normalized, 'connection')) {
+    normalized['Connection'] = 'close';
+  }
+  return normalized;
+}
+
+bool _hasUserAgent(Map<String, String> headers) =>
+    _hasHeader(headers, 'user-agent');
+
+bool _hasHeader(Map<String, String> headers, String target) {
+  final lowerTarget = target.toLowerCase();
+  return headers.keys.any((key) => key.toLowerCase() == lowerTarget);
+}
+
+Future<int> _countXtreamCategory(
+  Dio dio,
+  Uri playerUri,
+  Map<String, String> headers,
+  ({String username, String password}) credentials,
+  String action,
+) async {
+  final data = await _withRetry(() async {
+    final response = await dio.getUri(
+      _withQuery(playerUri, {
+        'username': credentials.username,
+        'password': credentials.password,
+        'action': action,
+      }),
+      options: Options(headers: headers),
+    );
+    return response.data;
+  });
+
+  if (data is List) {
+    return data.length;
+  }
+  if (data is Map && data['data'] is List) {
+    return (data['data'] as List).length;
+  }
+  return 0;
+}
+
+String? _stringValue(dynamic value) {
+  if (value == null) return null;
+  final text = value.toString().trim();
+  return text.isEmpty ? null : text;
+}
+
+String? _formatDateValue(dynamic value) {
+  final dt = _parseDateTime(value);
+  if (dt == null) return _stringValue(value);
+  return '${dt.year}-${_twoDigits(dt.month)}-${_twoDigits(dt.day)}';
+}
+
+String? _formatDateTimeValue(dynamic value) {
+  final dt = _parseDateTime(value);
+  if (dt == null) return _stringValue(value);
+  final date =
+      '${dt.year}-${_twoDigits(dt.month)}-${_twoDigits(dt.day)}';
+  return '$date ${_twoDigits(dt.hour)}:${_twoDigits(dt.minute)}';
+}
+
+DateTime? _parseDateTime(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value.toLocal();
+  if (value is int) {
+    if (value > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
+    }
+    if (value > 1000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true)
+          .toLocal();
+    }
+  }
+  final text = value.toString().trim();
+  if (text.isEmpty) return null;
+  final numeric = int.tryParse(text);
+  if (numeric != null) {
+    if (numeric > 1000000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(numeric, isUtc: true)
+          .toLocal();
+    }
+    if (numeric > 1000000000) {
+      return DateTime.fromMillisecondsSinceEpoch(numeric * 1000, isUtc: true)
+          .toLocal();
+    }
+  }
+  try {
+    return DateTime.parse(text).toLocal();
+  } catch (_) {
+    final normalized = text.replaceAll('/', '-').replaceAll('.', '-');
+    try {
+      return DateTime.parse(normalized).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+String? _formatSummaryValue(String key, dynamic value) {
+  final lower = key.toLowerCase();
+  if (lower.contains('time')) {
+    return _formatDateTimeValue(value);
+  }
+  if (lower.contains('date') ||
+      lower.contains('expire') ||
+      lower.contains('expiry')) {
+    return _formatDateValue(value);
+  }
+  return _stringValue(value);
 }
 
 Future<T> _withRetry<T>(Future<T> Function() operation) async {

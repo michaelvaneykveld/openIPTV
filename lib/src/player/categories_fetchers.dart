@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:xml/xml.dart' as xml;
 
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
@@ -25,13 +26,33 @@ class CategoryEntry {
   final int? count;
 }
 
+class _CategoryAccumulator {
+  _CategoryAccumulator({required this.name});
+
+  final String name;
+  int count = 0;
+}
+
 typedef CategoryMap = Map<ContentBucket, List<CategoryEntry>>;
 
 class _CategorySeed {
-  const _CategorySeed({required this.id, required this.name});
+  const _CategorySeed({
+    required this.id,
+    required this.name,
+    this.initialCount,
+  });
 
   final String id;
   final String name;
+  final int? initialCount;
+
+  _CategorySeed copyWith({int? initialCount}) {
+    return _CategorySeed(
+      id: id,
+      name: name,
+      initialCount: initialCount ?? this.initialCount,
+    );
+  }
 }
 
 final categoriesCoordinatorProvider = Provider<_CategoriesCoordinator>(
@@ -207,30 +228,68 @@ class _StalkerCategoriesFetcher {
           headers: headers,
           module: module,
         );
+
+        final moduleTotal = await _loadModuleTotal(
+          config: config,
+          session: session,
+          headers: headers,
+          module: module,
+        );
+
+        List<CategoryEntry> categories;
         if (seeds.isEmpty) {
-          final total = await _loadModuleTotal(
+          categories = await _deriveCategoriesFromListing(
             config: config,
             session: session,
             headers: headers,
             module: module,
           );
-          if (total != null && total > 0) {
+        } else {
+          categories = await _attachCategoryCounts(
+            config: config,
+            session: session,
+            headers: headers,
+            module: module,
+            seeds: seeds,
+          );
+        }
+
+        if (categories.isEmpty) {
+          if (moduleTotal != null && moduleTotal > 0) {
             return [
               CategoryEntry(
                 name: _fallbackCategoryLabel(module),
-                count: total,
+                count: moduleTotal,
               ),
             ];
           }
           return const [];
         }
-        return _attachCategoryCounts(
-          config: config,
-          session: session,
-          headers: headers,
-          module: module,
-          seeds: seeds,
-        );
+
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker $module categories derived: '
+              '${categories.map((c) => '${c.name}:${c.count ?? 'n/a'}').join(', ')}',
+            ),
+          );
+        }
+
+        final aggregateCount = moduleTotal ??
+            categories.fold<int>(
+              0,
+              (previousValue, element) =>
+                  previousValue + (element.count ?? 0),
+            );
+
+        return [
+          if (aggregateCount > 0)
+            CategoryEntry(
+              name: _fallbackCategoryLabel(module),
+              count: aggregateCount,
+            ),
+          ...categories,
+        ];
       }
 
       final live = await load('itv');
@@ -262,51 +321,68 @@ class _StalkerCategoriesFetcher {
     required Map<String, String> headers,
     required String module,
   }) async {
+    final seedsWithJs = await _requestCategorySeeds(
+      config: config,
+      session: session,
+      headers: headers,
+      module: module,
+      includeJsEnvelope: true,
+    );
+    if (seedsWithJs.isNotEmpty) {
+      return seedsWithJs;
+    }
+
+    final seedsWithoutJs = await _requestCategorySeeds(
+      config: config,
+      session: session,
+      headers: headers,
+      module: module,
+      includeJsEnvelope: false,
+    );
+    if (seedsWithoutJs.isNotEmpty) {
+      return seedsWithoutJs;
+    }
+
+    final seedsFromGenres = await _requestGenreSeeds(
+      config: config,
+      session: session,
+      headers: headers,
+      module: module,
+    );
+    if (seedsFromGenres.isNotEmpty) {
+      return seedsFromGenres;
+    }
+
+    return const [];
+  }
+
+  Future<List<_CategorySeed>> _requestCategorySeeds({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+    required bool includeJsEnvelope,
+  }) async {
     try {
+      final query = <String, dynamic>{
+        'type': module,
+        'action': 'get_categories',
+        'token': session.token,
+        'mac': config.macAddress.toLowerCase(),
+      };
+      if (includeJsEnvelope) {
+        query['JsHttpRequest'] = '1-xml';
+      }
       final response = await _client
           .getPortal(
             config,
-            queryParameters: {
-              'type': module,
-              'action': 'get_categories',
-              'JsHttpRequest': '1-xml',
-              'token': session.token,
-              'mac': config.macAddress.toLowerCase(),
-            },
+            queryParameters: query,
             headers: headers,
           )
           .timeout(const Duration(seconds: 3));
-      final data = _decodePortalMap(response.body);
-      final rawItems = _resolveCategoryIterable(
-            data['categories'] ??
-                data['data'] ??
-                data['js'] ??
-                data,
-          ) ??
-          _resolveCategoryIterable(data);
-      Iterable<_CategorySeed> seedsFromIterable(Iterable<dynamic> iterable) {
-        return iterable.map<_CategorySeed?>((entry) {
-          try {
-            return _categorySeedFromDynamic(entry);
-          } catch (error, stackTrace) {
-            if (kDebugMode) {
-              debugPrint(
-                redactSensitiveText(
-                  'Failed to parse category seed: ${entry.runtimeType} '
-                  '$entry -> $error\n$stackTrace',
-                ),
-              );
-            }
-            return null;
-          }
-        }).whereType<_CategorySeed>();
-      }
-
-      if (rawItems != null) {
-        final seeds = seedsFromIterable(rawItems).toList(growable: false);
-        if (seeds.isNotEmpty) {
-          return seeds;
-        }
+      final seeds = _parseStalkerCategorySeeds(response.body);
+      if (seeds.isNotEmpty) {
+        return seeds;
       }
     } catch (error, stackTrace) {
       if (kDebugMode) {
@@ -320,6 +396,289 @@ class _StalkerCategoriesFetcher {
     return const [];
   }
 
+  Future<List<_CategorySeed>> _requestGenreSeeds({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+  }) async {
+    try {
+      for (final includeJs in [true, false]) {
+        final query = <String, dynamic>{
+          'type': module,
+          'action': 'get_genres',
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+        };
+        if (includeJs) {
+          query['JsHttpRequest'] = '1-xml';
+        }
+        final response = await _client
+            .getPortal(
+              config,
+              queryParameters: query,
+              headers: headers,
+            )
+            .timeout(const Duration(seconds: 3));
+        if (kDebugMode) {
+          final rawBody = response.body;
+          final preview = rawBody is String
+              ? rawBody
+              : jsonEncode(rawBody ?? const {});
+          final truncated =
+              preview.length > 400 ? '${preview.substring(0, 400)}…' : preview;
+          debugPrint(
+            redactSensitiveText(
+              'Stalker $module get_genres '
+              '(${includeJs ? 'with' : 'without'} JsHttpRequest) raw: '
+              '$truncated',
+            ),
+          );
+        }
+        final seeds = _parseStalkerCategorySeeds(response.body);
+        if (seeds.isNotEmpty) {
+          return seeds;
+        }
+      }
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker get_genres $module failed: $error\n$stackTrace',
+          ),
+        );
+      }
+    }
+    return const [];
+  }
+
+  List<_CategorySeed> _parseStalkerCategorySeeds(
+    dynamic body, [
+    Set<String>? visitedStrings,
+  ]) {
+    final visited = visitedStrings ?? <String>{};
+    final seedMap = <String, _CategorySeed>{};
+
+    void addSeed(_CategorySeed seed) {
+      final id = seed.id.trim();
+      final name = seed.name.trim();
+      if (id.isEmpty && name.isEmpty) {
+        return;
+      }
+      final normalizedId = id.isEmpty ? name : id;
+      final normalizedName = name.isEmpty ? normalizedId : name;
+      final key =
+          '${normalizedId.toLowerCase()}::${normalizedName.toLowerCase()}';
+      final existing = seedMap[key];
+      if (existing == null) {
+        seedMap[key] = _CategorySeed(
+          id: normalizedId,
+          name: normalizedName,
+          initialCount: seed.initialCount,
+        );
+      } else if (existing.initialCount == null && seed.initialCount != null) {
+        seedMap[key] = existing.copyWith(initialCount: seed.initialCount);
+      }
+    }
+
+    void traverse(dynamic node) {
+      if (node == null) {
+        return;
+      }
+
+      if (node is Map) {
+        final unwrapped = _unwrapJsEnvelope(node);
+        if (!identical(unwrapped, node)) {
+          traverse(unwrapped);
+          return;
+        }
+        final candidate = _categorySeedFromDynamic(node);
+        if (candidate != null) {
+          addSeed(candidate);
+        }
+        for (final value in node.values) {
+          traverse(value);
+        }
+        return;
+      }
+
+      if (node is Iterable && node is! String) {
+        for (final item in node) {
+          final candidate = _categorySeedFromDynamic(item);
+          if (candidate != null) {
+            addSeed(candidate);
+          } else {
+            traverse(item);
+          }
+        }
+        return;
+      }
+
+      if (node is String) {
+        final trimmed = node.trim();
+        if (trimmed.isEmpty || !visited.add(trimmed)) {
+          return;
+        }
+        final jsonCandidate = _tryDecodeJson(trimmed);
+        if (jsonCandidate != null) {
+          traverse(jsonCandidate);
+          return;
+        }
+        final xmlSeeds = _parseSeedsFromXmlString(trimmed, visited);
+        for (final seed in xmlSeeds) {
+          addSeed(seed);
+        }
+        return;
+      }
+    }
+
+    traverse(body);
+    return seedMap.values.toList(growable: false);
+  }
+
+  dynamic _unwrapJsEnvelope(dynamic node) {
+    if (node is Map) {
+      if (node.containsKey('js') && node.containsKey('data')) {
+        final data = node['data'];
+        if (data is String) {
+          final trimmed = data.trim();
+          if (trimmed.isEmpty) {
+            return const <dynamic>[];
+          }
+          final jsonCandidate = _tryDecodeJson(trimmed);
+          if (jsonCandidate != null) {
+            return _unwrapJsEnvelope(jsonCandidate);
+          }
+          final seeds = _parseSeedsFromXmlString(trimmed, <String>{});
+          if (seeds.isNotEmpty) {
+            return seeds;
+          }
+          return trimmed;
+        }
+        return _unwrapJsEnvelope(data);
+      }
+    }
+    return node;
+  }
+
+  dynamic _tryDecodeJson(String source) {
+    try {
+      return jsonDecode(source);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<_CategorySeed> _parseSeedsFromXmlString(
+    String source,
+    Set<String> visitedStrings,
+  ) {
+    final results = <_CategorySeed>[];
+    xml.XmlDocument document;
+    try {
+      document = xml.XmlDocument.parse(source);
+    } catch (_) {
+      return results;
+    }
+
+    for (final dataNode in document.findAllElements('data')) {
+      final inner = dataNode.innerText.trim();
+      if (inner.isEmpty || !visitedStrings.add(inner)) {
+        continue;
+      }
+      final jsonCandidate = _tryDecodeJson(inner);
+      if (jsonCandidate != null) {
+        results
+            .addAll(_parseStalkerCategorySeeds(jsonCandidate, visitedStrings));
+        continue;
+      }
+      try {
+        final nestedDoc = xml.XmlDocument.parse(inner);
+        results.addAll(_extractSeedsFromXmlDocument(nestedDoc));
+      } catch (_) {
+        // ignore nested parse errors
+      }
+    }
+
+    results.addAll(_extractSeedsFromXmlDocument(document));
+    return results;
+  }
+
+  List<_CategorySeed> _extractSeedsFromXmlDocument(xml.XmlDocument document) {
+    final seeds = <_CategorySeed>[];
+
+    void collect(Iterable<xml.XmlElement> nodes) {
+      for (final node in nodes) {
+        final seed = _categorySeedFromXmlElement(node);
+        if (seed != null) {
+          seeds.add(seed);
+        }
+      }
+    }
+
+    collect(document.findAllElements('category'));
+    if (seeds.isEmpty) {
+      collect(document.findAllElements('item'));
+    }
+    if (seeds.isEmpty) {
+      collect(document.findAllElements('group'));
+    }
+
+    return seeds;
+  }
+
+  _CategorySeed? _categorySeedFromXmlElement(xml.XmlElement element) {
+    String id = _coerceScalar(
+      element.getAttribute('id') ??
+          element.getAttribute('category_id') ??
+          element.getAttribute('cat_id') ??
+          element.getAttribute('cid') ??
+          element.getElement('id')?.innerText ??
+          element.getElement('category_id')?.innerText ??
+          element.getElement('cat_id')?.innerText ??
+          element.getElement('cid')?.innerText ??
+          element.getElement('genre_id')?.innerText,
+    );
+
+  String name = _coerceScalar(
+    element.getAttribute('title') ??
+        element.getAttribute('name') ??
+        element.getAttribute('category_title') ??
+        element.getAttribute('category_name') ??
+        element.getAttribute('group_title') ??
+        element.getElement('title')?.innerText ??
+        element.getElement('name')?.innerText ??
+        element.getElement('category_title')?.innerText ??
+        element.getElement('category_name')?.innerText ??
+        element.getElement('group_title')?.innerText,
+  );
+
+  final count = _parseCountValue(
+    element.getAttribute('items_count') ??
+        element.getAttribute('total_items') ??
+        element.getElement('items_count')?.innerText ??
+        element.getElement('total_items')?.innerText,
+  );
+
+  if (name.isEmpty) {
+    name = id;
+  }
+  if (id.isEmpty) {
+    id = name;
+    }
+    id = id.trim();
+    name = name.trim();
+  if (id.isEmpty && name.isEmpty) {
+    return null;
+  }
+  return _CategorySeed(
+    id: id,
+    name: name,
+    initialCount: count,
+  );
+}
+
+
   Future<List<CategoryEntry>> _attachCategoryCounts({
     required StalkerPortalConfiguration config,
     required StalkerSession session,
@@ -328,17 +687,87 @@ class _StalkerCategoriesFetcher {
     required List<_CategorySeed> seeds,
   }) async {
     final results = <CategoryEntry>[];
-    final tasks = <Future<CategoryEntry?>>[];
+    final seedsNeedingFetch = <_CategorySeed>[];
 
-    Future<CategoryEntry?> loadCount(_CategorySeed seed) async {
-      try {
+    for (final seed in seeds) {
+      if (seed.initialCount != null) {
+        results.add(
+          CategoryEntry(name: seed.name, count: seed.initialCount),
+        );
+      } else {
+        seedsNeedingFetch.add(seed);
+      }
+    }
+
+    if (seedsNeedingFetch.isNotEmpty) {
+      final tasks = <Future<CategoryEntry?>>[];
+
+      Future<CategoryEntry?> loadCount(_CategorySeed seed) async {
+        try {
+          final response = await _client
+              .getPortal(
+                config,
+                queryParameters: {
+                  'type': module,
+                  'action': 'get_ordered_list',
+                  if (seed.id.isNotEmpty) 'genre': seed.id,
+                  'p': '1',
+                  'JsHttpRequest': '1-xml',
+                  'token': session.token,
+                  'mac': config.macAddress.toLowerCase(),
+                },
+                headers: headers,
+              )
+              .timeout(const Duration(seconds: 3));
+          final total = _extractTotalItems(response.body);
+          return CategoryEntry(
+            name: seed.name,
+            count: total > 0 ? total : null,
+          );
+        } catch (error, stackTrace) {
+          if (kDebugMode) {
+            debugPrint(
+              redactSensitiveText(
+                'Stalker $module genre ${seed.id} failed: $error\n$stackTrace',
+              ),
+            );
+          }
+          return CategoryEntry(name: seed.name, count: null);
+        }
+      }
+
+      for (final seed in seedsNeedingFetch) {
+        tasks.add(loadCount(seed));
+        if (tasks.length == 4) {
+          final chunk = await Future.wait(tasks);
+          results.addAll(chunk.whereType<CategoryEntry>());
+          tasks.clear();
+        }
+      }
+
+      if (tasks.isNotEmpty) {
+        final chunk = await Future.wait(tasks);
+        results.addAll(chunk.whereType<CategoryEntry>());
+      }
+    }
+
+    results.sort((a, b) => a.name.compareTo(b.name));
+    return results;
+  }
+
+  Future<List<CategoryEntry>> _deriveCategoriesFromListing({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+  }) async {
+    try {
       final response = await _client
           .getPortal(
             config,
             queryParameters: {
               'type': module,
               'action': 'get_ordered_list',
-              'genre': seed.id,
               'p': '1',
               'JsHttpRequest': '1-xml',
               'token': session.token,
@@ -347,39 +776,65 @@ class _StalkerCategoriesFetcher {
             headers: headers,
           )
           .timeout(const Duration(seconds: 3));
-      final total = _extractTotalItems(response.body);
-      return CategoryEntry(
-        name: seed.name,
-        count: total > 0 ? total : null,
-      );
-      } catch (error, stackTrace) {
-        if (kDebugMode) {
-          debugPrint(
-            redactSensitiveText(
-              'Stalker $module genre ${seed.id} failed: $error\n$stackTrace',
-            ),
-          );
+      final envelope = _decodePortalMap(response.body);
+      final data = envelope['data'];
+      if (data is! List) {
+        return const [];
+      }
+
+      final buckets = <String, _CategoryAccumulator>{};
+
+      for (final rawItem in data) {
+        if (rawItem is! Map) continue;
+        final normalized = rawItem.map<String, dynamic>(
+          (key, value) => MapEntry(key.toString(), value),
+        );
+        final id = _coerceScalar(
+          normalized['genre_id'] ??
+              normalized['tv_genre_id'] ??
+              normalized['category_id'] ??
+              normalized['id'],
+        );
+        final name = _coerceScalar(
+          normalized['tv_genre_title'] ??
+              normalized['genre'] ??
+              normalized['category_title'] ??
+              normalized['title'],
+        );
+        if (id.isEmpty || name.isEmpty) {
+          continue;
         }
-        return CategoryEntry(name: seed.name, count: null);
+        final bucket = buckets.putIfAbsent(
+          id,
+          () => _CategoryAccumulator(name: name),
+        );
+        bucket.count += 1;
       }
-    }
 
-    for (final seed in seeds) {
-      tasks.add(loadCount(seed));
-      if (tasks.length == 4) {
-        final chunk = await Future.wait(tasks);
-        results.addAll(chunk.whereType<CategoryEntry>());
-        tasks.clear();
+      if (buckets.isEmpty) {
+        return const [];
       }
-    }
 
-    if (tasks.isNotEmpty) {
-      final chunk = await Future.wait(tasks);
-      results.addAll(chunk.whereType<CategoryEntry>());
+      final entries = buckets.entries
+          .map(
+            (entry) => CategoryEntry(
+              name: entry.value.name,
+              count: entry.value.count > 0 ? entry.value.count : null,
+            ),
+          )
+          .toList(growable: false)
+        ..sort((a, b) => a.name.compareTo(b.name));
+      return entries;
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker $module listing derive failed: $error\n$stackTrace',
+          ),
+        );
+      }
+      return const [];
     }
-
-    results.sort((a, b) => a.name.compareTo(b.name));
-    return results;
   }
 
   Future<int?> _loadModuleTotal({
@@ -688,82 +1143,50 @@ int _extractTotalItems(dynamic body) {
   return 0;
 }
 
-Iterable<dynamic>? _resolveCategoryIterable(dynamic root) {
-  final queue = <dynamic>[];
-
-  void enqueue(dynamic value) {
-    if (value == null) return;
-    if (value is String && value.trim().isEmpty) return;
-    queue.add(value);
-  }
-
-  enqueue(root);
-
-  while (queue.isNotEmpty) {
-    final current = queue.removeAt(0);
-    if (current == null) continue;
-    if (current is Iterable && current is! String) {
-      final iterable = current.toList(growable: false);
-      if (iterable.isEmpty) {
-        continue;
-      }
-      return iterable;
-    }
-    if (current is Map) {
-      final normalized = current.map<String, dynamic>(
-        (key, value) => MapEntry(key.toString(), value),
-      );
-      enqueue(normalized['categories']);
-      enqueue(normalized['data']);
-      enqueue(normalized['js']);
-      if (normalized.isNotEmpty) {
-        enqueue(
-          normalized.entries.map(
-            (entry) => [entry.key, entry.value],
-          ),
-        );
-      }
-      continue;
-    }
-    if (current is String) {
-      final trimmed = current.trim();
-      if (trimmed.isEmpty) {
-        continue;
-      }
-      return [trimmed];
-    }
-    // Fallback: treat as single value
-    return [current];
-  }
-
-  return null;
-}
-
 _CategorySeed? _categorySeedFromDynamic(dynamic entry) {
   if (entry is Map) {
     final normalized = entry.map<String, dynamic>(
       (key, value) => MapEntry(key.toString(), value),
     );
-    final id = _coerceScalar(
+    var id = _coerceScalar(
       normalized['id'] ??
           normalized['category_id'] ??
           normalized['categoryid'] ??
+          normalized['cat_id'] ??
+          normalized['cid'] ??
+          normalized['tv_genre_id'] ??
           normalized['genre_id'] ??
           normalized['0'],
     );
     var name = _coerceScalar(
       normalized['title'] ??
           normalized['name'] ??
+          normalized['category_title'] ??
           normalized['category_name'] ??
+          normalized['group_title'] ??
+          normalized['tv_genre_title'] ??
+          normalized['title_ru'] ??
           normalized['1'],
+    );
+    final count = _parseCountValue(
+      normalized['items_count'] ??
+          normalized['total_items'] ??
+          normalized['count'] ??
+          normalized['channel_count'] ??
+          normalized['series_count'] ??
+          normalized['movies_count'] ??
+          normalized['records_count'],
     );
     if (name.isEmpty) {
       name = id;
     }
-    if (id.isEmpty || name.isEmpty) {
+    if (id.isEmpty) {
+      id = name;
+    }
+    if (id.isEmpty && name.isEmpty) {
       return null;
     }
-    return _CategorySeed(id: id, name: name);
+    return _CategorySeed(id: id, name: name, initialCount: count);
   }
   if (entry is Iterable) {
     final items = entry.toList(growable: false);
@@ -781,12 +1204,17 @@ _CategorySeed? _categorySeedFromDynamic(dynamic entry) {
       final name = _coerceScalar(
         items.length > 1 ? items[1] : null,
       );
+      final count = items.length > 2 ? _parseCountValue(items[2]) : null;
       if (id.isEmpty && name.isEmpty) {
         return null;
       }
       final resolvedId = id.isEmpty ? name : id;
       final resolvedName = name.isEmpty ? resolvedId : name;
-      return _CategorySeed(id: resolvedId, name: resolvedName);
+      return _CategorySeed(
+        id: resolvedId,
+        name: resolvedName,
+        initialCount: count,
+      );
     }
     return nestedSeeds.first;
   }
@@ -796,6 +1224,14 @@ _CategorySeed? _categorySeedFromDynamic(dynamic entry) {
     return _CategorySeed(id: id, name: id);
   }
   return null;
+}
+
+int? _parseCountValue(dynamic value) {
+  final text = _coerceScalar(value);
+  if (text.isEmpty) {
+    return null;
+  }
+  return int.tryParse(text);
 }
 
 String _coerceScalar(dynamic value) {

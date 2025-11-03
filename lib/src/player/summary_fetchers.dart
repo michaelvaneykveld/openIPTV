@@ -238,6 +238,7 @@ class _StalkerSummaryFetcher {
       _collectIfPresent(profileMap, fields, 'parent_password');
       _collectIfPresent(profileMap, fields, 'tariff_plan');
       _collectIfPresent(profileMap, fields, 'subscription_date');
+      _collectAdditionalFields(profileMap, fields);
 
       try {
         final accountResponse = await _client
@@ -260,6 +261,7 @@ class _StalkerSummaryFetcher {
           final label = _humanise(entry.key);
           fields.putIfAbsent(label, () => formatted);
         }
+        _collectAdditionalFields(accountMap, fields);
       } catch (error, stackTrace) {
         if (kDebugMode) {
           debugPrint(
@@ -392,6 +394,32 @@ class _StalkerSummaryFetcher {
     final formatted = _formatSummaryValue(key, value);
     if (formatted == null) return;
     target[_humanise(key)] = formatted;
+  }
+
+  void _collectAdditionalFields(
+    Map<String, dynamic> source,
+    Map<String, String> target,
+  ) {
+    const ignoredKeys = {
+      'status',
+      'parent_password',
+      'tariff_plan',
+      'subscription_date',
+    };
+    const sensitiveKeys = {'password', 'pass', 'token', 'pin'};
+
+    for (final entry in source.entries) {
+      final key = entry.key;
+      final lowerKey = key.toLowerCase();
+      if (ignoredKeys.contains(lowerKey)) continue;
+      if (sensitiveKeys.any((s) => lowerKey.contains(s))) continue;
+      final value = entry.value;
+      if (value is Map || value is Iterable) continue;
+      final formatted = _formatSummaryValue(key, value);
+      if (formatted == null) continue;
+      final label = _humanise(key);
+      target.putIfAbsent(label, () => formatted);
+    }
   }
 
   String _humanise(String key) {

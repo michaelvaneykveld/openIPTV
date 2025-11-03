@@ -32,7 +32,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/ui/discovery_cache_manager.dart';
-import 'package:openiptv/src/ui/player/player_shell.dart';
+import 'package:openiptv/src/ui/player/player_shell.dart' as player;
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
@@ -1618,9 +1618,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
 
         flowController.setStalkerFieldErrors();
-        _showSuccessSnackBar('Connected successfully.');
-        await _navigateToPlayer(result.profile);
-        flowController.resetTestProgress();
+        flowController.setTestSummary(
+          LoginTestSummary(
+            providerType: LoginProviderType.stalker,
+            profileId: result.profile.record.id,
+            profile: result.profile,
+            channelCount: channelCount,
+          ),
+        );
+        if (!mounted) return;
+        _showSuccessSnackBar(
+          'Connected successfully. Review the summary and continue when ready.',
+        );
         return;
       } catch (error, stackTrace) {
         _logError('Stalker profile save error', error, stackTrace);
@@ -1940,9 +1949,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
 
         flowController.setXtreamFieldErrors();
-        _showSuccessSnackBar('Connected successfully.');
-        await _navigateToPlayer(result.profile);
-        flowController.resetTestProgress();
+        flowController.setTestSummary(
+          LoginTestSummary(
+            providerType: LoginProviderType.xtream,
+            profileId: result.profile.record.id,
+            profile: result.profile,
+            channelCount: channelCount,
+            epgDaySpan: epgDaySpan,
+          ),
+        );
+        if (!mounted) return;
+        _showSuccessSnackBar(
+          'Connected successfully. Review the summary and continue when ready.',
+        );
         return;
       } catch (error, stackTrace) {
         _logError('Xtream profile save error', error, stackTrace);
@@ -2568,9 +2587,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
 
         flowController.setM3uFieldErrors();
-        _showSuccessSnackBar('Connected successfully.');
-        await _navigateToPlayer(result.profile);
-        flowController.resetTestProgress();
+        flowController.setTestSummary(
+          LoginTestSummary(
+            providerType: LoginProviderType.m3u,
+            profileId: result.profile.record.id,
+            profile: result.profile,
+            channelCount: channelCount,
+            epgDaySpan: epgDaySpan,
+          ),
+        );
+        if (!mounted) return;
+        _showSuccessSnackBar(
+          'Connected successfully. Review the summary and continue when ready.',
+        );
         return;
       } catch (error, stackTrace) {
         _logError('M3U profile save error', error, stackTrace);
@@ -2803,7 +2832,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => PlayerShell(profile: profile),
+        builder: (context) => player.PlayerShell(profile: profile),
       ),
     );
   }
@@ -3067,12 +3096,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// Temporary handler for the "Continue" affordance in the success summary.
   Future<void> _handleContinue(LoginTestSummary summary) async {
-    final resolved = await _loadResolvedProfile(profileId: summary.profileId);
-    if (resolved == null) {
-      _showSnack('Unable to open the saved profile. Please try again.');
-      return;
-    }
+    final resolved = await _loadResolvedProfile(
+          profileId: summary.profileId,
+          record: summary.profile.record,
+        ) ??
+        summary.profile;
+
     await _navigateToPlayer(resolved);
+    if (!mounted) return;
+    ref.read(loginFlowControllerProvider.notifier).resetTestProgress();
   }
 
   Future<void> _connectSavedProfile(ProviderProfileRecord record) async {

@@ -208,6 +208,20 @@ class _StalkerCategoriesFetcher {
           module: module,
         );
         if (seeds.isEmpty) {
+          final total = await _loadModuleTotal(
+            config: config,
+            session: session,
+            headers: headers,
+            module: module,
+          );
+          if (total != null && total > 0) {
+            return [
+              CategoryEntry(
+                name: _fallbackCategoryLabel(module),
+                count: total,
+              ),
+            ];
+          }
           return const [];
         }
         return _attachCategoryCounts(
@@ -263,33 +277,36 @@ class _StalkerCategoriesFetcher {
           )
           .timeout(const Duration(seconds: 3));
       final data = _decodePortalMap(response.body);
-      final items =
-          data['categories'] ??
-          data['data'] ??
-          data['js']?['data'] ??
-          data['js']?['categories'];
-      if (items is List) {
-        return items
-            .map((entry) {
-              if (entry is Map) {
-                final rawName =
-                    entry['title']?.toString() ?? entry['name']?.toString();
-                final rawId =
-                    entry['id'] ??
-                    entry['category_id'] ??
-                    entry['categoryid'] ??
-                    entry['genre_id'];
-                if (rawName == null || rawId == null) return null;
-                final name = rawName.trim();
-                if (name.isEmpty) return null;
-                final id = rawId.toString().trim();
-                if (id.isEmpty) return null;
-                return _CategorySeed(id: id, name: name);
-              }
-              return null;
-            })
-            .whereType<_CategorySeed>()
-            .toList(growable: false);
+      final rawItems = _resolveCategoryIterable(
+            data['categories'] ??
+                data['data'] ??
+                data['js'] ??
+                data,
+          ) ??
+          _resolveCategoryIterable(data);
+      Iterable<_CategorySeed> seedsFromIterable(Iterable<dynamic> iterable) {
+        return iterable.map<_CategorySeed?>((entry) {
+          try {
+            return _categorySeedFromDynamic(entry);
+          } catch (error, stackTrace) {
+            if (kDebugMode) {
+              debugPrint(
+                redactSensitiveText(
+                  'Failed to parse category seed: ${entry.runtimeType} '
+                  '$entry -> $error\n$stackTrace',
+                ),
+              );
+            }
+            return null;
+          }
+        }).whereType<_CategorySeed>();
+      }
+
+      if (rawItems != null) {
+        final seeds = seedsFromIterable(rawItems).toList(growable: false);
+        if (seeds.isNotEmpty) {
+          return seeds;
+        }
       }
     } catch (error, stackTrace) {
       if (kDebugMode) {
@@ -315,26 +332,26 @@ class _StalkerCategoriesFetcher {
 
     Future<CategoryEntry?> loadCount(_CategorySeed seed) async {
       try {
-        final response = await _client
-            .getPortal(
-              config,
-              queryParameters: {
-                'type': module,
-                'action': 'get_ordered_list',
-                'genre': seed.id,
-                'p': '1',
-                'JsHttpRequest': '1-xml',
-                'token': session.token,
-                'mac': config.macAddress.toLowerCase(),
-              },
-              headers: headers,
-            )
-            .timeout(const Duration(seconds: 3));
-        final total = _extractTotalItems(response.body);
-        return CategoryEntry(
-          name: seed.name,
-          count: total > 0 ? total : null,
-        );
+      final response = await _client
+          .getPortal(
+            config,
+            queryParameters: {
+              'type': module,
+              'action': 'get_ordered_list',
+              'genre': seed.id,
+              'p': '1',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 3));
+      final total = _extractTotalItems(response.body);
+      return CategoryEntry(
+        name: seed.name,
+        count: total > 0 ? total : null,
+      );
       } catch (error, stackTrace) {
         if (kDebugMode) {
           debugPrint(
@@ -363,6 +380,56 @@ class _StalkerCategoriesFetcher {
 
     results.sort((a, b) => a.name.compareTo(b.name));
     return results;
+  }
+
+  Future<int?> _loadModuleTotal({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+  }) async {
+    try {
+      final response = await _client
+          .getPortal(
+            config,
+            queryParameters: {
+              'type': module,
+              'action': 'get_ordered_list',
+              'p': '1',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 3));
+      final total = _extractTotalItems(response.body);
+      return total >= 0 ? total : null;
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker $module total fetch failed: $error\n$stackTrace',
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  String _fallbackCategoryLabel(String module) {
+    switch (module) {
+      case 'itv':
+        return 'All Live';
+      case 'vod':
+        return 'All Films';
+      case 'series':
+        return 'All Series';
+      case 'radio':
+        return 'All Radio';
+      default:
+        return 'All';
+    }
   }
 
   StalkerPortalConfiguration _buildConfiguration(
@@ -556,21 +623,33 @@ Map<String, String> _decodeCustomHeaders(ResolvedProviderProfile profile) {
 }
 
 Map<String, dynamic> _decodePortalMap(dynamic body) {
+  if (body == null) {
+    return const {};
+  }
   if (body is Map<String, dynamic>) {
     return body;
   }
   if (body is String) {
     final trimmed = body.trim();
+    if (trimmed.isEmpty) {
+      return const {};
+    }
     final cleaned = trimmed.startsWith('{')
         ? trimmed
-        : trimmed.replaceAll(RegExp(r'^\s*<!--|-->\s*$'), '');
-    final decoded = jsonDecode(cleaned);
-    if (decoded is Map<String, dynamic>) {
-      final js = decoded['js'];
-      if (js is Map<String, dynamic>) {
-        return js;
+        : trimmed
+            .replaceAll(RegExp(r'^\ufeff'), '')
+            .replaceAll(RegExp(r'^\s*<!--|-->\s*$'), '');
+    try {
+      final decoded = jsonDecode(cleaned);
+      if (decoded is Map<String, dynamic>) {
+        final js = decoded['js'];
+        if (js is Map<String, dynamic>) {
+          return js;
+        }
+        return decoded;
       }
-      return decoded;
+    } on FormatException {
+      return const {};
     }
   }
   return const {};
@@ -607,6 +686,147 @@ int _extractTotalItems(dynamic body) {
     return int.tryParse(total) ?? 0;
   }
   return 0;
+}
+
+Iterable<dynamic>? _resolveCategoryIterable(dynamic root) {
+  final queue = <dynamic>[];
+
+  void enqueue(dynamic value) {
+    if (value == null) return;
+    if (value is String && value.trim().isEmpty) return;
+    queue.add(value);
+  }
+
+  enqueue(root);
+
+  while (queue.isNotEmpty) {
+    final current = queue.removeAt(0);
+    if (current == null) continue;
+    if (current is Iterable && current is! String) {
+      final iterable = current.toList(growable: false);
+      if (iterable.isEmpty) {
+        continue;
+      }
+      return iterable;
+    }
+    if (current is Map) {
+      final normalized = current.map<String, dynamic>(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      enqueue(normalized['categories']);
+      enqueue(normalized['data']);
+      enqueue(normalized['js']);
+      if (normalized.isNotEmpty) {
+        enqueue(
+          normalized.entries.map(
+            (entry) => [entry.key, entry.value],
+          ),
+        );
+      }
+      continue;
+    }
+    if (current is String) {
+      final trimmed = current.trim();
+      if (trimmed.isEmpty) {
+        continue;
+      }
+      return [trimmed];
+    }
+    // Fallback: treat as single value
+    return [current];
+  }
+
+  return null;
+}
+
+_CategorySeed? _categorySeedFromDynamic(dynamic entry) {
+  if (entry is Map) {
+    final normalized = entry.map<String, dynamic>(
+      (key, value) => MapEntry(key.toString(), value),
+    );
+    final id = _coerceScalar(
+      normalized['id'] ??
+          normalized['category_id'] ??
+          normalized['categoryid'] ??
+          normalized['genre_id'] ??
+          normalized['0'],
+    );
+    var name = _coerceScalar(
+      normalized['title'] ??
+          normalized['name'] ??
+          normalized['category_name'] ??
+          normalized['1'],
+    );
+    if (name.isEmpty) {
+      name = id;
+    }
+    if (id.isEmpty || name.isEmpty) {
+      return null;
+    }
+    return _CategorySeed(id: id, name: name);
+  }
+  if (entry is Iterable) {
+    final items = entry.toList(growable: false);
+    final nestedSeeds = items
+        .map(_categorySeedFromDynamic)
+        .whereType<_CategorySeed>()
+        .toList(growable: false);
+    if (nestedSeeds.length == 1) {
+      return nestedSeeds.first;
+    }
+    if (nestedSeeds.isEmpty) {
+      final id = _coerceScalar(
+        items.isEmpty ? null : items.first,
+      );
+      final name = _coerceScalar(
+        items.length > 1 ? items[1] : null,
+      );
+      if (id.isEmpty && name.isEmpty) {
+        return null;
+      }
+      final resolvedId = id.isEmpty ? name : id;
+      final resolvedName = name.isEmpty ? resolvedId : name;
+      return _CategorySeed(id: resolvedId, name: resolvedName);
+    }
+    return nestedSeeds.first;
+  }
+  if (entry is String) {
+    final id = entry.trim();
+    if (id.isEmpty) return null;
+    return _CategorySeed(id: id, name: id);
+  }
+  return null;
+}
+
+String _coerceScalar(dynamic value) {
+  if (value == null) {
+    return '';
+  }
+  if (value is String) {
+    return value.trim();
+  }
+  if (value is num || value is bool) {
+    return value.toString();
+  }
+  if (value is Iterable) {
+    for (final element in value) {
+      final candidate = _coerceScalar(element);
+      if (candidate.isNotEmpty) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+  if (value is Map) {
+    for (final element in value.values) {
+      final candidate = _coerceScalar(element);
+      if (candidate.isNotEmpty) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+  return value.toString().trim();
 }
 
 Uri _withQuery(Uri base, Map<String, dynamic> params) {

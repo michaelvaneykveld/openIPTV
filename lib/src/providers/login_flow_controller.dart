@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 
 /// Supported IPTV protocol types. Keeping this scoped to the login flow
@@ -47,12 +48,14 @@ enum StepStatus { pending, inProgress, success, failure }
 class LoginTestSummary {
   final LoginProviderType providerType;
   final String profileId;
+  final ResolvedProviderProfile profile;
   final int? channelCount;
   final int? epgDaySpan;
 
   const LoginTestSummary({
     required this.providerType,
     required this.profileId,
+    required this.profile,
     this.channelCount,
     this.epgDaySpan,
   });

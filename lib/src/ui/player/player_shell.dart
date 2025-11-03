@@ -20,8 +20,7 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync =
-        ref.watch(categoriesDataProvider(widget.profile));
+    final categoriesAsync = ref.watch(categoriesDataProvider(widget.profile));
     final summaryAsync = ref.watch(summaryDataProvider(widget.profile));
 
     final isReloadingCategories = categoriesAsync.isLoading;
@@ -48,9 +47,7 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
               onPressed: isReloadingCategories
                   ? null
                   : () {
-                      ref.invalidate(
-                        categoriesDataProvider(widget.profile),
-                      );
+                      ref.invalidate(categoriesDataProvider(widget.profile));
                     },
               tooltip: 'Reload categories',
               child: const Icon(Icons.refresh),
@@ -64,18 +61,16 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
           child: _showSummary
               ? summaryAsync.when(
                   data: (data) => _SummaryView(data: data),
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  error: (error, stackTrace) => _CategoriesError(
-                    message: error.toString(),
-                  ),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (error, stackTrace) =>
+                      _CategoriesError(message: error.toString()),
                 )
               : categoriesAsync.when(
-                  data: (data) => _CategoriesView(data: data),
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  data: (data) =>
+                      _CategoriesView(profile: widget.profile, data: data),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
                   error: (error, stackTrace) =>
                       _CategoriesError(message: error.toString()),
                 ),
@@ -94,11 +89,7 @@ class _SummaryView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final chips = data.counts.entries
-        .map(
-          (entry) => Chip(
-            label: Text('${entry.key}: ${entry.value}'),
-          ),
-        )
+        .map((entry) => Chip(label: Text('${entry.key}: ${entry.value}')))
         .toList(growable: false);
 
     return Center(
@@ -137,21 +128,14 @@ class _SummaryView extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Expanded(
-                            flex: 2,
-                            child: Text(entry.value),
-                          ),
+                          Expanded(flex: 2, child: Text(entry.value)),
                         ],
                       ),
                     ),
                   ),
                 if (chips.isNotEmpty) ...[
                   const Divider(),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: chips,
-                  ),
+                  Wrap(spacing: 12, runSpacing: 12, children: chips),
                 ],
                 if (chips.isEmpty && data.fields.isEmpty)
                   const Text('No metadata available yet.'),
@@ -174,8 +158,9 @@ class _SummaryView extends StatelessWidget {
 }
 
 class _CategoriesView extends StatelessWidget {
-  const _CategoriesView({required this.data});
+  const _CategoriesView({required this.profile, required this.data});
 
+  final ResolvedProviderProfile profile;
   final CategoryMap data;
 
   static final Map<ContentBucket, (String, IconData)> _bucketMeta = {
@@ -227,21 +212,137 @@ class _CategoriesView extends StatelessWidget {
         subtitle: total > 0 ? Text('$total items') : null,
         children: categories
             .map(
-              (category) => ListTile(
-                leading: Icon(
-                  icon,
-                  color: theme.colorScheme.secondary,
-                  size: 20,
-                ),
-                title: Text(category.name),
-                trailing: Text(
-                  category.count?.toString() ?? '—',
-                  style: theme.textTheme.labelLarge,
-                ),
-                onTap: () {},
+              (category) => _CategoryTile(
+                profile: profile,
+                bucket: bucket,
+                category: category,
+                icon: icon,
               ),
             )
             .toList(),
+      ),
+    );
+  }
+}
+
+class _CategoryTile extends ConsumerStatefulWidget {
+  const _CategoryTile({
+    required this.profile,
+    required this.bucket,
+    required this.category,
+    required this.icon,
+  });
+
+  final ResolvedProviderProfile profile;
+  final ContentBucket bucket;
+  final CategoryEntry category;
+  final IconData icon;
+
+  @override
+  ConsumerState<_CategoryTile> createState() => _CategoryTileState();
+}
+
+class _CategoryTileState extends ConsumerState<_CategoryTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final previewAsync = _expanded
+        ? ref.watch(
+            categoryPreviewProvider(
+              CategoryPreviewRequest(
+                profile: widget.profile,
+                bucket: widget.bucket,
+                categoryId: widget.category.id,
+              ),
+            ),
+          )
+        : null;
+
+    Widget? preview;
+    if (_expanded && previewAsync != null) {
+      preview = previewAsync.when(
+        data: (items) => _CategoryPreviewList(items: items, icon: widget.icon),
+        loading: () => const Padding(
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        error: (error, stackTrace) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          child: Text(
+            error.toString(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+      leading: Icon(widget.icon, color: theme.colorScheme.secondary),
+      title: Text(widget.category.name),
+      trailing: Text(
+        widget.category.count?.toString() ?? '--',
+        style: theme.textTheme.labelLarge,
+      ),
+      onExpansionChanged: (value) {
+        setState(() {
+          _expanded = value;
+        });
+      },
+      childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
+      children: preview == null ? const [] : [preview],
+    );
+  }
+}
+
+class _CategoryPreviewList extends StatelessWidget {
+  const _CategoryPreviewList({required this.items, required this.icon});
+
+  final List<CategoryPreviewItem> items;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Text('No preview items yet.'),
+      );
+    }
+
+    final theme = Theme.of(context);
+
+    return Column(
+      children: [
+        for (final item in items)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: _buildLeading(theme, item),
+            title: Text(item.title),
+            subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildLeading(ThemeData theme, CategoryPreviewItem item) {
+    if (item.artUri == null || item.artUri!.isEmpty) {
+      return Icon(icon, size: 20, color: theme.colorScheme.secondary);
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Image.network(
+        item.artUri!,
+        width: 36,
+        height: 36,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) =>
+            Icon(icon, size: 20, color: theme.colorScheme.secondary),
       ),
     );
   }

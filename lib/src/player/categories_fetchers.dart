@@ -20,20 +20,59 @@ import 'package:openiptv/src/utils/url_redaction.dart';
 enum ContentBucket { live, films, series, radio }
 
 class CategoryEntry {
-  CategoryEntry({required this.name, this.count});
+  CategoryEntry({required this.id, required this.name, this.count});
 
+  final String id;
   final String name;
   final int? count;
 }
 
-class _CategoryAccumulator {
-  _CategoryAccumulator({required this.name});
+class CategoryPreviewItem {
+  const CategoryPreviewItem({
+    required this.id,
+    required this.title,
+    this.subtitle,
+    this.artUri,
+  });
 
+  final String id;
+  final String title;
+  final String? subtitle;
+  final String? artUri;
+}
+
+class _CategoryAccumulator {
+  _CategoryAccumulator({required this.id, required this.name});
+
+  final String id;
   final String name;
   int count = 0;
 }
 
 typedef CategoryMap = Map<ContentBucket, List<CategoryEntry>>;
+
+class CategoryPreviewRequest {
+  const CategoryPreviewRequest({
+    required this.profile,
+    required this.bucket,
+    required this.categoryId,
+  });
+
+  final ResolvedProviderProfile profile;
+  final ContentBucket bucket;
+  final String categoryId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is CategoryPreviewRequest &&
+        other.profile == profile &&
+        other.bucket == bucket &&
+        other.categoryId == categoryId;
+  }
+
+  @override
+  int get hashCode => Object.hash(profile, bucket, categoryId);
+}
 
 class _CategorySeed {
   const _CategorySeed({
@@ -63,6 +102,15 @@ final categoriesDataProvider = FutureProvider.autoDispose
     .family<CategoryMap, ResolvedProviderProfile>((ref, profile) async {
       final coordinator = ref.read(categoriesCoordinatorProvider);
       return coordinator.fetch(profile);
+    });
+
+final categoryPreviewProvider = FutureProvider.autoDispose
+    .family<List<CategoryPreviewItem>, CategoryPreviewRequest>((
+      ref,
+      request,
+    ) async {
+      final coordinator = ref.read(categoriesCoordinatorProvider);
+      return coordinator.preview(request);
     });
 
 @visibleForTesting
@@ -99,6 +147,20 @@ class _CategoriesCoordinator {
         return _StalkerCategoriesFetcher(_ref).fetch(profile);
       case ProviderKind.m3u:
         return const _M3uCategoriesFetcher().fetch(profile);
+    }
+  }
+
+  Future<List<CategoryPreviewItem>> preview(CategoryPreviewRequest request) {
+    switch (request.profile.kind) {
+      case ProviderKind.xtream:
+      case ProviderKind.m3u:
+        return SynchronousFuture(const []);
+      case ProviderKind.stalker:
+        return _StalkerCategoriesFetcher(_ref).fetchPreview(
+          profile: request.profile,
+          bucket: request.bucket,
+          categoryId: request.categoryId,
+        );
     }
   }
 }
@@ -155,6 +217,10 @@ class _XtreamCategoriesFetcher {
                   if (name == null || name.trim().isEmpty) {
                     return null;
                   }
+                  final id =
+                      item['category_id']?.toString() ??
+                      item['id']?.toString() ??
+                      name;
                   final countValue =
                       item['category_series_count'] ??
                       item['category_count'] ??
@@ -162,7 +228,12 @@ class _XtreamCategoriesFetcher {
                   final count = countValue == null
                       ? null
                       : int.tryParse(countValue.toString());
-                  return CategoryEntry(name: name.trim(), count: count);
+                  final trimmedId = id.trim().isEmpty ? name.trim() : id.trim();
+                  return CategoryEntry(
+                    id: trimmedId,
+                    name: name.trim(),
+                    count: count,
+                  );
                 }
                 return null;
               })
@@ -217,8 +288,8 @@ class _StalkerCategoriesFetcher {
       final session = sessionLoader != null
           ? await sessionLoader(config)
           : await _ref
-              .read(stalkerSessionProvider(config).future)
-              .timeout(const Duration(seconds: 3));
+                .read(stalkerSessionProvider(config).future)
+                .timeout(const Duration(seconds: 3));
       final headers = session.buildAuthenticatedHeaders();
 
       Future<List<CategoryEntry>> load(String module) async {
@@ -258,6 +329,7 @@ class _StalkerCategoriesFetcher {
           if (moduleTotal != null && moduleTotal > 0) {
             return [
               CategoryEntry(
+                id: '*',
                 name: _fallbackCategoryLabel(module),
                 count: moduleTotal,
               ),
@@ -275,16 +347,17 @@ class _StalkerCategoriesFetcher {
           );
         }
 
-        final aggregateCount = moduleTotal ??
+        final aggregateCount =
+            moduleTotal ??
             categories.fold<int>(
               0,
-              (previousValue, element) =>
-                  previousValue + (element.count ?? 0),
+              (previousValue, element) => previousValue + (element.count ?? 0),
             );
 
         return [
           if (aggregateCount > 0)
             CategoryEntry(
+              id: '*',
               name: _fallbackCategoryLabel(module),
               count: aggregateCount,
             ),
@@ -312,6 +385,64 @@ class _StalkerCategoriesFetcher {
         );
       }
       return {};
+    }
+  }
+
+  Future<List<CategoryPreviewItem>> fetchPreview({
+    required ResolvedProviderProfile profile,
+    required ContentBucket bucket,
+    required String categoryId,
+    int limit = 12,
+  }) async {
+    final module = _moduleForBucket(bucket);
+    if (module == null) {
+      return const [];
+    }
+
+    final config = _buildConfiguration(profile);
+    if (config.macAddress.isEmpty) {
+      return const [];
+    }
+
+    try {
+      final sessionLoader = categoriesTestStalkerSessionLoader;
+      final session = sessionLoader != null
+          ? await sessionLoader(config)
+          : await _ref
+                .read(stalkerSessionProvider(config).future)
+                .timeout(const Duration(seconds: 3));
+      final headers = session.buildAuthenticatedHeaders();
+      final query = <String, dynamic>{
+        'type': module,
+        'action': 'get_ordered_list',
+        'p': '1',
+        'JsHttpRequest': '1-xml',
+        'token': session.token,
+        'mac': config.macAddress.toLowerCase(),
+      };
+      if (categoryId.isNotEmpty && categoryId != '*') {
+        query['genre'] = categoryId;
+      }
+
+      final response = await _client
+          .getPortal(config, queryParameters: query, headers: headers)
+          .timeout(const Duration(seconds: 10));
+
+      final items = _parsePreviewItems(
+        module: module,
+        body: response.body,
+        limit: limit,
+      );
+      return items;
+    } catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker $module preview $categoryId failed: $error\n$stackTrace',
+          ),
+        );
+      }
+      return const [];
     }
   }
 
@@ -374,11 +505,7 @@ class _StalkerCategoriesFetcher {
         query['JsHttpRequest'] = '1-xml';
       }
       final response = await _client
-          .getPortal(
-            config,
-            queryParameters: query,
-            headers: headers,
-          )
+          .getPortal(config, queryParameters: query, headers: headers)
           .timeout(const Duration(seconds: 3));
       final seeds = _parseStalkerCategorySeeds(response.body);
       if (seeds.isNotEmpty) {
@@ -414,19 +541,16 @@ class _StalkerCategoriesFetcher {
           query['JsHttpRequest'] = '1-xml';
         }
         final response = await _client
-            .getPortal(
-              config,
-              queryParameters: query,
-              headers: headers,
-            )
+            .getPortal(config, queryParameters: query, headers: headers)
             .timeout(const Duration(seconds: 3));
         if (kDebugMode) {
           final rawBody = response.body;
           final preview = rawBody is String
               ? rawBody
               : jsonEncode(rawBody ?? const {});
-          final truncated =
-              preview.length > 400 ? '${preview.substring(0, 400)}…' : preview;
+          final truncated = preview.length > 400
+              ? '${preview.substring(0, 400)}…'
+              : preview;
           debugPrint(
             redactSensitiveText(
               'Stalker $module get_genres '
@@ -588,8 +712,9 @@ class _StalkerCategoriesFetcher {
       }
       final jsonCandidate = _tryDecodeJson(inner);
       if (jsonCandidate != null) {
-        results
-            .addAll(_parseStalkerCategorySeeds(jsonCandidate, visitedStrings));
+        results.addAll(
+          _parseStalkerCategorySeeds(jsonCandidate, visitedStrings),
+        );
         continue;
       }
       try {
@@ -640,44 +765,39 @@ class _StalkerCategoriesFetcher {
           element.getElement('genre_id')?.innerText,
     );
 
-  String name = _coerceScalar(
-    element.getAttribute('title') ??
-        element.getAttribute('name') ??
-        element.getAttribute('category_title') ??
-        element.getAttribute('category_name') ??
-        element.getAttribute('group_title') ??
-        element.getElement('title')?.innerText ??
-        element.getElement('name')?.innerText ??
-        element.getElement('category_title')?.innerText ??
-        element.getElement('category_name')?.innerText ??
-        element.getElement('group_title')?.innerText,
-  );
+    String name = _coerceScalar(
+      element.getAttribute('title') ??
+          element.getAttribute('name') ??
+          element.getAttribute('category_title') ??
+          element.getAttribute('category_name') ??
+          element.getAttribute('group_title') ??
+          element.getElement('title')?.innerText ??
+          element.getElement('name')?.innerText ??
+          element.getElement('category_title')?.innerText ??
+          element.getElement('category_name')?.innerText ??
+          element.getElement('group_title')?.innerText,
+    );
 
-  final count = _parseCountValue(
-    element.getAttribute('items_count') ??
-        element.getAttribute('total_items') ??
-        element.getElement('items_count')?.innerText ??
-        element.getElement('total_items')?.innerText,
-  );
+    final count = _parseCountValue(
+      element.getAttribute('items_count') ??
+          element.getAttribute('total_items') ??
+          element.getElement('items_count')?.innerText ??
+          element.getElement('total_items')?.innerText,
+    );
 
-  if (name.isEmpty) {
-    name = id;
-  }
-  if (id.isEmpty) {
-    id = name;
+    if (name.isEmpty) {
+      name = id;
+    }
+    if (id.isEmpty) {
+      id = name;
     }
     id = id.trim();
     name = name.trim();
-  if (id.isEmpty && name.isEmpty) {
-    return null;
+    if (id.isEmpty && name.isEmpty) {
+      return null;
+    }
+    return _CategorySeed(id: id, name: name, initialCount: count);
   }
-  return _CategorySeed(
-    id: id,
-    name: name,
-    initialCount: count,
-  );
-}
-
 
   Future<List<CategoryEntry>> _attachCategoryCounts({
     required StalkerPortalConfiguration config,
@@ -692,7 +812,7 @@ class _StalkerCategoriesFetcher {
     for (final seed in seeds) {
       if (seed.initialCount != null) {
         results.add(
-          CategoryEntry(name: seed.name, count: seed.initialCount),
+          CategoryEntry(id: seed.id, name: seed.name, count: seed.initialCount),
         );
       } else {
         seedsNeedingFetch.add(seed);
@@ -710,7 +830,7 @@ class _StalkerCategoriesFetcher {
                 queryParameters: {
                   'type': module,
                   'action': 'get_ordered_list',
-                  if (seed.id.isNotEmpty) 'genre': seed.id,
+                  if (seed.id.isNotEmpty && seed.id != '*') 'genre': seed.id,
                   'p': '1',
                   'JsHttpRequest': '1-xml',
                   'token': session.token,
@@ -718,9 +838,10 @@ class _StalkerCategoriesFetcher {
                 },
                 headers: headers,
               )
-              .timeout(const Duration(seconds: 3));
+              .timeout(const Duration(seconds: 10));
           final total = _extractTotalItems(response.body);
           return CategoryEntry(
+            id: seed.id,
             name: seed.name,
             count: total > 0 ? total : null,
           );
@@ -732,7 +853,7 @@ class _StalkerCategoriesFetcher {
               ),
             );
           }
-          return CategoryEntry(name: seed.name, count: null);
+          return CategoryEntry(id: seed.id, name: seed.name, count: null);
         }
       }
 
@@ -806,7 +927,7 @@ class _StalkerCategoriesFetcher {
         }
         final bucket = buckets.putIfAbsent(
           id,
-          () => _CategoryAccumulator(name: name),
+          () => _CategoryAccumulator(id: id, name: name),
         );
         bucket.count += 1;
       }
@@ -815,15 +936,17 @@ class _StalkerCategoriesFetcher {
         return const [];
       }
 
-      final entries = buckets.entries
-          .map(
-            (entry) => CategoryEntry(
-              name: entry.value.name,
-              count: entry.value.count > 0 ? entry.value.count : null,
-            ),
-          )
-          .toList(growable: false)
-        ..sort((a, b) => a.name.compareTo(b.name));
+      final entries =
+          buckets.entries
+              .map(
+                (entry) => CategoryEntry(
+                  id: entry.value.id,
+                  name: entry.value.name,
+                  count: entry.value.count > 0 ? entry.value.count : null,
+                ),
+              )
+              .toList(growable: false)
+            ..sort((a, b) => a.name.compareTo(b.name));
       return entries;
     } catch (error, stackTrace) {
       if (kDebugMode) {
@@ -885,6 +1008,140 @@ class _StalkerCategoriesFetcher {
       default:
         return 'All';
     }
+  }
+
+  String? _moduleForBucket(ContentBucket bucket) {
+    switch (bucket) {
+      case ContentBucket.live:
+        return 'itv';
+      case ContentBucket.films:
+        return 'vod';
+      case ContentBucket.series:
+        return 'series';
+      case ContentBucket.radio:
+        return 'radio';
+    }
+  }
+
+  List<CategoryPreviewItem> _parsePreviewItems({
+    required String module,
+    required dynamic body,
+    required int limit,
+  }) {
+    final map = _decodePortalMap(body);
+    final data = map['data'];
+    if (data is! List) {
+      return const [];
+    }
+
+    final items = <CategoryPreviewItem>[];
+    for (final raw in data) {
+      if (raw is! Map) continue;
+      final normalized = raw.map<String, dynamic>(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      final id = _resolvePreviewId(normalized);
+      final title = _resolvePreviewTitle(normalized);
+      if (title.isEmpty) {
+        continue;
+      }
+      final subtitle = _composePreviewSubtitle(module, normalized);
+      final art = _coerceScalar(
+        normalized['logo'] ??
+            normalized['cover_big'] ??
+            normalized['cover'] ??
+            normalized['poster'] ??
+            normalized['stream_icon'] ??
+            normalized['icon'] ??
+            normalized['image'],
+      );
+      items.add(
+        CategoryPreviewItem(
+          id: id.isEmpty ? title : id,
+          title: title,
+          subtitle: subtitle?.isEmpty == true ? null : subtitle,
+          artUri: art.isNotEmpty ? art : null,
+        ),
+      );
+      if (items.length >= limit) {
+        break;
+      }
+    }
+    return items;
+  }
+
+  String _resolvePreviewId(Map<String, dynamic> item) {
+    return _coerceScalar(
+      item['id'] ??
+          item['ch_id'] ??
+          item['channel_id'] ??
+          item['stream_id'] ??
+          item['series_id'] ??
+          item['video_id'] ??
+          item['number'],
+    );
+  }
+
+  String _resolvePreviewTitle(Map<String, dynamic> item) {
+    return _coerceScalar(
+      item['name'] ??
+          item['title'] ??
+          item['series_name'] ??
+          item['o_name'] ??
+          item['fname'] ??
+          item['cmd'],
+    );
+  }
+
+  String? _composePreviewSubtitle(String module, Map<String, dynamic> item) {
+    final parts = <String>[];
+    final number = _coerceScalar(item['number']);
+    final quality = _coerceScalar(
+      item['quality'] ?? item['format'] ?? item['type'],
+    );
+    final year = _coerceScalar(item['year'] ?? item['addtime']);
+    final duration = _coerceScalar(item['duration'] ?? item['time']);
+    final rating = _coerceScalar(item['rating'] ?? item['rating_imdb']);
+    final season = _coerceScalar(item['season']);
+    final episode = _coerceScalar(item['episode'] ?? item['series']);
+    final codec = _coerceScalar(item['codec']);
+
+    if (module == 'itv') {
+      if (number.isNotEmpty) {
+        parts.add('#$number');
+      }
+      if (quality.isNotEmpty) {
+        parts.add(quality);
+      }
+    } else {
+      if (year.isNotEmpty) {
+        parts.add(year);
+      }
+      if (season.isNotEmpty || episode.isNotEmpty) {
+        final buffer = [
+          if (season.isNotEmpty) 'S${season.padLeft(2, '0')}',
+          if (episode.isNotEmpty) 'E${episode.padLeft(2, '0')}',
+        ].join();
+        if (buffer.isNotEmpty) {
+          parts.add(buffer);
+        }
+      }
+      if (duration.isNotEmpty) {
+        parts.add(duration);
+      }
+      if (rating.isNotEmpty) {
+        parts.add('Rating $rating');
+      }
+    }
+
+    if (codec.isNotEmpty) {
+      parts.add(codec);
+    }
+
+    if (parts.isEmpty) {
+      return null;
+    }
+    return parts.join(' · ');
   }
 
   StalkerPortalConfiguration _buildConfiguration(
@@ -1033,7 +1290,11 @@ class _M3uCategoriesFetcher {
       final entries =
           value.entries
               .map(
-                (entry) => CategoryEntry(name: entry.key, count: entry.value),
+                (entry) => CategoryEntry(
+                  id: entry.key,
+                  name: entry.key,
+                  count: entry.value,
+                ),
               )
               .toList(growable: false)
             ..sort((a, b) => a.name.compareTo(b.name));
@@ -1092,8 +1353,8 @@ Map<String, dynamic> _decodePortalMap(dynamic body) {
     final cleaned = trimmed.startsWith('{')
         ? trimmed
         : trimmed
-            .replaceAll(RegExp(r'^\ufeff'), '')
-            .replaceAll(RegExp(r'^\s*<!--|-->\s*$'), '');
+              .replaceAll(RegExp(r'^\ufeff'), '')
+              .replaceAll(RegExp(r'^\s*<!--|-->\s*$'), '');
     try {
       final decoded = jsonDecode(cleaned);
       if (decoded is Map<String, dynamic>) {
@@ -1198,12 +1459,8 @@ _CategorySeed? _categorySeedFromDynamic(dynamic entry) {
       return nestedSeeds.first;
     }
     if (nestedSeeds.isEmpty) {
-      final id = _coerceScalar(
-        items.isEmpty ? null : items.first,
-      );
-      final name = _coerceScalar(
-        items.length > 1 ? items[1] : null,
-      );
+      final id = _coerceScalar(items.isEmpty ? null : items.first);
+      final name = _coerceScalar(items.length > 1 ? items[1] : null);
       final count = items.length > 2 ? _parseCountValue(items[2]) : null;
       if (id.isEmpty && name.isEmpty) {
         return null;

@@ -19,11 +19,11 @@
 - [x] Write schema unit tests creating the in-memory DB and asserting constraints/indexes. -> test/data/db/schema_phase1_test.dart.
 
 ## DAO & Repository Layer (Phase 1)
-- [ ] Implement `ProviderDao` with CRUD, last-sync tracking, and display metadata helpers.
-- [ ] Implement `ChannelDao` with upsert-by-provider-key, tombstoning, and category linking helpers.
-- [ ] Implement `CategoryDao` with upsert, ordering, and lookup APIs.
-- [ ] Implement `SummaryDao` for pre-computed counts and provider snapshots.
-- [ ] Create repositories that orchestrate DAOs and expose watch/stream APIs for UI/state.
+- [x] Implement `ProviderDao` with CRUD, last-sync tracking, and display metadata helpers. -> `lib/data/db/dao/provider_dao.dart`.
+- [x] Implement `ChannelDao` with upsert-by-provider-key, tombstoning, and category linking helpers. -> `lib/data/db/dao/channel_dao.dart`.
+- [x] Implement `CategoryDao` with upsert, ordering, and lookup APIs. -> `lib/data/db/dao/category_dao.dart`.
+- [x] Implement `SummaryDao` for pre-computed counts and provider snapshots. -> `lib/data/db/dao/summary_dao.dart`.
+- [x] Create repositories that orchestrate DAOs and expose watch/stream APIs for UI/state. -> `lib/data/repositories/*`.
 
 ## Import Pipelines – Foundations
 - [ ] Build a shared `ImportContext` abstraction (transaction wrapper, conflict handling, metrics).

@@ -26,12 +26,12 @@
 - [x] Create repositories that orchestrate DAOs and expose watch/stream APIs for UI/state. -> `lib/data/repositories/*`.
 
 ## Import Pipelines – Foundations
-- [ ] Build a shared `ImportContext` abstraction (transaction wrapper, conflict handling, metrics).
-- [ ] Implement Xtream importer (live categories + channels) with delta upserts and summary recompute.
-- [ ] Implement Stalker importer (live categories + channels) respecting provider-specific keys.
-- [ ] Implement M3U importer (group-based categories, radio/live split).
-- [ ] Ensure all importers mark missing rows as tombstoned, and emit summary totals.
-- [ ] Add retry/backoff wrappers and guardrails for malformed payloads per provider.
+- [x] Build a shared `ImportContext` abstraction (transaction wrapper, conflict handling, metrics). -> `lib/data/import/import_context.dart`.
+- [x] Implement Xtream importer (live categories + channels) with delta upserts and summary recompute. -> `lib/data/import/xtream_importer.dart`.
+- [x] Implement Stalker importer (live categories + channels) respecting provider-specific keys. -> `lib/data/import/stalker_importer.dart`.
+- [x] Implement M3U importer (group-based categories, radio/live split). -> `lib/data/import/m3u_importer.dart`.
+- [x] Ensure all importers mark missing rows as tombstoned, and emit summary totals. -> ChannelDao + importers use tombstone/purge logic.
+- [x] Add retry/backoff wrappers and guardrails for malformed payloads per provider. -> `ImportContext.runWithRetry`.
 
 ## Schema Phase 2 – EPG & Search
 - [ ] Add `epg_programs` table with indexes (`channel_id` + time window) and optional FTS mirror.
@@ -97,3 +97,4 @@
 - [ ] Verify migration + downgrade paths on actual devices.
 - [ ] Prepare rollback plan (ability to clear DB safely without losing secure secrets).
 - [ ] Update internal docs/readme with new architecture, maintenance commands, and troubleshooting steps.
+

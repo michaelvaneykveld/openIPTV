@@ -159,7 +159,11 @@ class _CategoriesCoordinator {
           categoryId: request.categoryId,
         );
       case ProviderKind.m3u:
-        return SynchronousFuture(const []);
+        return const _M3uCategoriesFetcher().fetchPreview(
+          request.profile,
+          request.bucket,
+          request.categoryId,
+        );
       case ProviderKind.stalker:
         return _StalkerCategoriesFetcher(_ref).fetchPreview(
           profile: request.profile,
@@ -1365,6 +1369,12 @@ class _StalkerCategoriesFetcher {
 class _M3uCategoriesFetcher {
   const _M3uCategoriesFetcher();
 
+  static const int _previewLimitPerCategory = 12;
+  static const Duration _previewTtl = Duration(minutes: 5);
+  static const String _defaultGroupLabel = 'Ungrouped';
+
+  static final Map<String, _M3uPreviewCacheEntry> _previewCache = {};
+
   Future<CategoryMap> fetch(ResolvedProviderProfile profile) async {
     final source =
         profile.secrets['playlistUrl'] ?? profile.lockedBase.toString();
@@ -1375,13 +1385,45 @@ class _M3uCategoriesFetcher {
     final uri = Uri.tryParse(source);
     if (uri == null) return {};
 
-    if (uri.scheme.startsWith('http')) {
-      return _fetchRemote(uri, profile);
-    }
-    return _fetchLocal(uri);
+    final result = uri.scheme.startsWith('http')
+        ? await _fetchRemote(uri, profile)
+        : await _fetchLocal(uri);
+
+    _storePreview(profile, result.previews);
+    return result.categories;
   }
 
-  Future<CategoryMap> _fetchRemote(
+  Future<List<CategoryPreviewItem>> fetchPreview(
+    ResolvedProviderProfile profile,
+    ContentBucket bucket,
+    String categoryId, {
+    int limit = _previewLimitPerCategory,
+  }) async {
+    final cacheKey = _cacheKey(profile);
+    final normalizedGroup = _normalizeGroup(categoryId);
+    final now = DateTime.now();
+
+    final entry = _previewCache[cacheKey];
+    if (entry != null && !entry.isExpired(now, _previewTtl)) {
+      final items = entry.lookup(bucket, normalizedGroup);
+      if (items != null) {
+        return SynchronousFuture(_truncate(items, limit));
+      }
+    }
+
+    await fetch(profile);
+    final refreshed = _previewCache[cacheKey];
+    if (refreshed == null) {
+      return const [];
+    }
+    final items = refreshed.lookup(bucket, normalizedGroup);
+    if (items == null) {
+      return const [];
+    }
+    return _truncate(items, limit);
+  }
+
+  Future<_M3uParseResult> _fetchRemote(
     Uri uri,
     ResolvedProviderProfile profile,
   ) async {
@@ -1426,18 +1468,18 @@ class _M3uCategoriesFetcher {
           ),
         );
       }
-      return {};
+      return _M3uParseResult.empty();
     } on DioException catch (error) {
       if (kDebugMode) {
         debugPrint(redactSensitiveText('M3U categories fetch failed: $error'));
       }
-      return {};
+      return _M3uParseResult.empty();
     }
   }
 
-  Future<CategoryMap> _fetchLocal(Uri uri) async {
+  Future<_M3uParseResult> _fetchLocal(Uri uri) async {
     final file = File.fromUri(uri);
-    if (!await file.exists()) return {};
+    if (!await file.exists()) return _M3uParseResult.empty();
     final stream = file
         .openRead()
         .map<List<int>>((chunk) => chunk)
@@ -1446,49 +1488,58 @@ class _M3uCategoriesFetcher {
     return _consumeLines(stream);
   }
 
-  Future<CategoryMap> _consumeLines(Stream<String> lines) async {
-    final buckets = <ContentBucket, Map<String, int>>{
+  Future<_M3uParseResult> _consumeLines(Stream<String> lines) async {
+    final counts = <ContentBucket, Map<String, int>>{
       ContentBucket.live: <String, int>{},
       ContentBucket.films: <String, int>{},
       ContentBucket.series: <String, int>{},
       ContentBucket.radio: <String, int>{},
     };
+    final previews = <ContentBucket, Map<String, List<CategoryPreviewItem>>>{
+      ContentBucket.live: <String, List<CategoryPreviewItem>>{},
+      ContentBucket.films: <String, List<CategoryPreviewItem>>{},
+      ContentBucket.series: <String, List<CategoryPreviewItem>>{},
+      ContentBucket.radio: <String, List<CategoryPreviewItem>>{},
+    };
+
+    _PendingM3uItem? pending;
 
     await for (final rawLine in lines) {
       final line = rawLine.trim();
-      if (!line.startsWith('#EXTINF')) continue;
+      if (line.isEmpty) continue;
 
-      final lowered = line.toLowerCase();
-      final name = _extractAttribute(line, 'tvg-name')?.toLowerCase() ?? '';
-      final groupTitle =
-          _extractAttribute(line, 'group-title')?.trim() ?? 'Ungrouped';
-
-      if (lowered.contains('radio="true"') ||
-          name.contains('radio') ||
-          _looksLikeRadioGroup(groupTitle.toLowerCase())) {
-        _increment(buckets[ContentBucket.radio]!, groupTitle);
-        continue;
+      if (line.startsWith('#EXTINF')) {
+        if (pending != null) {
+          _finalizePending(previews, pending);
+        }
+        pending = _parseExtinf(line);
+        if (pending == null) {
+          continue;
+        }
+        _increment(counts[pending.bucket]!, pending.group);
+      } else if (line.toUpperCase().startsWith('#EXTGRP')) {
+        final group = line.substring(line.indexOf(':') + 1).trim();
+        if (group.isNotEmpty && pending != null) {
+          pending = pending.copyWith(group: group);
+        }
+      } else if (!line.startsWith('#')) {
+        if (pending != null) {
+          pending = pending.copyWith(url: line);
+          _finalizePending(previews, pending);
+          pending = null;
+        }
       }
-
-      if (name.contains('series') ||
-          _looksLikeSeriesGroup(groupTitle.toLowerCase())) {
-        _increment(buckets[ContentBucket.series]!, groupTitle);
-        continue;
-      }
-
-      if (name.contains('movie') ||
-          _looksLikeVodGroup(groupTitle.toLowerCase()) ||
-          lowered.contains('catchup="vod"')) {
-        _increment(buckets[ContentBucket.films]!, groupTitle);
-        continue;
-      }
-
-      _increment(buckets[ContentBucket.live]!, groupTitle);
     }
 
-    return buckets.map((key, value) {
+    if (pending != null) {
+      _finalizePending(previews, pending);
+    }
+
+    final categories = <ContentBucket, List<CategoryEntry>>{};
+    counts.forEach((bucket, groupCounts) {
+      if (groupCounts.isEmpty) return;
       final entries =
-          value.entries
+          groupCounts.entries
               .map(
                 (entry) => CategoryEntry(
                   id: entry.key,
@@ -1498,12 +1549,262 @@ class _M3uCategoriesFetcher {
               )
               .toList(growable: false)
             ..sort((a, b) => a.name.compareTo(b.name));
-      return MapEntry(key, entries);
-    })..removeWhere((_, value) => value.isEmpty);
+      categories[bucket] = entries;
+    });
+
+    previews.forEach((bucket, groupMap) {
+      groupMap.removeWhere(
+        (group, items) => (counts[bucket]?[group] ?? 0) == 0 || items.isEmpty,
+      );
+    });
+
+    categories.removeWhere((_, value) => value.isEmpty);
+    previews.removeWhere((_, groups) => groups.isEmpty);
+
+    return _M3uParseResult(categories: categories, previews: previews);
+  }
+
+  void _finalizePending(
+    Map<ContentBucket, Map<String, List<CategoryPreviewItem>>> previews,
+    _PendingM3uItem pending,
+  ) {
+    final group = _normalizeGroup(pending.group);
+    final bucketMap = previews[pending.bucket]!;
+    final list = bucketMap.putIfAbsent(group, () => <CategoryPreviewItem>[]);
+    if (list.length >= _previewLimitPerCategory) {
+      return;
+    }
+
+    final subtitle = _buildSubtitle(pending);
+    final idCandidates = <String?>[
+      pending.tvgId,
+      pending.url,
+      '${group}_${pending.title}',
+    ];
+    final resolvedId = idCandidates.firstWhere(
+      (value) => value != null && value.trim().isNotEmpty,
+      orElse: () => pending.title,
+    )!;
+
+    list.add(
+      CategoryPreviewItem(
+        id: resolvedId,
+        title: pending.title,
+        subtitle: subtitle,
+        artUri: pending.logo?.isNotEmpty == true ? pending.logo : null,
+      ),
+    );
+  }
+
+  _PendingM3uItem? _parseExtinf(String line) {
+    final lowered = line.toLowerCase();
+    final tvgName = _extractAttribute(line, 'tvg-name')?.trim() ?? '';
+    final groupTitle = _normalizeGroup(_extractAttribute(line, 'group-title'));
+    final displayName = _extractDisplayName(line, tvgName);
+    final bucket = _determineBucket(
+      lowered: lowered,
+      name: tvgName.isEmpty ? displayName.toLowerCase() : tvgName.toLowerCase(),
+      group: groupTitle.toLowerCase(),
+    );
+
+    return _PendingM3uItem(
+      bucket: bucket,
+      group: groupTitle,
+      title: displayName,
+      tvgId: _extractAttribute(line, 'tvg-id')?.trim(),
+      logo: _extractAttribute(line, 'tvg-logo')?.trim(),
+      channelNumber: _extractAttribute(line, 'tvg-chno')?.trim(),
+      language: _extractAttribute(line, 'tvg-language')?.trim(),
+      country: _extractAttribute(line, 'tvg-country')?.trim(),
+      catchupDays: _extractAttribute(line, 'catchup-days')?.trim(),
+      timeshift: _extractAttribute(line, 'timeshift')?.trim(),
+    );
+  }
+
+  ContentBucket _determineBucket({
+    required String lowered,
+    required String name,
+    required String group,
+  }) {
+    if (lowered.contains('radio="true"') ||
+        name.contains('radio') ||
+        _looksLikeRadioGroup(group)) {
+      return ContentBucket.radio;
+    }
+    if (name.contains('series') || _looksLikeSeriesGroup(group)) {
+      return ContentBucket.series;
+    }
+    if (name.contains('movie') ||
+        _looksLikeVodGroup(group) ||
+        lowered.contains('catchup="vod"')) {
+      return ContentBucket.films;
+    }
+    return ContentBucket.live;
   }
 
   void _increment(Map<String, int> bucket, String groupTitle) {
-    bucket[groupTitle] = (bucket[groupTitle] ?? 0) + 1;
+    final normalized = _normalizeGroup(groupTitle);
+    bucket[normalized] = (bucket[normalized] ?? 0) + 1;
+  }
+
+  void _storePreview(
+    ResolvedProviderProfile profile,
+    Map<ContentBucket, Map<String, List<CategoryPreviewItem>>> previews,
+  ) {
+    final cacheKey = _cacheKey(profile);
+    if (previews.isEmpty) {
+      _previewCache.remove(cacheKey);
+      return;
+    }
+    _previewCache[cacheKey] = _M3uPreviewCacheEntry(
+      previews: previews,
+      fetchedAt: DateTime.now(),
+    );
+  }
+
+  List<CategoryPreviewItem> _truncate(
+    List<CategoryPreviewItem> items,
+    int limit,
+  ) {
+    if (items.length <= limit) {
+      return List<CategoryPreviewItem>.from(items, growable: false);
+    }
+    return List<CategoryPreviewItem>.from(items.take(limit), growable: false);
+  }
+
+  String _cacheKey(ResolvedProviderProfile profile) => profile.record.id;
+
+  String _normalizeGroup(String? groupTitle) {
+    if (groupTitle == null || groupTitle.trim().isEmpty) {
+      return _defaultGroupLabel;
+    }
+    return groupTitle.trim();
+  }
+
+  String _extractDisplayName(String line, String fallback) {
+    final parts = line.split(',');
+    if (parts.length > 1) {
+      final name = parts.last.trim();
+      if (name.isNotEmpty) {
+        return name;
+      }
+    }
+    if (fallback.isNotEmpty) {
+      return fallback;
+    }
+    return _defaultGroupLabel;
+  }
+
+  String? _buildSubtitle(_PendingM3uItem item) {
+    final parts = <String>[];
+    if (item.channelNumber != null && item.channelNumber!.isNotEmpty) {
+      parts.add('#${item.channelNumber}');
+    }
+    if (item.language != null && item.language!.isNotEmpty) {
+      parts.add(item.language!);
+    }
+    if (item.country != null && item.country!.isNotEmpty) {
+      parts.add(item.country!.toUpperCase());
+    }
+    if (item.catchupDays != null && item.catchupDays!.isNotEmpty) {
+      parts.add('Catch-up ${item.catchupDays}d');
+    }
+    if (item.timeshift != null && item.timeshift!.isNotEmpty) {
+      parts.add('Timeshift ${item.timeshift}');
+    }
+    if (parts.isEmpty) {
+      return null;
+    }
+    return parts.join(' · ');
+  }
+}
+
+class _M3uParseResult {
+  _M3uParseResult({required this.categories, required this.previews});
+
+  factory _M3uParseResult.empty() => _M3uParseResult(
+    categories: const <ContentBucket, List<CategoryEntry>>{},
+    previews: const <ContentBucket, Map<String, List<CategoryPreviewItem>>>{},
+  );
+
+  final CategoryMap categories;
+  final Map<ContentBucket, Map<String, List<CategoryPreviewItem>>> previews;
+}
+
+class _M3uPreviewCacheEntry {
+  _M3uPreviewCacheEntry({
+    required Map<ContentBucket, Map<String, List<CategoryPreviewItem>>>
+    previews,
+    required this.fetchedAt,
+  }) : previews = Map.unmodifiable(
+         previews.map(
+           (bucket, groups) =>
+               MapEntry<ContentBucket, Map<String, List<CategoryPreviewItem>>>(
+                 bucket,
+                 Map.unmodifiable(
+                   groups.map(
+                     (group, items) =>
+                         MapEntry<String, List<CategoryPreviewItem>>(
+                           group,
+                           List<CategoryPreviewItem>.unmodifiable(items),
+                         ),
+                   ),
+                 ),
+               ),
+         ),
+       );
+
+  final Map<ContentBucket, Map<String, List<CategoryPreviewItem>>> previews;
+  final DateTime fetchedAt;
+
+  bool isExpired(DateTime now, Duration ttl) => now.difference(fetchedAt) > ttl;
+
+  List<CategoryPreviewItem>? lookup(ContentBucket bucket, String group) {
+    return previews[bucket]?[group];
+  }
+}
+
+class _PendingM3uItem {
+  const _PendingM3uItem({
+    required this.bucket,
+    required this.group,
+    required this.title,
+    this.tvgId,
+    this.logo,
+    this.channelNumber,
+    this.language,
+    this.country,
+    this.catchupDays,
+    this.timeshift,
+    this.url,
+  });
+
+  final ContentBucket bucket;
+  final String group;
+  final String title;
+  final String? tvgId;
+  final String? logo;
+  final String? channelNumber;
+  final String? language;
+  final String? country;
+  final String? catchupDays;
+  final String? timeshift;
+  final String? url;
+
+  _PendingM3uItem copyWith({String? group, String? url}) {
+    return _PendingM3uItem(
+      bucket: bucket,
+      group: group != null && group.isNotEmpty ? group : this.group,
+      title: title,
+      tvgId: tvgId,
+      logo: logo,
+      channelNumber: channelNumber,
+      language: language,
+      country: country,
+      catchupDays: catchupDays,
+      timeshift: timeshift,
+      url: url ?? this.url,
+    );
   }
 }
 

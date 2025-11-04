@@ -1,0 +1,99 @@
+# Database Implementation Checklist
+
+## Vision & Foundation
+- [x] Re-read `database_roadmap.md` and lock objectives, scope, and success metrics with the team. -> see `docs/db/vision_foundation.md`.
+- [x] Confirm platform support matrix (Android, iOS, Windows, Linux, macOS) and Drift/SQLite dependency versions in `pubspec.yaml`.
+- [x] Decide on DB storage location per platform and verify secure storage plumbing is ready for provider secrets.
+- [x] Define feature flags for optional SQLCipher/FTS usage per build flavour.
+
+## Drift Project Setup
+- [x] Add core packages (`drift`, `drift_sqflite`, `sqlite3_flutter_libs`, generators) and configure build_runner. -> dependency updates in `pubspec.yaml`.
+- [x] Create a dedicated `lib/data/db/` module structure (tables, daos, repositories, importers). -> see `lib/data/db/*`.
+- [x] Implement the Drift database class with WAL PRAGMAs, foreign-key enforcement, and hot/open helpers. -> `lib/data/db/openiptv_db.dart`.
+- [x] Introduce a centralized database locator/service wired into Riverpod for injection. -> `lib/data/db/database_locator.dart`.
+
+## Schema Phase 1 – Providers & Live Channels
+- [x] Define tables: `providers`, `channels`, `categories`, `channel_categories`, `summaries`. -> see `lib/data/db/tables/`.
+- [x] Enforce all declared unique constraints and foreign keys (provider scoped keys, many-to-many bridge).
+- [x] Generate Drift companions/data classes and ensure integer surrogate keys map correctly.
+- [x] Write schema unit tests creating the in-memory DB and asserting constraints/indexes. -> test/data/db/schema_phase1_test.dart.
+
+## DAO & Repository Layer (Phase 1)
+- [ ] Implement `ProviderDao` with CRUD, last-sync tracking, and display metadata helpers.
+- [ ] Implement `ChannelDao` with upsert-by-provider-key, tombstoning, and category linking helpers.
+- [ ] Implement `CategoryDao` with upsert, ordering, and lookup APIs.
+- [ ] Implement `SummaryDao` for pre-computed counts and provider snapshots.
+- [ ] Create repositories that orchestrate DAOs and expose watch/stream APIs for UI/state.
+
+## Import Pipelines – Foundations
+- [ ] Build a shared `ImportContext` abstraction (transaction wrapper, conflict handling, metrics).
+- [ ] Implement Xtream importer (live categories + channels) with delta upserts and summary recompute.
+- [ ] Implement Stalker importer (live categories + channels) respecting provider-specific keys.
+- [ ] Implement M3U importer (group-based categories, radio/live split).
+- [ ] Ensure all importers mark missing rows as tombstoned, and emit summary totals.
+- [ ] Add retry/backoff wrappers and guardrails for malformed payloads per provider.
+
+## Schema Phase 2 – EPG & Search
+- [ ] Add `epg_programs` table with indexes (`channel_id` + time window) and optional FTS mirror.
+- [ ] Implement DAO queries for now/next, date-range, and bulk inserts (batch API).
+- [ ] Create retention job to purge programs older than configured window.
+- [ ] Wire importer to ingest EPG deltas per provider (Xtream/other) and update summaries.
+
+## Schema Phase 3 – VOD & Series
+- [ ] Create tables: `movies`, `series`, `seasons`, `episodes` plus relationships.
+- [ ] Extend importers to fetch and upsert VOD/series metadata (Xtream, Stalker where available).
+- [ ] Link VOD/series items to categories and compute VOD/series summaries.
+- [ ] Expose repository APIs for browsing VOD catalog and series hierarchy (series → seasons → episodes).
+
+## Artwork, Flags, History & Cache
+- [ ] Implement `artwork_cache` table with LRU metadata and storage strategy (BLOB vs file pointer).
+- [ ] Build image fetcher that stores etag/hash and enforces eviction limits.
+- [ ] Add `playback_history` schema + DAO for scrobbling, resumptions, and prunable history.
+- [ ] Add `user_flags` schema for favourites/hidden/pin metadata, with provider scoped uniqueness.
+- [ ] Ensure UI repositories surface combined channel + user flag states.
+
+## Security & Storage Guardrails
+- [ ] Keep provider secrets (username/password/token) exclusively in secure storage and confirm DB never persists them.
+- [ ] Optionally integrate SQLCipher/`sqflite_sqlcipher` for encrypted caches; expose toggle in build config.
+- [ ] Scrub logs/debug prints to avoid leaking secrets or raw payloads (use redaction helpers).
+- [ ] Document backup/restore implications (e.g., DB location excluded from auto-backup if required).
+
+## Performance & Maintenance Automation
+- [ ] Implement periodic VACUUM/ANALYZE policy gated by size/elapsed time.
+- [ ] Add retention sweeper to drop tombstoned channels after grace window and prune orphaned relationships/artwork.
+- [ ] Enforce backpressure on import concurrency (limit parallel requests per provider).
+- [ ] Record import durations, row counts, and error metrics for diagnostics.
+- [ ] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics).
+
+## Migration Strategy
+- [ ] Set baseline schema version and write idempotent Drift migration scripts.
+- [ ] Add tests covering upgrade/downgrade paths with fixture data.
+- [ ] Establish migration playbook (backup, apply, verify) and document failure recovery.
+
+## Search & Browse Integration
+- [ ] Implement FTS-backed search DAO for channels, VOD, and EPG with highlighting support.
+- [ ] Add derived queries: favourites-first, recent play history joins, category filters.
+- [ ] Create summary projections powering fast home/dashboard loads.
+
+## UI & App Integration
+- [ ] Replace in-memory providers with DB-backed streams in home guide and discovery flows.
+- [ ] Hook login onboarding to create provider records and kick off initial import jobs.
+- [ ] Surface import progress/last sync state in provider management UI.
+- [ ] Update playback/details screens to read user flags, history, and artwork cache.
+
+## Telemetry & Observability
+- [ ] Emit structured logs/metrics around imports, query latency, and cache hits (non-PII).
+- [ ] Add crash-safe error storage for failed imports with redacted payload excerpts.
+- [ ] Provide developer tooling to inspect DB (e.g., Drift devtools integration, export snapshot).
+
+## Testing & QA
+- [ ] Write unit tests for each DAO/importer using seeded fixtures (including delta + deletion cases).
+- [ ] Add performance regression tests (50k channels, multi-day EPG) ensuring query SLAs.
+- [ ] Create integration tests exercising UI flows against an in-memory DB with seeded data.
+- [ ] Document manual QA scenarios (multi-provider, offline replay, retention sweeps).
+
+## Release Readiness
+- [ ] Conduct security review (storage, logging, encryption toggles).
+- [ ] Verify migration + downgrade paths on actual devices.
+- [ ] Prepare rollback plan (ability to clear DB safely without losing secure secrets).
+- [ ] Update internal docs/readme with new architecture, maintenance commands, and troubleshooting steps.

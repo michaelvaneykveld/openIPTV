@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/provider_dao.dart';
+import '../db/dao/epg_dao.dart';
 import '../db/dao/channel_dao.dart';
 import '../db/dao/summary_dao.dart';
 import '../db/openiptv_db.dart';
@@ -15,12 +16,14 @@ final xtreamImporterProvider = r.Provider<XtreamImporter>((ref) {
   final channelDao = ChannelDao(db);
   final summaryDao = SummaryDao(db);
   final providerDao = ProviderDao(db);
+  final epgDao = EpgDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
     channelDao: channelDao,
     categoryDao: categoryDao,
     summaryDao: summaryDao,
+    epgDao: epgDao,
   );
   return XtreamImporter(context);
 });
@@ -259,5 +262,8 @@ class XtreamImporter {
     return parsed;
   }
 }
+
+
+
 
 

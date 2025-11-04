@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/channel_dao.dart';
+import '../db/dao/epg_dao.dart';
 import '../db/dao/provider_dao.dart';
 import '../db/dao/summary_dao.dart';
 import '../db/openiptv_db.dart';
@@ -10,6 +11,7 @@ class ImportMetrics {
   int channelsUpserted = 0;
   int categoriesUpserted = 0;
   int channelsDeleted = 0;
+  int programsUpserted = 0;
   Duration duration = Duration.zero;
 }
 
@@ -22,6 +24,7 @@ class ImportTxn {
     this.channels,
     this.categories,
     this.summaries,
+    this.epg,
   );
 
   final OpenIptvDb db;
@@ -29,6 +32,7 @@ class ImportTxn {
   final ChannelDao channels;
   final CategoryDao categories;
   final SummaryDao summaries;
+  final EpgDao epg;
 }
 
 class ImportContext {
@@ -38,6 +42,7 @@ class ImportContext {
     required this.channelDao,
     required this.categoryDao,
     required this.summaryDao,
+    required this.epgDao,
   });
 
   final OpenIptvDb db;
@@ -45,6 +50,7 @@ class ImportContext {
   final ChannelDao channelDao;
   final CategoryDao categoryDao;
   final SummaryDao summaryDao;
+  final EpgDao epgDao;
 
   Future<T> run<T>(ImportAction<T> action) async {
     final start = DateTime.now();
@@ -54,6 +60,7 @@ class ImportContext {
       channelDao,
       categoryDao,
       summaryDao,
+      epgDao,
     );
     final result = await db.transaction(() => action(txn));
     final duration = DateTime.now().difference(start);

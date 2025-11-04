@@ -22,6 +22,7 @@ part 'tables/channels.dart';
 part 'tables/categories.dart';
 part 'tables/channel_categories.dart';
 part 'tables/summaries.dart';
+part 'tables/epg_programs.dart';
 
 @DriftDatabase(
   tables: [
@@ -30,6 +31,7 @@ part 'tables/summaries.dart';
     Categories,
     ChannelCategories,
     Summaries,
+    EpgPrograms,
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
@@ -121,3 +123,4 @@ bool _useNativeDatabase() {
   if (kIsWeb) return false;
   return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
 }
+

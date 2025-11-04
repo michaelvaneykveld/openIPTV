@@ -34,10 +34,10 @@
 - [x] Add retry/backoff wrappers and guardrails for malformed payloads per provider. -> `ImportContext.runWithRetry`.
 
 ## Schema Phase 2 – EPG & Search
-- [ ] Add `epg_programs` table with indexes (`channel_id` + time window) and optional FTS mirror.
-- [ ] Implement DAO queries for now/next, date-range, and bulk inserts (batch API).
-- [ ] Create retention job to purge programs older than configured window.
-- [ ] Wire importer to ingest EPG deltas per provider (Xtream/other) and update summaries.
+- [x] Add `epg_programs` table with indexes (`channel_id` + time window) and optional FTS mirror. -> `lib/data/db/tables/epg_programs.dart` (index creation in `openiptv_db.dart`).
+- [x] Implement DAO queries for now/next, date-range, and bulk inserts (batch API). -> `lib/data/db/dao/epg_dao.dart`.
+- [x] Create retention job to purge programs older than configured window. -> `EpgDao.purgeOlderThan` + importer retention controls.
+- [x] Wire importer to ingest EPG deltas per provider (Xtream/other) and update summaries. -> `lib/data/import/epg_importer.dart`.
 
 ## Schema Phase 3 – VOD & Series
 - [ ] Create tables: `movies`, `series`, `seasons`, `episodes` plus relationships.
@@ -97,4 +97,5 @@
 - [ ] Verify migration + downgrade paths on actual devices.
 - [ ] Prepare rollback plan (ability to clear DB safely without losing secure secrets).
 - [ ] Update internal docs/readme with new architecture, maintenance commands, and troubleshooting steps.
+
 

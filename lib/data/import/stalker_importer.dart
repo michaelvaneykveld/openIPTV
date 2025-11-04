@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
+import '../db/dao/epg_dao.dart';
 import '../db/dao/channel_dao.dart';
 import '../db/dao/provider_dao.dart';
 import '../db/dao/summary_dao.dart';
@@ -13,12 +14,15 @@ final stalkerImporterProvider = r.Provider<StalkerImporter>((ref) {
   final categoryDao = CategoryDao(db);
   final summaryDao = SummaryDao(db);
   final providerDao = ProviderDao(db);
+  final channelDao = ChannelDao(db);
+  final epgDao = EpgDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
-    channelDao: ChannelDao(db),
+    channelDao: channelDao,
     categoryDao: categoryDao,
     summaryDao: summaryDao,
+    epgDao: epgDao,
   );
   return StalkerImporter(context);
 });
@@ -143,5 +147,6 @@ class StalkerImporter {
     return int.tryParse(text);
   }
 }
+
 
 

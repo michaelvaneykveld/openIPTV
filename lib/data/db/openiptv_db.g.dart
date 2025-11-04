@@ -2130,6 +2130,568 @@ class SummariesCompanion extends UpdateCompanion<SummaryRecord> {
   }
 }
 
+class $EpgProgramsTable extends EpgPrograms
+    with TableInfo<$EpgProgramsTable, EpgProgramRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EpgProgramsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _channelIdMeta = const VerificationMeta(
+    'channelId',
+  );
+  @override
+  late final GeneratedColumn<int> channelId = GeneratedColumn<int>(
+    'channel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES channels (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _startUtcMeta = const VerificationMeta(
+    'startUtc',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startUtc = GeneratedColumn<DateTime>(
+    'start_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endUtcMeta = const VerificationMeta('endUtc');
+  @override
+  late final GeneratedColumn<DateTime> endUtc = GeneratedColumn<DateTime>(
+    'end_utc',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subtitleMeta = const VerificationMeta(
+    'subtitle',
+  );
+  @override
+  late final GeneratedColumn<String> subtitle = GeneratedColumn<String>(
+    'subtitle',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seasonMeta = const VerificationMeta('season');
+  @override
+  late final GeneratedColumn<int> season = GeneratedColumn<int>(
+    'season',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _episodeMeta = const VerificationMeta(
+    'episode',
+  );
+  @override
+  late final GeneratedColumn<int> episode = GeneratedColumn<int>(
+    'episode',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    channelId,
+    startUtc,
+    endUtc,
+    title,
+    subtitle,
+    description,
+    season,
+    episode,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'epg_programs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EpgProgramRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('channel_id')) {
+      context.handle(
+        _channelIdMeta,
+        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelIdMeta);
+    }
+    if (data.containsKey('start_utc')) {
+      context.handle(
+        _startUtcMeta,
+        startUtc.isAcceptableOrUnknown(data['start_utc']!, _startUtcMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startUtcMeta);
+    }
+    if (data.containsKey('end_utc')) {
+      context.handle(
+        _endUtcMeta,
+        endUtc.isAcceptableOrUnknown(data['end_utc']!, _endUtcMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endUtcMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('subtitle')) {
+      context.handle(
+        _subtitleMeta,
+        subtitle.isAcceptableOrUnknown(data['subtitle']!, _subtitleMeta),
+      );
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('season')) {
+      context.handle(
+        _seasonMeta,
+        season.isAcceptableOrUnknown(data['season']!, _seasonMeta),
+      );
+    }
+    if (data.containsKey('episode')) {
+      context.handle(
+        _episodeMeta,
+        episode.isAcceptableOrUnknown(data['episode']!, _episodeMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {channelId, startUtc},
+  ];
+  @override
+  EpgProgramRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EpgProgramRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      channelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channel_id'],
+      )!,
+      startUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_utc'],
+      )!,
+      endUtc: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}end_utc'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      subtitle: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subtitle'],
+      ),
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      season: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}season'],
+      ),
+      episode: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}episode'],
+      ),
+    );
+  }
+
+  @override
+  $EpgProgramsTable createAlias(String alias) {
+    return $EpgProgramsTable(attachedDatabase, alias);
+  }
+}
+
+class EpgProgramRecord extends DataClass
+    implements Insertable<EpgProgramRecord> {
+  final int id;
+  final int channelId;
+  final DateTime startUtc;
+  final DateTime endUtc;
+  final String? title;
+  final String? subtitle;
+  final String? description;
+  final int? season;
+  final int? episode;
+  const EpgProgramRecord({
+    required this.id,
+    required this.channelId,
+    required this.startUtc,
+    required this.endUtc,
+    this.title,
+    this.subtitle,
+    this.description,
+    this.season,
+    this.episode,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['channel_id'] = Variable<int>(channelId);
+    map['start_utc'] = Variable<DateTime>(startUtc);
+    map['end_utc'] = Variable<DateTime>(endUtc);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || subtitle != null) {
+      map['subtitle'] = Variable<String>(subtitle);
+    }
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    if (!nullToAbsent || season != null) {
+      map['season'] = Variable<int>(season);
+    }
+    if (!nullToAbsent || episode != null) {
+      map['episode'] = Variable<int>(episode);
+    }
+    return map;
+  }
+
+  EpgProgramsCompanion toCompanion(bool nullToAbsent) {
+    return EpgProgramsCompanion(
+      id: Value(id),
+      channelId: Value(channelId),
+      startUtc: Value(startUtc),
+      endUtc: Value(endUtc),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      subtitle: subtitle == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subtitle),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      season: season == null && nullToAbsent
+          ? const Value.absent()
+          : Value(season),
+      episode: episode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(episode),
+    );
+  }
+
+  factory EpgProgramRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EpgProgramRecord(
+      id: serializer.fromJson<int>(json['id']),
+      channelId: serializer.fromJson<int>(json['channelId']),
+      startUtc: serializer.fromJson<DateTime>(json['startUtc']),
+      endUtc: serializer.fromJson<DateTime>(json['endUtc']),
+      title: serializer.fromJson<String?>(json['title']),
+      subtitle: serializer.fromJson<String?>(json['subtitle']),
+      description: serializer.fromJson<String?>(json['description']),
+      season: serializer.fromJson<int?>(json['season']),
+      episode: serializer.fromJson<int?>(json['episode']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'channelId': serializer.toJson<int>(channelId),
+      'startUtc': serializer.toJson<DateTime>(startUtc),
+      'endUtc': serializer.toJson<DateTime>(endUtc),
+      'title': serializer.toJson<String?>(title),
+      'subtitle': serializer.toJson<String?>(subtitle),
+      'description': serializer.toJson<String?>(description),
+      'season': serializer.toJson<int?>(season),
+      'episode': serializer.toJson<int?>(episode),
+    };
+  }
+
+  EpgProgramRecord copyWith({
+    int? id,
+    int? channelId,
+    DateTime? startUtc,
+    DateTime? endUtc,
+    Value<String?> title = const Value.absent(),
+    Value<String?> subtitle = const Value.absent(),
+    Value<String?> description = const Value.absent(),
+    Value<int?> season = const Value.absent(),
+    Value<int?> episode = const Value.absent(),
+  }) => EpgProgramRecord(
+    id: id ?? this.id,
+    channelId: channelId ?? this.channelId,
+    startUtc: startUtc ?? this.startUtc,
+    endUtc: endUtc ?? this.endUtc,
+    title: title.present ? title.value : this.title,
+    subtitle: subtitle.present ? subtitle.value : this.subtitle,
+    description: description.present ? description.value : this.description,
+    season: season.present ? season.value : this.season,
+    episode: episode.present ? episode.value : this.episode,
+  );
+  EpgProgramRecord copyWithCompanion(EpgProgramsCompanion data) {
+    return EpgProgramRecord(
+      id: data.id.present ? data.id.value : this.id,
+      channelId: data.channelId.present ? data.channelId.value : this.channelId,
+      startUtc: data.startUtc.present ? data.startUtc.value : this.startUtc,
+      endUtc: data.endUtc.present ? data.endUtc.value : this.endUtc,
+      title: data.title.present ? data.title.value : this.title,
+      subtitle: data.subtitle.present ? data.subtitle.value : this.subtitle,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      season: data.season.present ? data.season.value : this.season,
+      episode: data.episode.present ? data.episode.value : this.episode,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpgProgramRecord(')
+          ..write('id: $id, ')
+          ..write('channelId: $channelId, ')
+          ..write('startUtc: $startUtc, ')
+          ..write('endUtc: $endUtc, ')
+          ..write('title: $title, ')
+          ..write('subtitle: $subtitle, ')
+          ..write('description: $description, ')
+          ..write('season: $season, ')
+          ..write('episode: $episode')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    channelId,
+    startUtc,
+    endUtc,
+    title,
+    subtitle,
+    description,
+    season,
+    episode,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EpgProgramRecord &&
+          other.id == this.id &&
+          other.channelId == this.channelId &&
+          other.startUtc == this.startUtc &&
+          other.endUtc == this.endUtc &&
+          other.title == this.title &&
+          other.subtitle == this.subtitle &&
+          other.description == this.description &&
+          other.season == this.season &&
+          other.episode == this.episode);
+}
+
+class EpgProgramsCompanion extends UpdateCompanion<EpgProgramRecord> {
+  final Value<int> id;
+  final Value<int> channelId;
+  final Value<DateTime> startUtc;
+  final Value<DateTime> endUtc;
+  final Value<String?> title;
+  final Value<String?> subtitle;
+  final Value<String?> description;
+  final Value<int?> season;
+  final Value<int?> episode;
+  const EpgProgramsCompanion({
+    this.id = const Value.absent(),
+    this.channelId = const Value.absent(),
+    this.startUtc = const Value.absent(),
+    this.endUtc = const Value.absent(),
+    this.title = const Value.absent(),
+    this.subtitle = const Value.absent(),
+    this.description = const Value.absent(),
+    this.season = const Value.absent(),
+    this.episode = const Value.absent(),
+  });
+  EpgProgramsCompanion.insert({
+    this.id = const Value.absent(),
+    required int channelId,
+    required DateTime startUtc,
+    required DateTime endUtc,
+    this.title = const Value.absent(),
+    this.subtitle = const Value.absent(),
+    this.description = const Value.absent(),
+    this.season = const Value.absent(),
+    this.episode = const Value.absent(),
+  }) : channelId = Value(channelId),
+       startUtc = Value(startUtc),
+       endUtc = Value(endUtc);
+  static Insertable<EpgProgramRecord> custom({
+    Expression<int>? id,
+    Expression<int>? channelId,
+    Expression<DateTime>? startUtc,
+    Expression<DateTime>? endUtc,
+    Expression<String>? title,
+    Expression<String>? subtitle,
+    Expression<String>? description,
+    Expression<int>? season,
+    Expression<int>? episode,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (channelId != null) 'channel_id': channelId,
+      if (startUtc != null) 'start_utc': startUtc,
+      if (endUtc != null) 'end_utc': endUtc,
+      if (title != null) 'title': title,
+      if (subtitle != null) 'subtitle': subtitle,
+      if (description != null) 'description': description,
+      if (season != null) 'season': season,
+      if (episode != null) 'episode': episode,
+    });
+  }
+
+  EpgProgramsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? channelId,
+    Value<DateTime>? startUtc,
+    Value<DateTime>? endUtc,
+    Value<String?>? title,
+    Value<String?>? subtitle,
+    Value<String?>? description,
+    Value<int?>? season,
+    Value<int?>? episode,
+  }) {
+    return EpgProgramsCompanion(
+      id: id ?? this.id,
+      channelId: channelId ?? this.channelId,
+      startUtc: startUtc ?? this.startUtc,
+      endUtc: endUtc ?? this.endUtc,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      description: description ?? this.description,
+      season: season ?? this.season,
+      episode: episode ?? this.episode,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (channelId.present) {
+      map['channel_id'] = Variable<int>(channelId.value);
+    }
+    if (startUtc.present) {
+      map['start_utc'] = Variable<DateTime>(startUtc.value);
+    }
+    if (endUtc.present) {
+      map['end_utc'] = Variable<DateTime>(endUtc.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (subtitle.present) {
+      map['subtitle'] = Variable<String>(subtitle.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (season.present) {
+      map['season'] = Variable<int>(season.value);
+    }
+    if (episode.present) {
+      map['episode'] = Variable<int>(episode.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpgProgramsCompanion(')
+          ..write('id: $id, ')
+          ..write('channelId: $channelId, ')
+          ..write('startUtc: $startUtc, ')
+          ..write('endUtc: $endUtc, ')
+          ..write('title: $title, ')
+          ..write('subtitle: $subtitle, ')
+          ..write('description: $description, ')
+          ..write('season: $season, ')
+          ..write('episode: $episode')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -2139,6 +2701,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
   late final $ChannelCategoriesTable channelCategories =
       $ChannelCategoriesTable(this);
   late final $SummariesTable summaries = $SummariesTable(this);
+  late final $EpgProgramsTable epgPrograms = $EpgProgramsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2149,6 +2712,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     categories,
     channelCategories,
     summaries,
+    epgPrograms,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2186,6 +2750,13 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('summaries', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'channels',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('epg_programs', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -2821,6 +3392,24 @@ final class $$ChannelsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$EpgProgramsTable, List<EpgProgramRecord>>
+  _epgProgramsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.epgPrograms,
+    aliasName: $_aliasNameGenerator(db.channels.id, db.epgPrograms.channelId),
+  );
+
+  $$EpgProgramsTableProcessedTableManager get epgProgramsRefs {
+    final manager = $$EpgProgramsTableTableManager(
+      $_db,
+      $_db.epgPrograms,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgProgramsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ChannelsTableFilterComposer
@@ -2911,6 +3500,31 @@ class $$ChannelsTableFilterComposer
           }) => $$ChannelCategoriesTableFilterComposer(
             $db: $db,
             $table: $db.channelCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> epgProgramsRefs(
+    Expression<bool> Function($$EpgProgramsTableFilterComposer f) f,
+  ) {
+    final $$EpgProgramsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgPrograms,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgPrograms,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3081,6 +3695,31 @@ class $$ChannelsTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> epgProgramsRefs<T extends Object>(
+    Expression<T> Function($$EpgProgramsTableAnnotationComposer a) f,
+  ) {
+    final $$EpgProgramsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgPrograms,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgPrograms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChannelsTableTableManager
@@ -3096,7 +3735,11 @@ class $$ChannelsTableTableManager
           $$ChannelsTableUpdateCompanionBuilder,
           (ChannelRecord, $$ChannelsTableReferences),
           ChannelRecord,
-          PrefetchHooks Function({bool providerId, bool channelCategoriesRefs})
+          PrefetchHooks Function({
+            bool providerId,
+            bool channelCategoriesRefs,
+            bool epgProgramsRefs,
+          })
         > {
   $$ChannelsTableTableManager(_$OpenIptvDb db, $ChannelsTable table)
     : super(
@@ -3162,11 +3805,16 @@ class $$ChannelsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({providerId = false, channelCategoriesRefs = false}) {
+              ({
+                providerId = false,
+                channelCategoriesRefs = false,
+                epgProgramsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (channelCategoriesRefs) db.channelCategories,
+                    if (epgProgramsRefs) db.epgPrograms,
                   ],
                   addJoins:
                       <
@@ -3223,6 +3871,27 @@ class $$ChannelsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (epgProgramsRefs)
+                        await $_getPrefetchedData<
+                          ChannelRecord,
+                          $ChannelsTable,
+                          EpgProgramRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences
+                              ._epgProgramsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).epgProgramsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.channelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3243,7 +3912,11 @@ typedef $$ChannelsTableProcessedTableManager =
       $$ChannelsTableUpdateCompanionBuilder,
       (ChannelRecord, $$ChannelsTableReferences),
       ChannelRecord,
-      PrefetchHooks Function({bool providerId, bool channelCategoriesRefs})
+      PrefetchHooks Function({
+        bool providerId,
+        bool channelCategoriesRefs,
+        bool epgProgramsRefs,
+      })
     >;
 typedef $$CategoriesTableCreateCompanionBuilder =
     CategoriesCompanion Function({
@@ -4367,6 +5040,397 @@ typedef $$SummariesTableProcessedTableManager =
       SummaryRecord,
       PrefetchHooks Function({bool providerId})
     >;
+typedef $$EpgProgramsTableCreateCompanionBuilder =
+    EpgProgramsCompanion Function({
+      Value<int> id,
+      required int channelId,
+      required DateTime startUtc,
+      required DateTime endUtc,
+      Value<String?> title,
+      Value<String?> subtitle,
+      Value<String?> description,
+      Value<int?> season,
+      Value<int?> episode,
+    });
+typedef $$EpgProgramsTableUpdateCompanionBuilder =
+    EpgProgramsCompanion Function({
+      Value<int> id,
+      Value<int> channelId,
+      Value<DateTime> startUtc,
+      Value<DateTime> endUtc,
+      Value<String?> title,
+      Value<String?> subtitle,
+      Value<String?> description,
+      Value<int?> season,
+      Value<int?> episode,
+    });
+
+final class $$EpgProgramsTableReferences
+    extends BaseReferences<_$OpenIptvDb, $EpgProgramsTable, EpgProgramRecord> {
+  $$EpgProgramsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ChannelsTable _channelIdTable(_$OpenIptvDb db) =>
+      db.channels.createAlias(
+        $_aliasNameGenerator(db.epgPrograms.channelId, db.channels.id),
+      );
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<int>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager(
+      $_db,
+      $_db.channels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EpgProgramsTableFilterComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsTable> {
+  $$EpgProgramsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startUtc => $composableBuilder(
+    column: $table.startUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endUtc => $composableBuilder(
+    column: $table.endUtc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subtitle => $composableBuilder(
+    column: $table.subtitle,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get season => $composableBuilder(
+    column: $table.season,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get episode => $composableBuilder(
+    column: $table.episode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsTable> {
+  $$EpgProgramsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startUtc => $composableBuilder(
+    column: $table.startUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endUtc => $composableBuilder(
+    column: $table.endUtc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subtitle => $composableBuilder(
+    column: $table.subtitle,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get season => $composableBuilder(
+    column: $table.season,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get episode => $composableBuilder(
+    column: $table.episode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsTable> {
+  $$EpgProgramsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startUtc =>
+      $composableBuilder(column: $table.startUtc, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endUtc =>
+      $composableBuilder(column: $table.endUtc, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get subtitle =>
+      $composableBuilder(column: $table.subtitle, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get season =>
+      $composableBuilder(column: $table.season, builder: (column) => column);
+
+  GeneratedColumn<int> get episode =>
+      $composableBuilder(column: $table.episode, builder: (column) => column);
+
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $EpgProgramsTable,
+          EpgProgramRecord,
+          $$EpgProgramsTableFilterComposer,
+          $$EpgProgramsTableOrderingComposer,
+          $$EpgProgramsTableAnnotationComposer,
+          $$EpgProgramsTableCreateCompanionBuilder,
+          $$EpgProgramsTableUpdateCompanionBuilder,
+          (EpgProgramRecord, $$EpgProgramsTableReferences),
+          EpgProgramRecord,
+          PrefetchHooks Function({bool channelId})
+        > {
+  $$EpgProgramsTableTableManager(_$OpenIptvDb db, $EpgProgramsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EpgProgramsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EpgProgramsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EpgProgramsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> channelId = const Value.absent(),
+                Value<DateTime> startUtc = const Value.absent(),
+                Value<DateTime> endUtc = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> subtitle = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<int?> season = const Value.absent(),
+                Value<int?> episode = const Value.absent(),
+              }) => EpgProgramsCompanion(
+                id: id,
+                channelId: channelId,
+                startUtc: startUtc,
+                endUtc: endUtc,
+                title: title,
+                subtitle: subtitle,
+                description: description,
+                season: season,
+                episode: episode,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int channelId,
+                required DateTime startUtc,
+                required DateTime endUtc,
+                Value<String?> title = const Value.absent(),
+                Value<String?> subtitle = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<int?> season = const Value.absent(),
+                Value<int?> episode = const Value.absent(),
+              }) => EpgProgramsCompanion.insert(
+                id: id,
+                channelId: channelId,
+                startUtc: startUtc,
+                endUtc: endUtc,
+                title: title,
+                subtitle: subtitle,
+                description: description,
+                season: season,
+                episode: episode,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EpgProgramsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({channelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (channelId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.channelId,
+                                referencedTable: $$EpgProgramsTableReferences
+                                    ._channelIdTable(db),
+                                referencedColumn: $$EpgProgramsTableReferences
+                                    ._channelIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EpgProgramsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $EpgProgramsTable,
+      EpgProgramRecord,
+      $$EpgProgramsTableFilterComposer,
+      $$EpgProgramsTableOrderingComposer,
+      $$EpgProgramsTableAnnotationComposer,
+      $$EpgProgramsTableCreateCompanionBuilder,
+      $$EpgProgramsTableUpdateCompanionBuilder,
+      (EpgProgramRecord, $$EpgProgramsTableReferences),
+      EpgProgramRecord,
+      PrefetchHooks Function({bool channelId})
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -4381,4 +5445,6 @@ class $OpenIptvDbManager {
       $$ChannelCategoriesTableTableManager(_db, _db.channelCategories);
   $$SummariesTableTableManager get summaries =>
       $$SummariesTableTableManager(_db, _db.summaries);
+  $$EpgProgramsTableTableManager get epgPrograms =>
+      $$EpgProgramsTableTableManager(_db, _db.epgPrograms);
 }

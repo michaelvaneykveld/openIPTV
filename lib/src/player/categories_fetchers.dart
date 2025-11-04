@@ -153,6 +153,11 @@ class _CategoriesCoordinator {
   Future<List<CategoryPreviewItem>> preview(CategoryPreviewRequest request) {
     switch (request.profile.kind) {
       case ProviderKind.xtream:
+        return const _XtreamCategoriesFetcher().fetchPreview(
+          profile: request.profile,
+          bucket: request.bucket,
+          categoryId: request.categoryId,
+        );
       case ProviderKind.m3u:
         return SynchronousFuture(const []);
       case ProviderKind.stalker:
@@ -169,33 +174,9 @@ class _XtreamCategoriesFetcher {
   const _XtreamCategoriesFetcher();
 
   Future<CategoryMap> fetch(ResolvedProviderProfile profile) async {
-    final dio =
-        categoriesTestDioFactory?.call() ??
-        Dio(
-          BaseOptions(
-            connectTimeout: const Duration(seconds: 3),
-            receiveTimeout: const Duration(seconds: 3),
-            sendTimeout: const Duration(seconds: 3),
-            followRedirects: true,
-            validateStatus: (status) => status != null && status < 600,
-            responseType: ResponseType.json,
-          ),
-        );
-    final adapterOverride = categoriesTestHttpClientAdapter;
-    if (adapterOverride != null) {
-      dio.httpClientAdapter = adapterOverride;
-    }
-
-    _applyTlsOverrides(dio, profile.record.allowSelfSignedTls);
-
+    final dio = _prepareDio(profile);
     final headers = _decodeCustomHeaders(profile);
-    final baseUri = ensureTrailingSlash(
-      stripKnownFiles(
-        profile.lockedBase,
-        knownFiles: const {'player_api.php', 'get.php', 'xmltv.php'},
-      ),
-    );
-    final playerUri = baseUri.resolve('player_api.php');
+    final playerUri = _buildPlayerUri(profile);
 
     Future<List<CategoryEntry>> load(String action) async {
       try {
@@ -264,6 +245,225 @@ class _XtreamCategoriesFetcher {
       ContentBucket.films: results[1],
       ContentBucket.series: results[2],
     }..removeWhere((_, value) => value.isEmpty);
+  }
+
+  Future<List<CategoryPreviewItem>> fetchPreview({
+    required ResolvedProviderProfile profile,
+    required ContentBucket bucket,
+    required String categoryId,
+    int limit = 12,
+  }) async {
+    final action = _actionForBucket(bucket);
+    if (action == null) {
+      return const [];
+    }
+
+    final dio = _prepareDio(profile);
+    final headers = _decodeCustomHeaders(profile);
+    final playerUri = _buildPlayerUri(profile);
+    final query = <String, String>{
+      'username': profile.secrets['username'] ?? '',
+      'password': profile.secrets['password'] ?? '',
+      'action': action,
+    };
+    final normalizedId = categoryId.trim();
+    if (normalizedId.isNotEmpty &&
+        normalizedId != '*' &&
+        normalizedId != '0' &&
+        normalizedId.toLowerCase() != 'all') {
+      query['category_id'] = normalizedId;
+    }
+
+    try {
+      final response = await dio
+          .getUri(
+            _withQuery(playerUri, query),
+            options: Options(headers: headers),
+          )
+          .timeout(const Duration(seconds: 5));
+      final data = response.data;
+      if (data is! List) {
+        return const [];
+      }
+
+      final items = _parsePreviewItems(
+        action: action,
+        payload: data,
+        limit: limit,
+      );
+      return items;
+    } on DioException catch (error, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Xtream $action preview $categoryId failed: ${error.message}\n'
+            '$stackTrace',
+          ),
+        );
+      }
+      return const [];
+    } on TimeoutException {
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText('Xtream $action preview $categoryId timed out.'),
+        );
+      }
+      return const [];
+    }
+  }
+
+  Dio _prepareDio(ResolvedProviderProfile profile) {
+    final dio =
+        categoriesTestDioFactory?.call() ??
+        Dio(
+          BaseOptions(
+            connectTimeout: const Duration(seconds: 3),
+            receiveTimeout: const Duration(seconds: 3),
+            sendTimeout: const Duration(seconds: 3),
+            followRedirects: true,
+            validateStatus: (status) => status != null && status < 600,
+            responseType: ResponseType.json,
+          ),
+        );
+    final adapterOverride = categoriesTestHttpClientAdapter;
+    if (adapterOverride != null) {
+      dio.httpClientAdapter = adapterOverride;
+    }
+    _applyTlsOverrides(dio, profile.record.allowSelfSignedTls);
+    return dio;
+  }
+
+  Uri _buildPlayerUri(ResolvedProviderProfile profile) {
+    final baseUri = ensureTrailingSlash(
+      stripKnownFiles(
+        profile.lockedBase,
+        knownFiles: const {'player_api.php', 'get.php', 'xmltv.php'},
+      ),
+    );
+    return baseUri.resolve('player_api.php');
+  }
+
+  String? _actionForBucket(ContentBucket bucket) {
+    switch (bucket) {
+      case ContentBucket.live:
+        return 'get_live_streams';
+      case ContentBucket.films:
+        return 'get_vod_streams';
+      case ContentBucket.series:
+        return 'get_series';
+      case ContentBucket.radio:
+        return null;
+    }
+  }
+
+  List<CategoryPreviewItem> _parsePreviewItems({
+    required String action,
+    required List<dynamic> payload,
+    required int limit,
+  }) {
+    final items = <CategoryPreviewItem>[];
+    for (final raw in payload) {
+      if (raw is! Map) continue;
+      final normalized = raw.map<String, dynamic>(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+      final title = _coerceScalar(normalized['name'] ?? normalized['title']);
+      if (title.isEmpty) continue;
+      final id = _coerceScalar(
+        normalized['stream_id'] ??
+            normalized['series_id'] ??
+            normalized['id'] ??
+            normalized['num'],
+      );
+      final art = _coerceScalar(
+        normalized['stream_icon'] ??
+            normalized['cover'] ??
+            normalized['movie_image'] ??
+            normalized['cover_big'] ??
+            normalized['series_cover'] ??
+            normalized['thumbnail'],
+      );
+      final subtitle = _composePreviewSubtitle(action, normalized);
+      items.add(
+        CategoryPreviewItem(
+          id: id.isEmpty ? title : id,
+          title: title,
+          subtitle: subtitle?.isEmpty == true ? null : subtitle,
+          artUri: art.isNotEmpty ? art : null,
+        ),
+      );
+      if (items.length >= limit) {
+        break;
+      }
+    }
+    return items;
+  }
+
+  String? _composePreviewSubtitle(
+    String action,
+    Map<String, dynamic> normalized,
+  ) {
+    final parts = <String>[];
+    final rating = _coerceScalar(
+      normalized['rating'] ?? normalized['rating_5based'],
+    );
+    final release = _coerceScalar(
+      normalized['releaseDate'] ??
+          normalized['releasedate'] ??
+          normalized['year'],
+    );
+    final duration = _coerceScalar(
+      normalized['duration'] ??
+          normalized['container_extension'] ??
+          normalized['runtime'] ??
+          normalized['info']?['duration'],
+    );
+    final streamType = _coerceScalar(normalized['stream_type']);
+    final season = _coerceScalar(normalized['season']);
+    final episode = _coerceScalar(normalized['episode']);
+
+    switch (action) {
+      case 'get_live_streams':
+        final numValue = _coerceScalar(normalized['num']);
+        if (numValue.isNotEmpty) {
+          parts.add('#$numValue');
+        }
+        if (streamType.isNotEmpty) {
+          parts.add(streamType);
+        }
+        break;
+      case 'get_vod_streams':
+        if (release.isNotEmpty) {
+          parts.add(release);
+        }
+        if (duration.isNotEmpty) {
+          parts.add(duration);
+        }
+        break;
+      case 'get_series':
+        if (season.isNotEmpty || episode.isNotEmpty) {
+          final buffer = [
+            if (season.isNotEmpty) 'S${season.padLeft(2, '0')}',
+            if (episode.isNotEmpty) 'E${episode.padLeft(2, '0')}',
+          ].join();
+          if (buffer.isNotEmpty) {
+            parts.add(buffer);
+          }
+        }
+        if (release.isNotEmpty) {
+          parts.add(release);
+        }
+        break;
+    }
+
+    if (rating.isNotEmpty) {
+      parts.add('Rating $rating');
+    }
+
+    if (parts.isEmpty) {
+      return null;
+    }
+    return parts.join(' · ');
   }
 }
 

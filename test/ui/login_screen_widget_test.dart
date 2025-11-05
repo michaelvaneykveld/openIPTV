@@ -9,6 +9,7 @@ import 'package:openiptv/src/ui/login_screen.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/storage/provider_database.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
+import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/provider_profiles_provider.dart';
 
 class _InMemoryVault implements CredentialsVault {
@@ -131,7 +132,7 @@ void main() {
   );
 
   testWidgets(
-    'Save for later requires provider details before persisting',
+    'Save toggle updates flow controller state',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -164,22 +165,38 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('M3U'));
+      final loginScreenContext = tester.element(find.byType(LoginScreen));
+      final container = ProviderScope.containerOf(
+        loginScreenContext,
+        listen: false,
+      );
+
+      final initialSaveState =
+          container.read(loginFlowControllerProvider).saveForLater;
+
+      final toggleFinder =
+          find.byKey(const ValueKey<String>('stalkerSaveToggle'));
+      expect(toggleFinder, findsOneWidget);
+
+      await tester.tap(toggleFinder);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Save for later'));
-      await tester.pump();
+      final toggledState =
+          container.read(loginFlowControllerProvider).saveForLater;
+      expect(toggledState, isNot(equals(initialSaveState)));
 
-      expect(draftRepository.saveCalled, isFalse);
+      await tester.tap(toggleFinder);
+      await tester.pumpAndSettle();
+
       expect(
-        find.text('Add provider details before saving a draft.'),
-        findsOneWidget,
+        container.read(loginFlowControllerProvider).saveForLater,
+        equals(initialSaveState),
       );
     },
   );
 
   testWidgets(
-    'Save for later persists drafts when details are provided',
+    'Save toggle state persists across provider tabs',
     (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
@@ -210,21 +227,36 @@ void main() {
         ),
       );
 
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(LoginScreen)),
+        listen: false,
+      );
+
+      final initialSaveState =
+          container.read(loginFlowControllerProvider).saveForLater;
+
+      await tester.tap(find.byKey(const ValueKey<String>('stalkerSaveToggle')));
       await tester.pumpAndSettle();
 
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Portal URL'),
-        'http://portal.example.com',
+      final toggledState =
+          container.read(loginFlowControllerProvider).saveForLater;
+      expect(toggledState, isNot(equals(initialSaveState)));
+
+      await tester.tap(find.text('Xtream'));
+      await tester.pumpAndSettle();
+
+      final xtreamToggleFinder =
+          find.byKey(const ValueKey<String>('xtreamSaveToggle'));
+      expect(xtreamToggleFinder, findsOneWidget);
+
+      final xtreamToggle = tester.widget<CheckboxListTile>(
+        xtreamToggleFinder,
       );
-      await tester.pump();
+      expect(xtreamToggle.value, toggledState);
 
-      await tester.tap(find.text('Save for later'));
-      await tester.pump();
-
-      expect(draftRepository.saveCalled, isTrue);
       expect(
-        find.text('Draft saved for later.'),
-        findsOneWidget,
+        container.read(loginFlowControllerProvider).saveForLater,
+        toggledState,
       );
     },
   );
@@ -263,7 +295,9 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Test & Connect'));
+      await tester.tap(
+        find.widgetWithText(ElevatedButton, 'Connect'),
+      );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 250));
 

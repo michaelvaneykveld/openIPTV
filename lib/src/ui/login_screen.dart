@@ -785,6 +785,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             saveForLater: flowState.saveForLater,
             onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleStalkerLogin,
+            saveToggleKey: const ValueKey('stalkerSaveToggle'),
           ),
         ],
       ),
@@ -854,6 +855,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             saveForLater: flowState.saveForLater,
             onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleXtreamLogin,
+            saveToggleKey: const ValueKey('xtreamSaveToggle'),
           ),
         ],
       ),
@@ -930,6 +932,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             saveForLater: flowState.saveForLater,
             onSaveToggle: controller.setSaveForLater,
             onPrimary: _handleM3uLogin,
+            saveToggleKey: const ValueKey('m3uSaveToggle'),
           ),
         ],
       ),
@@ -1305,6 +1308,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     required bool saveForLater,
     required ValueChanged<bool> onSaveToggle,
     required Future<void> Function() onPrimary,
+    Key? saveToggleKey,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1319,6 +1323,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(width: 12),
         Flexible(
           child: CheckboxListTile(
+            key: saveToggleKey,
             value: saveForLater,
             onChanged: isBusy
                 ? null

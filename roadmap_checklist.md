@@ -40,10 +40,10 @@
 - [x] Wire importer to ingest EPG deltas per provider (Xtream/other) and update summaries. -> `lib/data/import/epg_importer.dart`.
 
 ## Schema Phase 3 – VOD & Series
-- [ ] Create tables: `movies`, `series`, `seasons`, `episodes` plus relationships.
-- [ ] Extend importers to fetch and upsert VOD/series metadata (Xtream, Stalker where available).
-- [ ] Link VOD/series items to categories and compute VOD/series summaries.
-- [ ] Expose repository APIs for browsing VOD catalog and series hierarchy (series → seasons → episodes).
+- [x] Create tables: `movies`, `series`, `seasons`, `episodes` plus relationships. -> `lib/data/db/tables/movies.dart`, `series.dart`, `seasons.dart`, `episodes.dart`.
+- [x] Extend importers to fetch and upsert VOD/series metadata (Xtream, Stalker where available). -> `lib/data/import/xtream_importer.dart`.
+- [x] Link VOD/series items to categories and compute VOD/series summaries. -> Category foreign keys + summary recompute in `lib/data/import/xtream_importer.dart`.
+- [x] Expose repository APIs for browsing VOD catalog and series hierarchy (series -> seasons -> episodes). -> `lib/data/repositories/vod_repository.dart`.
 
 ## Artwork, Flags, History & Cache
 - [ ] Implement `artwork_cache` table with LRU metadata and storage strategy (BLOB vs file pointer).

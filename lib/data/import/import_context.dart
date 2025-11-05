@@ -2,14 +2,20 @@ import 'dart:async';
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/channel_dao.dart';
-import '../db/dao/epg_dao.dart';
+import '../db/dao/movie_dao.dart';
 import '../db/dao/provider_dao.dart';
+import '../db/dao/series_dao.dart';
 import '../db/dao/summary_dao.dart';
+import '../db/dao/epg_dao.dart';
 import '../db/openiptv_db.dart';
 
 class ImportMetrics {
   int channelsUpserted = 0;
   int categoriesUpserted = 0;
+  int moviesUpserted = 0;
+  int seriesUpserted = 0;
+  int seasonsUpserted = 0;
+  int episodesUpserted = 0;
   int channelsDeleted = 0;
   int programsUpserted = 0;
   Duration duration = Duration.zero;
@@ -23,6 +29,8 @@ class ImportTxn {
     this.providers,
     this.channels,
     this.categories,
+    this.movies,
+    this.series,
     this.summaries,
     this.epg,
   );
@@ -31,6 +39,8 @@ class ImportTxn {
   final ProviderDao providers;
   final ChannelDao channels;
   final CategoryDao categories;
+  final MovieDao movies;
+  final SeriesDao series;
   final SummaryDao summaries;
   final EpgDao epg;
 }
@@ -41,6 +51,8 @@ class ImportContext {
     required this.providerDao,
     required this.channelDao,
     required this.categoryDao,
+    required this.movieDao,
+    required this.seriesDao,
     required this.summaryDao,
     required this.epgDao,
   });
@@ -49,6 +61,8 @@ class ImportContext {
   final ProviderDao providerDao;
   final ChannelDao channelDao;
   final CategoryDao categoryDao;
+  final MovieDao movieDao;
+  final SeriesDao seriesDao;
   final SummaryDao summaryDao;
   final EpgDao epgDao;
 
@@ -59,6 +73,8 @@ class ImportContext {
       providerDao,
       channelDao,
       categoryDao,
+      movieDao,
+      seriesDao,
       summaryDao,
       epgDao,
     );

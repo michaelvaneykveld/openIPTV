@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/provider_dao.dart';
+import '../db/dao/movie_dao.dart';
+import '../db/dao/series_dao.dart';
 import '../db/dao/epg_dao.dart';
 import '../db/dao/channel_dao.dart';
 import '../db/dao/summary_dao.dart';
@@ -17,12 +19,16 @@ final m3uImporterProvider = r.Provider<M3uImporter>((ref) {
   final channelDao = ChannelDao(db);
   final categoryDao = CategoryDao(db);
   final summaryDao = SummaryDao(db);
+  final movieDao = MovieDao(db);
+  final seriesDao = SeriesDao(db);
   final epgDao = EpgDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
     channelDao: channelDao,
     categoryDao: categoryDao,
+    movieDao: movieDao,
+    seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
   );
@@ -128,5 +134,7 @@ class M3uImporter {
     });
   }
 }
+
+
 
 

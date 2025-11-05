@@ -23,6 +23,10 @@ part 'tables/categories.dart';
 part 'tables/channel_categories.dart';
 part 'tables/summaries.dart';
 part 'tables/epg_programs.dart';
+part 'tables/movies.dart';
+part 'tables/series.dart';
+part 'tables/seasons.dart';
+part 'tables/episodes.dart';
 
 @DriftDatabase(
   tables: [
@@ -32,6 +36,10 @@ part 'tables/epg_programs.dart';
     ChannelCategories,
     Summaries,
     EpgPrograms,
+    Movies,
+    Series,
+    Seasons,
+    Episodes,
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {

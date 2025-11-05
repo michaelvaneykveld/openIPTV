@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 import '../db/dao/category_dao.dart';
 import '../db/dao/epg_dao.dart';
 import '../db/dao/channel_dao.dart';
+import '../db/dao/movie_dao.dart';
 import '../db/dao/provider_dao.dart';
+import '../db/dao/series_dao.dart';
 import '../db/dao/summary_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
@@ -15,12 +17,16 @@ final stalkerImporterProvider = r.Provider<StalkerImporter>((ref) {
   final summaryDao = SummaryDao(db);
   final providerDao = ProviderDao(db);
   final channelDao = ChannelDao(db);
+  final movieDao = MovieDao(db);
+  final seriesDao = SeriesDao(db);
   final epgDao = EpgDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
     channelDao: channelDao,
     categoryDao: categoryDao,
+    movieDao: movieDao,
+    seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
   );
@@ -147,6 +153,7 @@ class StalkerImporter {
     return int.tryParse(text);
   }
 }
+
 
 
 

@@ -2692,6 +2692,2274 @@ class EpgProgramsCompanion extends UpdateCompanion<EpgProgramRecord> {
   }
 }
 
+class $MoviesTable extends Movies with TableInfo<$MoviesTable, MovieRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MoviesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<int> providerId = GeneratedColumn<int>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES providers (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _providerVodKeyMeta = const VerificationMeta(
+    'providerVodKey',
+  );
+  @override
+  late final GeneratedColumn<String> providerVodKey = GeneratedColumn<String>(
+    'provider_vod_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES categories (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _overviewMeta = const VerificationMeta(
+    'overview',
+  );
+  @override
+  late final GeneratedColumn<String> overview = GeneratedColumn<String>(
+    'overview',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _posterUrlMeta = const VerificationMeta(
+    'posterUrl',
+  );
+  @override
+  late final GeneratedColumn<String> posterUrl = GeneratedColumn<String>(
+    'poster_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationSecMeta = const VerificationMeta(
+    'durationSec',
+  );
+  @override
+  late final GeneratedColumn<int> durationSec = GeneratedColumn<int>(
+    'duration_sec',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _streamUrlTemplateMeta = const VerificationMeta(
+    'streamUrlTemplate',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrlTemplate =
+      GeneratedColumn<String>(
+        'stream_url_template',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
+    'lastSeenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
+    'last_seen_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    providerId,
+    providerVodKey,
+    categoryId,
+    title,
+    year,
+    overview,
+    posterUrl,
+    durationSec,
+    streamUrlTemplate,
+    lastSeenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'movies';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MovieRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('provider_vod_key')) {
+      context.handle(
+        _providerVodKeyMeta,
+        providerVodKey.isAcceptableOrUnknown(
+          data['provider_vod_key']!,
+          _providerVodKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_providerVodKeyMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('overview')) {
+      context.handle(
+        _overviewMeta,
+        overview.isAcceptableOrUnknown(data['overview']!, _overviewMeta),
+      );
+    }
+    if (data.containsKey('poster_url')) {
+      context.handle(
+        _posterUrlMeta,
+        posterUrl.isAcceptableOrUnknown(data['poster_url']!, _posterUrlMeta),
+      );
+    }
+    if (data.containsKey('duration_sec')) {
+      context.handle(
+        _durationSecMeta,
+        durationSec.isAcceptableOrUnknown(
+          data['duration_sec']!,
+          _durationSecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stream_url_template')) {
+      context.handle(
+        _streamUrlTemplateMeta,
+        streamUrlTemplate.isAcceptableOrUnknown(
+          data['stream_url_template']!,
+          _streamUrlTemplateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_seen_at')) {
+      context.handle(
+        _lastSeenAtMeta,
+        lastSeenAt.isAcceptableOrUnknown(
+          data['last_seen_at']!,
+          _lastSeenAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {providerId, providerVodKey},
+  ];
+  @override
+  MovieRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MovieRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      providerVodKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_vod_key'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}category_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      ),
+      overview: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}overview'],
+      ),
+      posterUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}poster_url'],
+      ),
+      durationSec: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_sec'],
+      ),
+      streamUrlTemplate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url_template'],
+      ),
+      lastSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_seen_at'],
+      ),
+    );
+  }
+
+  @override
+  $MoviesTable createAlias(String alias) {
+    return $MoviesTable(attachedDatabase, alias);
+  }
+}
+
+class MovieRecord extends DataClass implements Insertable<MovieRecord> {
+  final int id;
+  final int providerId;
+  final String providerVodKey;
+  final int? categoryId;
+  final String title;
+  final int? year;
+  final String? overview;
+  final String? posterUrl;
+  final int? durationSec;
+  final String? streamUrlTemplate;
+  final DateTime? lastSeenAt;
+  const MovieRecord({
+    required this.id,
+    required this.providerId,
+    required this.providerVodKey,
+    this.categoryId,
+    required this.title,
+    this.year,
+    this.overview,
+    this.posterUrl,
+    this.durationSec,
+    this.streamUrlTemplate,
+    this.lastSeenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['provider_id'] = Variable<int>(providerId);
+    map['provider_vod_key'] = Variable<String>(providerVodKey);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<int>(year);
+    }
+    if (!nullToAbsent || overview != null) {
+      map['overview'] = Variable<String>(overview);
+    }
+    if (!nullToAbsent || posterUrl != null) {
+      map['poster_url'] = Variable<String>(posterUrl);
+    }
+    if (!nullToAbsent || durationSec != null) {
+      map['duration_sec'] = Variable<int>(durationSec);
+    }
+    if (!nullToAbsent || streamUrlTemplate != null) {
+      map['stream_url_template'] = Variable<String>(streamUrlTemplate);
+    }
+    if (!nullToAbsent || lastSeenAt != null) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
+    }
+    return map;
+  }
+
+  MoviesCompanion toCompanion(bool nullToAbsent) {
+    return MoviesCompanion(
+      id: Value(id),
+      providerId: Value(providerId),
+      providerVodKey: Value(providerVodKey),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      title: Value(title),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      overview: overview == null && nullToAbsent
+          ? const Value.absent()
+          : Value(overview),
+      posterUrl: posterUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(posterUrl),
+      durationSec: durationSec == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSec),
+      streamUrlTemplate: streamUrlTemplate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(streamUrlTemplate),
+      lastSeenAt: lastSeenAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSeenAt),
+    );
+  }
+
+  factory MovieRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MovieRecord(
+      id: serializer.fromJson<int>(json['id']),
+      providerId: serializer.fromJson<int>(json['providerId']),
+      providerVodKey: serializer.fromJson<String>(json['providerVodKey']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
+      title: serializer.fromJson<String>(json['title']),
+      year: serializer.fromJson<int?>(json['year']),
+      overview: serializer.fromJson<String?>(json['overview']),
+      posterUrl: serializer.fromJson<String?>(json['posterUrl']),
+      durationSec: serializer.fromJson<int?>(json['durationSec']),
+      streamUrlTemplate: serializer.fromJson<String?>(
+        json['streamUrlTemplate'],
+      ),
+      lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'providerId': serializer.toJson<int>(providerId),
+      'providerVodKey': serializer.toJson<String>(providerVodKey),
+      'categoryId': serializer.toJson<int?>(categoryId),
+      'title': serializer.toJson<String>(title),
+      'year': serializer.toJson<int?>(year),
+      'overview': serializer.toJson<String?>(overview),
+      'posterUrl': serializer.toJson<String?>(posterUrl),
+      'durationSec': serializer.toJson<int?>(durationSec),
+      'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
+      'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
+    };
+  }
+
+  MovieRecord copyWith({
+    int? id,
+    int? providerId,
+    String? providerVodKey,
+    Value<int?> categoryId = const Value.absent(),
+    String? title,
+    Value<int?> year = const Value.absent(),
+    Value<String?> overview = const Value.absent(),
+    Value<String?> posterUrl = const Value.absent(),
+    Value<int?> durationSec = const Value.absent(),
+    Value<String?> streamUrlTemplate = const Value.absent(),
+    Value<DateTime?> lastSeenAt = const Value.absent(),
+  }) => MovieRecord(
+    id: id ?? this.id,
+    providerId: providerId ?? this.providerId,
+    providerVodKey: providerVodKey ?? this.providerVodKey,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    title: title ?? this.title,
+    year: year.present ? year.value : this.year,
+    overview: overview.present ? overview.value : this.overview,
+    posterUrl: posterUrl.present ? posterUrl.value : this.posterUrl,
+    durationSec: durationSec.present ? durationSec.value : this.durationSec,
+    streamUrlTemplate: streamUrlTemplate.present
+        ? streamUrlTemplate.value
+        : this.streamUrlTemplate,
+    lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+  );
+  MovieRecord copyWithCompanion(MoviesCompanion data) {
+    return MovieRecord(
+      id: data.id.present ? data.id.value : this.id,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      providerVodKey: data.providerVodKey.present
+          ? data.providerVodKey.value
+          : this.providerVodKey,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      title: data.title.present ? data.title.value : this.title,
+      year: data.year.present ? data.year.value : this.year,
+      overview: data.overview.present ? data.overview.value : this.overview,
+      posterUrl: data.posterUrl.present ? data.posterUrl.value : this.posterUrl,
+      durationSec: data.durationSec.present
+          ? data.durationSec.value
+          : this.durationSec,
+      streamUrlTemplate: data.streamUrlTemplate.present
+          ? data.streamUrlTemplate.value
+          : this.streamUrlTemplate,
+      lastSeenAt: data.lastSeenAt.present
+          ? data.lastSeenAt.value
+          : this.lastSeenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MovieRecord(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerVodKey: $providerVodKey, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('title: $title, ')
+          ..write('year: $year, ')
+          ..write('overview: $overview, ')
+          ..write('posterUrl: $posterUrl, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    providerId,
+    providerVodKey,
+    categoryId,
+    title,
+    year,
+    overview,
+    posterUrl,
+    durationSec,
+    streamUrlTemplate,
+    lastSeenAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MovieRecord &&
+          other.id == this.id &&
+          other.providerId == this.providerId &&
+          other.providerVodKey == this.providerVodKey &&
+          other.categoryId == this.categoryId &&
+          other.title == this.title &&
+          other.year == this.year &&
+          other.overview == this.overview &&
+          other.posterUrl == this.posterUrl &&
+          other.durationSec == this.durationSec &&
+          other.streamUrlTemplate == this.streamUrlTemplate &&
+          other.lastSeenAt == this.lastSeenAt);
+}
+
+class MoviesCompanion extends UpdateCompanion<MovieRecord> {
+  final Value<int> id;
+  final Value<int> providerId;
+  final Value<String> providerVodKey;
+  final Value<int?> categoryId;
+  final Value<String> title;
+  final Value<int?> year;
+  final Value<String?> overview;
+  final Value<String?> posterUrl;
+  final Value<int?> durationSec;
+  final Value<String?> streamUrlTemplate;
+  final Value<DateTime?> lastSeenAt;
+  const MoviesCompanion({
+    this.id = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.providerVodKey = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.year = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.posterUrl = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.streamUrlTemplate = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  });
+  MoviesCompanion.insert({
+    this.id = const Value.absent(),
+    required int providerId,
+    required String providerVodKey,
+    this.categoryId = const Value.absent(),
+    required String title,
+    this.year = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.posterUrl = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.streamUrlTemplate = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  }) : providerId = Value(providerId),
+       providerVodKey = Value(providerVodKey),
+       title = Value(title);
+  static Insertable<MovieRecord> custom({
+    Expression<int>? id,
+    Expression<int>? providerId,
+    Expression<String>? providerVodKey,
+    Expression<int>? categoryId,
+    Expression<String>? title,
+    Expression<int>? year,
+    Expression<String>? overview,
+    Expression<String>? posterUrl,
+    Expression<int>? durationSec,
+    Expression<String>? streamUrlTemplate,
+    Expression<DateTime>? lastSeenAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (providerId != null) 'provider_id': providerId,
+      if (providerVodKey != null) 'provider_vod_key': providerVodKey,
+      if (categoryId != null) 'category_id': categoryId,
+      if (title != null) 'title': title,
+      if (year != null) 'year': year,
+      if (overview != null) 'overview': overview,
+      if (posterUrl != null) 'poster_url': posterUrl,
+      if (durationSec != null) 'duration_sec': durationSec,
+      if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
+      if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+    });
+  }
+
+  MoviesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? providerId,
+    Value<String>? providerVodKey,
+    Value<int?>? categoryId,
+    Value<String>? title,
+    Value<int?>? year,
+    Value<String?>? overview,
+    Value<String?>? posterUrl,
+    Value<int?>? durationSec,
+    Value<String?>? streamUrlTemplate,
+    Value<DateTime?>? lastSeenAt,
+  }) {
+    return MoviesCompanion(
+      id: id ?? this.id,
+      providerId: providerId ?? this.providerId,
+      providerVodKey: providerVodKey ?? this.providerVodKey,
+      categoryId: categoryId ?? this.categoryId,
+      title: title ?? this.title,
+      year: year ?? this.year,
+      overview: overview ?? this.overview,
+      posterUrl: posterUrl ?? this.posterUrl,
+      durationSec: durationSec ?? this.durationSec,
+      streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<int>(providerId.value);
+    }
+    if (providerVodKey.present) {
+      map['provider_vod_key'] = Variable<String>(providerVodKey.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (overview.present) {
+      map['overview'] = Variable<String>(overview.value);
+    }
+    if (posterUrl.present) {
+      map['poster_url'] = Variable<String>(posterUrl.value);
+    }
+    if (durationSec.present) {
+      map['duration_sec'] = Variable<int>(durationSec.value);
+    }
+    if (streamUrlTemplate.present) {
+      map['stream_url_template'] = Variable<String>(streamUrlTemplate.value);
+    }
+    if (lastSeenAt.present) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MoviesCompanion(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerVodKey: $providerVodKey, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('title: $title, ')
+          ..write('year: $year, ')
+          ..write('overview: $overview, ')
+          ..write('posterUrl: $posterUrl, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SeriesTable extends Series with TableInfo<$SeriesTable, SeriesRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SeriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<int> providerId = GeneratedColumn<int>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES providers (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _providerSeriesKeyMeta = const VerificationMeta(
+    'providerSeriesKey',
+  );
+  @override
+  late final GeneratedColumn<String> providerSeriesKey =
+      GeneratedColumn<String>(
+        'provider_series_key',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES categories (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _posterUrlMeta = const VerificationMeta(
+    'posterUrl',
+  );
+  @override
+  late final GeneratedColumn<String> posterUrl = GeneratedColumn<String>(
+    'poster_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _overviewMeta = const VerificationMeta(
+    'overview',
+  );
+  @override
+  late final GeneratedColumn<String> overview = GeneratedColumn<String>(
+    'overview',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
+    'lastSeenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
+    'last_seen_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    providerId,
+    providerSeriesKey,
+    categoryId,
+    title,
+    posterUrl,
+    year,
+    overview,
+    lastSeenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'series';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SeriesRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('provider_series_key')) {
+      context.handle(
+        _providerSeriesKeyMeta,
+        providerSeriesKey.isAcceptableOrUnknown(
+          data['provider_series_key']!,
+          _providerSeriesKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_providerSeriesKeyMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('poster_url')) {
+      context.handle(
+        _posterUrlMeta,
+        posterUrl.isAcceptableOrUnknown(data['poster_url']!, _posterUrlMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('overview')) {
+      context.handle(
+        _overviewMeta,
+        overview.isAcceptableOrUnknown(data['overview']!, _overviewMeta),
+      );
+    }
+    if (data.containsKey('last_seen_at')) {
+      context.handle(
+        _lastSeenAtMeta,
+        lastSeenAt.isAcceptableOrUnknown(
+          data['last_seen_at']!,
+          _lastSeenAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {providerId, providerSeriesKey},
+  ];
+  @override
+  SeriesRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SeriesRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      providerSeriesKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_series_key'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}category_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      posterUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}poster_url'],
+      ),
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      ),
+      overview: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}overview'],
+      ),
+      lastSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_seen_at'],
+      ),
+    );
+  }
+
+  @override
+  $SeriesTable createAlias(String alias) {
+    return $SeriesTable(attachedDatabase, alias);
+  }
+}
+
+class SeriesRecord extends DataClass implements Insertable<SeriesRecord> {
+  final int id;
+  final int providerId;
+  final String providerSeriesKey;
+  final int? categoryId;
+  final String title;
+  final String? posterUrl;
+  final int? year;
+  final String? overview;
+  final DateTime? lastSeenAt;
+  const SeriesRecord({
+    required this.id,
+    required this.providerId,
+    required this.providerSeriesKey,
+    this.categoryId,
+    required this.title,
+    this.posterUrl,
+    this.year,
+    this.overview,
+    this.lastSeenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['provider_id'] = Variable<int>(providerId);
+    map['provider_series_key'] = Variable<String>(providerSeriesKey);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || posterUrl != null) {
+      map['poster_url'] = Variable<String>(posterUrl);
+    }
+    if (!nullToAbsent || year != null) {
+      map['year'] = Variable<int>(year);
+    }
+    if (!nullToAbsent || overview != null) {
+      map['overview'] = Variable<String>(overview);
+    }
+    if (!nullToAbsent || lastSeenAt != null) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
+    }
+    return map;
+  }
+
+  SeriesCompanion toCompanion(bool nullToAbsent) {
+    return SeriesCompanion(
+      id: Value(id),
+      providerId: Value(providerId),
+      providerSeriesKey: Value(providerSeriesKey),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
+      title: Value(title),
+      posterUrl: posterUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(posterUrl),
+      year: year == null && nullToAbsent ? const Value.absent() : Value(year),
+      overview: overview == null && nullToAbsent
+          ? const Value.absent()
+          : Value(overview),
+      lastSeenAt: lastSeenAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSeenAt),
+    );
+  }
+
+  factory SeriesRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SeriesRecord(
+      id: serializer.fromJson<int>(json['id']),
+      providerId: serializer.fromJson<int>(json['providerId']),
+      providerSeriesKey: serializer.fromJson<String>(json['providerSeriesKey']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
+      title: serializer.fromJson<String>(json['title']),
+      posterUrl: serializer.fromJson<String?>(json['posterUrl']),
+      year: serializer.fromJson<int?>(json['year']),
+      overview: serializer.fromJson<String?>(json['overview']),
+      lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'providerId': serializer.toJson<int>(providerId),
+      'providerSeriesKey': serializer.toJson<String>(providerSeriesKey),
+      'categoryId': serializer.toJson<int?>(categoryId),
+      'title': serializer.toJson<String>(title),
+      'posterUrl': serializer.toJson<String?>(posterUrl),
+      'year': serializer.toJson<int?>(year),
+      'overview': serializer.toJson<String?>(overview),
+      'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
+    };
+  }
+
+  SeriesRecord copyWith({
+    int? id,
+    int? providerId,
+    String? providerSeriesKey,
+    Value<int?> categoryId = const Value.absent(),
+    String? title,
+    Value<String?> posterUrl = const Value.absent(),
+    Value<int?> year = const Value.absent(),
+    Value<String?> overview = const Value.absent(),
+    Value<DateTime?> lastSeenAt = const Value.absent(),
+  }) => SeriesRecord(
+    id: id ?? this.id,
+    providerId: providerId ?? this.providerId,
+    providerSeriesKey: providerSeriesKey ?? this.providerSeriesKey,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    title: title ?? this.title,
+    posterUrl: posterUrl.present ? posterUrl.value : this.posterUrl,
+    year: year.present ? year.value : this.year,
+    overview: overview.present ? overview.value : this.overview,
+    lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+  );
+  SeriesRecord copyWithCompanion(SeriesCompanion data) {
+    return SeriesRecord(
+      id: data.id.present ? data.id.value : this.id,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      providerSeriesKey: data.providerSeriesKey.present
+          ? data.providerSeriesKey.value
+          : this.providerSeriesKey,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      title: data.title.present ? data.title.value : this.title,
+      posterUrl: data.posterUrl.present ? data.posterUrl.value : this.posterUrl,
+      year: data.year.present ? data.year.value : this.year,
+      overview: data.overview.present ? data.overview.value : this.overview,
+      lastSeenAt: data.lastSeenAt.present
+          ? data.lastSeenAt.value
+          : this.lastSeenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SeriesRecord(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerSeriesKey: $providerSeriesKey, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('title: $title, ')
+          ..write('posterUrl: $posterUrl, ')
+          ..write('year: $year, ')
+          ..write('overview: $overview, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    providerId,
+    providerSeriesKey,
+    categoryId,
+    title,
+    posterUrl,
+    year,
+    overview,
+    lastSeenAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SeriesRecord &&
+          other.id == this.id &&
+          other.providerId == this.providerId &&
+          other.providerSeriesKey == this.providerSeriesKey &&
+          other.categoryId == this.categoryId &&
+          other.title == this.title &&
+          other.posterUrl == this.posterUrl &&
+          other.year == this.year &&
+          other.overview == this.overview &&
+          other.lastSeenAt == this.lastSeenAt);
+}
+
+class SeriesCompanion extends UpdateCompanion<SeriesRecord> {
+  final Value<int> id;
+  final Value<int> providerId;
+  final Value<String> providerSeriesKey;
+  final Value<int?> categoryId;
+  final Value<String> title;
+  final Value<String?> posterUrl;
+  final Value<int?> year;
+  final Value<String?> overview;
+  final Value<DateTime?> lastSeenAt;
+  const SeriesCompanion({
+    this.id = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.providerSeriesKey = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.posterUrl = const Value.absent(),
+    this.year = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  });
+  SeriesCompanion.insert({
+    this.id = const Value.absent(),
+    required int providerId,
+    required String providerSeriesKey,
+    this.categoryId = const Value.absent(),
+    required String title,
+    this.posterUrl = const Value.absent(),
+    this.year = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  }) : providerId = Value(providerId),
+       providerSeriesKey = Value(providerSeriesKey),
+       title = Value(title);
+  static Insertable<SeriesRecord> custom({
+    Expression<int>? id,
+    Expression<int>? providerId,
+    Expression<String>? providerSeriesKey,
+    Expression<int>? categoryId,
+    Expression<String>? title,
+    Expression<String>? posterUrl,
+    Expression<int>? year,
+    Expression<String>? overview,
+    Expression<DateTime>? lastSeenAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (providerId != null) 'provider_id': providerId,
+      if (providerSeriesKey != null) 'provider_series_key': providerSeriesKey,
+      if (categoryId != null) 'category_id': categoryId,
+      if (title != null) 'title': title,
+      if (posterUrl != null) 'poster_url': posterUrl,
+      if (year != null) 'year': year,
+      if (overview != null) 'overview': overview,
+      if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+    });
+  }
+
+  SeriesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? providerId,
+    Value<String>? providerSeriesKey,
+    Value<int?>? categoryId,
+    Value<String>? title,
+    Value<String?>? posterUrl,
+    Value<int?>? year,
+    Value<String?>? overview,
+    Value<DateTime?>? lastSeenAt,
+  }) {
+    return SeriesCompanion(
+      id: id ?? this.id,
+      providerId: providerId ?? this.providerId,
+      providerSeriesKey: providerSeriesKey ?? this.providerSeriesKey,
+      categoryId: categoryId ?? this.categoryId,
+      title: title ?? this.title,
+      posterUrl: posterUrl ?? this.posterUrl,
+      year: year ?? this.year,
+      overview: overview ?? this.overview,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<int>(providerId.value);
+    }
+    if (providerSeriesKey.present) {
+      map['provider_series_key'] = Variable<String>(providerSeriesKey.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (posterUrl.present) {
+      map['poster_url'] = Variable<String>(posterUrl.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (overview.present) {
+      map['overview'] = Variable<String>(overview.value);
+    }
+    if (lastSeenAt.present) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SeriesCompanion(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerSeriesKey: $providerSeriesKey, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('title: $title, ')
+          ..write('posterUrl: $posterUrl, ')
+          ..write('year: $year, ')
+          ..write('overview: $overview, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SeasonsTable extends Seasons
+    with TableInfo<$SeasonsTable, SeasonRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SeasonsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _seriesIdMeta = const VerificationMeta(
+    'seriesId',
+  );
+  @override
+  late final GeneratedColumn<int> seriesId = GeneratedColumn<int>(
+    'series_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES series (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _seasonNumberMeta = const VerificationMeta(
+    'seasonNumber',
+  );
+  @override
+  late final GeneratedColumn<int> seasonNumber = GeneratedColumn<int>(
+    'season_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, seriesId, seasonNumber, name];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'seasons';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SeasonRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('series_id')) {
+      context.handle(
+        _seriesIdMeta,
+        seriesId.isAcceptableOrUnknown(data['series_id']!, _seriesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seriesIdMeta);
+    }
+    if (data.containsKey('season_number')) {
+      context.handle(
+        _seasonNumberMeta,
+        seasonNumber.isAcceptableOrUnknown(
+          data['season_number']!,
+          _seasonNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_seasonNumberMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {seriesId, seasonNumber},
+  ];
+  @override
+  SeasonRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SeasonRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      seriesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}series_id'],
+      )!,
+      seasonNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}season_number'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      ),
+    );
+  }
+
+  @override
+  $SeasonsTable createAlias(String alias) {
+    return $SeasonsTable(attachedDatabase, alias);
+  }
+}
+
+class SeasonRecord extends DataClass implements Insertable<SeasonRecord> {
+  final int id;
+  final int seriesId;
+  final int seasonNumber;
+  final String? name;
+  const SeasonRecord({
+    required this.id,
+    required this.seriesId,
+    required this.seasonNumber,
+    this.name,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['series_id'] = Variable<int>(seriesId);
+    map['season_number'] = Variable<int>(seasonNumber);
+    if (!nullToAbsent || name != null) {
+      map['name'] = Variable<String>(name);
+    }
+    return map;
+  }
+
+  SeasonsCompanion toCompanion(bool nullToAbsent) {
+    return SeasonsCompanion(
+      id: Value(id),
+      seriesId: Value(seriesId),
+      seasonNumber: Value(seasonNumber),
+      name: name == null && nullToAbsent ? const Value.absent() : Value(name),
+    );
+  }
+
+  factory SeasonRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SeasonRecord(
+      id: serializer.fromJson<int>(json['id']),
+      seriesId: serializer.fromJson<int>(json['seriesId']),
+      seasonNumber: serializer.fromJson<int>(json['seasonNumber']),
+      name: serializer.fromJson<String?>(json['name']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'seriesId': serializer.toJson<int>(seriesId),
+      'seasonNumber': serializer.toJson<int>(seasonNumber),
+      'name': serializer.toJson<String?>(name),
+    };
+  }
+
+  SeasonRecord copyWith({
+    int? id,
+    int? seriesId,
+    int? seasonNumber,
+    Value<String?> name = const Value.absent(),
+  }) => SeasonRecord(
+    id: id ?? this.id,
+    seriesId: seriesId ?? this.seriesId,
+    seasonNumber: seasonNumber ?? this.seasonNumber,
+    name: name.present ? name.value : this.name,
+  );
+  SeasonRecord copyWithCompanion(SeasonsCompanion data) {
+    return SeasonRecord(
+      id: data.id.present ? data.id.value : this.id,
+      seriesId: data.seriesId.present ? data.seriesId.value : this.seriesId,
+      seasonNumber: data.seasonNumber.present
+          ? data.seasonNumber.value
+          : this.seasonNumber,
+      name: data.name.present ? data.name.value : this.name,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SeasonRecord(')
+          ..write('id: $id, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('seasonNumber: $seasonNumber, ')
+          ..write('name: $name')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, seriesId, seasonNumber, name);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SeasonRecord &&
+          other.id == this.id &&
+          other.seriesId == this.seriesId &&
+          other.seasonNumber == this.seasonNumber &&
+          other.name == this.name);
+}
+
+class SeasonsCompanion extends UpdateCompanion<SeasonRecord> {
+  final Value<int> id;
+  final Value<int> seriesId;
+  final Value<int> seasonNumber;
+  final Value<String?> name;
+  const SeasonsCompanion({
+    this.id = const Value.absent(),
+    this.seriesId = const Value.absent(),
+    this.seasonNumber = const Value.absent(),
+    this.name = const Value.absent(),
+  });
+  SeasonsCompanion.insert({
+    this.id = const Value.absent(),
+    required int seriesId,
+    required int seasonNumber,
+    this.name = const Value.absent(),
+  }) : seriesId = Value(seriesId),
+       seasonNumber = Value(seasonNumber);
+  static Insertable<SeasonRecord> custom({
+    Expression<int>? id,
+    Expression<int>? seriesId,
+    Expression<int>? seasonNumber,
+    Expression<String>? name,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (seriesId != null) 'series_id': seriesId,
+      if (seasonNumber != null) 'season_number': seasonNumber,
+      if (name != null) 'name': name,
+    });
+  }
+
+  SeasonsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? seriesId,
+    Value<int>? seasonNumber,
+    Value<String?>? name,
+  }) {
+    return SeasonsCompanion(
+      id: id ?? this.id,
+      seriesId: seriesId ?? this.seriesId,
+      seasonNumber: seasonNumber ?? this.seasonNumber,
+      name: name ?? this.name,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (seriesId.present) {
+      map['series_id'] = Variable<int>(seriesId.value);
+    }
+    if (seasonNumber.present) {
+      map['season_number'] = Variable<int>(seasonNumber.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SeasonsCompanion(')
+          ..write('id: $id, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('seasonNumber: $seasonNumber, ')
+          ..write('name: $name')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EpisodesTable extends Episodes
+    with TableInfo<$EpisodesTable, EpisodeRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EpisodesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _seriesIdMeta = const VerificationMeta(
+    'seriesId',
+  );
+  @override
+  late final GeneratedColumn<int> seriesId = GeneratedColumn<int>(
+    'series_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES series (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _seasonIdMeta = const VerificationMeta(
+    'seasonId',
+  );
+  @override
+  late final GeneratedColumn<int> seasonId = GeneratedColumn<int>(
+    'season_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES seasons (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _providerEpisodeKeyMeta =
+      const VerificationMeta('providerEpisodeKey');
+  @override
+  late final GeneratedColumn<String> providerEpisodeKey =
+      GeneratedColumn<String>(
+        'provider_episode_key',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _seasonNumberMeta = const VerificationMeta(
+    'seasonNumber',
+  );
+  @override
+  late final GeneratedColumn<int> seasonNumber = GeneratedColumn<int>(
+    'season_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _episodeNumberMeta = const VerificationMeta(
+    'episodeNumber',
+  );
+  @override
+  late final GeneratedColumn<int> episodeNumber = GeneratedColumn<int>(
+    'episode_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _overviewMeta = const VerificationMeta(
+    'overview',
+  );
+  @override
+  late final GeneratedColumn<String> overview = GeneratedColumn<String>(
+    'overview',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationSecMeta = const VerificationMeta(
+    'durationSec',
+  );
+  @override
+  late final GeneratedColumn<int> durationSec = GeneratedColumn<int>(
+    'duration_sec',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _streamUrlTemplateMeta = const VerificationMeta(
+    'streamUrlTemplate',
+  );
+  @override
+  late final GeneratedColumn<String> streamUrlTemplate =
+      GeneratedColumn<String>(
+        'stream_url_template',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
+    'lastSeenAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastSeenAt = GeneratedColumn<DateTime>(
+    'last_seen_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    seriesId,
+    seasonId,
+    providerEpisodeKey,
+    seasonNumber,
+    episodeNumber,
+    title,
+    overview,
+    durationSec,
+    streamUrlTemplate,
+    lastSeenAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'episodes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EpisodeRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('series_id')) {
+      context.handle(
+        _seriesIdMeta,
+        seriesId.isAcceptableOrUnknown(data['series_id']!, _seriesIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seriesIdMeta);
+    }
+    if (data.containsKey('season_id')) {
+      context.handle(
+        _seasonIdMeta,
+        seasonId.isAcceptableOrUnknown(data['season_id']!, _seasonIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_seasonIdMeta);
+    }
+    if (data.containsKey('provider_episode_key')) {
+      context.handle(
+        _providerEpisodeKeyMeta,
+        providerEpisodeKey.isAcceptableOrUnknown(
+          data['provider_episode_key']!,
+          _providerEpisodeKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_providerEpisodeKeyMeta);
+    }
+    if (data.containsKey('season_number')) {
+      context.handle(
+        _seasonNumberMeta,
+        seasonNumber.isAcceptableOrUnknown(
+          data['season_number']!,
+          _seasonNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('episode_number')) {
+      context.handle(
+        _episodeNumberMeta,
+        episodeNumber.isAcceptableOrUnknown(
+          data['episode_number']!,
+          _episodeNumberMeta,
+        ),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('overview')) {
+      context.handle(
+        _overviewMeta,
+        overview.isAcceptableOrUnknown(data['overview']!, _overviewMeta),
+      );
+    }
+    if (data.containsKey('duration_sec')) {
+      context.handle(
+        _durationSecMeta,
+        durationSec.isAcceptableOrUnknown(
+          data['duration_sec']!,
+          _durationSecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stream_url_template')) {
+      context.handle(
+        _streamUrlTemplateMeta,
+        streamUrlTemplate.isAcceptableOrUnknown(
+          data['stream_url_template']!,
+          _streamUrlTemplateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_seen_at')) {
+      context.handle(
+        _lastSeenAtMeta,
+        lastSeenAt.isAcceptableOrUnknown(
+          data['last_seen_at']!,
+          _lastSeenAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {seriesId, providerEpisodeKey},
+  ];
+  @override
+  EpisodeRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EpisodeRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      seriesId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}series_id'],
+      )!,
+      seasonId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}season_id'],
+      )!,
+      providerEpisodeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_episode_key'],
+      )!,
+      seasonNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}season_number'],
+      ),
+      episodeNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}episode_number'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      overview: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}overview'],
+      ),
+      durationSec: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_sec'],
+      ),
+      streamUrlTemplate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_url_template'],
+      ),
+      lastSeenAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_seen_at'],
+      ),
+    );
+  }
+
+  @override
+  $EpisodesTable createAlias(String alias) {
+    return $EpisodesTable(attachedDatabase, alias);
+  }
+}
+
+class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
+  final int id;
+  final int seriesId;
+  final int seasonId;
+  final String providerEpisodeKey;
+  final int? seasonNumber;
+  final int? episodeNumber;
+  final String? title;
+  final String? overview;
+  final int? durationSec;
+  final String? streamUrlTemplate;
+  final DateTime? lastSeenAt;
+  const EpisodeRecord({
+    required this.id,
+    required this.seriesId,
+    required this.seasonId,
+    required this.providerEpisodeKey,
+    this.seasonNumber,
+    this.episodeNumber,
+    this.title,
+    this.overview,
+    this.durationSec,
+    this.streamUrlTemplate,
+    this.lastSeenAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['series_id'] = Variable<int>(seriesId);
+    map['season_id'] = Variable<int>(seasonId);
+    map['provider_episode_key'] = Variable<String>(providerEpisodeKey);
+    if (!nullToAbsent || seasonNumber != null) {
+      map['season_number'] = Variable<int>(seasonNumber);
+    }
+    if (!nullToAbsent || episodeNumber != null) {
+      map['episode_number'] = Variable<int>(episodeNumber);
+    }
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    if (!nullToAbsent || overview != null) {
+      map['overview'] = Variable<String>(overview);
+    }
+    if (!nullToAbsent || durationSec != null) {
+      map['duration_sec'] = Variable<int>(durationSec);
+    }
+    if (!nullToAbsent || streamUrlTemplate != null) {
+      map['stream_url_template'] = Variable<String>(streamUrlTemplate);
+    }
+    if (!nullToAbsent || lastSeenAt != null) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
+    }
+    return map;
+  }
+
+  EpisodesCompanion toCompanion(bool nullToAbsent) {
+    return EpisodesCompanion(
+      id: Value(id),
+      seriesId: Value(seriesId),
+      seasonId: Value(seasonId),
+      providerEpisodeKey: Value(providerEpisodeKey),
+      seasonNumber: seasonNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seasonNumber),
+      episodeNumber: episodeNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(episodeNumber),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      overview: overview == null && nullToAbsent
+          ? const Value.absent()
+          : Value(overview),
+      durationSec: durationSec == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSec),
+      streamUrlTemplate: streamUrlTemplate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(streamUrlTemplate),
+      lastSeenAt: lastSeenAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastSeenAt),
+    );
+  }
+
+  factory EpisodeRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EpisodeRecord(
+      id: serializer.fromJson<int>(json['id']),
+      seriesId: serializer.fromJson<int>(json['seriesId']),
+      seasonId: serializer.fromJson<int>(json['seasonId']),
+      providerEpisodeKey: serializer.fromJson<String>(
+        json['providerEpisodeKey'],
+      ),
+      seasonNumber: serializer.fromJson<int?>(json['seasonNumber']),
+      episodeNumber: serializer.fromJson<int?>(json['episodeNumber']),
+      title: serializer.fromJson<String?>(json['title']),
+      overview: serializer.fromJson<String?>(json['overview']),
+      durationSec: serializer.fromJson<int?>(json['durationSec']),
+      streamUrlTemplate: serializer.fromJson<String?>(
+        json['streamUrlTemplate'],
+      ),
+      lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'seriesId': serializer.toJson<int>(seriesId),
+      'seasonId': serializer.toJson<int>(seasonId),
+      'providerEpisodeKey': serializer.toJson<String>(providerEpisodeKey),
+      'seasonNumber': serializer.toJson<int?>(seasonNumber),
+      'episodeNumber': serializer.toJson<int?>(episodeNumber),
+      'title': serializer.toJson<String?>(title),
+      'overview': serializer.toJson<String?>(overview),
+      'durationSec': serializer.toJson<int?>(durationSec),
+      'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
+      'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
+    };
+  }
+
+  EpisodeRecord copyWith({
+    int? id,
+    int? seriesId,
+    int? seasonId,
+    String? providerEpisodeKey,
+    Value<int?> seasonNumber = const Value.absent(),
+    Value<int?> episodeNumber = const Value.absent(),
+    Value<String?> title = const Value.absent(),
+    Value<String?> overview = const Value.absent(),
+    Value<int?> durationSec = const Value.absent(),
+    Value<String?> streamUrlTemplate = const Value.absent(),
+    Value<DateTime?> lastSeenAt = const Value.absent(),
+  }) => EpisodeRecord(
+    id: id ?? this.id,
+    seriesId: seriesId ?? this.seriesId,
+    seasonId: seasonId ?? this.seasonId,
+    providerEpisodeKey: providerEpisodeKey ?? this.providerEpisodeKey,
+    seasonNumber: seasonNumber.present ? seasonNumber.value : this.seasonNumber,
+    episodeNumber: episodeNumber.present
+        ? episodeNumber.value
+        : this.episodeNumber,
+    title: title.present ? title.value : this.title,
+    overview: overview.present ? overview.value : this.overview,
+    durationSec: durationSec.present ? durationSec.value : this.durationSec,
+    streamUrlTemplate: streamUrlTemplate.present
+        ? streamUrlTemplate.value
+        : this.streamUrlTemplate,
+    lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+  );
+  EpisodeRecord copyWithCompanion(EpisodesCompanion data) {
+    return EpisodeRecord(
+      id: data.id.present ? data.id.value : this.id,
+      seriesId: data.seriesId.present ? data.seriesId.value : this.seriesId,
+      seasonId: data.seasonId.present ? data.seasonId.value : this.seasonId,
+      providerEpisodeKey: data.providerEpisodeKey.present
+          ? data.providerEpisodeKey.value
+          : this.providerEpisodeKey,
+      seasonNumber: data.seasonNumber.present
+          ? data.seasonNumber.value
+          : this.seasonNumber,
+      episodeNumber: data.episodeNumber.present
+          ? data.episodeNumber.value
+          : this.episodeNumber,
+      title: data.title.present ? data.title.value : this.title,
+      overview: data.overview.present ? data.overview.value : this.overview,
+      durationSec: data.durationSec.present
+          ? data.durationSec.value
+          : this.durationSec,
+      streamUrlTemplate: data.streamUrlTemplate.present
+          ? data.streamUrlTemplate.value
+          : this.streamUrlTemplate,
+      lastSeenAt: data.lastSeenAt.present
+          ? data.lastSeenAt.value
+          : this.lastSeenAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpisodeRecord(')
+          ..write('id: $id, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('seasonId: $seasonId, ')
+          ..write('providerEpisodeKey: $providerEpisodeKey, ')
+          ..write('seasonNumber: $seasonNumber, ')
+          ..write('episodeNumber: $episodeNumber, ')
+          ..write('title: $title, ')
+          ..write('overview: $overview, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    seriesId,
+    seasonId,
+    providerEpisodeKey,
+    seasonNumber,
+    episodeNumber,
+    title,
+    overview,
+    durationSec,
+    streamUrlTemplate,
+    lastSeenAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EpisodeRecord &&
+          other.id == this.id &&
+          other.seriesId == this.seriesId &&
+          other.seasonId == this.seasonId &&
+          other.providerEpisodeKey == this.providerEpisodeKey &&
+          other.seasonNumber == this.seasonNumber &&
+          other.episodeNumber == this.episodeNumber &&
+          other.title == this.title &&
+          other.overview == this.overview &&
+          other.durationSec == this.durationSec &&
+          other.streamUrlTemplate == this.streamUrlTemplate &&
+          other.lastSeenAt == this.lastSeenAt);
+}
+
+class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
+  final Value<int> id;
+  final Value<int> seriesId;
+  final Value<int> seasonId;
+  final Value<String> providerEpisodeKey;
+  final Value<int?> seasonNumber;
+  final Value<int?> episodeNumber;
+  final Value<String?> title;
+  final Value<String?> overview;
+  final Value<int?> durationSec;
+  final Value<String?> streamUrlTemplate;
+  final Value<DateTime?> lastSeenAt;
+  const EpisodesCompanion({
+    this.id = const Value.absent(),
+    this.seriesId = const Value.absent(),
+    this.seasonId = const Value.absent(),
+    this.providerEpisodeKey = const Value.absent(),
+    this.seasonNumber = const Value.absent(),
+    this.episodeNumber = const Value.absent(),
+    this.title = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.streamUrlTemplate = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  });
+  EpisodesCompanion.insert({
+    this.id = const Value.absent(),
+    required int seriesId,
+    required int seasonId,
+    required String providerEpisodeKey,
+    this.seasonNumber = const Value.absent(),
+    this.episodeNumber = const Value.absent(),
+    this.title = const Value.absent(),
+    this.overview = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.streamUrlTemplate = const Value.absent(),
+    this.lastSeenAt = const Value.absent(),
+  }) : seriesId = Value(seriesId),
+       seasonId = Value(seasonId),
+       providerEpisodeKey = Value(providerEpisodeKey);
+  static Insertable<EpisodeRecord> custom({
+    Expression<int>? id,
+    Expression<int>? seriesId,
+    Expression<int>? seasonId,
+    Expression<String>? providerEpisodeKey,
+    Expression<int>? seasonNumber,
+    Expression<int>? episodeNumber,
+    Expression<String>? title,
+    Expression<String>? overview,
+    Expression<int>? durationSec,
+    Expression<String>? streamUrlTemplate,
+    Expression<DateTime>? lastSeenAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (seriesId != null) 'series_id': seriesId,
+      if (seasonId != null) 'season_id': seasonId,
+      if (providerEpisodeKey != null)
+        'provider_episode_key': providerEpisodeKey,
+      if (seasonNumber != null) 'season_number': seasonNumber,
+      if (episodeNumber != null) 'episode_number': episodeNumber,
+      if (title != null) 'title': title,
+      if (overview != null) 'overview': overview,
+      if (durationSec != null) 'duration_sec': durationSec,
+      if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
+      if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+    });
+  }
+
+  EpisodesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? seriesId,
+    Value<int>? seasonId,
+    Value<String>? providerEpisodeKey,
+    Value<int?>? seasonNumber,
+    Value<int?>? episodeNumber,
+    Value<String?>? title,
+    Value<String?>? overview,
+    Value<int?>? durationSec,
+    Value<String?>? streamUrlTemplate,
+    Value<DateTime?>? lastSeenAt,
+  }) {
+    return EpisodesCompanion(
+      id: id ?? this.id,
+      seriesId: seriesId ?? this.seriesId,
+      seasonId: seasonId ?? this.seasonId,
+      providerEpisodeKey: providerEpisodeKey ?? this.providerEpisodeKey,
+      seasonNumber: seasonNumber ?? this.seasonNumber,
+      episodeNumber: episodeNumber ?? this.episodeNumber,
+      title: title ?? this.title,
+      overview: overview ?? this.overview,
+      durationSec: durationSec ?? this.durationSec,
+      streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
+      lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (seriesId.present) {
+      map['series_id'] = Variable<int>(seriesId.value);
+    }
+    if (seasonId.present) {
+      map['season_id'] = Variable<int>(seasonId.value);
+    }
+    if (providerEpisodeKey.present) {
+      map['provider_episode_key'] = Variable<String>(providerEpisodeKey.value);
+    }
+    if (seasonNumber.present) {
+      map['season_number'] = Variable<int>(seasonNumber.value);
+    }
+    if (episodeNumber.present) {
+      map['episode_number'] = Variable<int>(episodeNumber.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (overview.present) {
+      map['overview'] = Variable<String>(overview.value);
+    }
+    if (durationSec.present) {
+      map['duration_sec'] = Variable<int>(durationSec.value);
+    }
+    if (streamUrlTemplate.present) {
+      map['stream_url_template'] = Variable<String>(streamUrlTemplate.value);
+    }
+    if (lastSeenAt.present) {
+      map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpisodesCompanion(')
+          ..write('id: $id, ')
+          ..write('seriesId: $seriesId, ')
+          ..write('seasonId: $seasonId, ')
+          ..write('providerEpisodeKey: $providerEpisodeKey, ')
+          ..write('seasonNumber: $seasonNumber, ')
+          ..write('episodeNumber: $episodeNumber, ')
+          ..write('title: $title, ')
+          ..write('overview: $overview, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('lastSeenAt: $lastSeenAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -2702,6 +4970,10 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
       $ChannelCategoriesTable(this);
   late final $SummariesTable summaries = $SummariesTable(this);
   late final $EpgProgramsTable epgPrograms = $EpgProgramsTable(this);
+  late final $MoviesTable movies = $MoviesTable(this);
+  late final $SeriesTable series = $SeriesTable(this);
+  late final $SeasonsTable seasons = $SeasonsTable(this);
+  late final $EpisodesTable episodes = $EpisodesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2713,6 +4985,10 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     channelCategories,
     summaries,
     epgPrograms,
+    movies,
+    series,
+    seasons,
+    episodes,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2757,6 +5033,55 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('epg_programs', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'providers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('movies', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'categories',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('movies', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'providers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('series', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'categories',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('series', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'series',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('seasons', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'series',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('episodes', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'seasons',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('episodes', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -2837,6 +5162,44 @@ final class $$ProvidersTableReferences
     ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_summariesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$MoviesTable, List<MovieRecord>> _moviesRefsTable(
+    _$OpenIptvDb db,
+  ) => MultiTypedResultKey.fromTable(
+    db.movies,
+    aliasName: $_aliasNameGenerator(db.providers.id, db.movies.providerId),
+  );
+
+  $$MoviesTableProcessedTableManager get moviesRefs {
+    final manager = $$MoviesTableTableManager(
+      $_db,
+      $_db.movies,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_moviesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SeriesTable, List<SeriesRecord>> _seriesRefsTable(
+    _$OpenIptvDb db,
+  ) => MultiTypedResultKey.fromTable(
+    db.series,
+    aliasName: $_aliasNameGenerator(db.providers.id, db.series.providerId),
+  );
+
+  $$SeriesTableProcessedTableManager get seriesRefs {
+    final manager = $$SeriesTableTableManager(
+      $_db,
+      $_db.series,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_seriesRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -2959,6 +5322,56 @@ class $$ProvidersTableFilterComposer
           }) => $$SummariesTableFilterComposer(
             $db: $db,
             $table: $db.summaries,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> moviesRefs(
+    Expression<bool> Function($$MoviesTableFilterComposer f) f,
+  ) {
+    final $$MoviesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.movies,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoviesTableFilterComposer(
+            $db: $db,
+            $table: $db.movies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> seriesRefs(
+    Expression<bool> Function($$SeriesTableFilterComposer f) f,
+  ) {
+    final $$SeriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableFilterComposer(
+            $db: $db,
+            $table: $db.series,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3134,6 +5547,56 @@ class $$ProvidersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> moviesRefs<T extends Object>(
+    Expression<T> Function($$MoviesTableAnnotationComposer a) f,
+  ) {
+    final $$MoviesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.movies,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoviesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.movies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> seriesRefs<T extends Object>(
+    Expression<T> Function($$SeriesTableAnnotationComposer a) f,
+  ) {
+    final $$SeriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProvidersTableTableManager
@@ -3153,6 +5616,8 @@ class $$ProvidersTableTableManager
             bool channelsRefs,
             bool categoriesRefs,
             bool summariesRefs,
+            bool moviesRefs,
+            bool seriesRefs,
           })
         > {
   $$ProvidersTableTableManager(_$OpenIptvDb db, $ProvidersTable table)
@@ -3219,6 +5684,8 @@ class $$ProvidersTableTableManager
                 channelsRefs = false,
                 categoriesRefs = false,
                 summariesRefs = false,
+                moviesRefs = false,
+                seriesRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -3226,6 +5693,8 @@ class $$ProvidersTableTableManager
                     if (channelsRefs) db.channels,
                     if (categoriesRefs) db.categories,
                     if (summariesRefs) db.summaries,
+                    if (moviesRefs) db.movies,
+                    if (seriesRefs) db.series,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -3293,6 +5762,48 @@ class $$ProvidersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (moviesRefs)
+                        await $_getPrefetchedData<
+                          ProviderRecord,
+                          $ProvidersTable,
+                          MovieRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProvidersTableReferences
+                              ._moviesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProvidersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).moviesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.providerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (seriesRefs)
+                        await $_getPrefetchedData<
+                          ProviderRecord,
+                          $ProvidersTable,
+                          SeriesRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProvidersTableReferences
+                              ._seriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProvidersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).seriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.providerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -3317,6 +5828,8 @@ typedef $$ProvidersTableProcessedTableManager =
         bool channelsRefs,
         bool categoriesRefs,
         bool summariesRefs,
+        bool moviesRefs,
+        bool seriesRefs,
       })
     >;
 typedef $$ChannelsTableCreateCompanionBuilder =
@@ -3985,6 +6498,44 @@ final class $$CategoriesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$MoviesTable, List<MovieRecord>> _moviesRefsTable(
+    _$OpenIptvDb db,
+  ) => MultiTypedResultKey.fromTable(
+    db.movies,
+    aliasName: $_aliasNameGenerator(db.categories.id, db.movies.categoryId),
+  );
+
+  $$MoviesTableProcessedTableManager get moviesRefs {
+    final manager = $$MoviesTableTableManager(
+      $_db,
+      $_db.movies,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_moviesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SeriesTable, List<SeriesRecord>> _seriesRefsTable(
+    _$OpenIptvDb db,
+  ) => MultiTypedResultKey.fromTable(
+    db.series,
+    aliasName: $_aliasNameGenerator(db.categories.id, db.series.categoryId),
+  );
+
+  $$SeriesTableProcessedTableManager get seriesRefs {
+    final manager = $$SeriesTableTableManager(
+      $_db,
+      $_db.series,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_seriesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CategoriesTableFilterComposer
@@ -4061,6 +6612,56 @@ class $$CategoriesTableFilterComposer
           }) => $$ChannelCategoriesTableFilterComposer(
             $db: $db,
             $table: $db.channelCategories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> moviesRefs(
+    Expression<bool> Function($$MoviesTableFilterComposer f) f,
+  ) {
+    final $$MoviesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.movies,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoviesTableFilterComposer(
+            $db: $db,
+            $table: $db.movies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> seriesRefs(
+    Expression<bool> Function($$SeriesTableFilterComposer f) f,
+  ) {
+    final $$SeriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableFilterComposer(
+            $db: $db,
+            $table: $db.series,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4203,6 +6804,56 @@ class $$CategoriesTableAnnotationComposer
         );
     return f(composer);
   }
+
+  Expression<T> moviesRefs<T extends Object>(
+    Expression<T> Function($$MoviesTableAnnotationComposer a) f,
+  ) {
+    final $$MoviesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.movies,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$MoviesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.movies,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> seriesRefs<T extends Object>(
+    Expression<T> Function($$SeriesTableAnnotationComposer a) f,
+  ) {
+    final $$SeriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.categoryId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CategoriesTableTableManager
@@ -4218,7 +6869,12 @@ class $$CategoriesTableTableManager
           $$CategoriesTableUpdateCompanionBuilder,
           (CategoryRecord, $$CategoriesTableReferences),
           CategoryRecord,
-          PrefetchHooks Function({bool providerId, bool channelCategoriesRefs})
+          PrefetchHooks Function({
+            bool providerId,
+            bool channelCategoriesRefs,
+            bool moviesRefs,
+            bool seriesRefs,
+          })
         > {
   $$CategoriesTableTableManager(_$OpenIptvDb db, $CategoriesTable table)
     : super(
@@ -4272,11 +6928,18 @@ class $$CategoriesTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({providerId = false, channelCategoriesRefs = false}) {
+              ({
+                providerId = false,
+                channelCategoriesRefs = false,
+                moviesRefs = false,
+                seriesRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (channelCategoriesRefs) db.channelCategories,
+                    if (moviesRefs) db.movies,
+                    if (seriesRefs) db.series,
                   ],
                   addJoins:
                       <
@@ -4334,6 +6997,48 @@ class $$CategoriesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (moviesRefs)
+                        await $_getPrefetchedData<
+                          CategoryRecord,
+                          $CategoriesTable,
+                          MovieRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CategoriesTableReferences
+                              ._moviesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CategoriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).moviesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.categoryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (seriesRefs)
+                        await $_getPrefetchedData<
+                          CategoryRecord,
+                          $CategoriesTable,
+                          SeriesRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CategoriesTableReferences
+                              ._seriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CategoriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).seriesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.categoryId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4354,7 +7059,12 @@ typedef $$CategoriesTableProcessedTableManager =
       $$CategoriesTableUpdateCompanionBuilder,
       (CategoryRecord, $$CategoriesTableReferences),
       CategoryRecord,
-      PrefetchHooks Function({bool providerId, bool channelCategoriesRefs})
+      PrefetchHooks Function({
+        bool providerId,
+        bool channelCategoriesRefs,
+        bool moviesRefs,
+        bool seriesRefs,
+      })
     >;
 typedef $$ChannelCategoriesTableCreateCompanionBuilder =
     ChannelCategoriesCompanion Function({
@@ -5431,6 +8141,2101 @@ typedef $$EpgProgramsTableProcessedTableManager =
       EpgProgramRecord,
       PrefetchHooks Function({bool channelId})
     >;
+typedef $$MoviesTableCreateCompanionBuilder =
+    MoviesCompanion Function({
+      Value<int> id,
+      required int providerId,
+      required String providerVodKey,
+      Value<int?> categoryId,
+      required String title,
+      Value<int?> year,
+      Value<String?> overview,
+      Value<String?> posterUrl,
+      Value<int?> durationSec,
+      Value<String?> streamUrlTemplate,
+      Value<DateTime?> lastSeenAt,
+    });
+typedef $$MoviesTableUpdateCompanionBuilder =
+    MoviesCompanion Function({
+      Value<int> id,
+      Value<int> providerId,
+      Value<String> providerVodKey,
+      Value<int?> categoryId,
+      Value<String> title,
+      Value<int?> year,
+      Value<String?> overview,
+      Value<String?> posterUrl,
+      Value<int?> durationSec,
+      Value<String?> streamUrlTemplate,
+      Value<DateTime?> lastSeenAt,
+    });
+
+final class $$MoviesTableReferences
+    extends BaseReferences<_$OpenIptvDb, $MoviesTable, MovieRecord> {
+  $$MoviesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProvidersTable _providerIdTable(_$OpenIptvDb db) => db.providers
+      .createAlias($_aliasNameGenerator(db.movies.providerId, db.providers.id));
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<int>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager(
+      $_db,
+      $_db.providers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CategoriesTable _categoryIdTable(_$OpenIptvDb db) =>
+      db.categories.createAlias(
+        $_aliasNameGenerator(db.movies.categoryId, db.categories.id),
+      );
+
+  $$CategoriesTableProcessedTableManager? get categoryId {
+    final $_column = $_itemColumn<int>('category_id');
+    if ($_column == null) return null;
+    final manager = $$CategoriesTableTableManager(
+      $_db,
+      $_db.categories,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$MoviesTableFilterComposer extends Composer<_$OpenIptvDb, $MoviesTable> {
+  $$MoviesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerVodKey => $composableBuilder(
+    column: $table.providerVodKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get posterUrl => $composableBuilder(
+    column: $table.posterUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableFilterComposer get categoryId {
+    final $$CategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MoviesTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $MoviesTable> {
+  $$MoviesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerVodKey => $composableBuilder(
+    column: $table.providerVodKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get posterUrl => $composableBuilder(
+    column: $table.posterUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableOrderingComposer get categoryId {
+    final $$CategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MoviesTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $MoviesTable> {
+  $$MoviesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get providerVodKey => $composableBuilder(
+    column: $table.providerVodKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get overview =>
+      $composableBuilder(column: $table.overview, builder: (column) => column);
+
+  GeneratedColumn<String> get posterUrl =>
+      $composableBuilder(column: $table.posterUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableAnnotationComposer get categoryId {
+    final $$CategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$MoviesTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $MoviesTable,
+          MovieRecord,
+          $$MoviesTableFilterComposer,
+          $$MoviesTableOrderingComposer,
+          $$MoviesTableAnnotationComposer,
+          $$MoviesTableCreateCompanionBuilder,
+          $$MoviesTableUpdateCompanionBuilder,
+          (MovieRecord, $$MoviesTableReferences),
+          MovieRecord,
+          PrefetchHooks Function({bool providerId, bool categoryId})
+        > {
+  $$MoviesTableTableManager(_$OpenIptvDb db, $MoviesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MoviesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MoviesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MoviesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> providerId = const Value.absent(),
+                Value<String> providerVodKey = const Value.absent(),
+                Value<int?> categoryId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<int?> year = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<String?> posterUrl = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => MoviesCompanion(
+                id: id,
+                providerId: providerId,
+                providerVodKey: providerVodKey,
+                categoryId: categoryId,
+                title: title,
+                year: year,
+                overview: overview,
+                posterUrl: posterUrl,
+                durationSec: durationSec,
+                streamUrlTemplate: streamUrlTemplate,
+                lastSeenAt: lastSeenAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int providerId,
+                required String providerVodKey,
+                Value<int?> categoryId = const Value.absent(),
+                required String title,
+                Value<int?> year = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<String?> posterUrl = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => MoviesCompanion.insert(
+                id: id,
+                providerId: providerId,
+                providerVodKey: providerVodKey,
+                categoryId: categoryId,
+                title: title,
+                year: year,
+                overview: overview,
+                posterUrl: posterUrl,
+                durationSec: durationSec,
+                streamUrlTemplate: streamUrlTemplate,
+                lastSeenAt: lastSeenAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$MoviesTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: ({providerId = false, categoryId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (providerId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.providerId,
+                                referencedTable: $$MoviesTableReferences
+                                    ._providerIdTable(db),
+                                referencedColumn: $$MoviesTableReferences
+                                    ._providerIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (categoryId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.categoryId,
+                                referencedTable: $$MoviesTableReferences
+                                    ._categoryIdTable(db),
+                                referencedColumn: $$MoviesTableReferences
+                                    ._categoryIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$MoviesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $MoviesTable,
+      MovieRecord,
+      $$MoviesTableFilterComposer,
+      $$MoviesTableOrderingComposer,
+      $$MoviesTableAnnotationComposer,
+      $$MoviesTableCreateCompanionBuilder,
+      $$MoviesTableUpdateCompanionBuilder,
+      (MovieRecord, $$MoviesTableReferences),
+      MovieRecord,
+      PrefetchHooks Function({bool providerId, bool categoryId})
+    >;
+typedef $$SeriesTableCreateCompanionBuilder =
+    SeriesCompanion Function({
+      Value<int> id,
+      required int providerId,
+      required String providerSeriesKey,
+      Value<int?> categoryId,
+      required String title,
+      Value<String?> posterUrl,
+      Value<int?> year,
+      Value<String?> overview,
+      Value<DateTime?> lastSeenAt,
+    });
+typedef $$SeriesTableUpdateCompanionBuilder =
+    SeriesCompanion Function({
+      Value<int> id,
+      Value<int> providerId,
+      Value<String> providerSeriesKey,
+      Value<int?> categoryId,
+      Value<String> title,
+      Value<String?> posterUrl,
+      Value<int?> year,
+      Value<String?> overview,
+      Value<DateTime?> lastSeenAt,
+    });
+
+final class $$SeriesTableReferences
+    extends BaseReferences<_$OpenIptvDb, $SeriesTable, SeriesRecord> {
+  $$SeriesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProvidersTable _providerIdTable(_$OpenIptvDb db) => db.providers
+      .createAlias($_aliasNameGenerator(db.series.providerId, db.providers.id));
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<int>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager(
+      $_db,
+      $_db.providers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CategoriesTable _categoryIdTable(_$OpenIptvDb db) =>
+      db.categories.createAlias(
+        $_aliasNameGenerator(db.series.categoryId, db.categories.id),
+      );
+
+  $$CategoriesTableProcessedTableManager? get categoryId {
+    final $_column = $_itemColumn<int>('category_id');
+    if ($_column == null) return null;
+    final manager = $$CategoriesTableTableManager(
+      $_db,
+      $_db.categories,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$SeasonsTable, List<SeasonRecord>>
+  _seasonsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.seasons,
+    aliasName: $_aliasNameGenerator(db.series.id, db.seasons.seriesId),
+  );
+
+  $$SeasonsTableProcessedTableManager get seasonsRefs {
+    final manager = $$SeasonsTableTableManager(
+      $_db,
+      $_db.seasons,
+    ).filter((f) => f.seriesId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_seasonsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$EpisodesTable, List<EpisodeRecord>>
+  _episodesRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.episodes,
+    aliasName: $_aliasNameGenerator(db.series.id, db.episodes.seriesId),
+  );
+
+  $$EpisodesTableProcessedTableManager get episodesRefs {
+    final manager = $$EpisodesTableTableManager(
+      $_db,
+      $_db.episodes,
+    ).filter((f) => f.seriesId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_episodesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$SeriesTableFilterComposer extends Composer<_$OpenIptvDb, $SeriesTable> {
+  $$SeriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerSeriesKey => $composableBuilder(
+    column: $table.providerSeriesKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get posterUrl => $composableBuilder(
+    column: $table.posterUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableFilterComposer get categoryId {
+    final $$CategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableFilterComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> seasonsRefs(
+    Expression<bool> Function($$SeasonsTableFilterComposer f) f,
+  ) {
+    final $$SeasonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.seasons,
+      getReferencedColumn: (t) => t.seriesId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeasonsTableFilterComposer(
+            $db: $db,
+            $table: $db.seasons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> episodesRefs(
+    Expression<bool> Function($$EpisodesTableFilterComposer f) f,
+  ) {
+    final $$EpisodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.episodes,
+      getReferencedColumn: (t) => t.seriesId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpisodesTableFilterComposer(
+            $db: $db,
+            $table: $db.episodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SeriesTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $SeriesTable> {
+  $$SeriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerSeriesKey => $composableBuilder(
+    column: $table.providerSeriesKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get posterUrl => $composableBuilder(
+    column: $table.posterUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableOrderingComposer get categoryId {
+    final $$CategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SeriesTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $SeriesTable> {
+  $$SeriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get providerSeriesKey => $composableBuilder(
+    column: $table.providerSeriesKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get posterUrl =>
+      $composableBuilder(column: $table.posterUrl, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<String> get overview =>
+      $composableBuilder(column: $table.overview, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CategoriesTableAnnotationComposer get categoryId {
+    final $$CategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CategoriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.categories,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> seasonsRefs<T extends Object>(
+    Expression<T> Function($$SeasonsTableAnnotationComposer a) f,
+  ) {
+    final $$SeasonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.seasons,
+      getReferencedColumn: (t) => t.seriesId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeasonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.seasons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> episodesRefs<T extends Object>(
+    Expression<T> Function($$EpisodesTableAnnotationComposer a) f,
+  ) {
+    final $$EpisodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.episodes,
+      getReferencedColumn: (t) => t.seriesId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpisodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.episodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SeriesTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $SeriesTable,
+          SeriesRecord,
+          $$SeriesTableFilterComposer,
+          $$SeriesTableOrderingComposer,
+          $$SeriesTableAnnotationComposer,
+          $$SeriesTableCreateCompanionBuilder,
+          $$SeriesTableUpdateCompanionBuilder,
+          (SeriesRecord, $$SeriesTableReferences),
+          SeriesRecord,
+          PrefetchHooks Function({
+            bool providerId,
+            bool categoryId,
+            bool seasonsRefs,
+            bool episodesRefs,
+          })
+        > {
+  $$SeriesTableTableManager(_$OpenIptvDb db, $SeriesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SeriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SeriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SeriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> providerId = const Value.absent(),
+                Value<String> providerSeriesKey = const Value.absent(),
+                Value<int?> categoryId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> posterUrl = const Value.absent(),
+                Value<int?> year = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => SeriesCompanion(
+                id: id,
+                providerId: providerId,
+                providerSeriesKey: providerSeriesKey,
+                categoryId: categoryId,
+                title: title,
+                posterUrl: posterUrl,
+                year: year,
+                overview: overview,
+                lastSeenAt: lastSeenAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int providerId,
+                required String providerSeriesKey,
+                Value<int?> categoryId = const Value.absent(),
+                required String title,
+                Value<String?> posterUrl = const Value.absent(),
+                Value<int?> year = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => SeriesCompanion.insert(
+                id: id,
+                providerId: providerId,
+                providerSeriesKey: providerSeriesKey,
+                categoryId: categoryId,
+                title: title,
+                posterUrl: posterUrl,
+                year: year,
+                overview: overview,
+                lastSeenAt: lastSeenAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) =>
+                    (e.readTable(table), $$SeriesTableReferences(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                providerId = false,
+                categoryId = false,
+                seasonsRefs = false,
+                episodesRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (seasonsRefs) db.seasons,
+                    if (episodesRefs) db.episodes,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (providerId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.providerId,
+                                    referencedTable: $$SeriesTableReferences
+                                        ._providerIdTable(db),
+                                    referencedColumn: $$SeriesTableReferences
+                                        ._providerIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (categoryId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.categoryId,
+                                    referencedTable: $$SeriesTableReferences
+                                        ._categoryIdTable(db),
+                                    referencedColumn: $$SeriesTableReferences
+                                        ._categoryIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (seasonsRefs)
+                        await $_getPrefetchedData<
+                          SeriesRecord,
+                          $SeriesTable,
+                          SeasonRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SeriesTableReferences
+                              ._seasonsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SeriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).seasonsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.seriesId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (episodesRefs)
+                        await $_getPrefetchedData<
+                          SeriesRecord,
+                          $SeriesTable,
+                          EpisodeRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SeriesTableReferences
+                              ._episodesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SeriesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).episodesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.seriesId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SeriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $SeriesTable,
+      SeriesRecord,
+      $$SeriesTableFilterComposer,
+      $$SeriesTableOrderingComposer,
+      $$SeriesTableAnnotationComposer,
+      $$SeriesTableCreateCompanionBuilder,
+      $$SeriesTableUpdateCompanionBuilder,
+      (SeriesRecord, $$SeriesTableReferences),
+      SeriesRecord,
+      PrefetchHooks Function({
+        bool providerId,
+        bool categoryId,
+        bool seasonsRefs,
+        bool episodesRefs,
+      })
+    >;
+typedef $$SeasonsTableCreateCompanionBuilder =
+    SeasonsCompanion Function({
+      Value<int> id,
+      required int seriesId,
+      required int seasonNumber,
+      Value<String?> name,
+    });
+typedef $$SeasonsTableUpdateCompanionBuilder =
+    SeasonsCompanion Function({
+      Value<int> id,
+      Value<int> seriesId,
+      Value<int> seasonNumber,
+      Value<String?> name,
+    });
+
+final class $$SeasonsTableReferences
+    extends BaseReferences<_$OpenIptvDb, $SeasonsTable, SeasonRecord> {
+  $$SeasonsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $SeriesTable _seriesIdTable(_$OpenIptvDb db) => db.series.createAlias(
+    $_aliasNameGenerator(db.seasons.seriesId, db.series.id),
+  );
+
+  $$SeriesTableProcessedTableManager get seriesId {
+    final $_column = $_itemColumn<int>('series_id')!;
+
+    final manager = $$SeriesTableTableManager(
+      $_db,
+      $_db.series,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_seriesIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$EpisodesTable, List<EpisodeRecord>>
+  _episodesRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.episodes,
+    aliasName: $_aliasNameGenerator(db.seasons.id, db.episodes.seasonId),
+  );
+
+  $$EpisodesTableProcessedTableManager get episodesRefs {
+    final manager = $$EpisodesTableTableManager(
+      $_db,
+      $_db.episodes,
+    ).filter((f) => f.seasonId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_episodesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$SeasonsTableFilterComposer
+    extends Composer<_$OpenIptvDb, $SeasonsTable> {
+  $$SeasonsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SeriesTableFilterComposer get seriesId {
+    final $$SeriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableFilterComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> episodesRefs(
+    Expression<bool> Function($$EpisodesTableFilterComposer f) f,
+  ) {
+    final $$EpisodesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.episodes,
+      getReferencedColumn: (t) => t.seasonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpisodesTableFilterComposer(
+            $db: $db,
+            $table: $db.episodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SeasonsTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $SeasonsTable> {
+  $$SeasonsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SeriesTableOrderingComposer get seriesId {
+    final $$SeriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SeasonsTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $SeasonsTable> {
+  $$SeasonsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  $$SeriesTableAnnotationComposer get seriesId {
+    final $$SeriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> episodesRefs<T extends Object>(
+    Expression<T> Function($$EpisodesTableAnnotationComposer a) f,
+  ) {
+    final $$EpisodesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.episodes,
+      getReferencedColumn: (t) => t.seasonId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpisodesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.episodes,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SeasonsTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $SeasonsTable,
+          SeasonRecord,
+          $$SeasonsTableFilterComposer,
+          $$SeasonsTableOrderingComposer,
+          $$SeasonsTableAnnotationComposer,
+          $$SeasonsTableCreateCompanionBuilder,
+          $$SeasonsTableUpdateCompanionBuilder,
+          (SeasonRecord, $$SeasonsTableReferences),
+          SeasonRecord,
+          PrefetchHooks Function({bool seriesId, bool episodesRefs})
+        > {
+  $$SeasonsTableTableManager(_$OpenIptvDb db, $SeasonsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SeasonsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SeasonsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SeasonsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> seriesId = const Value.absent(),
+                Value<int> seasonNumber = const Value.absent(),
+                Value<String?> name = const Value.absent(),
+              }) => SeasonsCompanion(
+                id: id,
+                seriesId: seriesId,
+                seasonNumber: seasonNumber,
+                name: name,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int seriesId,
+                required int seasonNumber,
+                Value<String?> name = const Value.absent(),
+              }) => SeasonsCompanion.insert(
+                id: id,
+                seriesId: seriesId,
+                seasonNumber: seasonNumber,
+                name: name,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SeasonsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({seriesId = false, episodesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (episodesRefs) db.episodes],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (seriesId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.seriesId,
+                                referencedTable: $$SeasonsTableReferences
+                                    ._seriesIdTable(db),
+                                referencedColumn: $$SeasonsTableReferences
+                                    ._seriesIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (episodesRefs)
+                    await $_getPrefetchedData<
+                      SeasonRecord,
+                      $SeasonsTable,
+                      EpisodeRecord
+                    >(
+                      currentTable: table,
+                      referencedTable: $$SeasonsTableReferences
+                          ._episodesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$SeasonsTableReferences(db, table, p0).episodesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.seasonId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SeasonsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $SeasonsTable,
+      SeasonRecord,
+      $$SeasonsTableFilterComposer,
+      $$SeasonsTableOrderingComposer,
+      $$SeasonsTableAnnotationComposer,
+      $$SeasonsTableCreateCompanionBuilder,
+      $$SeasonsTableUpdateCompanionBuilder,
+      (SeasonRecord, $$SeasonsTableReferences),
+      SeasonRecord,
+      PrefetchHooks Function({bool seriesId, bool episodesRefs})
+    >;
+typedef $$EpisodesTableCreateCompanionBuilder =
+    EpisodesCompanion Function({
+      Value<int> id,
+      required int seriesId,
+      required int seasonId,
+      required String providerEpisodeKey,
+      Value<int?> seasonNumber,
+      Value<int?> episodeNumber,
+      Value<String?> title,
+      Value<String?> overview,
+      Value<int?> durationSec,
+      Value<String?> streamUrlTemplate,
+      Value<DateTime?> lastSeenAt,
+    });
+typedef $$EpisodesTableUpdateCompanionBuilder =
+    EpisodesCompanion Function({
+      Value<int> id,
+      Value<int> seriesId,
+      Value<int> seasonId,
+      Value<String> providerEpisodeKey,
+      Value<int?> seasonNumber,
+      Value<int?> episodeNumber,
+      Value<String?> title,
+      Value<String?> overview,
+      Value<int?> durationSec,
+      Value<String?> streamUrlTemplate,
+      Value<DateTime?> lastSeenAt,
+    });
+
+final class $$EpisodesTableReferences
+    extends BaseReferences<_$OpenIptvDb, $EpisodesTable, EpisodeRecord> {
+  $$EpisodesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $SeriesTable _seriesIdTable(_$OpenIptvDb db) => db.series.createAlias(
+    $_aliasNameGenerator(db.episodes.seriesId, db.series.id),
+  );
+
+  $$SeriesTableProcessedTableManager get seriesId {
+    final $_column = $_itemColumn<int>('series_id')!;
+
+    final manager = $$SeriesTableTableManager(
+      $_db,
+      $_db.series,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_seriesIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SeasonsTable _seasonIdTable(_$OpenIptvDb db) => db.seasons
+      .createAlias($_aliasNameGenerator(db.episodes.seasonId, db.seasons.id));
+
+  $$SeasonsTableProcessedTableManager get seasonId {
+    final $_column = $_itemColumn<int>('season_id')!;
+
+    final manager = $$SeasonsTableTableManager(
+      $_db,
+      $_db.seasons,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_seasonIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EpisodesTableFilterComposer
+    extends Composer<_$OpenIptvDb, $EpisodesTable> {
+  $$EpisodesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerEpisodeKey => $composableBuilder(
+    column: $table.providerEpisodeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get episodeNumber => $composableBuilder(
+    column: $table.episodeNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SeriesTableFilterComposer get seriesId {
+    final $$SeriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableFilterComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SeasonsTableFilterComposer get seasonId {
+    final $$SeasonsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seasonId,
+      referencedTable: $db.seasons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeasonsTableFilterComposer(
+            $db: $db,
+            $table: $db.seasons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpisodesTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $EpisodesTable> {
+  $$EpisodesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerEpisodeKey => $composableBuilder(
+    column: $table.providerEpisodeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get episodeNumber => $composableBuilder(
+    column: $table.episodeNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get overview => $composableBuilder(
+    column: $table.overview,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SeriesTableOrderingComposer get seriesId {
+    final $$SeriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableOrderingComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SeasonsTableOrderingComposer get seasonId {
+    final $$SeasonsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seasonId,
+      referencedTable: $db.seasons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeasonsTableOrderingComposer(
+            $db: $db,
+            $table: $db.seasons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpisodesTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $EpisodesTable> {
+  $$EpisodesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get providerEpisodeKey => $composableBuilder(
+    column: $table.providerEpisodeKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seasonNumber => $composableBuilder(
+    column: $table.seasonNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get episodeNumber => $composableBuilder(
+    column: $table.episodeNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get overview =>
+      $composableBuilder(column: $table.overview, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get streamUrlTemplate => $composableBuilder(
+    column: $table.streamUrlTemplate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
+    column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+
+  $$SeriesTableAnnotationComposer get seriesId {
+    final $$SeriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seriesId,
+      referencedTable: $db.series,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeriesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SeasonsTableAnnotationComposer get seasonId {
+    final $$SeasonsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.seasonId,
+      referencedTable: $db.seasons,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SeasonsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.seasons,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpisodesTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $EpisodesTable,
+          EpisodeRecord,
+          $$EpisodesTableFilterComposer,
+          $$EpisodesTableOrderingComposer,
+          $$EpisodesTableAnnotationComposer,
+          $$EpisodesTableCreateCompanionBuilder,
+          $$EpisodesTableUpdateCompanionBuilder,
+          (EpisodeRecord, $$EpisodesTableReferences),
+          EpisodeRecord,
+          PrefetchHooks Function({bool seriesId, bool seasonId})
+        > {
+  $$EpisodesTableTableManager(_$OpenIptvDb db, $EpisodesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EpisodesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EpisodesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EpisodesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> seriesId = const Value.absent(),
+                Value<int> seasonId = const Value.absent(),
+                Value<String> providerEpisodeKey = const Value.absent(),
+                Value<int?> seasonNumber = const Value.absent(),
+                Value<int?> episodeNumber = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => EpisodesCompanion(
+                id: id,
+                seriesId: seriesId,
+                seasonId: seasonId,
+                providerEpisodeKey: providerEpisodeKey,
+                seasonNumber: seasonNumber,
+                episodeNumber: episodeNumber,
+                title: title,
+                overview: overview,
+                durationSec: durationSec,
+                streamUrlTemplate: streamUrlTemplate,
+                lastSeenAt: lastSeenAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int seriesId,
+                required int seasonId,
+                required String providerEpisodeKey,
+                Value<int?> seasonNumber = const Value.absent(),
+                Value<int?> episodeNumber = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String?> overview = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<DateTime?> lastSeenAt = const Value.absent(),
+              }) => EpisodesCompanion.insert(
+                id: id,
+                seriesId: seriesId,
+                seasonId: seasonId,
+                providerEpisodeKey: providerEpisodeKey,
+                seasonNumber: seasonNumber,
+                episodeNumber: episodeNumber,
+                title: title,
+                overview: overview,
+                durationSec: durationSec,
+                streamUrlTemplate: streamUrlTemplate,
+                lastSeenAt: lastSeenAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EpisodesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({seriesId = false, seasonId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (seriesId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.seriesId,
+                                referencedTable: $$EpisodesTableReferences
+                                    ._seriesIdTable(db),
+                                referencedColumn: $$EpisodesTableReferences
+                                    ._seriesIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (seasonId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.seasonId,
+                                referencedTable: $$EpisodesTableReferences
+                                    ._seasonIdTable(db),
+                                referencedColumn: $$EpisodesTableReferences
+                                    ._seasonIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EpisodesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $EpisodesTable,
+      EpisodeRecord,
+      $$EpisodesTableFilterComposer,
+      $$EpisodesTableOrderingComposer,
+      $$EpisodesTableAnnotationComposer,
+      $$EpisodesTableCreateCompanionBuilder,
+      $$EpisodesTableUpdateCompanionBuilder,
+      (EpisodeRecord, $$EpisodesTableReferences),
+      EpisodeRecord,
+      PrefetchHooks Function({bool seriesId, bool seasonId})
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -5447,4 +10252,12 @@ class $OpenIptvDbManager {
       $$SummariesTableTableManager(_db, _db.summaries);
   $$EpgProgramsTableTableManager get epgPrograms =>
       $$EpgProgramsTableTableManager(_db, _db.epgPrograms);
+  $$MoviesTableTableManager get movies =>
+      $$MoviesTableTableManager(_db, _db.movies);
+  $$SeriesTableTableManager get series =>
+      $$SeriesTableTableManager(_db, _db.series);
+  $$SeasonsTableTableManager get seasons =>
+      $$SeasonsTableTableManager(_db, _db.seasons);
+  $$EpisodesTableTableManager get episodes =>
+      $$EpisodesTableTableManager(_db, _db.episodes);
 }

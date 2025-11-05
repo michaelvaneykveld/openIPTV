@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/channel_dao.dart';
+import '../db/dao/movie_dao.dart';
+import '../db/dao/series_dao.dart';
 import '../db/dao/epg_dao.dart';
 import '../db/dao/provider_dao.dart';
 import '../db/dao/summary_dao.dart';
@@ -12,13 +14,22 @@ import 'import_context.dart';
 
 final epgImporterProvider = r.Provider<EpgImporter>((ref) {
   final db = ref.watch(openIptvDbProvider);
+  final providerDao = ProviderDao(db);
+  final channelDao = ChannelDao(db);
+  final categoryDao = CategoryDao(db);
+  final movieDao = MovieDao(db);
+  final seriesDao = SeriesDao(db);
+  final summaryDao = SummaryDao(db);
+  final epgDao = EpgDao(db);
   final context = ImportContext(
     db: db,
-    providerDao: ProviderDao(db),
-    channelDao: ChannelDao(db),
-    categoryDao: CategoryDao(db),
-    summaryDao: SummaryDao(db),
-    epgDao: EpgDao(db),
+    providerDao: providerDao,
+    channelDao: channelDao,
+    categoryDao: categoryDao,
+    movieDao: movieDao,
+    seriesDao: seriesDao,
+    summaryDao: summaryDao,
+    epgDao: epgDao,
   );
   return EpgImporter(context);
 });

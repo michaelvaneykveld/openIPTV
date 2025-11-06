@@ -50,6 +50,18 @@ class ImportRunDao extends DatabaseAccessor<OpenIptvDb>
         .watch();
     return query;
   }
+
+  Future<List<ImportRunRecord>> listRecent({int limit = 100}) {
+    final query = select(importRuns)
+      ..orderBy([
+        (tbl) => OrderingTerm(
+              expression: tbl.startedAt,
+              mode: OrderingMode.desc,
+            ),
+      ])
+      ..limit(limit);
+    return query.get();
+  }
 }
 
 class ImportMetricsSnapshot {
@@ -71,4 +83,3 @@ class ImportMetricsSnapshot {
   final int? episodesUpserted;
   final int? channelsDeleted;
 }
-

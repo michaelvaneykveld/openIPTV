@@ -44,50 +44,55 @@ class DatabaseMaintenance {
   final DatabaseMaintenanceConfig config;
   final File? databaseFile;
 
-  Future<void> run({DateTime? now}) async {
+  Future<void> run({DateTime? now, bool force = false}) async {
     final clock = now ?? DateTime.now().toUtc();
-    await _runVacuumIfNeeded(clock);
-    await _runAnalyzeIfNeeded(clock);
-    await _runRetentionSweep(clock);
-    await _runArtworkPrune();
+    await runVacuum(now: clock, force: force);
+    await runAnalyze(now: clock, force: force);
+    await runRetentionSweep(now: clock);
+    await runArtworkPrune(force: force);
   }
 
-  Future<void> _runVacuumIfNeeded(DateTime now) async {
+  Future<void> runVacuum({DateTime? now, bool force = false}) async {
+    final timestamp = now ?? DateTime.now().toUtc();
     final lastRun = await logDao.lastRun(_Tasks.vacuum);
-    if (lastRun != null &&
-        now.difference(lastRun) < config.vacuumInterval) {
+    if (!force &&
+        lastRun != null &&
+        timestamp.difference(lastRun) < config.vacuumInterval) {
       return;
     }
-    if (!await _meetsFileSize(config.minFileBytesForVacuum)) {
+    if (!force && !await _meetsFileSize(config.minFileBytesForVacuum)) {
       return;
     }
     try {
       await db.customStatement('VACUUM;');
-      await logDao.markRun(_Tasks.vacuum, now);
+      await logDao.markRun(_Tasks.vacuum, timestamp);
     } catch (error, stackTrace) {
       debugPrint('VACUUM failed: $error\n$stackTrace');
     }
   }
 
-  Future<void> _runAnalyzeIfNeeded(DateTime now) async {
+  Future<void> runAnalyze({DateTime? now, bool force = false}) async {
+    final timestamp = now ?? DateTime.now().toUtc();
     final lastRun = await logDao.lastRun(_Tasks.analyze);
-    if (lastRun != null &&
-        now.difference(lastRun) < config.analyzeInterval) {
+    if (!force &&
+        lastRun != null &&
+        timestamp.difference(lastRun) < config.analyzeInterval) {
       return;
     }
-    if (!await _meetsFileSize(config.minFileBytesForAnalyze)) {
+    if (!force && !await _meetsFileSize(config.minFileBytesForAnalyze)) {
       return;
     }
     try {
       await db.customStatement('ANALYZE;');
-      await logDao.markRun(_Tasks.analyze, now);
+      await logDao.markRun(_Tasks.analyze, timestamp);
     } catch (error, stackTrace) {
       debugPrint('ANALYZE failed: $error\n$stackTrace');
     }
   }
 
-  Future<void> _runRetentionSweep(DateTime now) async {
-    final cutoff = now.subtract(config.tombstoneRetention);
+  Future<void> runRetentionSweep({DateTime? now}) async {
+    final timestamp = now ?? DateTime.now().toUtc();
+    final cutoff = timestamp.subtract(config.tombstoneRetention);
     try {
       final removed =
           await channelDao.purgeAllStaleChannels(olderThan: cutoff);
@@ -99,7 +104,7 @@ class DatabaseMaintenance {
     }
   }
 
-  Future<void> _runArtworkPrune() async {
+  Future<void> runArtworkPrune({bool force = false}) async {
     try {
       final removedByCount =
           await artworkDao.pruneToEntryBudget(config.artworkEntryBudget);
@@ -138,4 +143,3 @@ class _Tasks {
   static const vacuum = 'vacuum';
   static const analyze = 'analyze';
 }
-

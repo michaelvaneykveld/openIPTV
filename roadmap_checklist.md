@@ -63,7 +63,7 @@
 - [x] Add retention sweeper to drop tombstoned channels after grace window and prune orphaned relationships/artwork. -> `DatabaseMaintenance` uses `ChannelDao.purgeAllStaleChannels` and artwork pruning.
 - [x] Enforce backpressure on import concurrency (limit parallel requests per provider). -> `_providerLocks` in `ImportContext.runWithRetry` ensures per-provider serialization.
 - [x] Record import durations, row counts, and error metrics for diagnostics. -> Import runs logged via `ImportRunDao` from `ImportContext`.
-- [ ] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics).
+- [x] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics). -> `flutter pub run tool/db_maintenance.dart`.
 
 ## Migration Strategy
 - [ ] Set baseline schema version and write idempotent Drift migration scripts.

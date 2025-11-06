@@ -65,6 +65,16 @@ class OpenIptvDb extends _$OpenIptvDb {
   /// Convenience factory for tests that prefer an in-memory database.
   factory OpenIptvDb.inMemory() => OpenIptvDb._(_openInMemory());
 
+  /// Resolves the on-disk location for the primary database file.
+  static Future<File> resolveDatabaseFile() async {
+    if (kIsWeb) {
+      throw UnsupportedError('Database file is not available on web.');
+    }
+    final directory = await _resolveStorageDirectory();
+    final dbPath = p.join(directory.path, 'openiptv.db');
+    return File(dbPath);
+  }
+
   @override
   int get schemaVersion => 1;
 

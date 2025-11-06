@@ -36,6 +36,8 @@ part 'tables/user_flags.dart';
 part 'tables/maintenance_log.dart';
 part 'tables/import_runs.dart';
 part 'tables/epg_programs_fts.dart';
+part 'tables/channels_fts.dart';
+part 'tables/vod_search_fts.dart';
 
 @DriftDatabase(
   tables: [
@@ -58,7 +60,7 @@ part 'tables/epg_programs_fts.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 3;
+  static const int schemaVersionLatest = 4;
 
   OpenIptvDb._(this._overrideSchemaVersion, super.executor);
 
@@ -96,6 +98,8 @@ class OpenIptvDb extends _$OpenIptvDb {
         onCreate: (Migrator m) async {
           await m.createAll();
           await _ensureEpgSearchIndex(rebuild: true);
+          await _ensureChannelSearchIndex(rebuild: true);
+          await _ensureVodSearchIndex(rebuild: true);
         },
         onUpgrade: (Migrator m, int from, int to) async {
           for (var version = from; version < to; version++) {
@@ -105,6 +109,9 @@ class OpenIptvDb extends _$OpenIptvDb {
                 break;
               case 2:
                 await _migrateFrom2To3();
+                break;
+              case 3:
+                await _migrateFrom3To4();
                 break;
               default:
                 break;
@@ -130,6 +137,11 @@ class OpenIptvDb extends _$OpenIptvDb {
 
   Future<void> _migrateFrom2To3() async {
     await _ensureEpgSearchIndex(rebuild: true);
+  }
+
+  Future<void> _migrateFrom3To4() async {
+    await _ensureChannelSearchIndex(rebuild: true);
+    await _ensureVodSearchIndex(rebuild: true);
   }
 
   Future<void> _createIfMissing(
@@ -209,6 +221,301 @@ class OpenIptvDb extends _$OpenIptvDb {
     await customStatement('DROP TRIGGER IF EXISTS epg_programs_ad;');
     await customStatement('DROP TRIGGER IF EXISTS epg_programs_au;');
     await customStatement('DROP TABLE IF EXISTS epg_programs_fts;');
+  }
+
+  Future<void> _ensureChannelSearchIndex({required bool rebuild}) async {
+    if (rebuild) {
+      await _dropChannelFtsArtifacts();
+    }
+
+    await customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS channel_search_fts USING fts5(
+        name,
+        provider_key,
+        category_tokens,
+        provider_id UNINDEXED,
+        channel_id UNINDEXED,
+        tokenize='unicode61'
+      );
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS channels_ai_search
+      AFTER INSERT ON channels BEGIN
+        DELETE FROM channel_search_fts WHERE rowid = new.id;
+        INSERT INTO channel_search_fts(
+          rowid, name, provider_key, category_tokens, provider_id, channel_id
+        )
+        VALUES(
+          new.id,
+          COALESCE(new.name, ''),
+          COALESCE(new.provider_channel_key, ''),
+          COALESCE((
+            SELECT group_concat(categories.name, ' ')
+            FROM channel_categories
+            JOIN categories ON categories.id = channel_categories.category_id
+            WHERE channel_categories.channel_id = new.id
+          ), ''),
+          CAST(new.provider_id AS TEXT),
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS channels_ad_search
+      AFTER DELETE ON channels BEGIN
+        DELETE FROM channel_search_fts WHERE rowid = old.id;
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS channels_au_search
+      AFTER UPDATE ON channels BEGIN
+        DELETE FROM channel_search_fts WHERE rowid = old.id;
+        INSERT INTO channel_search_fts(
+          rowid, name, provider_key, category_tokens, provider_id, channel_id
+        )
+        VALUES(
+          new.id,
+          COALESCE(new.name, ''),
+          COALESCE(new.provider_channel_key, ''),
+          COALESCE((
+            SELECT group_concat(categories.name, ' ')
+            FROM channel_categories
+            JOIN categories ON categories.id = channel_categories.category_id
+            WHERE channel_categories.channel_id = new.id
+          ), ''),
+          CAST(new.provider_id AS TEXT),
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS channel_categories_ai_search
+      AFTER INSERT ON channel_categories BEGIN
+        DELETE FROM channel_search_fts WHERE rowid = new.channel_id;
+        INSERT INTO channel_search_fts(
+          rowid, name, provider_key, category_tokens, provider_id, channel_id
+        )
+        SELECT
+          channels.id,
+          COALESCE(channels.name, ''),
+          COALESCE(channels.provider_channel_key, ''),
+          COALESCE((
+            SELECT group_concat(categories.name, ' ')
+            FROM channel_categories cc
+            JOIN categories ON categories.id = cc.category_id
+            WHERE cc.channel_id = channels.id
+          ), ''),
+          CAST(channels.provider_id AS TEXT),
+          CAST(channels.id AS TEXT)
+        FROM channels
+        WHERE channels.id = new.channel_id;
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS channel_categories_ad_search
+      AFTER DELETE ON channel_categories BEGIN
+        DELETE FROM channel_search_fts WHERE rowid = old.channel_id;
+        INSERT INTO channel_search_fts(
+          rowid, name, provider_key, category_tokens, provider_id, channel_id
+        )
+        SELECT
+          channels.id,
+          COALESCE(channels.name, ''),
+          COALESCE(channels.provider_channel_key, ''),
+          COALESCE((
+            SELECT group_concat(categories.name, ' ')
+            FROM channel_categories cc
+            JOIN categories ON categories.id = cc.category_id
+            WHERE cc.channel_id = channels.id
+          ), ''),
+          CAST(channels.provider_id AS TEXT),
+          CAST(channels.id AS TEXT)
+        FROM channels
+        WHERE channels.id = old.channel_id;
+      END;
+    ''');
+
+    await customStatement('DELETE FROM channel_search_fts;');
+    await customStatement('''
+      INSERT INTO channel_search_fts(
+        rowid, name, provider_key, category_tokens, provider_id, channel_id
+      )
+      SELECT
+        channels.id,
+        COALESCE(channels.name, ''),
+        COALESCE(channels.provider_channel_key, ''),
+        COALESCE((
+          SELECT group_concat(categories.name, ' ')
+          FROM channel_categories
+          JOIN categories ON categories.id = channel_categories.category_id
+          WHERE channel_categories.channel_id = channels.id
+        ), ''),
+        CAST(channels.provider_id AS TEXT),
+        CAST(channels.id AS TEXT)
+      FROM channels;
+    ''');
+  }
+
+  Future<void> _dropChannelFtsArtifacts() async {
+    await customStatement('DROP TRIGGER IF EXISTS channels_ai_search;');
+    await customStatement('DROP TRIGGER IF EXISTS channels_ad_search;');
+    await customStatement('DROP TRIGGER IF EXISTS channels_au_search;');
+    await customStatement('DROP TRIGGER IF EXISTS channel_categories_ai_search;');
+    await customStatement('DROP TRIGGER IF EXISTS channel_categories_ad_search;');
+    await customStatement('DROP TABLE IF EXISTS channel_search_fts;');
+  }
+
+  Future<void> _ensureVodSearchIndex({required bool rebuild}) async {
+    if (rebuild) {
+      await _dropVodFtsArtifacts();
+    }
+
+    await customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS vod_search_fts USING fts5(
+        title,
+        overview,
+        category_tokens,
+        provider_id UNINDEXED,
+        item_type UNINDEXED,
+        item_id UNINDEXED,
+        tokenize='unicode61'
+      );
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS movies_ai_search
+      AFTER INSERT ON movies BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = new.id * 2;
+        INSERT INTO vod_search_fts(
+          rowid, title, overview, category_tokens, provider_id, item_type, item_id
+        )
+        VALUES(
+          new.id * 2,
+          COALESCE(new.title, ''),
+          COALESCE(new.overview, ''),
+          COALESCE((SELECT name FROM categories WHERE categories.id = new.category_id), ''),
+          CAST(new.provider_id AS TEXT),
+          'movie',
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS movies_au_search
+      AFTER UPDATE ON movies BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = old.id * 2;
+        INSERT INTO vod_search_fts(
+          rowid, title, overview, category_tokens, provider_id, item_type, item_id
+        )
+        VALUES(
+          new.id * 2,
+          COALESCE(new.title, ''),
+          COALESCE(new.overview, ''),
+          COALESCE((SELECT name FROM categories WHERE categories.id = new.category_id), ''),
+          CAST(new.provider_id AS TEXT),
+          'movie',
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS movies_ad_search
+      AFTER DELETE ON movies BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = old.id * 2;
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS series_ai_search
+      AFTER INSERT ON series BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = new.id * 2 + 1;
+        INSERT INTO vod_search_fts(
+          rowid, title, overview, category_tokens, provider_id, item_type, item_id
+        )
+        VALUES(
+          new.id * 2 + 1,
+          COALESCE(new.title, ''),
+          COALESCE(new.overview, ''),
+          COALESCE((SELECT name FROM categories WHERE categories.id = new.category_id), ''),
+          CAST(new.provider_id AS TEXT),
+          'series',
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS series_au_search
+      AFTER UPDATE ON series BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = old.id * 2 + 1;
+        INSERT INTO vod_search_fts(
+          rowid, title, overview, category_tokens, provider_id, item_type, item_id
+        )
+        VALUES(
+          new.id * 2 + 1,
+          COALESCE(new.title, ''),
+          COALESCE(new.overview, ''),
+          COALESCE((SELECT name FROM categories WHERE categories.id = new.category_id), ''),
+          CAST(new.provider_id AS TEXT),
+          'series',
+          CAST(new.id AS TEXT)
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS series_ad_search
+      AFTER DELETE ON series BEGIN
+        DELETE FROM vod_search_fts WHERE rowid = old.id * 2 + 1;
+      END;
+    ''');
+
+    await customStatement('DELETE FROM vod_search_fts;');
+    await customStatement('''
+      INSERT INTO vod_search_fts(
+        rowid, title, overview, category_tokens, provider_id, item_type, item_id
+      )
+      SELECT
+        movies.id * 2,
+        COALESCE(movies.title, ''),
+        COALESCE(movies.overview, ''),
+        COALESCE((SELECT name FROM categories WHERE categories.id = movies.category_id), ''),
+        CAST(movies.provider_id AS TEXT),
+        'movie',
+        CAST(movies.id AS TEXT)
+      FROM movies;
+    ''');
+    await customStatement('''
+      INSERT INTO vod_search_fts(
+        rowid, title, overview, category_tokens, provider_id, item_type, item_id
+      )
+      SELECT
+        series.id * 2 + 1,
+        COALESCE(series.title, ''),
+        COALESCE(series.overview, ''),
+        COALESCE((SELECT name FROM categories WHERE categories.id = series.category_id), ''),
+        CAST(series.provider_id AS TEXT),
+        'series',
+        CAST(series.id AS TEXT)
+      FROM series;
+    ''');
+  }
+
+  Future<void> _dropVodFtsArtifacts() async {
+    await customStatement('DROP TRIGGER IF EXISTS movies_ai_search;');
+    await customStatement('DROP TRIGGER IF EXISTS movies_au_search;');
+    await customStatement('DROP TRIGGER IF EXISTS movies_ad_search;');
+    await customStatement('DROP TRIGGER IF EXISTS series_ai_search;');
+    await customStatement('DROP TRIGGER IF EXISTS series_au_search;');
+    await customStatement('DROP TRIGGER IF EXISTS series_ad_search;');
+    await customStatement('DROP TABLE IF EXISTS vod_search_fts;');
   }
 }
 

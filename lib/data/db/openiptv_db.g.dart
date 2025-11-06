@@ -7787,6 +7787,266 @@ class ImportRunsCompanion extends UpdateCompanion<ImportRunRecord> {
   }
 }
 
+class $EpgProgramsFtsTable extends EpgProgramsFts
+    with TableInfo<$EpgProgramsFtsTable, EpgProgramsFt> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EpgProgramsFtsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _programIdMeta = const VerificationMeta(
+    'programId',
+  );
+  @override
+  late final GeneratedColumn<int> programId = GeneratedColumn<int>(
+    'program_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    $customConstraints:
+        'NOT NULL REFERENCES epg_programs(id) ON DELETE CASCADE',
+  );
+  @override
+  List<GeneratedColumn> get $columns => [title, description, programId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'epg_programs_fts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EpgProgramsFt> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_descriptionMeta);
+    }
+    if (data.containsKey('program_id')) {
+      context.handle(
+        _programIdMeta,
+        programId.isAcceptableOrUnknown(data['program_id']!, _programIdMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {programId};
+  @override
+  EpgProgramsFt map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EpgProgramsFt(
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      )!,
+      programId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}program_id'],
+      )!,
+    );
+  }
+
+  @override
+  $EpgProgramsFtsTable createAlias(String alias) {
+    return $EpgProgramsFtsTable(attachedDatabase, alias);
+  }
+}
+
+class EpgProgramsFt extends DataClass implements Insertable<EpgProgramsFt> {
+  final String title;
+  final String description;
+  final int programId;
+  const EpgProgramsFt({
+    required this.title,
+    required this.description,
+    required this.programId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['title'] = Variable<String>(title);
+    map['description'] = Variable<String>(description);
+    map['program_id'] = Variable<int>(programId);
+    return map;
+  }
+
+  EpgProgramsFtsCompanion toCompanion(bool nullToAbsent) {
+    return EpgProgramsFtsCompanion(
+      title: Value(title),
+      description: Value(description),
+      programId: Value(programId),
+    );
+  }
+
+  factory EpgProgramsFt.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EpgProgramsFt(
+      title: serializer.fromJson<String>(json['title']),
+      description: serializer.fromJson<String>(json['description']),
+      programId: serializer.fromJson<int>(json['programId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'title': serializer.toJson<String>(title),
+      'description': serializer.toJson<String>(description),
+      'programId': serializer.toJson<int>(programId),
+    };
+  }
+
+  EpgProgramsFt copyWith({
+    String? title,
+    String? description,
+    int? programId,
+  }) => EpgProgramsFt(
+    title: title ?? this.title,
+    description: description ?? this.description,
+    programId: programId ?? this.programId,
+  );
+  EpgProgramsFt copyWithCompanion(EpgProgramsFtsCompanion data) {
+    return EpgProgramsFt(
+      title: data.title.present ? data.title.value : this.title,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      programId: data.programId.present ? data.programId.value : this.programId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpgProgramsFt(')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('programId: $programId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(title, description, programId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EpgProgramsFt &&
+          other.title == this.title &&
+          other.description == this.description &&
+          other.programId == this.programId);
+}
+
+class EpgProgramsFtsCompanion extends UpdateCompanion<EpgProgramsFt> {
+  final Value<String> title;
+  final Value<String> description;
+  final Value<int> programId;
+  const EpgProgramsFtsCompanion({
+    this.title = const Value.absent(),
+    this.description = const Value.absent(),
+    this.programId = const Value.absent(),
+  });
+  EpgProgramsFtsCompanion.insert({
+    required String title,
+    required String description,
+    this.programId = const Value.absent(),
+  }) : title = Value(title),
+       description = Value(description);
+  static Insertable<EpgProgramsFt> custom({
+    Expression<String>? title,
+    Expression<String>? description,
+    Expression<int>? programId,
+  }) {
+    return RawValuesInsertable({
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (programId != null) 'program_id': programId,
+    });
+  }
+
+  EpgProgramsFtsCompanion copyWith({
+    Value<String>? title,
+    Value<String>? description,
+    Value<int>? programId,
+  }) {
+    return EpgProgramsFtsCompanion(
+      title: title ?? this.title,
+      description: description ?? this.description,
+      programId: programId ?? this.programId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (programId.present) {
+      map['program_id'] = Variable<int>(programId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EpgProgramsFtsCompanion(')
+          ..write('title: $title, ')
+          ..write('description: $description, ')
+          ..write('programId: $programId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -7808,6 +8068,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
   late final $UserFlagsTable userFlags = $UserFlagsTable(this);
   late final $MaintenanceLogTable maintenanceLog = $MaintenanceLogTable(this);
   late final $ImportRunsTable importRuns = $ImportRunsTable(this);
+  late final $EpgProgramsFtsTable epgProgramsFts = $EpgProgramsFtsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7828,6 +8089,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     userFlags,
     maintenanceLog,
     importRuns,
+    epgProgramsFts,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7956,6 +8218,13 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('import_runs', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'epg_programs',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('epg_programs_fts', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -11146,6 +11415,27 @@ final class $$EpgProgramsTableReferences
       manager.$state.copyWith(prefetchedData: [item]),
     );
   }
+
+  static MultiTypedResultKey<$EpgProgramsFtsTable, List<EpgProgramsFt>>
+  _epgProgramsFtsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.epgProgramsFts,
+    aliasName: $_aliasNameGenerator(
+      db.epgPrograms.id,
+      db.epgProgramsFts.programId,
+    ),
+  );
+
+  $$EpgProgramsFtsTableProcessedTableManager get epgProgramsFtsRefs {
+    final manager = $$EpgProgramsFtsTableTableManager(
+      $_db,
+      $_db.epgProgramsFts,
+    ).filter((f) => f.programId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_epgProgramsFtsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$EpgProgramsTableFilterComposer
@@ -11218,6 +11508,31 @@ class $$EpgProgramsTableFilterComposer
           ),
     );
     return composer;
+  }
+
+  Expression<bool> epgProgramsFtsRefs(
+    Expression<bool> Function($$EpgProgramsFtsTableFilterComposer f) f,
+  ) {
+    final $$EpgProgramsFtsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgProgramsFts,
+      getReferencedColumn: (t) => t.programId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsFtsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgProgramsFts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
   }
 }
 
@@ -11351,6 +11666,31 @@ class $$EpgProgramsTableAnnotationComposer
     );
     return composer;
   }
+
+  Expression<T> epgProgramsFtsRefs<T extends Object>(
+    Expression<T> Function($$EpgProgramsFtsTableAnnotationComposer a) f,
+  ) {
+    final $$EpgProgramsFtsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.epgProgramsFts,
+      getReferencedColumn: (t) => t.programId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsFtsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgProgramsFts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$EpgProgramsTableTableManager
@@ -11366,7 +11706,7 @@ class $$EpgProgramsTableTableManager
           $$EpgProgramsTableUpdateCompanionBuilder,
           (EpgProgramRecord, $$EpgProgramsTableReferences),
           EpgProgramRecord,
-          PrefetchHooks Function({bool channelId})
+          PrefetchHooks Function({bool channelId, bool epgProgramsFtsRefs})
         > {
   $$EpgProgramsTableTableManager(_$OpenIptvDb db, $EpgProgramsTable table)
     : super(
@@ -11431,47 +11771,74 @@ class $$EpgProgramsTableTableManager
                 ),
               )
               .toList(),
-          prefetchHooksCallback: ({channelId = false}) {
-            return PrefetchHooks(
-              db: db,
-              explicitlyWatchedTables: [],
-              addJoins:
-                  <
-                    T extends TableManagerState<
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic,
-                      dynamic
-                    >
-                  >(state) {
-                    if (channelId) {
-                      state =
-                          state.withJoin(
-                                currentTable: table,
-                                currentColumn: table.channelId,
-                                referencedTable: $$EpgProgramsTableReferences
-                                    ._channelIdTable(db),
-                                referencedColumn: $$EpgProgramsTableReferences
-                                    ._channelIdTable(db)
-                                    .id,
-                              )
-                              as T;
-                    }
+          prefetchHooksCallback:
+              ({channelId = false, epgProgramsFtsRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (epgProgramsFtsRefs) db.epgProgramsFts,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (channelId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.channelId,
+                                    referencedTable:
+                                        $$EpgProgramsTableReferences
+                                            ._channelIdTable(db),
+                                    referencedColumn:
+                                        $$EpgProgramsTableReferences
+                                            ._channelIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
 
-                    return state;
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (epgProgramsFtsRefs)
+                        await $_getPrefetchedData<
+                          EpgProgramRecord,
+                          $EpgProgramsTable,
+                          EpgProgramsFt
+                        >(
+                          currentTable: table,
+                          referencedTable: $$EpgProgramsTableReferences
+                              ._epgProgramsFtsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$EpgProgramsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).epgProgramsFtsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.programId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
                   },
-              getPrefetchedDataCallback: (items) async {
-                return [];
+                );
               },
-            );
-          },
         ),
       );
 }
@@ -11488,7 +11855,7 @@ typedef $$EpgProgramsTableProcessedTableManager =
       $$EpgProgramsTableUpdateCompanionBuilder,
       (EpgProgramRecord, $$EpgProgramsTableReferences),
       EpgProgramRecord,
-      PrefetchHooks Function({bool channelId})
+      PrefetchHooks Function({bool channelId, bool epgProgramsFtsRefs})
     >;
 typedef $$MoviesTableCreateCompanionBuilder =
     MoviesCompanion Function({
@@ -15514,6 +15881,288 @@ typedef $$ImportRunsTableProcessedTableManager =
       ImportRunRecord,
       PrefetchHooks Function({bool providerId})
     >;
+typedef $$EpgProgramsFtsTableCreateCompanionBuilder =
+    EpgProgramsFtsCompanion Function({
+      required String title,
+      required String description,
+      Value<int> programId,
+    });
+typedef $$EpgProgramsFtsTableUpdateCompanionBuilder =
+    EpgProgramsFtsCompanion Function({
+      Value<String> title,
+      Value<String> description,
+      Value<int> programId,
+    });
+
+final class $$EpgProgramsFtsTableReferences
+    extends BaseReferences<_$OpenIptvDb, $EpgProgramsFtsTable, EpgProgramsFt> {
+  $$EpgProgramsFtsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $EpgProgramsTable _programIdTable(_$OpenIptvDb db) =>
+      db.epgPrograms.createAlias(
+        $_aliasNameGenerator(db.epgProgramsFts.programId, db.epgPrograms.id),
+      );
+
+  $$EpgProgramsTableProcessedTableManager get programId {
+    final $_column = $_itemColumn<int>('program_id')!;
+
+    final manager = $$EpgProgramsTableTableManager(
+      $_db,
+      $_db.epgPrograms,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_programIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$EpgProgramsFtsTableFilterComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsFtsTable> {
+  $$EpgProgramsFtsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$EpgProgramsTableFilterComposer get programId {
+    final $$EpgProgramsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.epgPrograms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsTableFilterComposer(
+            $db: $db,
+            $table: $db.epgPrograms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsFtsTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsFtsTable> {
+  $$EpgProgramsFtsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$EpgProgramsTableOrderingComposer get programId {
+    final $$EpgProgramsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.epgPrograms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsTableOrderingComposer(
+            $db: $db,
+            $table: $db.epgPrograms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsFtsTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $EpgProgramsFtsTable> {
+  $$EpgProgramsFtsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  $$EpgProgramsTableAnnotationComposer get programId {
+    final $$EpgProgramsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.programId,
+      referencedTable: $db.epgPrograms,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$EpgProgramsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.epgPrograms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$EpgProgramsFtsTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $EpgProgramsFtsTable,
+          EpgProgramsFt,
+          $$EpgProgramsFtsTableFilterComposer,
+          $$EpgProgramsFtsTableOrderingComposer,
+          $$EpgProgramsFtsTableAnnotationComposer,
+          $$EpgProgramsFtsTableCreateCompanionBuilder,
+          $$EpgProgramsFtsTableUpdateCompanionBuilder,
+          (EpgProgramsFt, $$EpgProgramsFtsTableReferences),
+          EpgProgramsFt,
+          PrefetchHooks Function({bool programId})
+        > {
+  $$EpgProgramsFtsTableTableManager(_$OpenIptvDb db, $EpgProgramsFtsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EpgProgramsFtsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$EpgProgramsFtsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$EpgProgramsFtsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> title = const Value.absent(),
+                Value<String> description = const Value.absent(),
+                Value<int> programId = const Value.absent(),
+              }) => EpgProgramsFtsCompanion(
+                title: title,
+                description: description,
+                programId: programId,
+              ),
+          createCompanionCallback:
+              ({
+                required String title,
+                required String description,
+                Value<int> programId = const Value.absent(),
+              }) => EpgProgramsFtsCompanion.insert(
+                title: title,
+                description: description,
+                programId: programId,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$EpgProgramsFtsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({programId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (programId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.programId,
+                                referencedTable: $$EpgProgramsFtsTableReferences
+                                    ._programIdTable(db),
+                                referencedColumn:
+                                    $$EpgProgramsFtsTableReferences
+                                        ._programIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$EpgProgramsFtsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $EpgProgramsFtsTable,
+      EpgProgramsFt,
+      $$EpgProgramsFtsTableFilterComposer,
+      $$EpgProgramsFtsTableOrderingComposer,
+      $$EpgProgramsFtsTableAnnotationComposer,
+      $$EpgProgramsFtsTableCreateCompanionBuilder,
+      $$EpgProgramsFtsTableUpdateCompanionBuilder,
+      (EpgProgramsFt, $$EpgProgramsFtsTableReferences),
+      EpgProgramsFt,
+      PrefetchHooks Function({bool programId})
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -15548,4 +16197,6 @@ class $OpenIptvDbManager {
       $$MaintenanceLogTableTableManager(_db, _db.maintenanceLog);
   $$ImportRunsTableTableManager get importRuns =>
       $$ImportRunsTableTableManager(_db, _db.importRuns);
+  $$EpgProgramsFtsTableTableManager get epgProgramsFts =>
+      $$EpgProgramsFtsTableTableManager(_db, _db.epgProgramsFts);
 }

@@ -72,10 +72,10 @@
 
 ## Search & Browse Integration
 - [x] Implement FTS-backed EPG search with highlight snippets wired through `SearchRepository`.
-- [ ] Implement channel search FTS index + highlight output.
-- [ ] Implement VOD search FTS index + highlight output.
+- [x] Implement channel search FTS index + highlight output. -> virtual table + triggers in `lib/data/db/openiptv_db.dart`, query wiring + highlights in `lib/data/repositories/search_repository.dart`.
+- [x] Implement VOD search FTS index + highlight output. -> `vod_search_fts` triggers in `lib/data/db/openiptv_db.dart`, repository API `searchVod`.
 - [x] Add derived queries: favourites-first ordering, category filtering, and recent play history joins.
-- [ ] Create summary projections powering fast home/dashboard loads.
+- [x] Create summary projections powering fast home/dashboard loads. -> `loadDashboardSummary` in `lib/data/repositories/search_repository.dart`.
 
 ## UI & App Integration
 - [ ] Replace in-memory providers with DB-backed streams in home guide and discovery flows.

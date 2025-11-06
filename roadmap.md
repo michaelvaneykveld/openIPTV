@@ -121,6 +121,8 @@
 - Hardened the SQLite FTS index by recreating the `epg_programs_fts` virtual table with triggers that keep rows in sync on insert/update/delete and repopulate at open, ensuring program search remains fresh without manual reindexing (`lib/data/db/openiptv_db.dart`).
 - Extended `SearchRepository` with Riverpod wiring for user flag updates, FTS-backed EPG queries that return highlighted snippets, and richer channel search controls (favorites-first ordering, category filters, recency joins, updatedAfter filtering, recency metadata) (`lib/data/repositories/search_repository.dart`).
 - Added focused regression coverage for the new search behaviours, including highlight assertions and category/recency filters driven through the repository API (`test/data/repositories/search_repository_test.dart`).
+- Introduced dedicated `channel_search_fts` and `vod_search_fts` virtual tables with triggers so channel/VOD metadata stays indexed automatically, wired through `SearchRepository` to deliver highlighted matches alongside favorites/recency ordering (`lib/data/db/openiptv_db.dart`, `lib/data/repositories/search_repository.dart`).
+- Added a unified `searchVod` API and `loadDashboardSummary` projection that surfaces movie/series hits and dashboard metrics, backed by new repository tests covering highlights and summary aggregation (`test/data/repositories/search_repository_test.dart`).
 
 ## TODO - Login Experience Implementation
 - Build out the unified provider profile and storage architecture (Drift + secure vault). (in-progress)

@@ -56,14 +56,25 @@ part 'tables/import_runs.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  OpenIptvDb._(super.executor);
+  static const int schemaVersionLatest = 2;
+
+  OpenIptvDb._(this._overrideSchemaVersion, super.executor);
+
+  int? _overrideSchemaVersion;
 
   /// Construct a database instance backed by the on-device file store.
   factory OpenIptvDb.open({DatabaseKeyStore? keyStore}) =>
-      OpenIptvDb._(_openConnection(keyStore: keyStore));
+      OpenIptvDb._(null, _openConnection(keyStore: keyStore));
 
   /// Convenience factory for tests that prefer an in-memory database.
-  factory OpenIptvDb.inMemory() => OpenIptvDb._(_openInMemory());
+  factory OpenIptvDb.inMemory() => OpenIptvDb._(null, _openInMemory());
+
+  /// Testing constructor that allows schema version overrides.
+  factory OpenIptvDb.forTesting(
+    QueryExecutor executor, {
+    int? schemaVersionOverride,
+  }) =>
+      OpenIptvDb._(schemaVersionOverride, executor);
 
   /// Resolves the on-disk location for the primary database file.
   static Future<File> resolveDatabaseFile() async {
@@ -76,7 +87,7 @@ class OpenIptvDb extends _$OpenIptvDb {
   }
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => _overrideSchemaVersion ?? schemaVersionLatest;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -84,7 +95,15 @@ class OpenIptvDb extends _$OpenIptvDb {
           await m.createAll();
         },
         onUpgrade: (Migrator m, int from, int to) async {
-          // Handle migrations as new phases land.
+          for (var version = from; version < to; version++) {
+            switch (version) {
+              case 1:
+                await _migrateFrom1To2(m);
+                break;
+              default:
+                break;
+            }
+          }
         },
         beforeOpen: (OpeningDetails details) async {
           // Enforce fundamentals every time the database is opened.
@@ -94,6 +113,27 @@ class OpenIptvDb extends _$OpenIptvDb {
           await customStatement('PRAGMA temp_store = MEMORY;');
         },
       );
+
+  Future<void> _migrateFrom1To2(Migrator m) async {
+    await _createIfMissing(m, maintenanceLog);
+    await _createIfMissing(m, artworkCache);
+    await _createIfMissing(m, playbackHistory);
+    await _createIfMissing(m, userFlags);
+    await _createIfMissing(m, importRuns);
+  }
+
+  Future<void> _createIfMissing(
+    Migrator m,
+    TableInfo<Table, dynamic> table,
+  ) async {
+    final existing = await customSelect(
+      'SELECT name FROM sqlite_master WHERE type = "table" AND name = ?',
+      variables: [Variable<String>(table.actualTableName)],
+    ).get();
+    if (existing.isEmpty) {
+      await m.createTable(table);
+    }
+  }
 }
 
 QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {

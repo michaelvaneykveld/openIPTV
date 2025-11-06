@@ -66,9 +66,9 @@
 - [x] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics). -> `flutter pub run tool/db_maintenance.dart`.
 
 ## Migration Strategy
-- [ ] Set baseline schema version and write idempotent Drift migration scripts.
-- [ ] Add tests covering upgrade/downgrade paths with fixture data.
-- [ ] Establish migration playbook (backup, apply, verify) and document failure recovery.
+- [x] Set baseline schema version and write idempotent Drift migration scripts. -> `OpenIptvDb` schemaVersionLatest=2 with incremental migrations.
+- [x] Add tests covering upgrade/downgrade paths with fixture data. -> `test/data/db/migration_test.dart` verifies v1->latest upgrade.
+- [x] Establish migration playbook (backup, apply, verify) and document failure recovery. -> `docs/db/migration_playbook.md`.
 
 ## Search & Browse Integration
 - [ ] Implement FTS-backed search DAO for channels, VOD, and EPG with highlighting support.

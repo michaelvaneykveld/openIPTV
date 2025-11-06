@@ -7,6 +7,7 @@ import '../db/dao/movie_dao.dart';
 import '../db/dao/provider_dao.dart';
 import '../db/dao/series_dao.dart';
 import '../db/dao/summary_dao.dart';
+import '../db/dao/import_run_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
 import 'import_context.dart';
@@ -20,6 +21,7 @@ final stalkerImporterProvider = r.Provider<StalkerImporter>((ref) {
   final movieDao = MovieDao(db);
   final seriesDao = SeriesDao(db);
   final epgDao = EpgDao(db);
+  final importRunDao = ImportRunDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
@@ -29,6 +31,7 @@ final stalkerImporterProvider = r.Provider<StalkerImporter>((ref) {
     seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
+    importRunDao: importRunDao,
   );
   return StalkerImporter(context);
 });
@@ -96,7 +99,10 @@ class StalkerImporter {
       );
 
       return metrics;
-    });
+    },
+        providerId: providerId,
+        importType: 'stalker',
+        metricsSelector: (result) => result);
   }
 
   Future<void> _upsertCategorySet(

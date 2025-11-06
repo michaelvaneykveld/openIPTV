@@ -34,6 +34,7 @@ part 'tables/artwork_cache.dart';
 part 'tables/playback_history.dart';
 part 'tables/user_flags.dart';
 part 'tables/maintenance_log.dart';
+part 'tables/import_runs.dart';
 
 @DriftDatabase(
   tables: [
@@ -51,6 +52,7 @@ part 'tables/maintenance_log.dart';
     PlaybackHistory,
     UserFlags,
     MaintenanceLog,
+    ImportRuns,
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {

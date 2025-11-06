@@ -61,8 +61,8 @@
 ## Performance & Maintenance Automation
 - [x] Implement periodic VACUUM/ANALYZE policy gated by size/elapsed time. -> `lib/data/db/database_maintenance.dart`, `lib/data/db/dao/maintenance_log_dao.dart`, tests in `test/data/db/database_maintenance_test.dart`.
 - [x] Add retention sweeper to drop tombstoned channels after grace window and prune orphaned relationships/artwork. -> `DatabaseMaintenance` uses `ChannelDao.purgeAllStaleChannels` and artwork pruning.
-- [ ] Enforce backpressure on import concurrency (limit parallel requests per provider).
-- [ ] Record import durations, row counts, and error metrics for diagnostics.
+- [x] Enforce backpressure on import concurrency (limit parallel requests per provider). -> `_providerLocks` in `ImportContext.runWithRetry` ensures per-provider serialization.
+- [x] Record import durations, row counts, and error metrics for diagnostics. -> Import runs logged via `ImportRunDao` from `ImportContext`.
 - [ ] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics).
 
 ## Migration Strategy

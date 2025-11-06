@@ -8,6 +8,7 @@ import '../db/dao/channel_dao.dart';
 import '../db/dao/movie_dao.dart';
 import '../db/dao/series_dao.dart';
 import '../db/dao/summary_dao.dart';
+import '../db/dao/import_run_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
 import 'import_context.dart';
@@ -21,6 +22,7 @@ final xtreamImporterProvider = r.Provider<XtreamImporter>((ref) {
   final summaryDao = SummaryDao(db);
   final providerDao = ProviderDao(db);
   final epgDao = EpgDao(db);
+  final importRunDao = ImportRunDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
@@ -30,6 +32,7 @@ final xtreamImporterProvider = r.Provider<XtreamImporter>((ref) {
     seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
+    importRunDao: importRunDao,
   );
   return XtreamImporter(context);
 });
@@ -160,7 +163,10 @@ class XtreamImporter {
       );
 
       return metrics;
-    });
+    },
+        providerId: providerId,
+        importType: 'xtream',
+        metricsSelector: (result) => result);
   }
 
   Future<Map<String, int>> _upsertCategories(

@@ -8,6 +8,7 @@ import '../db/dao/series_dao.dart';
 import '../db/dao/epg_dao.dart';
 import '../db/dao/provider_dao.dart';
 import '../db/dao/summary_dao.dart';
+import '../db/dao/import_run_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
 import 'import_context.dart';
@@ -21,6 +22,7 @@ final epgImporterProvider = r.Provider<EpgImporter>((ref) {
   final seriesDao = SeriesDao(db);
   final summaryDao = SummaryDao(db);
   final epgDao = EpgDao(db);
+  final importRunDao = ImportRunDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
@@ -30,6 +32,7 @@ final epgImporterProvider = r.Provider<EpgImporter>((ref) {
     seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
+    importRunDao: importRunDao,
   );
   return EpgImporter(context);
 });
@@ -86,6 +89,9 @@ class EpgImporter {
 
         return metrics;
       },
+      providerId: providerId,
+      importType: 'epg',
+      metricsSelector: (result) => result,
     );
   }
 

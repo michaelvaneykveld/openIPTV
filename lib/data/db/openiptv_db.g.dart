@@ -6924,6 +6924,869 @@ class MaintenanceLogCompanion extends UpdateCompanion<MaintenanceLogRecord> {
   }
 }
 
+class $ImportRunsTable extends ImportRuns
+    with TableInfo<$ImportRunsTable, ImportRunRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ImportRunsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<int> providerId = GeneratedColumn<int>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES providers (id) ON DELETE CASCADE',
+    ),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<ProviderKind, String>
+  providerKind = GeneratedColumn<String>(
+    'provider_kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  ).withConverter<ProviderKind>($ImportRunsTable.$converterproviderKind);
+  static const VerificationMeta _importTypeMeta = const VerificationMeta(
+    'importType',
+  );
+  @override
+  late final GeneratedColumn<String> importType = GeneratedColumn<String>(
+    'import_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationMsMeta = const VerificationMeta(
+    'durationMs',
+  );
+  @override
+  late final GeneratedColumn<int> durationMs = GeneratedColumn<int>(
+    'duration_ms',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _channelsUpsertedMeta = const VerificationMeta(
+    'channelsUpserted',
+  );
+  @override
+  late final GeneratedColumn<int> channelsUpserted = GeneratedColumn<int>(
+    'channels_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _categoriesUpsertedMeta =
+      const VerificationMeta('categoriesUpserted');
+  @override
+  late final GeneratedColumn<int> categoriesUpserted = GeneratedColumn<int>(
+    'categories_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _moviesUpsertedMeta = const VerificationMeta(
+    'moviesUpserted',
+  );
+  @override
+  late final GeneratedColumn<int> moviesUpserted = GeneratedColumn<int>(
+    'movies_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seriesUpsertedMeta = const VerificationMeta(
+    'seriesUpserted',
+  );
+  @override
+  late final GeneratedColumn<int> seriesUpserted = GeneratedColumn<int>(
+    'series_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _seasonsUpsertedMeta = const VerificationMeta(
+    'seasonsUpserted',
+  );
+  @override
+  late final GeneratedColumn<int> seasonsUpserted = GeneratedColumn<int>(
+    'seasons_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _episodesUpsertedMeta = const VerificationMeta(
+    'episodesUpserted',
+  );
+  @override
+  late final GeneratedColumn<int> episodesUpserted = GeneratedColumn<int>(
+    'episodes_upserted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _channelsDeletedMeta = const VerificationMeta(
+    'channelsDeleted',
+  );
+  @override
+  late final GeneratedColumn<int> channelsDeleted = GeneratedColumn<int>(
+    'channels_deleted',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    providerId,
+    providerKind,
+    importType,
+    startedAt,
+    durationMs,
+    channelsUpserted,
+    categoriesUpserted,
+    moviesUpserted,
+    seriesUpserted,
+    seasonsUpserted,
+    episodesUpserted,
+    channelsDeleted,
+    error,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'import_runs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ImportRunRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('import_type')) {
+      context.handle(
+        _importTypeMeta,
+        importType.isAcceptableOrUnknown(data['import_type']!, _importTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_importTypeMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('duration_ms')) {
+      context.handle(
+        _durationMsMeta,
+        durationMs.isAcceptableOrUnknown(data['duration_ms']!, _durationMsMeta),
+      );
+    }
+    if (data.containsKey('channels_upserted')) {
+      context.handle(
+        _channelsUpsertedMeta,
+        channelsUpserted.isAcceptableOrUnknown(
+          data['channels_upserted']!,
+          _channelsUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('categories_upserted')) {
+      context.handle(
+        _categoriesUpsertedMeta,
+        categoriesUpserted.isAcceptableOrUnknown(
+          data['categories_upserted']!,
+          _categoriesUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('movies_upserted')) {
+      context.handle(
+        _moviesUpsertedMeta,
+        moviesUpserted.isAcceptableOrUnknown(
+          data['movies_upserted']!,
+          _moviesUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('series_upserted')) {
+      context.handle(
+        _seriesUpsertedMeta,
+        seriesUpserted.isAcceptableOrUnknown(
+          data['series_upserted']!,
+          _seriesUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('seasons_upserted')) {
+      context.handle(
+        _seasonsUpsertedMeta,
+        seasonsUpserted.isAcceptableOrUnknown(
+          data['seasons_upserted']!,
+          _seasonsUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('episodes_upserted')) {
+      context.handle(
+        _episodesUpsertedMeta,
+        episodesUpserted.isAcceptableOrUnknown(
+          data['episodes_upserted']!,
+          _episodesUpsertedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('channels_deleted')) {
+      context.handle(
+        _channelsDeletedMeta,
+        channelsDeleted.isAcceptableOrUnknown(
+          data['channels_deleted']!,
+          _channelsDeletedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ImportRunRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ImportRunRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      providerKind: $ImportRunsTable.$converterproviderKind.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}provider_kind'],
+        )!,
+      ),
+      importType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}import_type'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      durationMs: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_ms'],
+      ),
+      channelsUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channels_upserted'],
+      ),
+      categoriesUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}categories_upserted'],
+      ),
+      moviesUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}movies_upserted'],
+      ),
+      seriesUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}series_upserted'],
+      ),
+      seasonsUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seasons_upserted'],
+      ),
+      episodesUpserted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}episodes_upserted'],
+      ),
+      channelsDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channels_deleted'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+    );
+  }
+
+  @override
+  $ImportRunsTable createAlias(String alias) {
+    return $ImportRunsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<ProviderKind, String, String>
+  $converterproviderKind = const EnumNameConverter<ProviderKind>(
+    ProviderKind.values,
+  );
+}
+
+class ImportRunRecord extends DataClass implements Insertable<ImportRunRecord> {
+  final int id;
+  final int providerId;
+  final ProviderKind providerKind;
+  final String importType;
+  final DateTime startedAt;
+  final int? durationMs;
+  final int? channelsUpserted;
+  final int? categoriesUpserted;
+  final int? moviesUpserted;
+  final int? seriesUpserted;
+  final int? seasonsUpserted;
+  final int? episodesUpserted;
+  final int? channelsDeleted;
+  final String? error;
+  const ImportRunRecord({
+    required this.id,
+    required this.providerId,
+    required this.providerKind,
+    required this.importType,
+    required this.startedAt,
+    this.durationMs,
+    this.channelsUpserted,
+    this.categoriesUpserted,
+    this.moviesUpserted,
+    this.seriesUpserted,
+    this.seasonsUpserted,
+    this.episodesUpserted,
+    this.channelsDeleted,
+    this.error,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['provider_id'] = Variable<int>(providerId);
+    {
+      map['provider_kind'] = Variable<String>(
+        $ImportRunsTable.$converterproviderKind.toSql(providerKind),
+      );
+    }
+    map['import_type'] = Variable<String>(importType);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || durationMs != null) {
+      map['duration_ms'] = Variable<int>(durationMs);
+    }
+    if (!nullToAbsent || channelsUpserted != null) {
+      map['channels_upserted'] = Variable<int>(channelsUpserted);
+    }
+    if (!nullToAbsent || categoriesUpserted != null) {
+      map['categories_upserted'] = Variable<int>(categoriesUpserted);
+    }
+    if (!nullToAbsent || moviesUpserted != null) {
+      map['movies_upserted'] = Variable<int>(moviesUpserted);
+    }
+    if (!nullToAbsent || seriesUpserted != null) {
+      map['series_upserted'] = Variable<int>(seriesUpserted);
+    }
+    if (!nullToAbsent || seasonsUpserted != null) {
+      map['seasons_upserted'] = Variable<int>(seasonsUpserted);
+    }
+    if (!nullToAbsent || episodesUpserted != null) {
+      map['episodes_upserted'] = Variable<int>(episodesUpserted);
+    }
+    if (!nullToAbsent || channelsDeleted != null) {
+      map['channels_deleted'] = Variable<int>(channelsDeleted);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    return map;
+  }
+
+  ImportRunsCompanion toCompanion(bool nullToAbsent) {
+    return ImportRunsCompanion(
+      id: Value(id),
+      providerId: Value(providerId),
+      providerKind: Value(providerKind),
+      importType: Value(importType),
+      startedAt: Value(startedAt),
+      durationMs: durationMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationMs),
+      channelsUpserted: channelsUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(channelsUpserted),
+      categoriesUpserted: categoriesUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoriesUpserted),
+      moviesUpserted: moviesUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(moviesUpserted),
+      seriesUpserted: seriesUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seriesUpserted),
+      seasonsUpserted: seasonsUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(seasonsUpserted),
+      episodesUpserted: episodesUpserted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(episodesUpserted),
+      channelsDeleted: channelsDeleted == null && nullToAbsent
+          ? const Value.absent()
+          : Value(channelsDeleted),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+    );
+  }
+
+  factory ImportRunRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ImportRunRecord(
+      id: serializer.fromJson<int>(json['id']),
+      providerId: serializer.fromJson<int>(json['providerId']),
+      providerKind: $ImportRunsTable.$converterproviderKind.fromJson(
+        serializer.fromJson<String>(json['providerKind']),
+      ),
+      importType: serializer.fromJson<String>(json['importType']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      durationMs: serializer.fromJson<int?>(json['durationMs']),
+      channelsUpserted: serializer.fromJson<int?>(json['channelsUpserted']),
+      categoriesUpserted: serializer.fromJson<int?>(json['categoriesUpserted']),
+      moviesUpserted: serializer.fromJson<int?>(json['moviesUpserted']),
+      seriesUpserted: serializer.fromJson<int?>(json['seriesUpserted']),
+      seasonsUpserted: serializer.fromJson<int?>(json['seasonsUpserted']),
+      episodesUpserted: serializer.fromJson<int?>(json['episodesUpserted']),
+      channelsDeleted: serializer.fromJson<int?>(json['channelsDeleted']),
+      error: serializer.fromJson<String?>(json['error']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'providerId': serializer.toJson<int>(providerId),
+      'providerKind': serializer.toJson<String>(
+        $ImportRunsTable.$converterproviderKind.toJson(providerKind),
+      ),
+      'importType': serializer.toJson<String>(importType),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'durationMs': serializer.toJson<int?>(durationMs),
+      'channelsUpserted': serializer.toJson<int?>(channelsUpserted),
+      'categoriesUpserted': serializer.toJson<int?>(categoriesUpserted),
+      'moviesUpserted': serializer.toJson<int?>(moviesUpserted),
+      'seriesUpserted': serializer.toJson<int?>(seriesUpserted),
+      'seasonsUpserted': serializer.toJson<int?>(seasonsUpserted),
+      'episodesUpserted': serializer.toJson<int?>(episodesUpserted),
+      'channelsDeleted': serializer.toJson<int?>(channelsDeleted),
+      'error': serializer.toJson<String?>(error),
+    };
+  }
+
+  ImportRunRecord copyWith({
+    int? id,
+    int? providerId,
+    ProviderKind? providerKind,
+    String? importType,
+    DateTime? startedAt,
+    Value<int?> durationMs = const Value.absent(),
+    Value<int?> channelsUpserted = const Value.absent(),
+    Value<int?> categoriesUpserted = const Value.absent(),
+    Value<int?> moviesUpserted = const Value.absent(),
+    Value<int?> seriesUpserted = const Value.absent(),
+    Value<int?> seasonsUpserted = const Value.absent(),
+    Value<int?> episodesUpserted = const Value.absent(),
+    Value<int?> channelsDeleted = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+  }) => ImportRunRecord(
+    id: id ?? this.id,
+    providerId: providerId ?? this.providerId,
+    providerKind: providerKind ?? this.providerKind,
+    importType: importType ?? this.importType,
+    startedAt: startedAt ?? this.startedAt,
+    durationMs: durationMs.present ? durationMs.value : this.durationMs,
+    channelsUpserted: channelsUpserted.present
+        ? channelsUpserted.value
+        : this.channelsUpserted,
+    categoriesUpserted: categoriesUpserted.present
+        ? categoriesUpserted.value
+        : this.categoriesUpserted,
+    moviesUpserted: moviesUpserted.present
+        ? moviesUpserted.value
+        : this.moviesUpserted,
+    seriesUpserted: seriesUpserted.present
+        ? seriesUpserted.value
+        : this.seriesUpserted,
+    seasonsUpserted: seasonsUpserted.present
+        ? seasonsUpserted.value
+        : this.seasonsUpserted,
+    episodesUpserted: episodesUpserted.present
+        ? episodesUpserted.value
+        : this.episodesUpserted,
+    channelsDeleted: channelsDeleted.present
+        ? channelsDeleted.value
+        : this.channelsDeleted,
+    error: error.present ? error.value : this.error,
+  );
+  ImportRunRecord copyWithCompanion(ImportRunsCompanion data) {
+    return ImportRunRecord(
+      id: data.id.present ? data.id.value : this.id,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      providerKind: data.providerKind.present
+          ? data.providerKind.value
+          : this.providerKind,
+      importType: data.importType.present
+          ? data.importType.value
+          : this.importType,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      durationMs: data.durationMs.present
+          ? data.durationMs.value
+          : this.durationMs,
+      channelsUpserted: data.channelsUpserted.present
+          ? data.channelsUpserted.value
+          : this.channelsUpserted,
+      categoriesUpserted: data.categoriesUpserted.present
+          ? data.categoriesUpserted.value
+          : this.categoriesUpserted,
+      moviesUpserted: data.moviesUpserted.present
+          ? data.moviesUpserted.value
+          : this.moviesUpserted,
+      seriesUpserted: data.seriesUpserted.present
+          ? data.seriesUpserted.value
+          : this.seriesUpserted,
+      seasonsUpserted: data.seasonsUpserted.present
+          ? data.seasonsUpserted.value
+          : this.seasonsUpserted,
+      episodesUpserted: data.episodesUpserted.present
+          ? data.episodesUpserted.value
+          : this.episodesUpserted,
+      channelsDeleted: data.channelsDeleted.present
+          ? data.channelsDeleted.value
+          : this.channelsDeleted,
+      error: data.error.present ? data.error.value : this.error,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportRunRecord(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerKind: $providerKind, ')
+          ..write('importType: $importType, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('channelsUpserted: $channelsUpserted, ')
+          ..write('categoriesUpserted: $categoriesUpserted, ')
+          ..write('moviesUpserted: $moviesUpserted, ')
+          ..write('seriesUpserted: $seriesUpserted, ')
+          ..write('seasonsUpserted: $seasonsUpserted, ')
+          ..write('episodesUpserted: $episodesUpserted, ')
+          ..write('channelsDeleted: $channelsDeleted, ')
+          ..write('error: $error')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    providerId,
+    providerKind,
+    importType,
+    startedAt,
+    durationMs,
+    channelsUpserted,
+    categoriesUpserted,
+    moviesUpserted,
+    seriesUpserted,
+    seasonsUpserted,
+    episodesUpserted,
+    channelsDeleted,
+    error,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ImportRunRecord &&
+          other.id == this.id &&
+          other.providerId == this.providerId &&
+          other.providerKind == this.providerKind &&
+          other.importType == this.importType &&
+          other.startedAt == this.startedAt &&
+          other.durationMs == this.durationMs &&
+          other.channelsUpserted == this.channelsUpserted &&
+          other.categoriesUpserted == this.categoriesUpserted &&
+          other.moviesUpserted == this.moviesUpserted &&
+          other.seriesUpserted == this.seriesUpserted &&
+          other.seasonsUpserted == this.seasonsUpserted &&
+          other.episodesUpserted == this.episodesUpserted &&
+          other.channelsDeleted == this.channelsDeleted &&
+          other.error == this.error);
+}
+
+class ImportRunsCompanion extends UpdateCompanion<ImportRunRecord> {
+  final Value<int> id;
+  final Value<int> providerId;
+  final Value<ProviderKind> providerKind;
+  final Value<String> importType;
+  final Value<DateTime> startedAt;
+  final Value<int?> durationMs;
+  final Value<int?> channelsUpserted;
+  final Value<int?> categoriesUpserted;
+  final Value<int?> moviesUpserted;
+  final Value<int?> seriesUpserted;
+  final Value<int?> seasonsUpserted;
+  final Value<int?> episodesUpserted;
+  final Value<int?> channelsDeleted;
+  final Value<String?> error;
+  const ImportRunsCompanion({
+    this.id = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.providerKind = const Value.absent(),
+    this.importType = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.durationMs = const Value.absent(),
+    this.channelsUpserted = const Value.absent(),
+    this.categoriesUpserted = const Value.absent(),
+    this.moviesUpserted = const Value.absent(),
+    this.seriesUpserted = const Value.absent(),
+    this.seasonsUpserted = const Value.absent(),
+    this.episodesUpserted = const Value.absent(),
+    this.channelsDeleted = const Value.absent(),
+    this.error = const Value.absent(),
+  });
+  ImportRunsCompanion.insert({
+    this.id = const Value.absent(),
+    required int providerId,
+    required ProviderKind providerKind,
+    required String importType,
+    required DateTime startedAt,
+    this.durationMs = const Value.absent(),
+    this.channelsUpserted = const Value.absent(),
+    this.categoriesUpserted = const Value.absent(),
+    this.moviesUpserted = const Value.absent(),
+    this.seriesUpserted = const Value.absent(),
+    this.seasonsUpserted = const Value.absent(),
+    this.episodesUpserted = const Value.absent(),
+    this.channelsDeleted = const Value.absent(),
+    this.error = const Value.absent(),
+  }) : providerId = Value(providerId),
+       providerKind = Value(providerKind),
+       importType = Value(importType),
+       startedAt = Value(startedAt);
+  static Insertable<ImportRunRecord> custom({
+    Expression<int>? id,
+    Expression<int>? providerId,
+    Expression<String>? providerKind,
+    Expression<String>? importType,
+    Expression<DateTime>? startedAt,
+    Expression<int>? durationMs,
+    Expression<int>? channelsUpserted,
+    Expression<int>? categoriesUpserted,
+    Expression<int>? moviesUpserted,
+    Expression<int>? seriesUpserted,
+    Expression<int>? seasonsUpserted,
+    Expression<int>? episodesUpserted,
+    Expression<int>? channelsDeleted,
+    Expression<String>? error,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (providerId != null) 'provider_id': providerId,
+      if (providerKind != null) 'provider_kind': providerKind,
+      if (importType != null) 'import_type': importType,
+      if (startedAt != null) 'started_at': startedAt,
+      if (durationMs != null) 'duration_ms': durationMs,
+      if (channelsUpserted != null) 'channels_upserted': channelsUpserted,
+      if (categoriesUpserted != null) 'categories_upserted': categoriesUpserted,
+      if (moviesUpserted != null) 'movies_upserted': moviesUpserted,
+      if (seriesUpserted != null) 'series_upserted': seriesUpserted,
+      if (seasonsUpserted != null) 'seasons_upserted': seasonsUpserted,
+      if (episodesUpserted != null) 'episodes_upserted': episodesUpserted,
+      if (channelsDeleted != null) 'channels_deleted': channelsDeleted,
+      if (error != null) 'error': error,
+    });
+  }
+
+  ImportRunsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? providerId,
+    Value<ProviderKind>? providerKind,
+    Value<String>? importType,
+    Value<DateTime>? startedAt,
+    Value<int?>? durationMs,
+    Value<int?>? channelsUpserted,
+    Value<int?>? categoriesUpserted,
+    Value<int?>? moviesUpserted,
+    Value<int?>? seriesUpserted,
+    Value<int?>? seasonsUpserted,
+    Value<int?>? episodesUpserted,
+    Value<int?>? channelsDeleted,
+    Value<String?>? error,
+  }) {
+    return ImportRunsCompanion(
+      id: id ?? this.id,
+      providerId: providerId ?? this.providerId,
+      providerKind: providerKind ?? this.providerKind,
+      importType: importType ?? this.importType,
+      startedAt: startedAt ?? this.startedAt,
+      durationMs: durationMs ?? this.durationMs,
+      channelsUpserted: channelsUpserted ?? this.channelsUpserted,
+      categoriesUpserted: categoriesUpserted ?? this.categoriesUpserted,
+      moviesUpserted: moviesUpserted ?? this.moviesUpserted,
+      seriesUpserted: seriesUpserted ?? this.seriesUpserted,
+      seasonsUpserted: seasonsUpserted ?? this.seasonsUpserted,
+      episodesUpserted: episodesUpserted ?? this.episodesUpserted,
+      channelsDeleted: channelsDeleted ?? this.channelsDeleted,
+      error: error ?? this.error,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<int>(providerId.value);
+    }
+    if (providerKind.present) {
+      map['provider_kind'] = Variable<String>(
+        $ImportRunsTable.$converterproviderKind.toSql(providerKind.value),
+      );
+    }
+    if (importType.present) {
+      map['import_type'] = Variable<String>(importType.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (durationMs.present) {
+      map['duration_ms'] = Variable<int>(durationMs.value);
+    }
+    if (channelsUpserted.present) {
+      map['channels_upserted'] = Variable<int>(channelsUpserted.value);
+    }
+    if (categoriesUpserted.present) {
+      map['categories_upserted'] = Variable<int>(categoriesUpserted.value);
+    }
+    if (moviesUpserted.present) {
+      map['movies_upserted'] = Variable<int>(moviesUpserted.value);
+    }
+    if (seriesUpserted.present) {
+      map['series_upserted'] = Variable<int>(seriesUpserted.value);
+    }
+    if (seasonsUpserted.present) {
+      map['seasons_upserted'] = Variable<int>(seasonsUpserted.value);
+    }
+    if (episodesUpserted.present) {
+      map['episodes_upserted'] = Variable<int>(episodesUpserted.value);
+    }
+    if (channelsDeleted.present) {
+      map['channels_deleted'] = Variable<int>(channelsDeleted.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ImportRunsCompanion(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('providerKind: $providerKind, ')
+          ..write('importType: $importType, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('durationMs: $durationMs, ')
+          ..write('channelsUpserted: $channelsUpserted, ')
+          ..write('categoriesUpserted: $categoriesUpserted, ')
+          ..write('moviesUpserted: $moviesUpserted, ')
+          ..write('seriesUpserted: $seriesUpserted, ')
+          ..write('seasonsUpserted: $seasonsUpserted, ')
+          ..write('episodesUpserted: $episodesUpserted, ')
+          ..write('channelsDeleted: $channelsDeleted, ')
+          ..write('error: $error')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -6944,6 +7807,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
   );
   late final $UserFlagsTable userFlags = $UserFlagsTable(this);
   late final $MaintenanceLogTable maintenanceLog = $MaintenanceLogTable(this);
+  late final $ImportRunsTable importRuns = $ImportRunsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6963,6 +7827,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     playbackHistory,
     userFlags,
     maintenanceLog,
+    importRuns,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7084,6 +7949,13 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('user_flags', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'providers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('import_runs', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -7243,6 +8115,24 @@ final class $$ProvidersTableReferences
     ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_userFlagsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$ImportRunsTable, List<ImportRunRecord>>
+  _importRunsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.importRuns,
+    aliasName: $_aliasNameGenerator(db.providers.id, db.importRuns.providerId),
+  );
+
+  $$ImportRunsTableProcessedTableManager get importRunsRefs {
+    final manager = $$ImportRunsTableTableManager(
+      $_db,
+      $_db.importRuns,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_importRunsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -7465,6 +8355,31 @@ class $$ProvidersTableFilterComposer
           }) => $$UserFlagsTableFilterComposer(
             $db: $db,
             $table: $db.userFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> importRunsRefs(
+    Expression<bool> Function($$ImportRunsTableFilterComposer f) f,
+  ) {
+    final $$ImportRunsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.importRuns,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImportRunsTableFilterComposer(
+            $db: $db,
+            $table: $db.importRuns,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -7740,6 +8655,31 @@ class $$ProvidersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> importRunsRefs<T extends Object>(
+    Expression<T> Function($$ImportRunsTableAnnotationComposer a) f,
+  ) {
+    final $$ImportRunsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.importRuns,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImportRunsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.importRuns,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProvidersTableTableManager
@@ -7763,6 +8703,7 @@ class $$ProvidersTableTableManager
             bool seriesRefs,
             bool playbackHistoryRefs,
             bool userFlagsRefs,
+            bool importRunsRefs,
           })
         > {
   $$ProvidersTableTableManager(_$OpenIptvDb db, $ProvidersTable table)
@@ -7833,6 +8774,7 @@ class $$ProvidersTableTableManager
                 seriesRefs = false,
                 playbackHistoryRefs = false,
                 userFlagsRefs = false,
+                importRunsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -7844,6 +8786,7 @@ class $$ProvidersTableTableManager
                     if (seriesRefs) db.series,
                     if (playbackHistoryRefs) db.playbackHistory,
                     if (userFlagsRefs) db.userFlags,
+                    if (importRunsRefs) db.importRuns,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -7995,6 +8938,27 @@ class $$ProvidersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (importRunsRefs)
+                        await $_getPrefetchedData<
+                          ProviderRecord,
+                          $ProvidersTable,
+                          ImportRunRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProvidersTableReferences
+                              ._importRunsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProvidersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).importRunsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.providerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -8023,6 +8987,7 @@ typedef $$ProvidersTableProcessedTableManager =
         bool seriesRefs,
         bool playbackHistoryRefs,
         bool userFlagsRefs,
+        bool importRunsRefs,
       })
     >;
 typedef $$ChannelsTableCreateCompanionBuilder =
@@ -14043,6 +15008,512 @@ typedef $$MaintenanceLogTableProcessedTableManager =
       MaintenanceLogRecord,
       PrefetchHooks Function()
     >;
+typedef $$ImportRunsTableCreateCompanionBuilder =
+    ImportRunsCompanion Function({
+      Value<int> id,
+      required int providerId,
+      required ProviderKind providerKind,
+      required String importType,
+      required DateTime startedAt,
+      Value<int?> durationMs,
+      Value<int?> channelsUpserted,
+      Value<int?> categoriesUpserted,
+      Value<int?> moviesUpserted,
+      Value<int?> seriesUpserted,
+      Value<int?> seasonsUpserted,
+      Value<int?> episodesUpserted,
+      Value<int?> channelsDeleted,
+      Value<String?> error,
+    });
+typedef $$ImportRunsTableUpdateCompanionBuilder =
+    ImportRunsCompanion Function({
+      Value<int> id,
+      Value<int> providerId,
+      Value<ProviderKind> providerKind,
+      Value<String> importType,
+      Value<DateTime> startedAt,
+      Value<int?> durationMs,
+      Value<int?> channelsUpserted,
+      Value<int?> categoriesUpserted,
+      Value<int?> moviesUpserted,
+      Value<int?> seriesUpserted,
+      Value<int?> seasonsUpserted,
+      Value<int?> episodesUpserted,
+      Value<int?> channelsDeleted,
+      Value<String?> error,
+    });
+
+final class $$ImportRunsTableReferences
+    extends BaseReferences<_$OpenIptvDb, $ImportRunsTable, ImportRunRecord> {
+  $$ImportRunsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProvidersTable _providerIdTable(_$OpenIptvDb db) =>
+      db.providers.createAlias(
+        $_aliasNameGenerator(db.importRuns.providerId, db.providers.id),
+      );
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<int>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager(
+      $_db,
+      $_db.providers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ImportRunsTableFilterComposer
+    extends Composer<_$OpenIptvDb, $ImportRunsTable> {
+  $$ImportRunsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<ProviderKind, ProviderKind, String>
+  get providerKind => $composableBuilder(
+    column: $table.providerKind,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<String> get importType => $composableBuilder(
+    column: $table.importType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get channelsUpserted => $composableBuilder(
+    column: $table.channelsUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get categoriesUpserted => $composableBuilder(
+    column: $table.categoriesUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get moviesUpserted => $composableBuilder(
+    column: $table.moviesUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seriesUpserted => $composableBuilder(
+    column: $table.seriesUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seasonsUpserted => $composableBuilder(
+    column: $table.seasonsUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get episodesUpserted => $composableBuilder(
+    column: $table.episodesUpserted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get channelsDeleted => $composableBuilder(
+    column: $table.channelsDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportRunsTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $ImportRunsTable> {
+  $$ImportRunsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerKind => $composableBuilder(
+    column: $table.providerKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get importType => $composableBuilder(
+    column: $table.importType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get channelsUpserted => $composableBuilder(
+    column: $table.channelsUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get categoriesUpserted => $composableBuilder(
+    column: $table.categoriesUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get moviesUpserted => $composableBuilder(
+    column: $table.moviesUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seriesUpserted => $composableBuilder(
+    column: $table.seriesUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seasonsUpserted => $composableBuilder(
+    column: $table.seasonsUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get episodesUpserted => $composableBuilder(
+    column: $table.episodesUpserted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get channelsDeleted => $composableBuilder(
+    column: $table.channelsDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportRunsTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $ImportRunsTable> {
+  $$ImportRunsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ProviderKind, String> get providerKind =>
+      $composableBuilder(
+        column: $table.providerKind,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<String> get importType => $composableBuilder(
+    column: $table.importType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get durationMs => $composableBuilder(
+    column: $table.durationMs,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get channelsUpserted => $composableBuilder(
+    column: $table.channelsUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get categoriesUpserted => $composableBuilder(
+    column: $table.categoriesUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get moviesUpserted => $composableBuilder(
+    column: $table.moviesUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seriesUpserted => $composableBuilder(
+    column: $table.seriesUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get seasonsUpserted => $composableBuilder(
+    column: $table.seasonsUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get episodesUpserted => $composableBuilder(
+    column: $table.episodesUpserted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get channelsDeleted => $composableBuilder(
+    column: $table.channelsDeleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ImportRunsTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $ImportRunsTable,
+          ImportRunRecord,
+          $$ImportRunsTableFilterComposer,
+          $$ImportRunsTableOrderingComposer,
+          $$ImportRunsTableAnnotationComposer,
+          $$ImportRunsTableCreateCompanionBuilder,
+          $$ImportRunsTableUpdateCompanionBuilder,
+          (ImportRunRecord, $$ImportRunsTableReferences),
+          ImportRunRecord,
+          PrefetchHooks Function({bool providerId})
+        > {
+  $$ImportRunsTableTableManager(_$OpenIptvDb db, $ImportRunsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ImportRunsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ImportRunsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ImportRunsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> providerId = const Value.absent(),
+                Value<ProviderKind> providerKind = const Value.absent(),
+                Value<String> importType = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<int?> durationMs = const Value.absent(),
+                Value<int?> channelsUpserted = const Value.absent(),
+                Value<int?> categoriesUpserted = const Value.absent(),
+                Value<int?> moviesUpserted = const Value.absent(),
+                Value<int?> seriesUpserted = const Value.absent(),
+                Value<int?> seasonsUpserted = const Value.absent(),
+                Value<int?> episodesUpserted = const Value.absent(),
+                Value<int?> channelsDeleted = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+              }) => ImportRunsCompanion(
+                id: id,
+                providerId: providerId,
+                providerKind: providerKind,
+                importType: importType,
+                startedAt: startedAt,
+                durationMs: durationMs,
+                channelsUpserted: channelsUpserted,
+                categoriesUpserted: categoriesUpserted,
+                moviesUpserted: moviesUpserted,
+                seriesUpserted: seriesUpserted,
+                seasonsUpserted: seasonsUpserted,
+                episodesUpserted: episodesUpserted,
+                channelsDeleted: channelsDeleted,
+                error: error,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int providerId,
+                required ProviderKind providerKind,
+                required String importType,
+                required DateTime startedAt,
+                Value<int?> durationMs = const Value.absent(),
+                Value<int?> channelsUpserted = const Value.absent(),
+                Value<int?> categoriesUpserted = const Value.absent(),
+                Value<int?> moviesUpserted = const Value.absent(),
+                Value<int?> seriesUpserted = const Value.absent(),
+                Value<int?> seasonsUpserted = const Value.absent(),
+                Value<int?> episodesUpserted = const Value.absent(),
+                Value<int?> channelsDeleted = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+              }) => ImportRunsCompanion.insert(
+                id: id,
+                providerId: providerId,
+                providerKind: providerKind,
+                importType: importType,
+                startedAt: startedAt,
+                durationMs: durationMs,
+                channelsUpserted: channelsUpserted,
+                categoriesUpserted: categoriesUpserted,
+                moviesUpserted: moviesUpserted,
+                seriesUpserted: seriesUpserted,
+                seasonsUpserted: seasonsUpserted,
+                episodesUpserted: episodesUpserted,
+                channelsDeleted: channelsDeleted,
+                error: error,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ImportRunsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({providerId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (providerId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.providerId,
+                                referencedTable: $$ImportRunsTableReferences
+                                    ._providerIdTable(db),
+                                referencedColumn: $$ImportRunsTableReferences
+                                    ._providerIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ImportRunsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $ImportRunsTable,
+      ImportRunRecord,
+      $$ImportRunsTableFilterComposer,
+      $$ImportRunsTableOrderingComposer,
+      $$ImportRunsTableAnnotationComposer,
+      $$ImportRunsTableCreateCompanionBuilder,
+      $$ImportRunsTableUpdateCompanionBuilder,
+      (ImportRunRecord, $$ImportRunsTableReferences),
+      ImportRunRecord,
+      PrefetchHooks Function({bool providerId})
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -14075,4 +15546,6 @@ class $OpenIptvDbManager {
       $$UserFlagsTableTableManager(_db, _db.userFlags);
   $$MaintenanceLogTableTableManager get maintenanceLog =>
       $$MaintenanceLogTableTableManager(_db, _db.maintenanceLog);
+  $$ImportRunsTableTableManager get importRuns =>
+      $$ImportRunsTableTableManager(_db, _db.importRuns);
 }

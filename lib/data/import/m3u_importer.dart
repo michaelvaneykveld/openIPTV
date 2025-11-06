@@ -9,6 +9,7 @@ import '../db/dao/series_dao.dart';
 import '../db/dao/epg_dao.dart';
 import '../db/dao/channel_dao.dart';
 import '../db/dao/summary_dao.dart';
+import '../db/dao/import_run_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
 import 'import_context.dart';
@@ -22,6 +23,7 @@ final m3uImporterProvider = r.Provider<M3uImporter>((ref) {
   final movieDao = MovieDao(db);
   final seriesDao = SeriesDao(db);
   final epgDao = EpgDao(db);
+  final importRunDao = ImportRunDao(db);
   final context = ImportContext(
     db: db,
     providerDao: providerDao,
@@ -31,6 +33,7 @@ final m3uImporterProvider = r.Provider<M3uImporter>((ref) {
     seriesDao: seriesDao,
     summaryDao: summaryDao,
     epgDao: epgDao,
+    importRunDao: importRunDao,
   );
   return M3uImporter(context);
 });
@@ -131,7 +134,10 @@ class M3uImporter {
       );
 
       return metrics;
-    });
+    },
+        providerId: providerId,
+        importType: 'm3u',
+        metricsSelector: (result) => result);
   }
 }
 

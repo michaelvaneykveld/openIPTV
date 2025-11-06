@@ -117,6 +117,11 @@
 - Exercised the advanced panels via widget tests so all providers expose the shared knobs consistently while running against an in-memory repository (`test/ui/login_screen_widget_test.dart`).
 - Broadened cache unit coverage to assert refresh signalling alongside existing TTL behaviours (`test/ui/discovery_cache_manager_test.dart`).
 
+## Session Log - Search & Browse Integration
+- Hardened the SQLite FTS index by recreating the `epg_programs_fts` virtual table with triggers that keep rows in sync on insert/update/delete and repopulate at open, ensuring program search remains fresh without manual reindexing (`lib/data/db/openiptv_db.dart`).
+- Extended `SearchRepository` with Riverpod wiring for user flag updates, FTS-backed EPG queries that return highlighted snippets, and richer channel search controls (favorites-first ordering, category filters, recency joins, updatedAfter filtering, recency metadata) (`lib/data/repositories/search_repository.dart`).
+- Added focused regression coverage for the new search behaviours, including highlight assertions and category/recency filters driven through the repository API (`test/data/repositories/search_repository_test.dart`).
+
 ## TODO - Login Experience Implementation
 - Build out the unified provider profile and storage architecture (Drift + secure vault). (in-progress)
   - Inventory existing profile/draft writes to determine read/write needs. (done)

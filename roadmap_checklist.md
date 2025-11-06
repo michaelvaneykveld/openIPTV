@@ -71,8 +71,10 @@
 - [x] Establish migration playbook (backup, apply, verify) and document failure recovery. -> `docs/db/migration_playbook.md`.
 
 ## Search & Browse Integration
-- [ ] Implement FTS-backed search DAO for channels, VOD, and EPG with highlighting support.
-- [ ] Add derived queries: favourites-first, recent play history joins, category filters.
+- [x] Implement FTS-backed EPG search with highlight snippets wired through `SearchRepository`.
+- [ ] Implement channel search FTS index + highlight output.
+- [ ] Implement VOD search FTS index + highlight output.
+- [x] Add derived queries: favourites-first ordering, category filtering, and recent play history joins.
 - [ ] Create summary projections powering fast home/dashboard loads.
 
 ## UI & App Integration

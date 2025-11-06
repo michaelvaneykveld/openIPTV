@@ -35,6 +35,7 @@ part 'tables/playback_history.dart';
 part 'tables/user_flags.dart';
 part 'tables/maintenance_log.dart';
 part 'tables/import_runs.dart';
+part 'tables/epg_programs_fts.dart';
 
 @DriftDatabase(
   tables: [
@@ -53,10 +54,11 @@ part 'tables/import_runs.dart';
     UserFlags,
     MaintenanceLog,
     ImportRuns,
+    EpgProgramsFts,
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 2;
+  static const int schemaVersionLatest = 3;
 
   OpenIptvDb._(this._overrideSchemaVersion, super.executor);
 
@@ -93,12 +95,16 @@ class OpenIptvDb extends _$OpenIptvDb {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
+          await _ensureEpgSearchIndex(rebuild: true);
         },
         onUpgrade: (Migrator m, int from, int to) async {
           for (var version = from; version < to; version++) {
             switch (version) {
               case 1:
                 await _migrateFrom1To2(m);
+                break;
+              case 2:
+                await _migrateFrom2To3();
                 break;
               default:
                 break;
@@ -122,6 +128,10 @@ class OpenIptvDb extends _$OpenIptvDb {
     await _createIfMissing(m, importRuns);
   }
 
+  Future<void> _migrateFrom2To3() async {
+    await _ensureEpgSearchIndex(rebuild: true);
+  }
+
   Future<void> _createIfMissing(
     Migrator m,
     TableInfo<Table, dynamic> table,
@@ -133,6 +143,72 @@ class OpenIptvDb extends _$OpenIptvDb {
     if (existing.isEmpty) {
       await m.createTable(table);
     }
+  }
+
+  Future<void> _ensureEpgSearchIndex({required bool rebuild}) async {
+    if (rebuild) {
+      await _dropEpgFtsArtifacts();
+    }
+
+    await customStatement('''
+      CREATE VIRTUAL TABLE IF NOT EXISTS epg_programs_fts USING fts5(
+        title,
+        description,
+        program_id UNINDEXED
+      );
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS epg_programs_ai
+      AFTER INSERT ON epg_programs BEGIN
+        INSERT INTO epg_programs_fts(rowid, title, description, program_id)
+        VALUES (
+          new.id,
+          coalesce(new.title, ''),
+          coalesce(new.description, ''),
+          new.id
+        );
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS epg_programs_ad
+      AFTER DELETE ON epg_programs BEGIN
+        DELETE FROM epg_programs_fts WHERE rowid = old.id;
+      END;
+    ''');
+
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS epg_programs_au
+      AFTER UPDATE ON epg_programs BEGIN
+        DELETE FROM epg_programs_fts WHERE rowid = old.id;
+        INSERT INTO epg_programs_fts(rowid, title, description, program_id)
+        VALUES(
+          new.id,
+          coalesce(new.title, ''),
+          coalesce(new.description, ''),
+          new.id
+        );
+      END;
+    ''');
+
+    await customStatement('DELETE FROM epg_programs_fts;');
+    await customStatement('''
+      INSERT INTO epg_programs_fts(rowid, title, description, program_id)
+      SELECT
+        id,
+        coalesce(title, ''),
+        coalesce(description, ''),
+        id
+      FROM epg_programs;
+    ''');
+  }
+
+  Future<void> _dropEpgFtsArtifacts() async {
+    await customStatement('DROP TRIGGER IF EXISTS epg_programs_ai;');
+    await customStatement('DROP TRIGGER IF EXISTS epg_programs_ad;');
+    await customStatement('DROP TRIGGER IF EXISTS epg_programs_au;');
+    await customStatement('DROP TABLE IF EXISTS epg_programs_fts;');
   }
 }
 

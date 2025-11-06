@@ -53,10 +53,10 @@
 - [x] Ensure UI repositories surface combined channel + user flag states. -> `lib/data/repositories/channel_repository.dart` (ChannelWithFlags streams).
 
 ## Security & Storage Guardrails
-- [ ] Keep provider secrets (username/password/token) exclusively in secure storage and confirm DB never persists them.
-- [ ] Optionally integrate SQLCipher/`sqflite_sqlcipher` for encrypted caches; expose toggle in build config.
-- [ ] Scrub logs/debug prints to avoid leaking secrets or raw payloads (use redaction helpers).
-- [ ] Document backup/restore implications (e.g., DB location excluded from auto-backup if required).
+- [x] Keep provider secrets (username/password/token) exclusively in secure storage and confirm DB never persists them. -> `ProviderProfileRepository` sanitizes payloads (see `test/storage/provider_profile_repository_test.dart`).
+- [x] Optionally integrate SQLCipher/`sqflite_sqlcipher` for encrypted caches; expose toggle in build config. -> `DB_ENABLE_SQLCIPHER` flag in `OpenIptvDb`, documented in `docs/db/security_guardrails.md`.
+- [x] Scrub logs/debug prints to avoid leaking secrets or raw payloads (use redaction helpers). -> Logging flows use `src/utils/url_redaction.dart` with coverage in `test/utils/url_redaction_test.dart`.
+- [x] Document backup/restore implications (e.g., DB location excluded from auto-backup if required). -> `docs/db/security_guardrails.md` backup section.
 
 ## Performance & Maintenance Automation
 - [x] Implement periodic VACUUM/ANALYZE policy gated by size/elapsed time. -> `lib/data/db/database_maintenance.dart`, `lib/data/db/dao/maintenance_log_dao.dart`, tests in `test/data/db/database_maintenance_test.dart`.

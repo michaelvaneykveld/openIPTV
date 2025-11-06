@@ -4960,6 +4960,757 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
   }
 }
 
+class $ArtworkCacheTable extends ArtworkCache
+    with TableInfo<$ArtworkCacheTable, ArtworkCacheRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ArtworkCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _urlMeta = const VerificationMeta('url');
+  @override
+  late final GeneratedColumn<String> url = GeneratedColumn<String>(
+    'url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _hashMeta = const VerificationMeta('hash');
+  @override
+  late final GeneratedColumn<String> hash = GeneratedColumn<String>(
+    'hash',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bytesMeta = const VerificationMeta('bytes');
+  @override
+  late final GeneratedColumn<Uint8List> bytes = GeneratedColumn<Uint8List>(
+    'bytes',
+    aliasedName,
+    true,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _filePathMeta = const VerificationMeta(
+    'filePath',
+  );
+  @override
+  late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
+    'file_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _byteSizeMeta = const VerificationMeta(
+    'byteSize',
+  );
+  @override
+  late final GeneratedColumn<int> byteSize = GeneratedColumn<int>(
+    'byte_size',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _widthMeta = const VerificationMeta('width');
+  @override
+  late final GeneratedColumn<int> width = GeneratedColumn<int>(
+    'width',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _heightMeta = const VerificationMeta('height');
+  @override
+  late final GeneratedColumn<int> height = GeneratedColumn<int>(
+    'height',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> fetchedAt = GeneratedColumn<DateTime>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAccessedAtMeta = const VerificationMeta(
+    'lastAccessedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAccessedAt =
+      GeneratedColumn<DateTime>(
+        'last_accessed_at',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _needsRefreshMeta = const VerificationMeta(
+    'needsRefresh',
+  );
+  @override
+  late final GeneratedColumn<bool> needsRefresh = GeneratedColumn<bool>(
+    'needs_refresh',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("needs_refresh" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    url,
+    etag,
+    hash,
+    bytes,
+    filePath,
+    byteSize,
+    width,
+    height,
+    fetchedAt,
+    lastAccessedAt,
+    expiresAt,
+    needsRefresh,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'artwork_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ArtworkCacheRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('url')) {
+      context.handle(
+        _urlMeta,
+        url.isAcceptableOrUnknown(data['url']!, _urlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_urlMeta);
+    }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
+    if (data.containsKey('hash')) {
+      context.handle(
+        _hashMeta,
+        hash.isAcceptableOrUnknown(data['hash']!, _hashMeta),
+      );
+    }
+    if (data.containsKey('bytes')) {
+      context.handle(
+        _bytesMeta,
+        bytes.isAcceptableOrUnknown(data['bytes']!, _bytesMeta),
+      );
+    }
+    if (data.containsKey('file_path')) {
+      context.handle(
+        _filePathMeta,
+        filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta),
+      );
+    }
+    if (data.containsKey('byte_size')) {
+      context.handle(
+        _byteSizeMeta,
+        byteSize.isAcceptableOrUnknown(data['byte_size']!, _byteSizeMeta),
+      );
+    }
+    if (data.containsKey('width')) {
+      context.handle(
+        _widthMeta,
+        width.isAcceptableOrUnknown(data['width']!, _widthMeta),
+      );
+    }
+    if (data.containsKey('height')) {
+      context.handle(
+        _heightMeta,
+        height.isAcceptableOrUnknown(data['height']!, _heightMeta),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    if (data.containsKey('last_accessed_at')) {
+      context.handle(
+        _lastAccessedAtMeta,
+        lastAccessedAt.isAcceptableOrUnknown(
+          data['last_accessed_at']!,
+          _lastAccessedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastAccessedAtMeta);
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
+    if (data.containsKey('needs_refresh')) {
+      context.handle(
+        _needsRefreshMeta,
+        needsRefresh.isAcceptableOrUnknown(
+          data['needs_refresh']!,
+          _needsRefreshMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {url},
+  ];
+  @override
+  ArtworkCacheRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ArtworkCacheRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      url: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}url'],
+      )!,
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
+      ),
+      hash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hash'],
+      ),
+      bytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}bytes'],
+      ),
+      filePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_path'],
+      ),
+      byteSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_size'],
+      ),
+      width: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}width'],
+      ),
+      height: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}height'],
+      ),
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+      lastAccessedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_accessed_at'],
+      )!,
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      ),
+      needsRefresh: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}needs_refresh'],
+      )!,
+    );
+  }
+
+  @override
+  $ArtworkCacheTable createAlias(String alias) {
+    return $ArtworkCacheTable(attachedDatabase, alias);
+  }
+}
+
+class ArtworkCacheRecord extends DataClass
+    implements Insertable<ArtworkCacheRecord> {
+  final int id;
+  final String url;
+  final String? etag;
+  final String? hash;
+  final Uint8List? bytes;
+  final String? filePath;
+  final int? byteSize;
+  final int? width;
+  final int? height;
+  final DateTime fetchedAt;
+  final DateTime lastAccessedAt;
+  final DateTime? expiresAt;
+  final bool needsRefresh;
+  const ArtworkCacheRecord({
+    required this.id,
+    required this.url,
+    this.etag,
+    this.hash,
+    this.bytes,
+    this.filePath,
+    this.byteSize,
+    this.width,
+    this.height,
+    required this.fetchedAt,
+    required this.lastAccessedAt,
+    this.expiresAt,
+    required this.needsRefresh,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['url'] = Variable<String>(url);
+    if (!nullToAbsent || etag != null) {
+      map['etag'] = Variable<String>(etag);
+    }
+    if (!nullToAbsent || hash != null) {
+      map['hash'] = Variable<String>(hash);
+    }
+    if (!nullToAbsent || bytes != null) {
+      map['bytes'] = Variable<Uint8List>(bytes);
+    }
+    if (!nullToAbsent || filePath != null) {
+      map['file_path'] = Variable<String>(filePath);
+    }
+    if (!nullToAbsent || byteSize != null) {
+      map['byte_size'] = Variable<int>(byteSize);
+    }
+    if (!nullToAbsent || width != null) {
+      map['width'] = Variable<int>(width);
+    }
+    if (!nullToAbsent || height != null) {
+      map['height'] = Variable<int>(height);
+    }
+    map['fetched_at'] = Variable<DateTime>(fetchedAt);
+    map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt);
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<DateTime>(expiresAt);
+    }
+    map['needs_refresh'] = Variable<bool>(needsRefresh);
+    return map;
+  }
+
+  ArtworkCacheCompanion toCompanion(bool nullToAbsent) {
+    return ArtworkCacheCompanion(
+      id: Value(id),
+      url: Value(url),
+      etag: etag == null && nullToAbsent ? const Value.absent() : Value(etag),
+      hash: hash == null && nullToAbsent ? const Value.absent() : Value(hash),
+      bytes: bytes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(bytes),
+      filePath: filePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(filePath),
+      byteSize: byteSize == null && nullToAbsent
+          ? const Value.absent()
+          : Value(byteSize),
+      width: width == null && nullToAbsent
+          ? const Value.absent()
+          : Value(width),
+      height: height == null && nullToAbsent
+          ? const Value.absent()
+          : Value(height),
+      fetchedAt: Value(fetchedAt),
+      lastAccessedAt: Value(lastAccessedAt),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
+      needsRefresh: Value(needsRefresh),
+    );
+  }
+
+  factory ArtworkCacheRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ArtworkCacheRecord(
+      id: serializer.fromJson<int>(json['id']),
+      url: serializer.fromJson<String>(json['url']),
+      etag: serializer.fromJson<String?>(json['etag']),
+      hash: serializer.fromJson<String?>(json['hash']),
+      bytes: serializer.fromJson<Uint8List?>(json['bytes']),
+      filePath: serializer.fromJson<String?>(json['filePath']),
+      byteSize: serializer.fromJson<int?>(json['byteSize']),
+      width: serializer.fromJson<int?>(json['width']),
+      height: serializer.fromJson<int?>(json['height']),
+      fetchedAt: serializer.fromJson<DateTime>(json['fetchedAt']),
+      lastAccessedAt: serializer.fromJson<DateTime>(json['lastAccessedAt']),
+      expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
+      needsRefresh: serializer.fromJson<bool>(json['needsRefresh']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'url': serializer.toJson<String>(url),
+      'etag': serializer.toJson<String?>(etag),
+      'hash': serializer.toJson<String?>(hash),
+      'bytes': serializer.toJson<Uint8List?>(bytes),
+      'filePath': serializer.toJson<String?>(filePath),
+      'byteSize': serializer.toJson<int?>(byteSize),
+      'width': serializer.toJson<int?>(width),
+      'height': serializer.toJson<int?>(height),
+      'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
+      'lastAccessedAt': serializer.toJson<DateTime>(lastAccessedAt),
+      'expiresAt': serializer.toJson<DateTime?>(expiresAt),
+      'needsRefresh': serializer.toJson<bool>(needsRefresh),
+    };
+  }
+
+  ArtworkCacheRecord copyWith({
+    int? id,
+    String? url,
+    Value<String?> etag = const Value.absent(),
+    Value<String?> hash = const Value.absent(),
+    Value<Uint8List?> bytes = const Value.absent(),
+    Value<String?> filePath = const Value.absent(),
+    Value<int?> byteSize = const Value.absent(),
+    Value<int?> width = const Value.absent(),
+    Value<int?> height = const Value.absent(),
+    DateTime? fetchedAt,
+    DateTime? lastAccessedAt,
+    Value<DateTime?> expiresAt = const Value.absent(),
+    bool? needsRefresh,
+  }) => ArtworkCacheRecord(
+    id: id ?? this.id,
+    url: url ?? this.url,
+    etag: etag.present ? etag.value : this.etag,
+    hash: hash.present ? hash.value : this.hash,
+    bytes: bytes.present ? bytes.value : this.bytes,
+    filePath: filePath.present ? filePath.value : this.filePath,
+    byteSize: byteSize.present ? byteSize.value : this.byteSize,
+    width: width.present ? width.value : this.width,
+    height: height.present ? height.value : this.height,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+    lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+    expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
+    needsRefresh: needsRefresh ?? this.needsRefresh,
+  );
+  ArtworkCacheRecord copyWithCompanion(ArtworkCacheCompanion data) {
+    return ArtworkCacheRecord(
+      id: data.id.present ? data.id.value : this.id,
+      url: data.url.present ? data.url.value : this.url,
+      etag: data.etag.present ? data.etag.value : this.etag,
+      hash: data.hash.present ? data.hash.value : this.hash,
+      bytes: data.bytes.present ? data.bytes.value : this.bytes,
+      filePath: data.filePath.present ? data.filePath.value : this.filePath,
+      byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
+      width: data.width.present ? data.width.value : this.width,
+      height: data.height.present ? data.height.value : this.height,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+      lastAccessedAt: data.lastAccessedAt.present
+          ? data.lastAccessedAt.value
+          : this.lastAccessedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
+      needsRefresh: data.needsRefresh.present
+          ? data.needsRefresh.value
+          : this.needsRefresh,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtworkCacheRecord(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('etag: $etag, ')
+          ..write('hash: $hash, ')
+          ..write('bytes: $bytes, ')
+          ..write('filePath: $filePath, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('needsRefresh: $needsRefresh')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    url,
+    etag,
+    hash,
+    $driftBlobEquality.hash(bytes),
+    filePath,
+    byteSize,
+    width,
+    height,
+    fetchedAt,
+    lastAccessedAt,
+    expiresAt,
+    needsRefresh,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ArtworkCacheRecord &&
+          other.id == this.id &&
+          other.url == this.url &&
+          other.etag == this.etag &&
+          other.hash == this.hash &&
+          $driftBlobEquality.equals(other.bytes, this.bytes) &&
+          other.filePath == this.filePath &&
+          other.byteSize == this.byteSize &&
+          other.width == this.width &&
+          other.height == this.height &&
+          other.fetchedAt == this.fetchedAt &&
+          other.lastAccessedAt == this.lastAccessedAt &&
+          other.expiresAt == this.expiresAt &&
+          other.needsRefresh == this.needsRefresh);
+}
+
+class ArtworkCacheCompanion extends UpdateCompanion<ArtworkCacheRecord> {
+  final Value<int> id;
+  final Value<String> url;
+  final Value<String?> etag;
+  final Value<String?> hash;
+  final Value<Uint8List?> bytes;
+  final Value<String?> filePath;
+  final Value<int?> byteSize;
+  final Value<int?> width;
+  final Value<int?> height;
+  final Value<DateTime> fetchedAt;
+  final Value<DateTime> lastAccessedAt;
+  final Value<DateTime?> expiresAt;
+  final Value<bool> needsRefresh;
+  const ArtworkCacheCompanion({
+    this.id = const Value.absent(),
+    this.url = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.hash = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.lastAccessedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
+    this.needsRefresh = const Value.absent(),
+  });
+  ArtworkCacheCompanion.insert({
+    this.id = const Value.absent(),
+    required String url,
+    this.etag = const Value.absent(),
+    this.hash = const Value.absent(),
+    this.bytes = const Value.absent(),
+    this.filePath = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.width = const Value.absent(),
+    this.height = const Value.absent(),
+    required DateTime fetchedAt,
+    required DateTime lastAccessedAt,
+    this.expiresAt = const Value.absent(),
+    this.needsRefresh = const Value.absent(),
+  }) : url = Value(url),
+       fetchedAt = Value(fetchedAt),
+       lastAccessedAt = Value(lastAccessedAt);
+  static Insertable<ArtworkCacheRecord> custom({
+    Expression<int>? id,
+    Expression<String>? url,
+    Expression<String>? etag,
+    Expression<String>? hash,
+    Expression<Uint8List>? bytes,
+    Expression<String>? filePath,
+    Expression<int>? byteSize,
+    Expression<int>? width,
+    Expression<int>? height,
+    Expression<DateTime>? fetchedAt,
+    Expression<DateTime>? lastAccessedAt,
+    Expression<DateTime>? expiresAt,
+    Expression<bool>? needsRefresh,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (url != null) 'url': url,
+      if (etag != null) 'etag': etag,
+      if (hash != null) 'hash': hash,
+      if (bytes != null) 'bytes': bytes,
+      if (filePath != null) 'file_path': filePath,
+      if (byteSize != null) 'byte_size': byteSize,
+      if (width != null) 'width': width,
+      if (height != null) 'height': height,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (lastAccessedAt != null) 'last_accessed_at': lastAccessedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
+      if (needsRefresh != null) 'needs_refresh': needsRefresh,
+    });
+  }
+
+  ArtworkCacheCompanion copyWith({
+    Value<int>? id,
+    Value<String>? url,
+    Value<String?>? etag,
+    Value<String?>? hash,
+    Value<Uint8List?>? bytes,
+    Value<String?>? filePath,
+    Value<int?>? byteSize,
+    Value<int?>? width,
+    Value<int?>? height,
+    Value<DateTime>? fetchedAt,
+    Value<DateTime>? lastAccessedAt,
+    Value<DateTime?>? expiresAt,
+    Value<bool>? needsRefresh,
+  }) {
+    return ArtworkCacheCompanion(
+      id: id ?? this.id,
+      url: url ?? this.url,
+      etag: etag ?? this.etag,
+      hash: hash ?? this.hash,
+      bytes: bytes ?? this.bytes,
+      filePath: filePath ?? this.filePath,
+      byteSize: byteSize ?? this.byteSize,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      lastAccessedAt: lastAccessedAt ?? this.lastAccessedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+      needsRefresh: needsRefresh ?? this.needsRefresh,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (url.present) {
+      map['url'] = Variable<String>(url.value);
+    }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
+    if (hash.present) {
+      map['hash'] = Variable<String>(hash.value);
+    }
+    if (bytes.present) {
+      map['bytes'] = Variable<Uint8List>(bytes.value);
+    }
+    if (filePath.present) {
+      map['file_path'] = Variable<String>(filePath.value);
+    }
+    if (byteSize.present) {
+      map['byte_size'] = Variable<int>(byteSize.value);
+    }
+    if (width.present) {
+      map['width'] = Variable<int>(width.value);
+    }
+    if (height.present) {
+      map['height'] = Variable<int>(height.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<DateTime>(fetchedAt.value);
+    }
+    if (lastAccessedAt.present) {
+      map['last_accessed_at'] = Variable<DateTime>(lastAccessedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
+    if (needsRefresh.present) {
+      map['needs_refresh'] = Variable<bool>(needsRefresh.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ArtworkCacheCompanion(')
+          ..write('id: $id, ')
+          ..write('url: $url, ')
+          ..write('etag: $etag, ')
+          ..write('hash: $hash, ')
+          ..write('bytes: $bytes, ')
+          ..write('filePath: $filePath, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('width: $width, ')
+          ..write('height: $height, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('lastAccessedAt: $lastAccessedAt, ')
+          ..write('expiresAt: $expiresAt, ')
+          ..write('needsRefresh: $needsRefresh')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -4974,6 +5725,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
   late final $SeriesTable series = $SeriesTable(this);
   late final $SeasonsTable seasons = $SeasonsTable(this);
   late final $EpisodesTable episodes = $EpisodesTable(this);
+  late final $ArtworkCacheTable artworkCache = $ArtworkCacheTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4989,6 +5741,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     series,
     seasons,
     episodes,
+    artworkCache,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -10236,6 +10989,360 @@ typedef $$EpisodesTableProcessedTableManager =
       EpisodeRecord,
       PrefetchHooks Function({bool seriesId, bool seasonId})
     >;
+typedef $$ArtworkCacheTableCreateCompanionBuilder =
+    ArtworkCacheCompanion Function({
+      Value<int> id,
+      required String url,
+      Value<String?> etag,
+      Value<String?> hash,
+      Value<Uint8List?> bytes,
+      Value<String?> filePath,
+      Value<int?> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      required DateTime fetchedAt,
+      required DateTime lastAccessedAt,
+      Value<DateTime?> expiresAt,
+      Value<bool> needsRefresh,
+    });
+typedef $$ArtworkCacheTableUpdateCompanionBuilder =
+    ArtworkCacheCompanion Function({
+      Value<int> id,
+      Value<String> url,
+      Value<String?> etag,
+      Value<String?> hash,
+      Value<Uint8List?> bytes,
+      Value<String?> filePath,
+      Value<int?> byteSize,
+      Value<int?> width,
+      Value<int?> height,
+      Value<DateTime> fetchedAt,
+      Value<DateTime> lastAccessedAt,
+      Value<DateTime?> expiresAt,
+      Value<bool> needsRefresh,
+    });
+
+class $$ArtworkCacheTableFilterComposer
+    extends Composer<_$OpenIptvDb, $ArtworkCacheTable> {
+  $$ArtworkCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hash => $composableBuilder(
+    column: $table.hash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get needsRefresh => $composableBuilder(
+    column: $table.needsRefresh,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ArtworkCacheTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $ArtworkCacheTable> {
+  $$ArtworkCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get url => $composableBuilder(
+    column: $table.url,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hash => $composableBuilder(
+    column: $table.hash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<Uint8List> get bytes => $composableBuilder(
+    column: $table.bytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get width => $composableBuilder(
+    column: $table.width,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get height => $composableBuilder(
+    column: $table.height,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get needsRefresh => $composableBuilder(
+    column: $table.needsRefresh,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ArtworkCacheTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $ArtworkCacheTable> {
+  $$ArtworkCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get url =>
+      $composableBuilder(column: $table.url, builder: (column) => column);
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
+
+  GeneratedColumn<String> get hash =>
+      $composableBuilder(column: $table.hash, builder: (column) => column);
+
+  GeneratedColumn<Uint8List> get bytes =>
+      $composableBuilder(column: $table.bytes, builder: (column) => column);
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<int> get byteSize =>
+      $composableBuilder(column: $table.byteSize, builder: (column) => column);
+
+  GeneratedColumn<int> get width =>
+      $composableBuilder(column: $table.width, builder: (column) => column);
+
+  GeneratedColumn<int> get height =>
+      $composableBuilder(column: $table.height, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastAccessedAt => $composableBuilder(
+    column: $table.lastAccessedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get needsRefresh => $composableBuilder(
+    column: $table.needsRefresh,
+    builder: (column) => column,
+  );
+}
+
+class $$ArtworkCacheTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $ArtworkCacheTable,
+          ArtworkCacheRecord,
+          $$ArtworkCacheTableFilterComposer,
+          $$ArtworkCacheTableOrderingComposer,
+          $$ArtworkCacheTableAnnotationComposer,
+          $$ArtworkCacheTableCreateCompanionBuilder,
+          $$ArtworkCacheTableUpdateCompanionBuilder,
+          (
+            ArtworkCacheRecord,
+            BaseReferences<
+              _$OpenIptvDb,
+              $ArtworkCacheTable,
+              ArtworkCacheRecord
+            >,
+          ),
+          ArtworkCacheRecord,
+          PrefetchHooks Function()
+        > {
+  $$ArtworkCacheTableTableManager(_$OpenIptvDb db, $ArtworkCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ArtworkCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ArtworkCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ArtworkCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> url = const Value.absent(),
+                Value<String?> etag = const Value.absent(),
+                Value<String?> hash = const Value.absent(),
+                Value<Uint8List?> bytes = const Value.absent(),
+                Value<String?> filePath = const Value.absent(),
+                Value<int?> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                Value<DateTime> fetchedAt = const Value.absent(),
+                Value<DateTime> lastAccessedAt = const Value.absent(),
+                Value<DateTime?> expiresAt = const Value.absent(),
+                Value<bool> needsRefresh = const Value.absent(),
+              }) => ArtworkCacheCompanion(
+                id: id,
+                url: url,
+                etag: etag,
+                hash: hash,
+                bytes: bytes,
+                filePath: filePath,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                fetchedAt: fetchedAt,
+                lastAccessedAt: lastAccessedAt,
+                expiresAt: expiresAt,
+                needsRefresh: needsRefresh,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String url,
+                Value<String?> etag = const Value.absent(),
+                Value<String?> hash = const Value.absent(),
+                Value<Uint8List?> bytes = const Value.absent(),
+                Value<String?> filePath = const Value.absent(),
+                Value<int?> byteSize = const Value.absent(),
+                Value<int?> width = const Value.absent(),
+                Value<int?> height = const Value.absent(),
+                required DateTime fetchedAt,
+                required DateTime lastAccessedAt,
+                Value<DateTime?> expiresAt = const Value.absent(),
+                Value<bool> needsRefresh = const Value.absent(),
+              }) => ArtworkCacheCompanion.insert(
+                id: id,
+                url: url,
+                etag: etag,
+                hash: hash,
+                bytes: bytes,
+                filePath: filePath,
+                byteSize: byteSize,
+                width: width,
+                height: height,
+                fetchedAt: fetchedAt,
+                lastAccessedAt: lastAccessedAt,
+                expiresAt: expiresAt,
+                needsRefresh: needsRefresh,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ArtworkCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $ArtworkCacheTable,
+      ArtworkCacheRecord,
+      $$ArtworkCacheTableFilterComposer,
+      $$ArtworkCacheTableOrderingComposer,
+      $$ArtworkCacheTableAnnotationComposer,
+      $$ArtworkCacheTableCreateCompanionBuilder,
+      $$ArtworkCacheTableUpdateCompanionBuilder,
+      (
+        ArtworkCacheRecord,
+        BaseReferences<_$OpenIptvDb, $ArtworkCacheTable, ArtworkCacheRecord>,
+      ),
+      ArtworkCacheRecord,
+      PrefetchHooks Function()
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -10260,4 +11367,6 @@ class $OpenIptvDbManager {
       $$SeasonsTableTableManager(_db, _db.seasons);
   $$EpisodesTableTableManager get episodes =>
       $$EpisodesTableTableManager(_db, _db.episodes);
+  $$ArtworkCacheTableTableManager get artworkCache =>
+      $$ArtworkCacheTableTableManager(_db, _db.artworkCache);
 }

@@ -46,8 +46,8 @@
 - [x] Expose repository APIs for browsing VOD catalog and series hierarchy (series -> seasons -> episodes). -> `lib/data/repositories/vod_repository.dart`.
 
 ## Artwork, Flags, History & Cache
-- [ ] Implement `artwork_cache` table with LRU metadata and storage strategy (BLOB vs file pointer).
-- [ ] Build image fetcher that stores etag/hash and enforces eviction limits.
+- [x] Implement `artwork_cache` table with LRU metadata and storage strategy (BLOB vs file pointer). -> `lib/data/db/tables/artwork_cache.dart`, `lib/data/db/dao/artwork_cache_dao.dart`.
+- [x] Build image fetcher that stores etag/hash and enforces eviction limits. -> `lib/data/artwork/artwork_fetcher.dart` (+ tests in `test/data/artwork/artwork_fetcher_test.dart`).
 - [ ] Add `playback_history` schema + DAO for scrobbling, resumptions, and prunable history.
 - [ ] Add `user_flags` schema for favourites/hidden/pin metadata, with provider scoped uniqueness.
 - [ ] Ensure UI repositories surface combined channel + user flag states.

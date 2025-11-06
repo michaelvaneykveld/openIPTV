@@ -27,6 +27,7 @@ part 'tables/movies.dart';
 part 'tables/series.dart';
 part 'tables/seasons.dart';
 part 'tables/episodes.dart';
+part 'tables/artwork_cache.dart';
 
 @DriftDatabase(
   tables: [
@@ -40,6 +41,7 @@ part 'tables/episodes.dart';
     Series,
     Seasons,
     Episodes,
+    ArtworkCache,
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {

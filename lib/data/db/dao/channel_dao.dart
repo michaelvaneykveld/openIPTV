@@ -50,6 +50,15 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     return query.go();
   }
 
+  Future<int> purgeAllStaleChannels({
+    required DateTime olderThan,
+  }) {
+    final query = delete(channels)
+      ..where((tbl) => tbl.lastSeenAt.isNotNull())
+      ..where((tbl) => tbl.lastSeenAt.isSmallerThanValue(olderThan));
+    return query.go();
+  }
+
   Future<void> linkChannelToCategory({
     required int channelId,
     required int categoryId,

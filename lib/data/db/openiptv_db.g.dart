@@ -6707,6 +6707,223 @@ class UserFlagsCompanion extends UpdateCompanion<UserFlagRecord> {
   }
 }
 
+class $MaintenanceLogTable extends MaintenanceLog
+    with TableInfo<$MaintenanceLogTable, MaintenanceLogRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $MaintenanceLogTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _taskMeta = const VerificationMeta('task');
+  @override
+  late final GeneratedColumn<String> task = GeneratedColumn<String>(
+    'task',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastRunAtMeta = const VerificationMeta(
+    'lastRunAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastRunAt = GeneratedColumn<DateTime>(
+    'last_run_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [task, lastRunAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'maintenance_log';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<MaintenanceLogRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('task')) {
+      context.handle(
+        _taskMeta,
+        task.isAcceptableOrUnknown(data['task']!, _taskMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskMeta);
+    }
+    if (data.containsKey('last_run_at')) {
+      context.handle(
+        _lastRunAtMeta,
+        lastRunAt.isAcceptableOrUnknown(data['last_run_at']!, _lastRunAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_lastRunAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {task};
+  @override
+  MaintenanceLogRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return MaintenanceLogRecord(
+      task: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task'],
+      )!,
+      lastRunAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_run_at'],
+      )!,
+    );
+  }
+
+  @override
+  $MaintenanceLogTable createAlias(String alias) {
+    return $MaintenanceLogTable(attachedDatabase, alias);
+  }
+}
+
+class MaintenanceLogRecord extends DataClass
+    implements Insertable<MaintenanceLogRecord> {
+  final String task;
+  final DateTime lastRunAt;
+  const MaintenanceLogRecord({required this.task, required this.lastRunAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['task'] = Variable<String>(task);
+    map['last_run_at'] = Variable<DateTime>(lastRunAt);
+    return map;
+  }
+
+  MaintenanceLogCompanion toCompanion(bool nullToAbsent) {
+    return MaintenanceLogCompanion(
+      task: Value(task),
+      lastRunAt: Value(lastRunAt),
+    );
+  }
+
+  factory MaintenanceLogRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return MaintenanceLogRecord(
+      task: serializer.fromJson<String>(json['task']),
+      lastRunAt: serializer.fromJson<DateTime>(json['lastRunAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'task': serializer.toJson<String>(task),
+      'lastRunAt': serializer.toJson<DateTime>(lastRunAt),
+    };
+  }
+
+  MaintenanceLogRecord copyWith({String? task, DateTime? lastRunAt}) =>
+      MaintenanceLogRecord(
+        task: task ?? this.task,
+        lastRunAt: lastRunAt ?? this.lastRunAt,
+      );
+  MaintenanceLogRecord copyWithCompanion(MaintenanceLogCompanion data) {
+    return MaintenanceLogRecord(
+      task: data.task.present ? data.task.value : this.task,
+      lastRunAt: data.lastRunAt.present ? data.lastRunAt.value : this.lastRunAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MaintenanceLogRecord(')
+          ..write('task: $task, ')
+          ..write('lastRunAt: $lastRunAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(task, lastRunAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is MaintenanceLogRecord &&
+          other.task == this.task &&
+          other.lastRunAt == this.lastRunAt);
+}
+
+class MaintenanceLogCompanion extends UpdateCompanion<MaintenanceLogRecord> {
+  final Value<String> task;
+  final Value<DateTime> lastRunAt;
+  final Value<int> rowid;
+  const MaintenanceLogCompanion({
+    this.task = const Value.absent(),
+    this.lastRunAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  MaintenanceLogCompanion.insert({
+    required String task,
+    required DateTime lastRunAt,
+    this.rowid = const Value.absent(),
+  }) : task = Value(task),
+       lastRunAt = Value(lastRunAt);
+  static Insertable<MaintenanceLogRecord> custom({
+    Expression<String>? task,
+    Expression<DateTime>? lastRunAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (task != null) 'task': task,
+      if (lastRunAt != null) 'last_run_at': lastRunAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  MaintenanceLogCompanion copyWith({
+    Value<String>? task,
+    Value<DateTime>? lastRunAt,
+    Value<int>? rowid,
+  }) {
+    return MaintenanceLogCompanion(
+      task: task ?? this.task,
+      lastRunAt: lastRunAt ?? this.lastRunAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (task.present) {
+      map['task'] = Variable<String>(task.value);
+    }
+    if (lastRunAt.present) {
+      map['last_run_at'] = Variable<DateTime>(lastRunAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('MaintenanceLogCompanion(')
+          ..write('task: $task, ')
+          ..write('lastRunAt: $lastRunAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -6726,6 +6943,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     this,
   );
   late final $UserFlagsTable userFlags = $UserFlagsTable(this);
+  late final $MaintenanceLogTable maintenanceLog = $MaintenanceLogTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -6744,6 +6962,7 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     artworkCache,
     playbackHistory,
     userFlags,
+    maintenanceLog,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -13673,6 +13892,157 @@ typedef $$UserFlagsTableProcessedTableManager =
       UserFlagRecord,
       PrefetchHooks Function({bool providerId, bool channelId})
     >;
+typedef $$MaintenanceLogTableCreateCompanionBuilder =
+    MaintenanceLogCompanion Function({
+      required String task,
+      required DateTime lastRunAt,
+      Value<int> rowid,
+    });
+typedef $$MaintenanceLogTableUpdateCompanionBuilder =
+    MaintenanceLogCompanion Function({
+      Value<String> task,
+      Value<DateTime> lastRunAt,
+      Value<int> rowid,
+    });
+
+class $$MaintenanceLogTableFilterComposer
+    extends Composer<_$OpenIptvDb, $MaintenanceLogTable> {
+  $$MaintenanceLogTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get task => $composableBuilder(
+    column: $table.task,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$MaintenanceLogTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $MaintenanceLogTable> {
+  $$MaintenanceLogTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get task => $composableBuilder(
+    column: $table.task,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$MaintenanceLogTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $MaintenanceLogTable> {
+  $$MaintenanceLogTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get task =>
+      $composableBuilder(column: $table.task, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastRunAt =>
+      $composableBuilder(column: $table.lastRunAt, builder: (column) => column);
+}
+
+class $$MaintenanceLogTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $MaintenanceLogTable,
+          MaintenanceLogRecord,
+          $$MaintenanceLogTableFilterComposer,
+          $$MaintenanceLogTableOrderingComposer,
+          $$MaintenanceLogTableAnnotationComposer,
+          $$MaintenanceLogTableCreateCompanionBuilder,
+          $$MaintenanceLogTableUpdateCompanionBuilder,
+          (
+            MaintenanceLogRecord,
+            BaseReferences<
+              _$OpenIptvDb,
+              $MaintenanceLogTable,
+              MaintenanceLogRecord
+            >,
+          ),
+          MaintenanceLogRecord,
+          PrefetchHooks Function()
+        > {
+  $$MaintenanceLogTableTableManager(_$OpenIptvDb db, $MaintenanceLogTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$MaintenanceLogTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MaintenanceLogTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MaintenanceLogTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> task = const Value.absent(),
+                Value<DateTime> lastRunAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MaintenanceLogCompanion(
+                task: task,
+                lastRunAt: lastRunAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String task,
+                required DateTime lastRunAt,
+                Value<int> rowid = const Value.absent(),
+              }) => MaintenanceLogCompanion.insert(
+                task: task,
+                lastRunAt: lastRunAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$MaintenanceLogTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $MaintenanceLogTable,
+      MaintenanceLogRecord,
+      $$MaintenanceLogTableFilterComposer,
+      $$MaintenanceLogTableOrderingComposer,
+      $$MaintenanceLogTableAnnotationComposer,
+      $$MaintenanceLogTableCreateCompanionBuilder,
+      $$MaintenanceLogTableUpdateCompanionBuilder,
+      (
+        MaintenanceLogRecord,
+        BaseReferences<
+          _$OpenIptvDb,
+          $MaintenanceLogTable,
+          MaintenanceLogRecord
+        >,
+      ),
+      MaintenanceLogRecord,
+      PrefetchHooks Function()
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -13703,4 +14073,6 @@ class $OpenIptvDbManager {
       $$PlaybackHistoryTableTableManager(_db, _db.playbackHistory);
   $$UserFlagsTableTableManager get userFlags =>
       $$UserFlagsTableTableManager(_db, _db.userFlags);
+  $$MaintenanceLogTableTableManager get maintenanceLog =>
+      $$MaintenanceLogTableTableManager(_db, _db.maintenanceLog);
 }

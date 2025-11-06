@@ -59,8 +59,8 @@
 - [ ] Document backup/restore implications (e.g., DB location excluded from auto-backup if required).
 
 ## Performance & Maintenance Automation
-- [ ] Implement periodic VACUUM/ANALYZE policy gated by size/elapsed time.
-- [ ] Add retention sweeper to drop tombstoned channels after grace window and prune orphaned relationships/artwork.
+- [x] Implement periodic VACUUM/ANALYZE policy gated by size/elapsed time. -> `lib/data/db/database_maintenance.dart`, `lib/data/db/dao/maintenance_log_dao.dart`, tests in `test/data/db/database_maintenance_test.dart`.
+- [x] Add retention sweeper to drop tombstoned channels after grace window and prune orphaned relationships/artwork. -> `DatabaseMaintenance` uses `ChannelDao.purgeAllStaleChannels` and artwork pruning.
 - [ ] Enforce backpressure on import concurrency (limit parallel requests per provider).
 - [ ] Record import durations, row counts, and error metrics for diagnostics.
 - [ ] Provide manual maintenance CLI/debug screen (vacuum, reset provider data, export diagnostics).

@@ -5711,6 +5711,1002 @@ class ArtworkCacheCompanion extends UpdateCompanion<ArtworkCacheRecord> {
   }
 }
 
+class $PlaybackHistoryTable extends PlaybackHistory
+    with TableInfo<$PlaybackHistoryTable, PlaybackHistoryRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlaybackHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<int> providerId = GeneratedColumn<int>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES providers (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _channelIdMeta = const VerificationMeta(
+    'channelId',
+  );
+  @override
+  late final GeneratedColumn<int> channelId = GeneratedColumn<int>(
+    'channel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES channels (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionSecMeta = const VerificationMeta(
+    'positionSec',
+  );
+  @override
+  late final GeneratedColumn<int> positionSec = GeneratedColumn<int>(
+    'position_sec',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _durationSecMeta = const VerificationMeta(
+    'durationSec',
+  );
+  @override
+  late final GeneratedColumn<int> durationSec = GeneratedColumn<int>(
+    'duration_sec',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completedMeta = const VerificationMeta(
+    'completed',
+  );
+  @override
+  late final GeneratedColumn<bool> completed = GeneratedColumn<bool>(
+    'completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("completed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    providerId,
+    channelId,
+    startedAt,
+    updatedAt,
+    positionSec,
+    durationSec,
+    completed,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'playback_history';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlaybackHistoryRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('channel_id')) {
+      context.handle(
+        _channelIdMeta,
+        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelIdMeta);
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('position_sec')) {
+      context.handle(
+        _positionSecMeta,
+        positionSec.isAcceptableOrUnknown(
+          data['position_sec']!,
+          _positionSecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('duration_sec')) {
+      context.handle(
+        _durationSecMeta,
+        durationSec.isAcceptableOrUnknown(
+          data['duration_sec']!,
+          _durationSecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('completed')) {
+      context.handle(
+        _completedMeta,
+        completed.isAcceptableOrUnknown(data['completed']!, _completedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {channelId},
+  ];
+  @override
+  PlaybackHistoryRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlaybackHistoryRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      channelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channel_id'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      positionSec: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}position_sec'],
+      )!,
+      durationSec: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_sec'],
+      ),
+      completed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}completed'],
+      )!,
+    );
+  }
+
+  @override
+  $PlaybackHistoryTable createAlias(String alias) {
+    return $PlaybackHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class PlaybackHistoryRecord extends DataClass
+    implements Insertable<PlaybackHistoryRecord> {
+  final int id;
+  final int providerId;
+  final int channelId;
+  final DateTime startedAt;
+  final DateTime updatedAt;
+  final int positionSec;
+  final int? durationSec;
+  final bool completed;
+  const PlaybackHistoryRecord({
+    required this.id,
+    required this.providerId,
+    required this.channelId,
+    required this.startedAt,
+    required this.updatedAt,
+    required this.positionSec,
+    this.durationSec,
+    required this.completed,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['provider_id'] = Variable<int>(providerId);
+    map['channel_id'] = Variable<int>(channelId);
+    map['started_at'] = Variable<DateTime>(startedAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['position_sec'] = Variable<int>(positionSec);
+    if (!nullToAbsent || durationSec != null) {
+      map['duration_sec'] = Variable<int>(durationSec);
+    }
+    map['completed'] = Variable<bool>(completed);
+    return map;
+  }
+
+  PlaybackHistoryCompanion toCompanion(bool nullToAbsent) {
+    return PlaybackHistoryCompanion(
+      id: Value(id),
+      providerId: Value(providerId),
+      channelId: Value(channelId),
+      startedAt: Value(startedAt),
+      updatedAt: Value(updatedAt),
+      positionSec: Value(positionSec),
+      durationSec: durationSec == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSec),
+      completed: Value(completed),
+    );
+  }
+
+  factory PlaybackHistoryRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlaybackHistoryRecord(
+      id: serializer.fromJson<int>(json['id']),
+      providerId: serializer.fromJson<int>(json['providerId']),
+      channelId: serializer.fromJson<int>(json['channelId']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      positionSec: serializer.fromJson<int>(json['positionSec']),
+      durationSec: serializer.fromJson<int?>(json['durationSec']),
+      completed: serializer.fromJson<bool>(json['completed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'providerId': serializer.toJson<int>(providerId),
+      'channelId': serializer.toJson<int>(channelId),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'positionSec': serializer.toJson<int>(positionSec),
+      'durationSec': serializer.toJson<int?>(durationSec),
+      'completed': serializer.toJson<bool>(completed),
+    };
+  }
+
+  PlaybackHistoryRecord copyWith({
+    int? id,
+    int? providerId,
+    int? channelId,
+    DateTime? startedAt,
+    DateTime? updatedAt,
+    int? positionSec,
+    Value<int?> durationSec = const Value.absent(),
+    bool? completed,
+  }) => PlaybackHistoryRecord(
+    id: id ?? this.id,
+    providerId: providerId ?? this.providerId,
+    channelId: channelId ?? this.channelId,
+    startedAt: startedAt ?? this.startedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    positionSec: positionSec ?? this.positionSec,
+    durationSec: durationSec.present ? durationSec.value : this.durationSec,
+    completed: completed ?? this.completed,
+  );
+  PlaybackHistoryRecord copyWithCompanion(PlaybackHistoryCompanion data) {
+    return PlaybackHistoryRecord(
+      id: data.id.present ? data.id.value : this.id,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      channelId: data.channelId.present ? data.channelId.value : this.channelId,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      positionSec: data.positionSec.present
+          ? data.positionSec.value
+          : this.positionSec,
+      durationSec: data.durationSec.present
+          ? data.durationSec.value
+          : this.durationSec,
+      completed: data.completed.present ? data.completed.value : this.completed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlaybackHistoryRecord(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('positionSec: $positionSec, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('completed: $completed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    providerId,
+    channelId,
+    startedAt,
+    updatedAt,
+    positionSec,
+    durationSec,
+    completed,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlaybackHistoryRecord &&
+          other.id == this.id &&
+          other.providerId == this.providerId &&
+          other.channelId == this.channelId &&
+          other.startedAt == this.startedAt &&
+          other.updatedAt == this.updatedAt &&
+          other.positionSec == this.positionSec &&
+          other.durationSec == this.durationSec &&
+          other.completed == this.completed);
+}
+
+class PlaybackHistoryCompanion extends UpdateCompanion<PlaybackHistoryRecord> {
+  final Value<int> id;
+  final Value<int> providerId;
+  final Value<int> channelId;
+  final Value<DateTime> startedAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> positionSec;
+  final Value<int?> durationSec;
+  final Value<bool> completed;
+  const PlaybackHistoryCompanion({
+    this.id = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.channelId = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.positionSec = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.completed = const Value.absent(),
+  });
+  PlaybackHistoryCompanion.insert({
+    this.id = const Value.absent(),
+    required int providerId,
+    required int channelId,
+    required DateTime startedAt,
+    required DateTime updatedAt,
+    this.positionSec = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.completed = const Value.absent(),
+  }) : providerId = Value(providerId),
+       channelId = Value(channelId),
+       startedAt = Value(startedAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<PlaybackHistoryRecord> custom({
+    Expression<int>? id,
+    Expression<int>? providerId,
+    Expression<int>? channelId,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? positionSec,
+    Expression<int>? durationSec,
+    Expression<bool>? completed,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (providerId != null) 'provider_id': providerId,
+      if (channelId != null) 'channel_id': channelId,
+      if (startedAt != null) 'started_at': startedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (positionSec != null) 'position_sec': positionSec,
+      if (durationSec != null) 'duration_sec': durationSec,
+      if (completed != null) 'completed': completed,
+    });
+  }
+
+  PlaybackHistoryCompanion copyWith({
+    Value<int>? id,
+    Value<int>? providerId,
+    Value<int>? channelId,
+    Value<DateTime>? startedAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? positionSec,
+    Value<int?>? durationSec,
+    Value<bool>? completed,
+  }) {
+    return PlaybackHistoryCompanion(
+      id: id ?? this.id,
+      providerId: providerId ?? this.providerId,
+      channelId: channelId ?? this.channelId,
+      startedAt: startedAt ?? this.startedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      positionSec: positionSec ?? this.positionSec,
+      durationSec: durationSec ?? this.durationSec,
+      completed: completed ?? this.completed,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<int>(providerId.value);
+    }
+    if (channelId.present) {
+      map['channel_id'] = Variable<int>(channelId.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (positionSec.present) {
+      map['position_sec'] = Variable<int>(positionSec.value);
+    }
+    if (durationSec.present) {
+      map['duration_sec'] = Variable<int>(durationSec.value);
+    }
+    if (completed.present) {
+      map['completed'] = Variable<bool>(completed.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlaybackHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('positionSec: $positionSec, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('completed: $completed')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserFlagsTable extends UserFlags
+    with TableInfo<$UserFlagsTable, UserFlagRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserFlagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<int> providerId = GeneratedColumn<int>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES providers (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _channelIdMeta = const VerificationMeta(
+    'channelId',
+  );
+  @override
+  late final GeneratedColumn<int> channelId = GeneratedColumn<int>(
+    'channel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES channels (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _isFavoriteMeta = const VerificationMeta(
+    'isFavorite',
+  );
+  @override
+  late final GeneratedColumn<bool> isFavorite = GeneratedColumn<bool>(
+    'is_favorite',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_favorite" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isHiddenMeta = const VerificationMeta(
+    'isHidden',
+  );
+  @override
+  late final GeneratedColumn<bool> isHidden = GeneratedColumn<bool>(
+    'is_hidden',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_hidden" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isPinnedMeta = const VerificationMeta(
+    'isPinned',
+  );
+  @override
+  late final GeneratedColumn<bool> isPinned = GeneratedColumn<bool>(
+    'is_pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    providerId,
+    channelId,
+    isFavorite,
+    isHidden,
+    isPinned,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_flags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UserFlagRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('channel_id')) {
+      context.handle(
+        _channelIdMeta,
+        channelId.isAcceptableOrUnknown(data['channel_id']!, _channelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelIdMeta);
+    }
+    if (data.containsKey('is_favorite')) {
+      context.handle(
+        _isFavoriteMeta,
+        isFavorite.isAcceptableOrUnknown(data['is_favorite']!, _isFavoriteMeta),
+      );
+    }
+    if (data.containsKey('is_hidden')) {
+      context.handle(
+        _isHiddenMeta,
+        isHidden.isAcceptableOrUnknown(data['is_hidden']!, _isHiddenMeta),
+      );
+    }
+    if (data.containsKey('is_pinned')) {
+      context.handle(
+        _isPinnedMeta,
+        isPinned.isAcceptableOrUnknown(data['is_pinned']!, _isPinnedMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {channelId},
+  ];
+  @override
+  UserFlagRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserFlagRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      channelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channel_id'],
+      )!,
+      isFavorite: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_favorite'],
+      )!,
+      isHidden: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_hidden'],
+      )!,
+      isPinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_pinned'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $UserFlagsTable createAlias(String alias) {
+    return $UserFlagsTable(attachedDatabase, alias);
+  }
+}
+
+class UserFlagRecord extends DataClass implements Insertable<UserFlagRecord> {
+  final int id;
+  final int providerId;
+  final int channelId;
+  final bool isFavorite;
+  final bool isHidden;
+  final bool isPinned;
+  final DateTime updatedAt;
+  const UserFlagRecord({
+    required this.id,
+    required this.providerId,
+    required this.channelId,
+    required this.isFavorite,
+    required this.isHidden,
+    required this.isPinned,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['provider_id'] = Variable<int>(providerId);
+    map['channel_id'] = Variable<int>(channelId);
+    map['is_favorite'] = Variable<bool>(isFavorite);
+    map['is_hidden'] = Variable<bool>(isHidden);
+    map['is_pinned'] = Variable<bool>(isPinned);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  UserFlagsCompanion toCompanion(bool nullToAbsent) {
+    return UserFlagsCompanion(
+      id: Value(id),
+      providerId: Value(providerId),
+      channelId: Value(channelId),
+      isFavorite: Value(isFavorite),
+      isHidden: Value(isHidden),
+      isPinned: Value(isPinned),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory UserFlagRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserFlagRecord(
+      id: serializer.fromJson<int>(json['id']),
+      providerId: serializer.fromJson<int>(json['providerId']),
+      channelId: serializer.fromJson<int>(json['channelId']),
+      isFavorite: serializer.fromJson<bool>(json['isFavorite']),
+      isHidden: serializer.fromJson<bool>(json['isHidden']),
+      isPinned: serializer.fromJson<bool>(json['isPinned']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'providerId': serializer.toJson<int>(providerId),
+      'channelId': serializer.toJson<int>(channelId),
+      'isFavorite': serializer.toJson<bool>(isFavorite),
+      'isHidden': serializer.toJson<bool>(isHidden),
+      'isPinned': serializer.toJson<bool>(isPinned),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  UserFlagRecord copyWith({
+    int? id,
+    int? providerId,
+    int? channelId,
+    bool? isFavorite,
+    bool? isHidden,
+    bool? isPinned,
+    DateTime? updatedAt,
+  }) => UserFlagRecord(
+    id: id ?? this.id,
+    providerId: providerId ?? this.providerId,
+    channelId: channelId ?? this.channelId,
+    isFavorite: isFavorite ?? this.isFavorite,
+    isHidden: isHidden ?? this.isHidden,
+    isPinned: isPinned ?? this.isPinned,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  UserFlagRecord copyWithCompanion(UserFlagsCompanion data) {
+    return UserFlagRecord(
+      id: data.id.present ? data.id.value : this.id,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      channelId: data.channelId.present ? data.channelId.value : this.channelId,
+      isFavorite: data.isFavorite.present
+          ? data.isFavorite.value
+          : this.isFavorite,
+      isHidden: data.isHidden.present ? data.isHidden.value : this.isHidden,
+      isPinned: data.isPinned.present ? data.isPinned.value : this.isPinned,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserFlagRecord(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('isFavorite: $isFavorite, ')
+          ..write('isHidden: $isHidden, ')
+          ..write('isPinned: $isPinned, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    providerId,
+    channelId,
+    isFavorite,
+    isHidden,
+    isPinned,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserFlagRecord &&
+          other.id == this.id &&
+          other.providerId == this.providerId &&
+          other.channelId == this.channelId &&
+          other.isFavorite == this.isFavorite &&
+          other.isHidden == this.isHidden &&
+          other.isPinned == this.isPinned &&
+          other.updatedAt == this.updatedAt);
+}
+
+class UserFlagsCompanion extends UpdateCompanion<UserFlagRecord> {
+  final Value<int> id;
+  final Value<int> providerId;
+  final Value<int> channelId;
+  final Value<bool> isFavorite;
+  final Value<bool> isHidden;
+  final Value<bool> isPinned;
+  final Value<DateTime> updatedAt;
+  const UserFlagsCompanion({
+    this.id = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.channelId = const Value.absent(),
+    this.isFavorite = const Value.absent(),
+    this.isHidden = const Value.absent(),
+    this.isPinned = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  UserFlagsCompanion.insert({
+    this.id = const Value.absent(),
+    required int providerId,
+    required int channelId,
+    this.isFavorite = const Value.absent(),
+    this.isHidden = const Value.absent(),
+    this.isPinned = const Value.absent(),
+    required DateTime updatedAt,
+  }) : providerId = Value(providerId),
+       channelId = Value(channelId),
+       updatedAt = Value(updatedAt);
+  static Insertable<UserFlagRecord> custom({
+    Expression<int>? id,
+    Expression<int>? providerId,
+    Expression<int>? channelId,
+    Expression<bool>? isFavorite,
+    Expression<bool>? isHidden,
+    Expression<bool>? isPinned,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (providerId != null) 'provider_id': providerId,
+      if (channelId != null) 'channel_id': channelId,
+      if (isFavorite != null) 'is_favorite': isFavorite,
+      if (isHidden != null) 'is_hidden': isHidden,
+      if (isPinned != null) 'is_pinned': isPinned,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  UserFlagsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? providerId,
+    Value<int>? channelId,
+    Value<bool>? isFavorite,
+    Value<bool>? isHidden,
+    Value<bool>? isPinned,
+    Value<DateTime>? updatedAt,
+  }) {
+    return UserFlagsCompanion(
+      id: id ?? this.id,
+      providerId: providerId ?? this.providerId,
+      channelId: channelId ?? this.channelId,
+      isFavorite: isFavorite ?? this.isFavorite,
+      isHidden: isHidden ?? this.isHidden,
+      isPinned: isPinned ?? this.isPinned,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<int>(providerId.value);
+    }
+    if (channelId.present) {
+      map['channel_id'] = Variable<int>(channelId.value);
+    }
+    if (isFavorite.present) {
+      map['is_favorite'] = Variable<bool>(isFavorite.value);
+    }
+    if (isHidden.present) {
+      map['is_hidden'] = Variable<bool>(isHidden.value);
+    }
+    if (isPinned.present) {
+      map['is_pinned'] = Variable<bool>(isPinned.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserFlagsCompanion(')
+          ..write('id: $id, ')
+          ..write('providerId: $providerId, ')
+          ..write('channelId: $channelId, ')
+          ..write('isFavorite: $isFavorite, ')
+          ..write('isHidden: $isHidden, ')
+          ..write('isPinned: $isPinned, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$OpenIptvDb extends GeneratedDatabase {
   _$OpenIptvDb(QueryExecutor e) : super(e);
   $OpenIptvDbManager get managers => $OpenIptvDbManager(this);
@@ -5726,6 +6722,10 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
   late final $SeasonsTable seasons = $SeasonsTable(this);
   late final $EpisodesTable episodes = $EpisodesTable(this);
   late final $ArtworkCacheTable artworkCache = $ArtworkCacheTable(this);
+  late final $PlaybackHistoryTable playbackHistory = $PlaybackHistoryTable(
+    this,
+  );
+  late final $UserFlagsTable userFlags = $UserFlagsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5742,6 +6742,8 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
     seasons,
     episodes,
     artworkCache,
+    playbackHistory,
+    userFlags,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -5835,6 +6837,34 @@ abstract class _$OpenIptvDb extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('episodes', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'providers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('playback_history', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'channels',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('playback_history', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'providers',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('user_flags', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'channels',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('user_flags', kind: UpdateKind.delete)],
     ),
   ]);
 }
@@ -5953,6 +6983,47 @@ final class $$ProvidersTableReferences
     ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_seriesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PlaybackHistoryTable, List<PlaybackHistoryRecord>>
+  _playbackHistoryRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.playbackHistory,
+    aliasName: $_aliasNameGenerator(
+      db.providers.id,
+      db.playbackHistory.providerId,
+    ),
+  );
+
+  $$PlaybackHistoryTableProcessedTableManager get playbackHistoryRefs {
+    final manager = $$PlaybackHistoryTableTableManager(
+      $_db,
+      $_db.playbackHistory,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _playbackHistoryRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$UserFlagsTable, List<UserFlagRecord>>
+  _userFlagsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.userFlags,
+    aliasName: $_aliasNameGenerator(db.providers.id, db.userFlags.providerId),
+  );
+
+  $$UserFlagsTableProcessedTableManager get userFlagsRefs {
+    final manager = $$UserFlagsTableTableManager(
+      $_db,
+      $_db.userFlags,
+    ).filter((f) => f.providerId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_userFlagsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -6125,6 +7196,56 @@ class $$ProvidersTableFilterComposer
           }) => $$SeriesTableFilterComposer(
             $db: $db,
             $table: $db.series,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> playbackHistoryRefs(
+    Expression<bool> Function($$PlaybackHistoryTableFilterComposer f) f,
+  ) {
+    final $$PlaybackHistoryTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.playbackHistory,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlaybackHistoryTableFilterComposer(
+            $db: $db,
+            $table: $db.playbackHistory,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> userFlagsRefs(
+    Expression<bool> Function($$UserFlagsTableFilterComposer f) f,
+  ) {
+    final $$UserFlagsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userFlags,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserFlagsTableFilterComposer(
+            $db: $db,
+            $table: $db.userFlags,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6350,6 +7471,56 @@ class $$ProvidersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> playbackHistoryRefs<T extends Object>(
+    Expression<T> Function($$PlaybackHistoryTableAnnotationComposer a) f,
+  ) {
+    final $$PlaybackHistoryTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.playbackHistory,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlaybackHistoryTableAnnotationComposer(
+            $db: $db,
+            $table: $db.playbackHistory,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> userFlagsRefs<T extends Object>(
+    Expression<T> Function($$UserFlagsTableAnnotationComposer a) f,
+  ) {
+    final $$UserFlagsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userFlags,
+      getReferencedColumn: (t) => t.providerId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserFlagsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.userFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ProvidersTableTableManager
@@ -6371,6 +7542,8 @@ class $$ProvidersTableTableManager
             bool summariesRefs,
             bool moviesRefs,
             bool seriesRefs,
+            bool playbackHistoryRefs,
+            bool userFlagsRefs,
           })
         > {
   $$ProvidersTableTableManager(_$OpenIptvDb db, $ProvidersTable table)
@@ -6439,6 +7612,8 @@ class $$ProvidersTableTableManager
                 summariesRefs = false,
                 moviesRefs = false,
                 seriesRefs = false,
+                playbackHistoryRefs = false,
+                userFlagsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -6448,6 +7623,8 @@ class $$ProvidersTableTableManager
                     if (summariesRefs) db.summaries,
                     if (moviesRefs) db.movies,
                     if (seriesRefs) db.series,
+                    if (playbackHistoryRefs) db.playbackHistory,
+                    if (userFlagsRefs) db.userFlags,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -6557,6 +7734,48 @@ class $$ProvidersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (playbackHistoryRefs)
+                        await $_getPrefetchedData<
+                          ProviderRecord,
+                          $ProvidersTable,
+                          PlaybackHistoryRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProvidersTableReferences
+                              ._playbackHistoryRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProvidersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).playbackHistoryRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.providerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (userFlagsRefs)
+                        await $_getPrefetchedData<
+                          ProviderRecord,
+                          $ProvidersTable,
+                          UserFlagRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProvidersTableReferences
+                              ._userFlagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProvidersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).userFlagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.providerId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -6583,6 +7802,8 @@ typedef $$ProvidersTableProcessedTableManager =
         bool summariesRefs,
         bool moviesRefs,
         bool seriesRefs,
+        bool playbackHistoryRefs,
+        bool userFlagsRefs,
       })
     >;
 typedef $$ChannelsTableCreateCompanionBuilder =
@@ -6672,6 +7893,47 @@ final class $$ChannelsTableReferences
     ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_epgProgramsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$PlaybackHistoryTable, List<PlaybackHistoryRecord>>
+  _playbackHistoryRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.playbackHistory,
+    aliasName: $_aliasNameGenerator(
+      db.channels.id,
+      db.playbackHistory.channelId,
+    ),
+  );
+
+  $$PlaybackHistoryTableProcessedTableManager get playbackHistoryRefs {
+    final manager = $$PlaybackHistoryTableTableManager(
+      $_db,
+      $_db.playbackHistory,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _playbackHistoryRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$UserFlagsTable, List<UserFlagRecord>>
+  _userFlagsRefsTable(_$OpenIptvDb db) => MultiTypedResultKey.fromTable(
+    db.userFlags,
+    aliasName: $_aliasNameGenerator(db.channels.id, db.userFlags.channelId),
+  );
+
+  $$UserFlagsTableProcessedTableManager get userFlagsRefs {
+    final manager = $$UserFlagsTableTableManager(
+      $_db,
+      $_db.userFlags,
+    ).filter((f) => f.channelId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_userFlagsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -6791,6 +8053,56 @@ class $$ChannelsTableFilterComposer
           }) => $$EpgProgramsTableFilterComposer(
             $db: $db,
             $table: $db.epgPrograms,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> playbackHistoryRefs(
+    Expression<bool> Function($$PlaybackHistoryTableFilterComposer f) f,
+  ) {
+    final $$PlaybackHistoryTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.playbackHistory,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlaybackHistoryTableFilterComposer(
+            $db: $db,
+            $table: $db.playbackHistory,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> userFlagsRefs(
+    Expression<bool> Function($$UserFlagsTableFilterComposer f) f,
+  ) {
+    final $$UserFlagsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userFlags,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserFlagsTableFilterComposer(
+            $db: $db,
+            $table: $db.userFlags,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -6986,6 +8298,56 @@ class $$ChannelsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> playbackHistoryRefs<T extends Object>(
+    Expression<T> Function($$PlaybackHistoryTableAnnotationComposer a) f,
+  ) {
+    final $$PlaybackHistoryTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.playbackHistory,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$PlaybackHistoryTableAnnotationComposer(
+            $db: $db,
+            $table: $db.playbackHistory,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> userFlagsRefs<T extends Object>(
+    Expression<T> Function($$UserFlagsTableAnnotationComposer a) f,
+  ) {
+    final $$UserFlagsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.userFlags,
+      getReferencedColumn: (t) => t.channelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$UserFlagsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.userFlags,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChannelsTableTableManager
@@ -7005,6 +8367,8 @@ class $$ChannelsTableTableManager
             bool providerId,
             bool channelCategoriesRefs,
             bool epgProgramsRefs,
+            bool playbackHistoryRefs,
+            bool userFlagsRefs,
           })
         > {
   $$ChannelsTableTableManager(_$OpenIptvDb db, $ChannelsTable table)
@@ -7075,12 +8439,16 @@ class $$ChannelsTableTableManager
                 providerId = false,
                 channelCategoriesRefs = false,
                 epgProgramsRefs = false,
+                playbackHistoryRefs = false,
+                userFlagsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (channelCategoriesRefs) db.channelCategories,
                     if (epgProgramsRefs) db.epgPrograms,
+                    if (playbackHistoryRefs) db.playbackHistory,
+                    if (userFlagsRefs) db.userFlags,
                   ],
                   addJoins:
                       <
@@ -7158,6 +8526,48 @@ class $$ChannelsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (playbackHistoryRefs)
+                        await $_getPrefetchedData<
+                          ChannelRecord,
+                          $ChannelsTable,
+                          PlaybackHistoryRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences
+                              ._playbackHistoryRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).playbackHistoryRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.channelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (userFlagsRefs)
+                        await $_getPrefetchedData<
+                          ChannelRecord,
+                          $ChannelsTable,
+                          UserFlagRecord
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChannelsTableReferences
+                              ._userFlagsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChannelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).userFlagsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.channelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -7182,6 +8592,8 @@ typedef $$ChannelsTableProcessedTableManager =
         bool providerId,
         bool channelCategoriesRefs,
         bool epgProgramsRefs,
+        bool playbackHistoryRefs,
+        bool userFlagsRefs,
       })
     >;
 typedef $$CategoriesTableCreateCompanionBuilder =
@@ -11343,6 +12755,924 @@ typedef $$ArtworkCacheTableProcessedTableManager =
       ArtworkCacheRecord,
       PrefetchHooks Function()
     >;
+typedef $$PlaybackHistoryTableCreateCompanionBuilder =
+    PlaybackHistoryCompanion Function({
+      Value<int> id,
+      required int providerId,
+      required int channelId,
+      required DateTime startedAt,
+      required DateTime updatedAt,
+      Value<int> positionSec,
+      Value<int?> durationSec,
+      Value<bool> completed,
+    });
+typedef $$PlaybackHistoryTableUpdateCompanionBuilder =
+    PlaybackHistoryCompanion Function({
+      Value<int> id,
+      Value<int> providerId,
+      Value<int> channelId,
+      Value<DateTime> startedAt,
+      Value<DateTime> updatedAt,
+      Value<int> positionSec,
+      Value<int?> durationSec,
+      Value<bool> completed,
+    });
+
+final class $$PlaybackHistoryTableReferences
+    extends
+        BaseReferences<
+          _$OpenIptvDb,
+          $PlaybackHistoryTable,
+          PlaybackHistoryRecord
+        > {
+  $$PlaybackHistoryTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProvidersTable _providerIdTable(_$OpenIptvDb db) =>
+      db.providers.createAlias(
+        $_aliasNameGenerator(db.playbackHistory.providerId, db.providers.id),
+      );
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<int>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager(
+      $_db,
+      $_db.providers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ChannelsTable _channelIdTable(_$OpenIptvDb db) =>
+      db.channels.createAlias(
+        $_aliasNameGenerator(db.playbackHistory.channelId, db.channels.id),
+      );
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<int>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager(
+      $_db,
+      $_db.channels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$PlaybackHistoryTableFilterComposer
+    extends Composer<_$OpenIptvDb, $PlaybackHistoryTable> {
+  $$PlaybackHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get positionSec => $composableBuilder(
+    column: $table.positionSec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlaybackHistoryTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $PlaybackHistoryTable> {
+  $$PlaybackHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get positionSec => $composableBuilder(
+    column: $table.positionSec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get completed => $composableBuilder(
+    column: $table.completed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlaybackHistoryTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $PlaybackHistoryTable> {
+  $$PlaybackHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get positionSec => $composableBuilder(
+    column: $table.positionSec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get completed =>
+      $composableBuilder(column: $table.completed, builder: (column) => column);
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$PlaybackHistoryTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $PlaybackHistoryTable,
+          PlaybackHistoryRecord,
+          $$PlaybackHistoryTableFilterComposer,
+          $$PlaybackHistoryTableOrderingComposer,
+          $$PlaybackHistoryTableAnnotationComposer,
+          $$PlaybackHistoryTableCreateCompanionBuilder,
+          $$PlaybackHistoryTableUpdateCompanionBuilder,
+          (PlaybackHistoryRecord, $$PlaybackHistoryTableReferences),
+          PlaybackHistoryRecord,
+          PrefetchHooks Function({bool providerId, bool channelId})
+        > {
+  $$PlaybackHistoryTableTableManager(
+    _$OpenIptvDb db,
+    $PlaybackHistoryTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlaybackHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlaybackHistoryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PlaybackHistoryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> providerId = const Value.absent(),
+                Value<int> channelId = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> positionSec = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+              }) => PlaybackHistoryCompanion(
+                id: id,
+                providerId: providerId,
+                channelId: channelId,
+                startedAt: startedAt,
+                updatedAt: updatedAt,
+                positionSec: positionSec,
+                durationSec: durationSec,
+                completed: completed,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int providerId,
+                required int channelId,
+                required DateTime startedAt,
+                required DateTime updatedAt,
+                Value<int> positionSec = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<bool> completed = const Value.absent(),
+              }) => PlaybackHistoryCompanion.insert(
+                id: id,
+                providerId: providerId,
+                channelId: channelId,
+                startedAt: startedAt,
+                updatedAt: updatedAt,
+                positionSec: positionSec,
+                durationSec: durationSec,
+                completed: completed,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$PlaybackHistoryTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({providerId = false, channelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (providerId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.providerId,
+                                referencedTable:
+                                    $$PlaybackHistoryTableReferences
+                                        ._providerIdTable(db),
+                                referencedColumn:
+                                    $$PlaybackHistoryTableReferences
+                                        ._providerIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+                    if (channelId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.channelId,
+                                referencedTable:
+                                    $$PlaybackHistoryTableReferences
+                                        ._channelIdTable(db),
+                                referencedColumn:
+                                    $$PlaybackHistoryTableReferences
+                                        ._channelIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$PlaybackHistoryTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $PlaybackHistoryTable,
+      PlaybackHistoryRecord,
+      $$PlaybackHistoryTableFilterComposer,
+      $$PlaybackHistoryTableOrderingComposer,
+      $$PlaybackHistoryTableAnnotationComposer,
+      $$PlaybackHistoryTableCreateCompanionBuilder,
+      $$PlaybackHistoryTableUpdateCompanionBuilder,
+      (PlaybackHistoryRecord, $$PlaybackHistoryTableReferences),
+      PlaybackHistoryRecord,
+      PrefetchHooks Function({bool providerId, bool channelId})
+    >;
+typedef $$UserFlagsTableCreateCompanionBuilder =
+    UserFlagsCompanion Function({
+      Value<int> id,
+      required int providerId,
+      required int channelId,
+      Value<bool> isFavorite,
+      Value<bool> isHidden,
+      Value<bool> isPinned,
+      required DateTime updatedAt,
+    });
+typedef $$UserFlagsTableUpdateCompanionBuilder =
+    UserFlagsCompanion Function({
+      Value<int> id,
+      Value<int> providerId,
+      Value<int> channelId,
+      Value<bool> isFavorite,
+      Value<bool> isHidden,
+      Value<bool> isPinned,
+      Value<DateTime> updatedAt,
+    });
+
+final class $$UserFlagsTableReferences
+    extends BaseReferences<_$OpenIptvDb, $UserFlagsTable, UserFlagRecord> {
+  $$UserFlagsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ProvidersTable _providerIdTable(_$OpenIptvDb db) =>
+      db.providers.createAlias(
+        $_aliasNameGenerator(db.userFlags.providerId, db.providers.id),
+      );
+
+  $$ProvidersTableProcessedTableManager get providerId {
+    final $_column = $_itemColumn<int>('provider_id')!;
+
+    final manager = $$ProvidersTableTableManager(
+      $_db,
+      $_db.providers,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_providerIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ChannelsTable _channelIdTable(_$OpenIptvDb db) =>
+      db.channels.createAlias(
+        $_aliasNameGenerator(db.userFlags.channelId, db.channels.id),
+      );
+
+  $$ChannelsTableProcessedTableManager get channelId {
+    final $_column = $_itemColumn<int>('channel_id')!;
+
+    final manager = $$ChannelsTableTableManager(
+      $_db,
+      $_db.channels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_channelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$UserFlagsTableFilterComposer
+    extends Composer<_$OpenIptvDb, $UserFlagsTable> {
+  $$UserFlagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isHidden => $composableBuilder(
+    column: $table.isHidden,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isPinned => $composableBuilder(
+    column: $table.isPinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProvidersTableFilterComposer get providerId {
+    final $$ProvidersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableFilterComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableFilterComposer get channelId {
+    final $$ChannelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableFilterComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserFlagsTableOrderingComposer
+    extends Composer<_$OpenIptvDb, $UserFlagsTable> {
+  $$UserFlagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isHidden => $composableBuilder(
+    column: $table.isHidden,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isPinned => $composableBuilder(
+    column: $table.isPinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProvidersTableOrderingComposer get providerId {
+    final $$ProvidersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableOrderingComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableOrderingComposer get channelId {
+    final $$ChannelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserFlagsTableAnnotationComposer
+    extends Composer<_$OpenIptvDb, $UserFlagsTable> {
+  $$UserFlagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isHidden =>
+      $composableBuilder(column: $table.isHidden, builder: (column) => column);
+
+  GeneratedColumn<bool> get isPinned =>
+      $composableBuilder(column: $table.isPinned, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$ProvidersTableAnnotationComposer get providerId {
+    final $$ProvidersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.providerId,
+      referencedTable: $db.providers,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProvidersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.providers,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChannelsTableAnnotationComposer get channelId {
+    final $$ChannelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.channelId,
+      referencedTable: $db.channels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChannelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.channels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$UserFlagsTableTableManager
+    extends
+        RootTableManager<
+          _$OpenIptvDb,
+          $UserFlagsTable,
+          UserFlagRecord,
+          $$UserFlagsTableFilterComposer,
+          $$UserFlagsTableOrderingComposer,
+          $$UserFlagsTableAnnotationComposer,
+          $$UserFlagsTableCreateCompanionBuilder,
+          $$UserFlagsTableUpdateCompanionBuilder,
+          (UserFlagRecord, $$UserFlagsTableReferences),
+          UserFlagRecord,
+          PrefetchHooks Function({bool providerId, bool channelId})
+        > {
+  $$UserFlagsTableTableManager(_$OpenIptvDb db, $UserFlagsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserFlagsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserFlagsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserFlagsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> providerId = const Value.absent(),
+                Value<int> channelId = const Value.absent(),
+                Value<bool> isFavorite = const Value.absent(),
+                Value<bool> isHidden = const Value.absent(),
+                Value<bool> isPinned = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => UserFlagsCompanion(
+                id: id,
+                providerId: providerId,
+                channelId: channelId,
+                isFavorite: isFavorite,
+                isHidden: isHidden,
+                isPinned: isPinned,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int providerId,
+                required int channelId,
+                Value<bool> isFavorite = const Value.absent(),
+                Value<bool> isHidden = const Value.absent(),
+                Value<bool> isPinned = const Value.absent(),
+                required DateTime updatedAt,
+              }) => UserFlagsCompanion.insert(
+                id: id,
+                providerId: providerId,
+                channelId: channelId,
+                isFavorite: isFavorite,
+                isHidden: isHidden,
+                isPinned: isPinned,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$UserFlagsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({providerId = false, channelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (providerId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.providerId,
+                                referencedTable: $$UserFlagsTableReferences
+                                    ._providerIdTable(db),
+                                referencedColumn: $$UserFlagsTableReferences
+                                    ._providerIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (channelId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.channelId,
+                                referencedTable: $$UserFlagsTableReferences
+                                    ._channelIdTable(db),
+                                referencedColumn: $$UserFlagsTableReferences
+                                    ._channelIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$UserFlagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$OpenIptvDb,
+      $UserFlagsTable,
+      UserFlagRecord,
+      $$UserFlagsTableFilterComposer,
+      $$UserFlagsTableOrderingComposer,
+      $$UserFlagsTableAnnotationComposer,
+      $$UserFlagsTableCreateCompanionBuilder,
+      $$UserFlagsTableUpdateCompanionBuilder,
+      (UserFlagRecord, $$UserFlagsTableReferences),
+      UserFlagRecord,
+      PrefetchHooks Function({bool providerId, bool channelId})
+    >;
 
 class $OpenIptvDbManager {
   final _$OpenIptvDb _db;
@@ -11369,4 +13699,8 @@ class $OpenIptvDbManager {
       $$EpisodesTableTableManager(_db, _db.episodes);
   $$ArtworkCacheTableTableManager get artworkCache =>
       $$ArtworkCacheTableTableManager(_db, _db.artworkCache);
+  $$PlaybackHistoryTableTableManager get playbackHistory =>
+      $$PlaybackHistoryTableTableManager(_db, _db.playbackHistory);
+  $$UserFlagsTableTableManager get userFlags =>
+      $$UserFlagsTableTableManager(_db, _db.userFlags);
 }

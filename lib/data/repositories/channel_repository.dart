@@ -1,7 +1,9 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/channel_dao.dart';
+import '../db/dao/user_flag_dao.dart';
 import '../db/openiptv_db.dart';
 import '../db/database_locator.dart';
 
@@ -13,10 +15,15 @@ final categoryDaoProvider = r.Provider<CategoryDao>(
   (ref) => CategoryDao(ref.watch(openIptvDbProvider)),
 );
 
+final userFlagDaoProvider = r.Provider<UserFlagDao>(
+  (ref) => UserFlagDao(ref.watch(openIptvDbProvider)),
+);
+
 final channelRepositoryProvider = r.Provider<ChannelRepository>(
   (ref) => ChannelRepository(
     channelDao: ref.watch(channelDaoProvider),
     categoryDao: ref.watch(categoryDaoProvider),
+    userFlagDao: ref.watch(userFlagDaoProvider),
   ),
 );
 
@@ -24,13 +31,53 @@ class ChannelRepository {
   ChannelRepository({
     required this.channelDao,
     required this.categoryDao,
+    required this.userFlagDao,
   });
 
   final ChannelDao channelDao;
   final CategoryDao categoryDao;
+  final UserFlagDao userFlagDao;
 
   Stream<List<ChannelRecord>> watchChannels(int providerId) =>
       channelDao.watchChannelsForProvider(providerId);
+
+  Stream<List<ChannelWithFlags>> watchChannelsWithFlags(int providerId) {
+    final channels = channelDao.channels;
+    final flags = userFlagDao.userFlags;
+
+    final query = channelDao
+        .select(channels)
+      ..where((tbl) => tbl.providerId.equals(providerId))
+      ..orderBy([
+        (tbl) =>
+            OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
+        (tbl) => OrderingTerm(expression: tbl.name),
+      ]);
+
+    final joined = query.join([
+      leftOuterJoin(
+        flags,
+        flags.channelId.equalsExp(channels.id),
+      ),
+    ]);
+
+    return joined.watch().map(
+          (rows) => rows
+              .map(
+                (row) => ChannelWithFlags(
+                  channel: row.readTable(channels),
+                  flags: row.readTableOrNull(flags),
+                ),
+              )
+              .toList(),
+        );
+  }
+
+  Stream<List<ChannelWithFlags>> watchFavoriteChannels(int providerId) =>
+      watchChannelsWithFlags(providerId).map(
+        (channels) =>
+            channels.where((entry) => entry.isFavorite).toList(),
+      );
 
   Future<List<ChannelRecord>> listChannels(int providerId) =>
       channelDao.findByProvider(providerId);
@@ -97,4 +144,36 @@ class ChannelRepository {
 
   Future<void> markAllForDeletion(int providerId) =>
       channelDao.markAllAsCandidateForDelete(providerId);
+
+  Future<void> setChannelFlags({
+    required int providerId,
+    required int channelId,
+    bool isFavorite = false,
+    bool isHidden = false,
+    bool isPinned = false,
+  }) =>
+      userFlagDao.setFlags(
+        providerId: providerId,
+        channelId: channelId,
+        isFavorite: isFavorite,
+        isHidden: isHidden,
+        isPinned: isPinned,
+      );
+
+  Stream<UserFlagRecord?> watchFlagForChannel(int channelId) =>
+      userFlagDao.watchForChannel(channelId);
+}
+
+class ChannelWithFlags {
+  ChannelWithFlags({
+    required this.channel,
+    required this.flags,
+  });
+
+  final ChannelRecord channel;
+  final UserFlagRecord? flags;
+
+  bool get isFavorite => flags?.isFavorite ?? false;
+  bool get isHidden => flags?.isHidden ?? false;
+  bool get isPinned => flags?.isPinned ?? false;
 }

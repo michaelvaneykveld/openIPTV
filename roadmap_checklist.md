@@ -48,9 +48,9 @@
 ## Artwork, Flags, History & Cache
 - [x] Implement `artwork_cache` table with LRU metadata and storage strategy (BLOB vs file pointer). -> `lib/data/db/tables/artwork_cache.dart`, `lib/data/db/dao/artwork_cache_dao.dart`.
 - [x] Build image fetcher that stores etag/hash and enforces eviction limits. -> `lib/data/artwork/artwork_fetcher.dart` (+ tests in `test/data/artwork/artwork_fetcher_test.dart`).
-- [ ] Add `playback_history` schema + DAO for scrobbling, resumptions, and prunable history.
-- [ ] Add `user_flags` schema for favourites/hidden/pin metadata, with provider scoped uniqueness.
-- [ ] Ensure UI repositories surface combined channel + user flag states.
+- [x] Add `playback_history` schema + DAO for scrobbling, resumptions, and prunable history. -> `lib/data/db/tables/playback_history.dart`, `lib/data/db/dao/playback_history_dao.dart`.
+- [x] Add `user_flags` schema for favourites/hidden/pin metadata, with provider scoped uniqueness. -> `lib/data/db/tables/user_flags.dart`, `lib/data/db/dao/user_flag_dao.dart`.
+- [x] Ensure UI repositories surface combined channel + user flag states. -> `lib/data/repositories/channel_repository.dart` (ChannelWithFlags streams).
 
 ## Security & Storage Guardrails
 - [ ] Keep provider secrets (username/password/token) exclusively in secure storage and confirm DB never persists them.

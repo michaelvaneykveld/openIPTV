@@ -1,14 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:drift/backends.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
 import 'database_flags.dart';
+import 'database_key_store.dart';
 
 part 'openiptv_db.g.dart';
 
@@ -52,7 +55,8 @@ class OpenIptvDb extends _$OpenIptvDb {
   OpenIptvDb._(super.executor);
 
   /// Construct a database instance backed by the on-device file store.
-  factory OpenIptvDb.open() => OpenIptvDb._(_openConnection());
+  factory OpenIptvDb.open({DatabaseKeyStore? keyStore}) =>
+      OpenIptvDb._(_openConnection(keyStore: keyStore));
 
   /// Convenience factory for tests that prefer an in-memory database.
   factory OpenIptvDb.inMemory() => OpenIptvDb._(_openInMemory());
@@ -78,22 +82,28 @@ class OpenIptvDb extends _$OpenIptvDb {
       );
 }
 
-QueryExecutor _openConnection() {
+QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
   return LazyDatabase(() async {
     if (kIsWeb) {
       throw UnsupportedError('The offline database is not available on web.');
     }
 
-    if (DatabaseFlags.enableSqlCipher) {
-      // Hook for future SQLCipher integration. Until implemented, make it
-      // explicit so we do not silently run without encryption.
-      throw UnsupportedError(
-        'SQLCipher builds are not yet configured. Disable DB_ENABLE_SQLCIPHER.',
-      );
-    }
-
     final directory = await _resolveStorageDirectory();
     final dbPath = p.join(directory.path, 'openiptv.db');
+
+    if (DatabaseFlags.enableSqlCipher) {
+      if (!(Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
+        throw UnsupportedError(
+          'SQLCipher is currently supported on Android, iOS, and macOS builds.',
+        );
+      }
+      final store = keyStore ?? SecureDatabaseKeyStore();
+      final key = await store.obtainOrCreateKey();
+      return SqlCipherQueryExecutor(
+        path: dbPath,
+        password: key,
+      );
+    }
 
     if (_useNativeDatabase()) {
       return NativeDatabase(
@@ -136,5 +146,127 @@ Future<Directory> _resolveStorageDirectory() async {
 bool _useNativeDatabase() {
   if (kIsWeb) return false;
   return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+}
+
+class SqlCipherQueryExecutor extends DelegatedDatabase {
+  SqlCipherQueryExecutor({
+    required String path,
+    required String password,
+    bool singleInstance = true,
+    bool? logStatements,
+  }) : super(
+          _SqlCipherDelegate(
+            path: path,
+            password: password,
+            singleInstance: singleInstance,
+          ),
+          logStatements: logStatements,
+        );
+
+  @override
+  bool get isSequential => true;
+}
+
+class _SqlCipherDelegate extends DatabaseDelegate {
+  _SqlCipherDelegate({
+    required this.path,
+    required this.password,
+    required this.singleInstance,
+  });
+
+  final String path;
+  final String password;
+  final bool singleInstance;
+
+  sqlcipher.Database? _db;
+  bool _isOpen = false;
+
+  sqlcipher.Database get _database {
+    final db = _db;
+    if (db == null) {
+      throw StateError('SQLCipher database has not been opened yet.');
+    }
+    return db;
+  }
+
+  @override
+  bool get isOpen => _isOpen;
+
+  @override
+  late final DbVersionDelegate versionDelegate =
+      _SqlCipherVersionDelegate(() => _database);
+
+  @override
+  TransactionDelegate get transactionDelegate => const NoTransactionDelegate();
+
+  @override
+  Future<void> close() async {
+    if (_db != null) {
+      await _database.close();
+      _db = null;
+      _isOpen = false;
+    }
+  }
+
+  @override
+  Future<void> open(QueryExecutorUser user) async {
+    _db = await sqlcipher.openDatabase(
+      path,
+      password: password,
+      singleInstance: singleInstance,
+    );
+    _isOpen = true;
+  }
+
+  @override
+  Future<void> runBatched(BatchedStatements statements) async {
+    final batch = _database.batch();
+    for (final stmt in statements.arguments) {
+      batch.execute(
+        statements.statements[stmt.statementIndex],
+        stmt.arguments,
+      );
+    }
+    await batch.apply(noResult: true);
+  }
+
+  @override
+  Future<void> runCustom(String statement, List<Object?> args) {
+    return _database.execute(statement, args);
+  }
+
+  @override
+  Future<int> runInsert(String statement, List<Object?> args) {
+    return _database.rawInsert(statement, args);
+  }
+
+  @override
+  Future<QueryResult> runSelect(String statement, List<Object?> args) async {
+    final rows = await _database.rawQuery(statement, args);
+    return QueryResult.fromRows(rows);
+  }
+
+  @override
+  Future<int> runUpdate(String statement, List<Object?> args) {
+    return _database.rawUpdate(statement, args);
+  }
+}
+
+class _SqlCipherVersionDelegate extends DynamicVersionDelegate {
+  _SqlCipherVersionDelegate(this._databaseProvider);
+
+  final sqlcipher.Database Function() _databaseProvider;
+
+  @override
+  Future<int> get schemaVersion async {
+    final result = await _databaseProvider().rawQuery('PRAGMA user_version;');
+    return result.single.values.first as int;
+  }
+
+  @override
+  Future<void> setSchemaVersion(int version) async {
+    await _databaseProvider()
+        .rawUpdate('PRAGMA user_version = $version;');
+  }
 }
 

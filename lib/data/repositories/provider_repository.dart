@@ -56,4 +56,7 @@ class ProviderRepository {
 
   Stream<Map<CategoryKind, int>> watchSummary(int providerId) =>
       summaryDao.watchForProvider(providerId);
+
+  Future<ProviderRecord?> findByLegacyProfileId(String profileId) =>
+      providerDao.findByLegacyProfileId(profileId);
 }

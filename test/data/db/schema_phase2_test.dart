@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:openiptv/data/db/dao/epg_dao.dart';
 import 'package:openiptv/data/db/dao/provider_dao.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   late OpenIptvDb db;

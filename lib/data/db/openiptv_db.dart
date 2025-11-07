@@ -6,6 +6,8 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:flutter/foundation.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart'
+    show ProviderKind;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
@@ -60,7 +62,7 @@ part 'tables/vod_search_fts.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 4;
+  static const int schemaVersionLatest = 5;
 
   OpenIptvDb._(this._overrideSchemaVersion, super.executor);
 
@@ -100,6 +102,7 @@ class OpenIptvDb extends _$OpenIptvDb {
           await _ensureEpgSearchIndex(rebuild: true);
           await _ensureChannelSearchIndex(rebuild: true);
           await _ensureVodSearchIndex(rebuild: true);
+          await _ensureProviderIndexes();
         },
         onUpgrade: (Migrator m, int from, int to) async {
           for (var version = from; version < to; version++) {
@@ -112,6 +115,9 @@ class OpenIptvDb extends _$OpenIptvDb {
                 break;
               case 3:
                 await _migrateFrom3To4();
+                break;
+              case 4:
+                await _migrateFrom4To5();
                 break;
               default:
                 break;
@@ -142,6 +148,13 @@ class OpenIptvDb extends _$OpenIptvDb {
   Future<void> _migrateFrom3To4() async {
     await _ensureChannelSearchIndex(rebuild: true);
     await _ensureVodSearchIndex(rebuild: true);
+  }
+
+  Future<void> _migrateFrom4To5() async {
+    await customStatement(
+      'ALTER TABLE providers ADD COLUMN legacy_profile_id TEXT;',
+    );
+    await _ensureProviderIndexes();
   }
 
   Future<void> _createIfMissing(
@@ -516,6 +529,13 @@ class OpenIptvDb extends _$OpenIptvDb {
     await customStatement('DROP TRIGGER IF EXISTS series_au_search;');
     await customStatement('DROP TRIGGER IF EXISTS series_ad_search;');
     await customStatement('DROP TABLE IF EXISTS vod_search_fts;');
+  }
+
+  Future<void> _ensureProviderIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_providers_legacy_profile_id '
+      'ON providers(legacy_profile_id);',
+    );
   }
 }
 

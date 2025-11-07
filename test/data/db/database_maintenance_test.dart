@@ -8,6 +8,7 @@ import 'package:openiptv/data/db/dao/channel_dao.dart';
 import 'package:openiptv/data/db/dao/maintenance_log_dao.dart';
 import 'package:openiptv/data/db/database_maintenance.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   late OpenIptvDb db;

@@ -7,11 +7,17 @@ import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 /// Combined view of a persisted provider profile with its resolved secrets.
 @immutable
 class ResolvedProviderProfile {
-  ResolvedProviderProfile({required this.record, Map<String, String>? secrets})
-    : secrets = secrets == null ? const {} : Map.unmodifiable(Map.of(secrets));
+  ResolvedProviderProfile({
+    required this.record,
+    Map<String, String>? secrets,
+    this.providerDbId,
+  }) : secrets = secrets == null
+           ? const {}
+           : Map.unmodifiable(Map.of(secrets));
 
   final ProviderProfileRecord record;
   final Map<String, String> secrets;
+  final int? providerDbId;
 
   ProviderKind get kind => record.kind;
   Uri get lockedBase => record.lockedBase;
@@ -23,7 +29,8 @@ class ResolvedProviderProfile {
   bool operator ==(Object other) {
     return other is ResolvedProviderProfile &&
         other.record.id == record.id &&
-        _mapEquality.equals(other.secrets, secrets);
+        _mapEquality.equals(other.secrets, secrets) &&
+        other.providerDbId == providerDbId;
   }
 
   @override
@@ -32,6 +39,7 @@ class ResolvedProviderProfile {
     Object.hashAll(
       secrets.entries.map((entry) => Object.hash(entry.key, entry.value)),
     ),
+    providerDbId,
   );
 }
 

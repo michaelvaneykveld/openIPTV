@@ -39,6 +39,12 @@ class ProviderDao extends DatabaseAccessor<OpenIptvDb>
         .getSingleOrNull();
   }
 
+  Future<ProviderRecord?> findByLegacyProfileId(String legacyProfileId) {
+    return (select(providers)
+          ..where((tbl) => tbl.legacyProfileId.equals(legacyProfileId)))
+        .getSingleOrNull();
+  }
+
   Stream<List<ProviderRecord>> watchAll() {
     final query = select(providers)
       ..orderBy([(tbl) => OrderingTerm(expression: tbl.displayName)]);

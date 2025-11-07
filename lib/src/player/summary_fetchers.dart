@@ -7,6 +7,9 @@ import 'package:dio/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:openiptv/data/db/dao/summary_dao.dart';
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/data/db/openiptv_db.dart' show CategoryKind;
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
@@ -21,12 +24,43 @@ final summaryCoordinatorProvider = Provider<_SummaryCoordinator>((ref) {
   return _SummaryCoordinator(ref);
 });
 
-/// Loads [SummaryData] for the supplied profile.
-final summaryDataProvider = FutureProvider.autoDispose
+/// Loads [SummaryData] for the supplied profile via legacy network routes.
+final legacySummaryProvider = FutureProvider.autoDispose
     .family<SummaryData, ResolvedProviderProfile>((ref, profile) async {
       final coordinator = ref.read(summaryCoordinatorProvider);
       return coordinator.fetch(profile);
     });
+
+final dbSummaryProvider = StreamProvider.autoDispose
+    .family<SummaryData, DbSummaryArgs>((ref, args) {
+      final dao = SummaryDao(ref.watch(openIptvDbProvider));
+      return dao.watchForProvider(args.providerId).map(
+            (counts) => SummaryData(
+              kind: args.kind,
+              counts: counts.map(
+                (key, value) =>
+                    MapEntry(_labelForCategoryKind(key), value),
+              ),
+            ),
+          );
+    });
+
+class DbSummaryArgs {
+  const DbSummaryArgs(this.providerId, this.kind);
+
+  final int providerId;
+  final ProviderKind kind;
+
+  @override
+  bool operator ==(Object other) {
+    return other is DbSummaryArgs &&
+        other.providerId == providerId &&
+        other.kind == kind;
+  }
+
+  @override
+  int get hashCode => Object.hash(providerId, kind);
+}
 
 @visibleForTesting
 Dio Function()? summaryTestDioFactory;
@@ -67,6 +101,19 @@ class _SummaryCoordinator {
       case ProviderKind.m3u:
         return const _M3uSummaryFetcher().fetch(profile);
     }
+  }
+}
+
+String _labelForCategoryKind(CategoryKind kind) {
+  switch (kind) {
+    case CategoryKind.live:
+      return 'Live';
+    case CategoryKind.vod:
+      return 'Films';
+    case CategoryKind.series:
+      return 'Series';
+    case CategoryKind.radio:
+      return 'Radio';
   }
 }
 

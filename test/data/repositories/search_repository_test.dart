@@ -4,9 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:openiptv/data/db/dao/channel_dao.dart';
 import 'package:openiptv/data/db/dao/category_dao.dart';
 import 'package:openiptv/data/db/dao/provider_dao.dart';
-import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/db/dao/user_flag_dao.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/repositories/search_repository.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   late OpenIptvDb db;

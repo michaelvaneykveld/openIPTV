@@ -106,6 +106,17 @@ class $ProvidersTable extends Providers
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _legacyProfileIdMeta = const VerificationMeta(
+    'legacyProfileId',
+  );
+  @override
+  late final GeneratedColumn<String> legacyProfileId = GeneratedColumn<String>(
+    'legacy_profile_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -116,6 +127,7 @@ class $ProvidersTable extends Providers
     allowSelfSigned,
     lastSyncAt,
     etagHash,
+    legacyProfileId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -179,11 +191,24 @@ class $ProvidersTable extends Providers
         etagHash.isAcceptableOrUnknown(data['etag_hash']!, _etagHashMeta),
       );
     }
+    if (data.containsKey('legacy_profile_id')) {
+      context.handle(
+        _legacyProfileIdMeta,
+        legacyProfileId.isAcceptableOrUnknown(
+          data['legacy_profile_id']!,
+          _legacyProfileIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {legacyProfileId},
+  ];
   @override
   ProviderRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -222,6 +247,10 @@ class $ProvidersTable extends Providers
         DriftSqlType.string,
         data['${effectivePrefix}etag_hash'],
       ),
+      legacyProfileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}legacy_profile_id'],
+      ),
     );
   }
 
@@ -243,6 +272,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
   final bool allowSelfSigned;
   final DateTime? lastSyncAt;
   final String? etagHash;
+  final String? legacyProfileId;
   const ProviderRecord({
     required this.id,
     required this.kind,
@@ -252,6 +282,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
     required this.allowSelfSigned,
     this.lastSyncAt,
     this.etagHash,
+    this.legacyProfileId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -272,6 +303,9 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
     if (!nullToAbsent || etagHash != null) {
       map['etag_hash'] = Variable<String>(etagHash);
     }
+    if (!nullToAbsent || legacyProfileId != null) {
+      map['legacy_profile_id'] = Variable<String>(legacyProfileId);
+    }
     return map;
   }
 
@@ -289,6 +323,9 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
       etagHash: etagHash == null && nullToAbsent
           ? const Value.absent()
           : Value(etagHash),
+      legacyProfileId: legacyProfileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(legacyProfileId),
     );
   }
 
@@ -308,6 +345,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
       allowSelfSigned: serializer.fromJson<bool>(json['allowSelfSigned']),
       lastSyncAt: serializer.fromJson<DateTime?>(json['lastSyncAt']),
       etagHash: serializer.fromJson<String?>(json['etagHash']),
+      legacyProfileId: serializer.fromJson<String?>(json['legacyProfileId']),
     );
   }
   @override
@@ -324,6 +362,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
       'allowSelfSigned': serializer.toJson<bool>(allowSelfSigned),
       'lastSyncAt': serializer.toJson<DateTime?>(lastSyncAt),
       'etagHash': serializer.toJson<String?>(etagHash),
+      'legacyProfileId': serializer.toJson<String?>(legacyProfileId),
     };
   }
 
@@ -336,6 +375,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
     bool? allowSelfSigned,
     Value<DateTime?> lastSyncAt = const Value.absent(),
     Value<String?> etagHash = const Value.absent(),
+    Value<String?> legacyProfileId = const Value.absent(),
   }) => ProviderRecord(
     id: id ?? this.id,
     kind: kind ?? this.kind,
@@ -345,6 +385,9 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
     allowSelfSigned: allowSelfSigned ?? this.allowSelfSigned,
     lastSyncAt: lastSyncAt.present ? lastSyncAt.value : this.lastSyncAt,
     etagHash: etagHash.present ? etagHash.value : this.etagHash,
+    legacyProfileId: legacyProfileId.present
+        ? legacyProfileId.value
+        : this.legacyProfileId,
   );
   ProviderRecord copyWithCompanion(ProvidersCompanion data) {
     return ProviderRecord(
@@ -364,6 +407,9 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
           ? data.lastSyncAt.value
           : this.lastSyncAt,
       etagHash: data.etagHash.present ? data.etagHash.value : this.etagHash,
+      legacyProfileId: data.legacyProfileId.present
+          ? data.legacyProfileId.value
+          : this.legacyProfileId,
     );
   }
 
@@ -377,7 +423,8 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
           ..write('needsUa: $needsUa, ')
           ..write('allowSelfSigned: $allowSelfSigned, ')
           ..write('lastSyncAt: $lastSyncAt, ')
-          ..write('etagHash: $etagHash')
+          ..write('etagHash: $etagHash, ')
+          ..write('legacyProfileId: $legacyProfileId')
           ..write(')'))
         .toString();
   }
@@ -392,6 +439,7 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
     allowSelfSigned,
     lastSyncAt,
     etagHash,
+    legacyProfileId,
   );
   @override
   bool operator ==(Object other) =>
@@ -404,7 +452,8 @@ class ProviderRecord extends DataClass implements Insertable<ProviderRecord> {
           other.needsUa == this.needsUa &&
           other.allowSelfSigned == this.allowSelfSigned &&
           other.lastSyncAt == this.lastSyncAt &&
-          other.etagHash == this.etagHash);
+          other.etagHash == this.etagHash &&
+          other.legacyProfileId == this.legacyProfileId);
 }
 
 class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
@@ -416,6 +465,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
   final Value<bool> allowSelfSigned;
   final Value<DateTime?> lastSyncAt;
   final Value<String?> etagHash;
+  final Value<String?> legacyProfileId;
   const ProvidersCompanion({
     this.id = const Value.absent(),
     this.kind = const Value.absent(),
@@ -425,6 +475,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
     this.allowSelfSigned = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
     this.etagHash = const Value.absent(),
+    this.legacyProfileId = const Value.absent(),
   });
   ProvidersCompanion.insert({
     this.id = const Value.absent(),
@@ -435,6 +486,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
     this.allowSelfSigned = const Value.absent(),
     this.lastSyncAt = const Value.absent(),
     this.etagHash = const Value.absent(),
+    this.legacyProfileId = const Value.absent(),
   }) : kind = Value(kind),
        lockedBase = Value(lockedBase);
   static Insertable<ProviderRecord> custom({
@@ -446,6 +498,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
     Expression<bool>? allowSelfSigned,
     Expression<DateTime>? lastSyncAt,
     Expression<String>? etagHash,
+    Expression<String>? legacyProfileId,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -456,6 +509,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
       if (allowSelfSigned != null) 'allow_self_signed': allowSelfSigned,
       if (lastSyncAt != null) 'last_sync_at': lastSyncAt,
       if (etagHash != null) 'etag_hash': etagHash,
+      if (legacyProfileId != null) 'legacy_profile_id': legacyProfileId,
     });
   }
 
@@ -468,6 +522,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
     Value<bool>? allowSelfSigned,
     Value<DateTime?>? lastSyncAt,
     Value<String?>? etagHash,
+    Value<String?>? legacyProfileId,
   }) {
     return ProvidersCompanion(
       id: id ?? this.id,
@@ -478,6 +533,7 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
       allowSelfSigned: allowSelfSigned ?? this.allowSelfSigned,
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
       etagHash: etagHash ?? this.etagHash,
+      legacyProfileId: legacyProfileId ?? this.legacyProfileId,
     );
   }
 
@@ -510,6 +566,9 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
     if (etagHash.present) {
       map['etag_hash'] = Variable<String>(etagHash.value);
     }
+    if (legacyProfileId.present) {
+      map['legacy_profile_id'] = Variable<String>(legacyProfileId.value);
+    }
     return map;
   }
 
@@ -523,7 +582,8 @@ class ProvidersCompanion extends UpdateCompanion<ProviderRecord> {
           ..write('needsUa: $needsUa, ')
           ..write('allowSelfSigned: $allowSelfSigned, ')
           ..write('lastSyncAt: $lastSyncAt, ')
-          ..write('etagHash: $etagHash')
+          ..write('etagHash: $etagHash, ')
+          ..write('legacyProfileId: $legacyProfileId')
           ..write(')'))
         .toString();
   }
@@ -8239,6 +8299,7 @@ typedef $$ProvidersTableCreateCompanionBuilder =
       Value<bool> allowSelfSigned,
       Value<DateTime?> lastSyncAt,
       Value<String?> etagHash,
+      Value<String?> legacyProfileId,
     });
 typedef $$ProvidersTableUpdateCompanionBuilder =
     ProvidersCompanion Function({
@@ -8250,6 +8311,7 @@ typedef $$ProvidersTableUpdateCompanionBuilder =
       Value<bool> allowSelfSigned,
       Value<DateTime?> lastSyncAt,
       Value<String?> etagHash,
+      Value<String?> legacyProfileId,
     });
 
 final class $$ProvidersTableReferences
@@ -8455,6 +8517,11 @@ class $$ProvidersTableFilterComposer
 
   ColumnFilters<String> get etagHash => $composableBuilder(
     column: $table.etagHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get legacyProfileId => $composableBuilder(
+    column: $table.legacyProfileId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8707,6 +8774,11 @@ class $$ProvidersTableOrderingComposer
     column: $table.etagHash,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get legacyProfileId => $composableBuilder(
+    column: $table.legacyProfileId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProvidersTableAnnotationComposer
@@ -8749,6 +8821,11 @@ class $$ProvidersTableAnnotationComposer
 
   GeneratedColumn<String> get etagHash =>
       $composableBuilder(column: $table.etagHash, builder: (column) => column);
+
+  GeneratedColumn<String> get legacyProfileId => $composableBuilder(
+    column: $table.legacyProfileId,
+    builder: (column) => column,
+  );
 
   Expression<T> channelsRefs<T extends Object>(
     Expression<T> Function($$ChannelsTableAnnotationComposer a) f,
@@ -8996,6 +9073,7 @@ class $$ProvidersTableTableManager
                 Value<bool> allowSelfSigned = const Value.absent(),
                 Value<DateTime?> lastSyncAt = const Value.absent(),
                 Value<String?> etagHash = const Value.absent(),
+                Value<String?> legacyProfileId = const Value.absent(),
               }) => ProvidersCompanion(
                 id: id,
                 kind: kind,
@@ -9005,6 +9083,7 @@ class $$ProvidersTableTableManager
                 allowSelfSigned: allowSelfSigned,
                 lastSyncAt: lastSyncAt,
                 etagHash: etagHash,
+                legacyProfileId: legacyProfileId,
               ),
           createCompanionCallback:
               ({
@@ -9016,6 +9095,7 @@ class $$ProvidersTableTableManager
                 Value<bool> allowSelfSigned = const Value.absent(),
                 Value<DateTime?> lastSyncAt = const Value.absent(),
                 Value<String?> etagHash = const Value.absent(),
+                Value<String?> legacyProfileId = const Value.absent(),
               }) => ProvidersCompanion.insert(
                 id: id,
                 kind: kind,
@@ -9025,6 +9105,7 @@ class $$ProvidersTableTableManager
                 allowSelfSigned: allowSelfSigned,
                 lastSyncAt: lastSyncAt,
                 etagHash: etagHash,
+                legacyProfileId: legacyProfileId,
               ),
           withReferenceMapper: (p0) => p0
               .map(

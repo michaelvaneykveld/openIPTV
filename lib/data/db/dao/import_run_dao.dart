@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 import '../openiptv_db.dart';
 

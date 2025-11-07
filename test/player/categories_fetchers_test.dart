@@ -2,9 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
@@ -64,7 +67,8 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result = await container.read(categoriesDataProvider(profile).future);
+    final result =
+        await container.read(legacyCategoriesProvider(profile).future);
 
     expect(
       seenActions,
@@ -99,7 +103,8 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result = await container.read(categoriesDataProvider(profile).future);
+    final result =
+        await container.read(legacyCategoriesProvider(profile).future);
 
     expect(
       result[ContentBucket.live]!.map((e) => e.name),
@@ -135,12 +140,80 @@ http://example.com/live.m3u8
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result = await container.read(categoriesDataProvider(profile).future);
+    final result =
+        await container.read(legacyCategoriesProvider(profile).future);
 
     expect(result[ContentBucket.films]!.single.count, 1);
     expect(result[ContentBucket.series]!.single.name, 'Series');
     expect(result[ContentBucket.radio]!.single.count, 1);
     expect(result[ContentBucket.live]!.single.name, 'Live');
+  });
+
+  test('dbCategoriesProvider emits entries grouped by bucket', () async {
+    final db = OpenIptvDb.inMemory();
+    addTearDown(db.close);
+
+    final providerId = await db.into(db.providers).insert(
+          ProvidersCompanion.insert(
+            kind: ProviderKind.xtream,
+            lockedBase: 'https://demo',
+            displayName: const Value('Demo'),
+            needsUa: const Value(false),
+            allowSelfSigned: const Value(false),
+            legacyProfileId: const Value('legacy-1'),
+          ),
+        );
+    final liveCategoryId = await db.into(db.categories).insert(
+          CategoriesCompanion.insert(
+            providerId: providerId,
+            kind: CategoryKind.live,
+            providerCategoryKey: 'live-news',
+            name: 'News',
+          ),
+        );
+    final vodCategoryId = await db.into(db.categories).insert(
+          CategoriesCompanion.insert(
+            providerId: providerId,
+            kind: CategoryKind.vod,
+            providerCategoryKey: 'vod-main',
+            name: 'Movies',
+          ),
+        );
+    final channelId = await db.into(db.channels).insert(
+          ChannelsCompanion.insert(
+            providerId: providerId,
+            providerChannelKey: 'ch-1',
+            name: 'Channel One',
+          ),
+        );
+    await db.into(db.channelCategories).insert(
+          ChannelCategoriesCompanion.insert(
+            channelId: channelId,
+            categoryId: liveCategoryId,
+          ),
+        );
+    await db.into(db.movies).insert(
+          MoviesCompanion.insert(
+            providerId: providerId,
+            providerVodKey: 'vod-1',
+            categoryId: Value(vodCategoryId),
+            title: 'Sample Movie',
+          ),
+        );
+
+    final container = ProviderContainer(
+      overrides: [
+        openIptvDbProvider.overrideWithValue(db),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final map =
+        await container.read(dbCategoriesProvider(providerId).future);
+    expect(map[ContentBucket.live], isNotEmpty);
+    expect(map[ContentBucket.films], isNotEmpty);
+    expect(map[ContentBucket.live]!.first.count, equals(1));
+    expect(map[ContentBucket.films]!.first.count, equals(1));
   });
 }
 

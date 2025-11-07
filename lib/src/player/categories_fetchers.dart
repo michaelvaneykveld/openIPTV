@@ -4,10 +4,13 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:drift/drift.dart' show QueryRow, Variable;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xml/xml.dart' as xml;
 
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
@@ -98,10 +101,26 @@ final categoriesCoordinatorProvider = Provider<_CategoriesCoordinator>(
   (ref) => _CategoriesCoordinator(ref),
 );
 
-final categoriesDataProvider = FutureProvider.autoDispose
+final legacyCategoriesProvider = FutureProvider.autoDispose
     .family<CategoryMap, ResolvedProviderProfile>((ref, profile) async {
       final coordinator = ref.read(categoriesCoordinatorProvider);
       return coordinator.fetch(profile);
+    });
+
+final dbCategoriesProvider =
+    StreamProvider.autoDispose.family<CategoryMap, int>((ref, providerId) {
+      final db = ref.watch(openIptvDbProvider);
+      final selectable = db.customSelect(
+        _dbCategoriesSql,
+        variables: [Variable<int>(providerId)],
+        readsFrom: {
+          db.categories,
+          db.channelCategories,
+          db.movies,
+          db.series,
+        },
+      );
+      return selectable.watch().map(_mapDbCategoriesToEntries);
     });
 
 final categoryPreviewProvider = FutureProvider.autoDispose
@@ -109,9 +128,204 @@ final categoryPreviewProvider = FutureProvider.autoDispose
       ref,
       request,
     ) async {
+      final providerId = request.profile.providerDbId;
+      if (providerId != null) {
+        final db = ref.read(openIptvDbProvider);
+        final parsedId = int.tryParse(request.categoryId);
+        if (parsedId != null) {
+          final preview = await _loadPreviewFromDb(
+            db: db,
+            bucket: request.bucket,
+            categoryId: parsedId,
+          );
+          if (preview.isNotEmpty) {
+            return preview;
+          }
+        }
+      }
+
       final coordinator = ref.read(categoriesCoordinatorProvider);
       return coordinator.preview(request);
     });
+
+const _dbCategoriesSql = '''
+SELECT
+  c.id AS category_id,
+  c.name AS category_name,
+  c.kind AS category_kind,
+  COALESCE(
+    CASE c.kind
+      WHEN 'live' THEN (
+        SELECT COUNT(*) FROM channel_categories cc WHERE cc.category_id = c.id
+      )
+      WHEN 'radio' THEN (
+        SELECT COUNT(*) FROM channel_categories cc WHERE cc.category_id = c.id
+      )
+      WHEN 'vod' THEN (
+        SELECT COUNT(*) FROM movies m WHERE m.category_id = c.id
+      )
+      WHEN 'series' THEN (
+        SELECT COUNT(*) FROM series s WHERE s.category_id = c.id
+      )
+      ELSE 0
+    END,
+    0
+  ) AS item_count
+FROM categories c
+WHERE c.provider_id = ?
+ORDER BY CASE c.kind
+  WHEN 'live' THEN 0
+  WHEN 'radio' THEN 1
+  WHEN 'vod' THEN 2
+  WHEN 'series' THEN 3
+  ELSE 4
+END, COALESCE(c.position, 9999), c.name;
+''';
+
+CategoryMap _mapDbCategoriesToEntries(List<QueryRow> rows) {
+  final result = <ContentBucket, List<CategoryEntry>>{};
+  for (final row in rows) {
+    final kindName = row.read<String>('category_kind');
+    final categoryKind = CategoryKind.values.firstWhere(
+      (value) => value.name == kindName,
+      orElse: () => CategoryKind.live,
+    );
+    final bucket = _bucketForCategoryKind(categoryKind);
+    final categoryId = row.read<int>('category_id');
+    final categoryName = row.read<String>('category_name');
+    final itemCount = row.read<int>('item_count');
+    final entry = CategoryEntry(
+      id: categoryId.toString(),
+      name: categoryName,
+      count: itemCount,
+    );
+    result.putIfAbsent(bucket, () => <CategoryEntry>[]).add(entry);
+  }
+  result.removeWhere((_, value) => value.isEmpty);
+  return result;
+}
+
+ContentBucket _bucketForCategoryKind(CategoryKind kind) {
+  switch (kind) {
+    case CategoryKind.live:
+      return ContentBucket.live;
+    case CategoryKind.vod:
+      return ContentBucket.films;
+    case CategoryKind.series:
+      return ContentBucket.series;
+    case CategoryKind.radio:
+      return ContentBucket.radio;
+  }
+}
+
+Future<List<CategoryPreviewItem>> _loadPreviewFromDb({
+  required OpenIptvDb db,
+  required ContentBucket bucket,
+  required int categoryId,
+}) async {
+  switch (bucket) {
+    case ContentBucket.live:
+    case ContentBucket.radio:
+      return _loadChannelPreviewFromDb(db, categoryId);
+    case ContentBucket.films:
+      return _loadVodPreviewFromDb(db, categoryId);
+    case ContentBucket.series:
+      return _loadSeriesPreviewFromDb(db, categoryId);
+  }
+}
+
+Future<List<CategoryPreviewItem>> _loadChannelPreviewFromDb(
+  OpenIptvDb db,
+  int categoryId,
+) async {
+  final rows = await db.customSelect(
+    '''
+SELECT ch.id, ch.name, ch.logo_url, ch.number
+FROM channel_categories cc
+JOIN channels ch ON ch.id = cc.channel_id
+WHERE cc.category_id = ?
+ORDER BY (ch.number IS NULL), ch.number, ch.name
+LIMIT 6;
+''',
+    variables: [Variable<int>(categoryId)],
+  ).get();
+
+  return rows
+      .map(
+        (row) => CategoryPreviewItem(
+          id: row.read<int>('id').toString(),
+          title: row.read<String>('name'),
+          subtitle:
+              _formatChannelSubtitle(row.readNullable<int>('number')),
+          artUri: row.readNullable<String>('logo_url'),
+        ),
+      )
+      .toList();
+}
+
+Future<List<CategoryPreviewItem>> _loadVodPreviewFromDb(
+  OpenIptvDb db,
+  int categoryId,
+) async {
+  final rows = await db.customSelect(
+    '''
+SELECT mv.id, mv.title, mv.year, mv.poster_url
+FROM movies mv
+WHERE mv.category_id = ?
+ORDER BY mv.title
+LIMIT 6;
+''',
+    variables: [Variable<int>(categoryId)],
+  ).get();
+
+  return rows
+      .map(
+        (row) => CategoryPreviewItem(
+          id: row.read<int>('id').toString(),
+          title: row.read<String>('title'),
+          subtitle: _formatYear(row.readNullable<int>('year')),
+          artUri: row.readNullable<String>('poster_url'),
+        ),
+      )
+      .toList();
+}
+
+Future<List<CategoryPreviewItem>> _loadSeriesPreviewFromDb(
+  OpenIptvDb db,
+  int categoryId,
+) async {
+  final rows = await db.customSelect(
+    '''
+SELECT s.id, s.title, s.year, s.poster_url
+FROM series s
+WHERE s.category_id = ?
+ORDER BY s.title
+LIMIT 6;
+''',
+    variables: [Variable<int>(categoryId)],
+  ).get();
+
+  return rows
+      .map(
+        (row) => CategoryPreviewItem(
+          id: row.read<int>('id').toString(),
+          title: row.read<String>('title'),
+          subtitle: _formatYear(row.readNullable<int>('year')),
+          artUri: row.readNullable<String>('poster_url'),
+        ),
+      )
+      .toList();
+}
+
+String? _formatChannelSubtitle(int? number) {
+  if (number == null) return null;
+  return '#$number';
+}
+
+String? _formatYear(int? year) {
+  if (year == null || year <= 0) return null;
+  return year.toString();
+}
 
 @visibleForTesting
 Dio Function()? categoriesTestDioFactory;

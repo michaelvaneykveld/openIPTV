@@ -2,9 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
@@ -99,7 +102,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final summary = await container.read(summaryDataProvider(profile).future);
+      final summary = await container.read(legacySummaryProvider(profile).future);
 
       expect(attempts, 2);
       expect(summary.fields['Status'], 'Active');
@@ -199,7 +202,7 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final summary = await container.read(summaryDataProvider(profile).future);
+    final summary = await container.read(legacySummaryProvider(profile).future);
 
     expect(requestLog.length, 4);
     expect(summary.counts['Live'], 3);
@@ -233,7 +236,7 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final summary = await container.read(summaryDataProvider(profile).future);
+      final summary = await container.read(legacySummaryProvider(profile).future);
 
       expect(summary.counts['Live'], 120);
       expect(summary.counts['VOD'], 42);
@@ -274,13 +277,50 @@ http://example.com/live1.ts
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final summary = await container.read(summaryDataProvider(profile).future);
+    final summary = await container.read(legacySummaryProvider(profile).future);
 
     expect(summary.counts['Live'], 1);
     expect(summary.counts['VOD'], 1);
     expect(summary.counts['Series'], 1);
     expect(summary.counts['Radio'], 1);
     expect(summary.fields['Source'], playlistUri.toFilePath());
+  });
+
+  test('dbSummaryProvider emits counts from summaries table', () async {
+    final db = OpenIptvDb.inMemory();
+    addTearDown(db.close);
+
+    final providerId = await db.into(db.providers).insert(
+          ProvidersCompanion.insert(
+            kind: ProviderKind.xtream,
+            lockedBase: 'https://demo',
+            displayName: const Value('Demo'),
+            needsUa: const Value(false),
+            allowSelfSigned: const Value(false),
+            legacyProfileId: const Value('legacy-db'),
+          ),
+        );
+    await db.into(db.summaries).insert(
+          SummariesCompanion.insert(
+            providerId: providerId,
+            kind: CategoryKind.live,
+            totalItems: const Value(42),
+          ),
+        );
+
+    final container = ProviderContainer(
+      overrides: [
+        openIptvDbProvider.overrideWithValue(db),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final summary = await container.read(
+      dbSummaryProvider(
+        DbSummaryArgs(providerId, ProviderKind.xtream),
+      ).future,
+    );
+    expect(summary.counts['Live'], equals(42));
   });
 }
 
@@ -370,4 +410,3 @@ class _FakeStalkerHttpClient extends StalkerHttpClient {
     );
   }
 }
-

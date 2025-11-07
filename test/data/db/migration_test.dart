@@ -5,6 +5,7 @@ import 'package:drift/native.dart' show NativeDatabase;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   test('migrates schema from v1 to latest', () async {

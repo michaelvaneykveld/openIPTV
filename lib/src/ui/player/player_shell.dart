@@ -20,8 +20,8 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
 
   @override
   Widget build(BuildContext context) {
-    final categoriesAsync = ref.watch(categoriesDataProvider(widget.profile));
-    final summaryAsync = ref.watch(summaryDataProvider(widget.profile));
+    final categoriesAsync = _watchCategories(widget.profile.providerDbId);
+    final summaryAsync = _watchSummary(widget.profile.providerDbId);
 
     final isReloadingCategories = categoriesAsync.isLoading;
     return Scaffold(
@@ -47,7 +47,9 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
               onPressed: isReloadingCategories
                   ? null
                   : () {
-                      ref.invalidate(categoriesDataProvider(widget.profile));
+                      ref.invalidate(
+                        legacyCategoriesProvider(widget.profile),
+                      );
                     },
               tooltip: 'Reload categories',
               child: const Icon(Icons.refresh),
@@ -77,6 +79,46 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         ),
       ),
     );
+  }
+
+  AsyncValue<CategoryMap> _watchCategories(int? providerId) {
+    if (providerId == null) {
+      return ref.watch(legacyCategoriesProvider(widget.profile));
+    }
+    final dbValue = ref.watch(dbCategoriesProvider(providerId));
+    final shouldFallback = dbValue.maybeWhen(
+      data: (map) => map.isEmpty,
+      error: (error, stackTrace) {
+        return true;
+      },
+      orElse: () => false,
+    );
+    if (!shouldFallback) {
+      return dbValue;
+    }
+    return ref.watch(legacyCategoriesProvider(widget.profile));
+  }
+
+  AsyncValue<SummaryData> _watchSummary(int? providerId) {
+    if (providerId == null) {
+      return ref.watch(legacySummaryProvider(widget.profile));
+    }
+    final dbValue = ref.watch(
+      dbSummaryProvider(
+        DbSummaryArgs(providerId, widget.profile.kind),
+      ),
+    );
+    final shouldFallback = dbValue.maybeWhen(
+      data: (summary) => summary.counts.isEmpty,
+      error: (error, stackTrace) {
+        return true;
+      },
+      orElse: () => false,
+    );
+    if (!shouldFallback) {
+      return dbValue;
+    }
+    return ref.watch(legacySummaryProvider(widget.profile));
   }
 }
 

@@ -11,6 +11,7 @@ import 'package:openiptv/data/db/dao/summary_dao.dart';
 import 'package:openiptv/data/db/dao/epg_dao.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/import/import_context.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   late OpenIptvDb db;

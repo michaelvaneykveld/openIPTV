@@ -18,6 +18,10 @@ class Providers extends Table {
   DateTimeColumn get lastSyncAt => dateTime().nullable()();
 
   TextColumn get etagHash => text().nullable()();
-}
+  TextColumn get legacyProfileId => text().nullable()();
 
-enum ProviderKind { stalker, xtream, m3u }
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+        {legacyProfileId},
+      ];
+}

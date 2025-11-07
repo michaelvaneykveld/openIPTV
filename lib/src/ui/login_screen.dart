@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -8,10 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
 import 'package:openiptv/src/providers/provider_profiles_provider.dart';
+import 'package:openiptv/src/providers/provider_sync_service.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
@@ -29,6 +31,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_authenticator.dart';
 import 'package:openiptv/src/utils/header_parser.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
+import 'package:openiptv/src/player/summary_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/ui/discovery_cache_manager.dart';
@@ -79,6 +82,7 @@ class _SavedLoginsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final savedLoginsAsync = ref.watch(savedProfilesStreamProvider);
+    final providerRecordsAsync = ref.watch(providerRecordsStreamProvider);
 
     return Card(
       margin: const EdgeInsets.all(16),
@@ -90,18 +94,47 @@ class _SavedLoginsPanel extends ConsumerWidget {
             if (profiles.isEmpty) {
               return const _EmptySavedLogins();
             }
+            final providerRecords = providerRecordsAsync.maybeWhen(
+              data: (records) => records,
+              orElse: () => const <ProviderRecord>[],
+            );
+            final providerError = providerRecordsAsync.maybeWhen(
+              error: (error, _) => error.toString(),
+              orElse: () => null,
+            );
+
+            final extraRow = providerError == null ? 0 : 1;
             return ListView.separated(
-              itemCount: profiles.length,
+              itemCount: profiles.length + extraRow,
               itemBuilder: (context, index) {
-                final record = profiles[index];
+                if (providerError != null && index == 0) {
+                  return _ProviderStatusBanner(message: providerError);
+                }
+                final profileIndex =
+                    providerError != null ? index - 1 : index;
+                final record = profiles[profileIndex];
+                ProviderRecord? dbRecord;
+                for (final candidate in providerRecords) {
+                  if (candidate.legacyProfileId == record.id) {
+                    dbRecord = candidate;
+                    break;
+                  }
+                }
                 return _SavedLoginTile(
                   record: record,
+                  dbRecord: dbRecord,
                   onConnect: () => onConnect(record),
                   onEdit: () => onEdit(record),
                   onDelete: () => onRequestDelete(record),
                 );
               },
-              separatorBuilder: (context, _) => const Divider(height: 1),
+              separatorBuilder: (context, index) {
+                final isAfterBanner =
+                    providerError != null && index == 0;
+                return isAfterBanner
+                    ? const SizedBox(height: 8)
+                    : const Divider(height: 1);
+              },
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -137,6 +170,39 @@ class _SavedLoginsError extends StatelessWidget {
   }
 }
 
+class _ProviderStatusBanner extends StatelessWidget {
+  const _ProviderStatusBanner({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = theme.colorScheme.errorContainer;
+    final fg = theme.colorScheme.onErrorContainer;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_outlined, color: fg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Provider sync unavailable: $message',
+              style: theme.textTheme.bodyMedium?.copyWith(color: fg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptySavedLogins extends StatelessWidget {
   const _EmptySavedLogins();
 
@@ -161,27 +227,55 @@ class _EmptySavedLogins extends StatelessWidget {
   }
 }
 
-class _SavedLoginTile extends StatelessWidget {
+class _SavedLoginTile extends ConsumerWidget {
   const _SavedLoginTile({
     required this.record,
+    required this.dbRecord,
     required this.onConnect,
     required this.onEdit,
     required this.onDelete,
   });
 
   final ProviderProfileRecord record;
+  final ProviderRecord? dbRecord;
   final VoidCallback onConnect;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final host = record.lockedBase.host.isEmpty
         ? record.lockedBase.toString()
         : record.lockedBase.host;
-    final subtitle = _buildSubtitle(context, host, record.lastOkAt);
+    final subtitle = _buildSubtitle(
+      context,
+      host,
+      dbRecord?.lastSyncAt ?? record.lastOkAt,
+    );
     final iconData = _iconFor(record.kind);
     final semanticLabel = _semanticLabelFor(record.kind);
+
+    SummaryData? summaryData;
+    var summaryLoading = false;
+    if (dbRecord != null) {
+      final summaryAsync = ref.watch(
+        dbSummaryProvider(
+          DbSummaryArgs(dbRecord!.id, record.kind),
+        ),
+      );
+      summaryLoading = summaryAsync.isLoading;
+      summaryData = summaryAsync.when(
+        data: (data) => data,
+        loading: () => null,
+        error: (error, stackTrace) => null,
+      );
+    }
+
+    final summaryWidget = _buildSummaryWidget(
+      context: context,
+      summaryData: summaryData,
+      isLoading: summaryLoading,
+    );
 
     return Semantics(
       button: true,
@@ -190,7 +284,17 @@ class _SavedLoginTile extends StatelessWidget {
         onTap: onConnect,
         leading: Semantics(label: semanticLabel, child: Icon(iconData)),
         title: Text(record.displayName),
-        subtitle: Text(subtitle),
+        subtitle: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(subtitle),
+            if (summaryWidget != null) ...[
+              const SizedBox(height: 4),
+              summaryWidget,
+            ],
+          ],
+        ),
         trailing: Wrap(
           spacing: 4,
           children: [
@@ -239,17 +343,68 @@ class _SavedLoginTile extends StatelessWidget {
     );
   }
 
-  String _buildSubtitle(BuildContext context, String host, DateTime? lastOk) {
+    String _buildSubtitle(
+    BuildContext context,
+    String host,
+    DateTime? lastSync,
+  ) {
     final localization = MaterialLocalizations.of(context);
-    final formattedDate = lastOk != null
-        ? '${localization.formatShortDate(lastOk.toLocal())} '
-              '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(lastOk.toLocal()))}'
+    final formattedDate = lastSync != null
+        ? '${localization.formatShortDate(lastSync.toLocal())} '
+              '${localization.formatTimeOfDay(TimeOfDay.fromDateTime(lastSync.toLocal()))}'
         : 'Never';
 
-    return '$host • Last sync: $formattedDate';
+    return '$host | Last sync: $formattedDate';
   }
 
-  IconData _iconFor(ProviderKind kind) => switch (kind) {
+  Widget? _buildSummaryWidget({
+    required BuildContext context,
+    required SummaryData? summaryData,
+    required bool isLoading,
+  }) {
+    if (dbRecord == null) {
+      return null;
+    }
+    final theme = Theme.of(context);
+    if (isLoading) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Loading cached counts…',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      );
+    }
+    final counts = summaryData?.counts ?? const {};
+    if (counts.isEmpty) {
+      return Text(
+        'Cache not ready yet',
+        style: theme.textTheme.bodySmall?.copyWith(
+          fontStyle: FontStyle.italic,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    final summaryText = counts.entries
+        .map((entry) => '${entry.key}: ${entry.value}')
+        .join(' | ');
+    return Text(
+      summaryText,
+      style: theme.textTheme.bodySmall,
+    );
+  }IconData _iconFor(ProviderKind kind) => switch (kind) {
     ProviderKind.stalker => Icons.router,
     ProviderKind.xtream => Icons.tv,
     ProviderKind.m3u => Icons.playlist_play,
@@ -2769,7 +2924,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final snapshot = await repository.loadSecrets(profileRecord.id);
         secrets = snapshot?.secrets ?? const {};
       }
-      return ResolvedProviderProfile(record: profileRecord, secrets: secrets);
+      final providerDbId = await _ensureDbProviderIdForProfile(
+        profileRecord,
+        createIfMissing: true,
+      );
+      return ResolvedProviderProfile(
+        record: profileRecord,
+        secrets: secrets,
+        providerDbId: providerDbId,
+      );
     } catch (error, stackTrace) {
       _logError('Provider profile load error', error, stackTrace);
       return null;
@@ -2829,6 +2992,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final resolved = ResolvedProviderProfile(
       record: record,
       secrets: Map.unmodifiable(Map<String, String>.from(secrets)),
+      providerDbId: await _ensureDbProviderIdForProfile(
+        record,
+        createIfMissing: false,
+      ),
     );
     return (profile: resolved, persisted: false);
   }
@@ -2839,6 +3006,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       MaterialPageRoute<void>(
         builder: (context) => player.PlayerShell(profile: profile),
       ),
+    );
+  }
+
+  Future<int?> _ensureDbProviderIdForProfile(
+    ProviderProfileRecord profile, {
+    required bool createIfMissing,
+  }) {
+    final syncService = ref.read(providerSyncServiceProvider);
+    return syncService.ensureProviderForProfile(
+      profile,
+      createIfMissing: createIfMissing,
     );
   }
 
@@ -3769,3 +3947,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 }
+
+

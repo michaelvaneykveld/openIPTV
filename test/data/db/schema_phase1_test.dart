@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
   group('Schema phase 1', () {

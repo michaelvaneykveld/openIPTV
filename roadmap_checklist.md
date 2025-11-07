@@ -78,9 +78,9 @@
 - [x] Create summary projections powering fast home/dashboard loads. -> `loadDashboardSummary` in `lib/data/repositories/search_repository.dart`.
 
 ## UI & App Integration
-- [ ] Replace in-memory providers with DB-backed streams in home guide and discovery flows.
+- [x] Replace in-memory providers with DB-backed streams in home guide and discovery flows.
 - [ ] Hook login onboarding to create provider records and kick off initial import jobs.
-- [ ] Surface import progress/last sync state in provider management UI.
+- [x] Surface import progress/last sync state in provider management UI.
 - [ ] Update playback/details screens to read user flags, history, and artwork cache.
 
 ## Telemetry & Observability

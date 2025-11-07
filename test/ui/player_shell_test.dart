@@ -28,6 +28,7 @@ void main() {
     late ChannelDao channelDao;
     late PlaybackHistoryDao playbackHistoryDao;
     late int providerId;
+    late ResolvedProviderProfile resolvedProfile;
 
     setUp(() async {
       db = OpenIptvDb.inMemory();
@@ -50,6 +51,8 @@ void main() {
           displayName: const Value('Seeded Provider'),
         ),
       );
+
+      resolvedProfile = _buildProfile(providerId);
     });
 
     tearDown(() async {
@@ -106,34 +109,7 @@ void main() {
         totalItems: 1,
       );
 
-      final resolvedProfile = ResolvedProviderProfile(
-        record: ProviderProfileRecord(
-          id: 'seeded',
-          kind: ProviderKind.xtream,
-          displayName: 'Seeded Provider',
-          lockedBase: Uri.parse('https://seeded.example/'),
-          needsUserAgent: false,
-          allowSelfSignedTls: false,
-          followRedirects: true,
-          configuration: const {},
-          hints: const {},
-          createdAt: DateTime.now().toUtc(),
-          updatedAt: DateTime.now().toUtc(),
-          hasSecrets: false,
-        ),
-        secrets: const {},
-        providerDbId: providerId,
-      );
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp(
-            home: PlayerShell(profile: resolvedProfile),
-          ),
-        ),
-      );
-
+      await _pumpShell(tester, container, resolvedProfile);
       await tester.pumpAndSettle();
 
       expect(find.text('Library'), findsOneWidget);
@@ -141,5 +117,109 @@ void main() {
       expect(find.text('Recent Channel'), findsOneWidget);
       expect(find.text('Seeded Provider'), findsOneWidget);
     });
+
+    testWidgets('shows DB-backed category previews when expanded',
+        (tester) async {
+      final categoryId = await categoryDao.upsertCategory(
+        providerId: providerId,
+        kind: CategoryKind.live,
+        providerKey: 'live',
+        name: 'Seeded Live',
+      );
+      final channelId = await channelDao.upsertChannel(
+        providerId: providerId,
+        providerKey: 'preview-1',
+        name: 'Preview Channel',
+        logoUrl: '',
+        number: 10,
+        seenAt: DateTime.now().toUtc(),
+      );
+      await channelDao.linkChannelToCategory(
+        channelId: channelId,
+        categoryId: categoryId,
+      );
+      await summaryDao.upsertSummary(
+        providerId: providerId,
+        kind: CategoryKind.live,
+        totalItems: 1,
+      );
+
+      await _pumpShell(tester, container, resolvedProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Seeded Live'), findsOneWidget);
+
+      await tester.tap(find.text('Seeded Live'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Preview Channel'), findsOneWidget);
+    });
+
+    testWidgets('toggles summary view using DB snapshot', (tester) async {
+      await categoryDao.upsertCategory(
+        providerId: providerId,
+        kind: CategoryKind.live,
+        providerKey: 'live',
+        name: 'Live',
+      );
+      await summaryDao.upsertSummary(
+        providerId: providerId,
+        kind: CategoryKind.live,
+        totalItems: 1,
+      );
+
+      await _pumpShell(tester, container, resolvedProfile);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Show summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Xtream Portal Summary'), findsOneWidget);
+      expect(find.text('Live: 1'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Hide summary'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Library'), findsOneWidget);
+    });
   });
+}
+
+Future<void> _pumpShell(
+  WidgetTester tester,
+  ProviderContainer container,
+  ResolvedProviderProfile profile,
+) {
+  return tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp(
+        home: PlayerShell(profile: profile),
+      ),
+    ),
+  );
+}
+
+ResolvedProviderProfile _buildProfile(int providerId) {
+  final now = DateTime.now().toUtc();
+  return ResolvedProviderProfile(
+    record: ProviderProfileRecord(
+      id: 'seeded',
+      kind: ProviderKind.xtream,
+      displayName: 'Seeded Provider',
+      lockedBase: Uri.parse('https://seeded.example/'),
+      needsUserAgent: false,
+      allowSelfSignedTls: false,
+      followRedirects: true,
+      configuration: const {},
+      hints: const {},
+      createdAt: now,
+      updatedAt: now,
+      hasSecrets: false,
+    ),
+    secrets: const {},
+    providerDbId: providerId,
+  );
 }

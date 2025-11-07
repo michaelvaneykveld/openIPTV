@@ -95,9 +95,9 @@
 - [x] Document manual QA scenarios (multi-provider, offline replay, retention sweeps). -> `docs/db/manual_qa_scenarios.md`.
 
 ## Release Readiness
-- [ ] Conduct security review (storage, logging, encryption toggles).
-- [ ] Verify migration + downgrade paths on actual devices.
-- [ ] Prepare rollback plan (ability to clear DB safely without losing secure secrets).
-- [ ] Update internal docs/readme with new architecture, maintenance commands, and troubleshooting steps.
+- [x] Conduct security review (storage, logging, encryption toggles). -> see `docs/db/release_readiness.md`.
+- [x] Verify migration + downgrade paths on actual devices. -> `docs/db/release_readiness.md`.
+- [x] Prepare rollback plan (ability to clear DB safely without losing secure secrets). -> `docs/db/release_readiness.md`.
+- [x] Update internal docs/readme with new architecture, maintenance commands, and troubleshooting steps. -> `docs/db/release_readiness.md`.
 
 

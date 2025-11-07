@@ -79,9 +79,9 @@
 
 ## UI & App Integration
 - [x] Replace in-memory providers with DB-backed streams in home guide and discovery flows.
-- [ ] Hook login onboarding to create provider records and kick off initial import jobs.
+- [x] Hook login onboarding to create provider records and kick off initial import jobs.
 - [x] Surface import progress/last sync state in provider management UI.
-- [ ] Update playback/details screens to read user flags, history, and artwork cache.
+- [x] Update playback/details screens to read user flags, history, and artwork cache.
 
 ## Telemetry & Observability
 - [ ] Emit structured logs/metrics around imports, query latency, and cache hits (non-PII).

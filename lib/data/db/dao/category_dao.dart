@@ -16,7 +16,7 @@ class CategoryDao extends DatabaseAccessor<OpenIptvDb>
     required String name,
     int? position,
   }) async {
-    final companion = CategoriesCompanion.insert(
+    final insertable = CategoriesCompanion.insert(
       providerId: providerId,
       kind: kind,
       providerCategoryKey: providerKey,
@@ -24,7 +24,21 @@ class CategoryDao extends DatabaseAccessor<OpenIptvDb>
       position: Value(position),
     );
 
-    return into(categories).insertOnConflictUpdate(companion);
+    final record = await into(categories).insertReturning(
+      insertable,
+      onConflict: DoUpdate(
+        (old) => CategoriesCompanion(
+          name: Value(name),
+          position: Value(position),
+        ),
+        target: [
+          categories.providerId,
+          categories.kind,
+          categories.providerCategoryKey,
+        ],
+      ),
+    );
+    return record.id;
   }
 
   Future<List<CategoryRecord>> fetchForProvider(

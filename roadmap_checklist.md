@@ -89,7 +89,7 @@
 - [x] Provide developer tooling to inspect DB (e.g., Drift devtools integration, export snapshot).
 
 ## Testing & QA
-- [ ] Write unit tests for each DAO/importer using seeded fixtures (including delta + deletion cases).
+- [x] Write unit tests for each DAO/importer using seeded fixtures (including delta + deletion cases). -> see `test/data/import/xtream_importer_test.dart` and `test/data/import/m3u_importer_test.dart`.
 - [ ] Add performance regression tests (50k channels, multi-day EPG) ensuring query SLAs.
 - [ ] Create integration tests exercising UI flows against an in-memory DB with seeded data.
 - [ ] Document manual QA scenarios (multi-provider, offline replay, retention sweeps).

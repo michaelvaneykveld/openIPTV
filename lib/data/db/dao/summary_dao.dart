@@ -21,7 +21,19 @@ class SummaryDao extends DatabaseAccessor<OpenIptvDb>
       totalItems: Value(totalItems),
       updatedAt: Value(updatedAt ?? DateTime.now().toUtc()),
     );
-    return into(summaries).insertOnConflictUpdate(companion);
+    return into(summaries).insertReturning(
+      companion,
+      onConflict: DoUpdate(
+        (old) => SummariesCompanion(
+          totalItems: Value(totalItems),
+          updatedAt: Value(updatedAt ?? DateTime.now().toUtc()),
+        ),
+        target: [
+          summaries.providerId,
+          summaries.kind,
+        ],
+      ),
+    ).then((_) => null);
   }
 
   Future<Map<CategoryKind, int>> mapForProvider(int providerId) async {

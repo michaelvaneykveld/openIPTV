@@ -12,6 +12,7 @@ import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/providers/login_flow_controller.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/login_draft_repository.dart';
+import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/providers/provider_profiles_provider.dart';
 import 'package:openiptv/src/providers/provider_sync_service.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_portal_discovery.dart';
@@ -1790,6 +1791,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showSuccessSnackBar(
           'Connected successfully. Review the summary and continue when ready.',
         );
+        if (result.persisted) {
+          _kickOffInitialImport(result.profile);
+        }
         return;
       } catch (error, stackTrace) {
         _logError('Stalker profile save error', error, stackTrace);
@@ -2122,6 +2126,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showSuccessSnackBar(
           'Connected successfully. Review the summary and continue when ready.',
         );
+        if (result.persisted) {
+          _kickOffInitialImport(result.profile);
+        }
         return;
       } catch (error, stackTrace) {
         _logError('Xtream profile save error', error, stackTrace);
@@ -2760,6 +2767,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _showSuccessSnackBar(
           'Connected successfully. Review the summary and continue when ready.',
         );
+        if (result.persisted) {
+          _kickOffInitialImport(result.profile);
+        }
         return;
       } catch (error, stackTrace) {
         _logError('M3U profile save error', error, stackTrace);
@@ -3007,6 +3017,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         builder: (context) => player.PlayerShell(profile: profile),
       ),
     );
+  }
+
+  void _kickOffInitialImport(ResolvedProviderProfile profile) {
+    final providerId = profile.providerDbId;
+    if (providerId == null) {
+      return;
+    }
+    final importService = ref.read(providerImportServiceProvider);
+    final label = profile.record.displayName.isEmpty
+        ? 'provider'
+        : profile.record.displayName;
+    _showSnack('Seeding $label in the background…');
+    unawaited(importService.runInitialImport(profile));
   }
 
   Future<int?> _ensureDbProviderIdForProfile(

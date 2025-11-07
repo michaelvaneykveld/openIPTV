@@ -28,12 +28,14 @@ class ArtworkFetcher {
     int inlineThresholdBytes = 128 * 1024,
     int maxEntries = 200,
     int maxBytes = 100 * 1024 * 1024,
+    ArtworkTelemetryCallback? onTelemetry,
   })  : _dao = cacheDao,
         _client = client,
         _cacheDir = cacheDirectory,
         _inlineThresholdBytes = inlineThresholdBytes,
         _maxEntries = maxEntries,
-        _maxBytes = maxBytes;
+        _maxBytes = maxBytes,
+        _onTelemetry = onTelemetry;
 
   final ArtworkCacheDao _dao;
   final Dio _client;
@@ -41,46 +43,71 @@ class ArtworkFetcher {
   final int _inlineThresholdBytes;
   final int _maxEntries;
   final int _maxBytes;
+  final ArtworkTelemetryCallback? _onTelemetry;
 
   Future<ArtworkFetchResult> fetch(
     String url, {
     Duration? maxAge,
     bool forceRefresh = false,
   }) async {
-    final existing = await _dao.findByUrl(url);
-    final now = DateTime.now().toUtc();
-
-    if (existing != null && !forceRefresh) {
-      final isExpired = _isExpired(existing, now, maxAge);
-      if (!isExpired) {
-        await _dao.updateAccessTime(existing.id);
-        final bytes = await _loadBytes(existing);
-        return ArtworkFetchResult(
-          record: existing.copyWith(lastAccessedAt: now),
-          bytes: bytes,
-          fromCache: true,
-        );
-      }
-    }
-
-    final headers = <String, String>{
-      'Accept': 'image/*',
-    };
-    if (existing?.etag != null) {
-      headers['If-None-Match'] = existing!.etag!;
-    }
-
-    Response<List<int>> response;
+    final stopwatch = Stopwatch()..start();
     try {
-      response = await _client.get<List<int>>(
-        url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: headers,
-        ),
-      );
-    } on DioException catch (error) {
-      if (error.response?.statusCode == 304 && existing != null) {
+      final existing = await _dao.findByUrl(url);
+      final now = DateTime.now().toUtc();
+
+      if (existing != null && !forceRefresh) {
+        final isExpired = _isExpired(existing, now, maxAge);
+        if (!isExpired) {
+          await _dao.updateAccessTime(existing.id);
+          final bytes = await _loadBytes(existing);
+          _emitTelemetry(
+            url: url,
+            fromCache: true,
+            byteSize: bytes.length,
+            duration: stopwatch.elapsed,
+          );
+          return ArtworkFetchResult(
+            record: existing.copyWith(lastAccessedAt: now),
+            bytes: bytes,
+            fromCache: true,
+          );
+        }
+      }
+
+      final headers = <String, String>{
+        'Accept': 'image/*',
+      };
+      if (existing?.etag != null) {
+        headers['If-None-Match'] = existing!.etag!;
+      }
+
+      Response<List<int>> response;
+      try {
+        response = await _client.get<List<int>>(
+          url,
+          options: Options(
+            responseType: ResponseType.bytes,
+            headers: headers,
+          ),
+        );
+      } on DioException catch (error) {
+        if (error.response?.statusCode == 304 && existing != null) {
+          await _dao.updateAccessTime(existing.id);
+          final bytes = await _loadBytes(existing);
+          return ArtworkFetchResult(
+            record: existing.copyWith(
+              fetchedAt: now,
+              lastAccessedAt: now,
+              needsRefresh: false,
+            ),
+            bytes: bytes,
+            fromCache: true,
+          );
+        }
+        rethrow;
+      }
+
+      if (response.statusCode == 304 && existing != null) {
         await _dao.updateAccessTime(existing.id);
         final bytes = await _loadBytes(existing);
         return ArtworkFetchResult(
@@ -93,67 +120,74 @@ class ArtworkFetcher {
           fromCache: true,
         );
       }
-      rethrow;
-    }
 
-    if (response.statusCode == 304 && existing != null) {
-      await _dao.updateAccessTime(existing.id);
-      final bytes = await _loadBytes(existing);
-      return ArtworkFetchResult(
-        record: existing.copyWith(
-          fetchedAt: now,
-          lastAccessedAt: now,
-          needsRefresh: false,
-        ),
+      final payload = response.data;
+      if (payload == null) {
+        throw StateError('Artwork response for $url did not contain a body.');
+      }
+
+      final bytes = Uint8List.fromList(payload);
+      final hash = sha1.convert(bytes).toString();
+      final etag = response.headers.value('etag');
+      final expiresAt = _deriveExpiry(response.headers, now);
+
+      final storage = await _persistBytes(
+        url: url,
         bytes: bytes,
-        fromCache: true,
       );
+
+      if (existing?.filePath != null &&
+          existing!.filePath != storage.filePath) {
+        _deleteFileSilently(existing.filePath!);
+      }
+
+      await _dao.upsertEntry(
+        url: url,
+        etag: etag,
+        hash: hash,
+        bytes: storage.inlineBytes,
+        filePath: storage.filePath,
+        byteSize: bytes.length,
+        width: null,
+        height: null,
+        expiresAt: expiresAt,
+        needsRefresh: false,
+      );
+
+      await _enforceBudgets();
+
+      final updated = await _dao.findByUrl(url);
+      if (updated == null) {
+        throw StateError('Failed to store artwork cache entry for $url');
+      }
+
+      _emitTelemetry(
+        url: url,
+        fromCache: false,
+        byteSize: bytes.length,
+        duration: stopwatch.elapsed,
+      );
+
+      return ArtworkFetchResult(
+        record: updated,
+        bytes: storage.inlineBytes ?? bytes,
+        fromCache: false,
+      );
+    } catch (error) {
+      _emitTelemetry(
+        url: url,
+        fromCache: false,
+        byteSize: null,
+        duration: stopwatch.elapsed,
+        success: false,
+        error: error.toString(),
+      );
+      rethrow;
+    } finally {
+      if (stopwatch.isRunning) {
+        stopwatch.stop();
+      }
     }
-
-    final payload = response.data;
-    if (payload == null) {
-      throw StateError('Artwork response for $url did not contain a body.');
-    }
-
-    final bytes = Uint8List.fromList(payload);
-    final hash = sha1.convert(bytes).toString();
-    final etag = response.headers.value('etag');
-    final expiresAt = _deriveExpiry(response.headers, now);
-
-    final storage = await _persistBytes(
-      url: url,
-      bytes: bytes,
-    );
-
-    if (existing?.filePath != null && existing!.filePath != storage.filePath) {
-      _deleteFileSilently(existing.filePath!);
-    }
-
-    await _dao.upsertEntry(
-      url: url,
-      etag: etag,
-      hash: hash,
-      bytes: storage.inlineBytes,
-      filePath: storage.filePath,
-      byteSize: bytes.length,
-      width: null,
-      height: null,
-      expiresAt: expiresAt,
-      needsRefresh: false,
-    );
-
-    await _enforceBudgets();
-
-    final updated = await _dao.findByUrl(url);
-    if (updated == null) {
-      throw StateError('Failed to store artwork cache entry for $url');
-    }
-
-    return ArtworkFetchResult(
-      record: updated,
-      bytes: storage.inlineBytes ?? bytes,
-      fromCache: false,
-    );
   }
 
   bool _isExpired(
@@ -247,6 +281,30 @@ class ArtworkFetcher {
       // Ignore cleanup errors.
     }
   }
+
+  void _emitTelemetry({
+    required String url,
+    required bool fromCache,
+    int? byteSize,
+    Duration? duration,
+    bool success = true,
+    String? error,
+  }) {
+    final callback = _onTelemetry;
+    if (callback == null) {
+      return;
+    }
+    callback(
+      ArtworkFetchEvent(
+        url: url,
+        fromCache: fromCache,
+        byteSize: byteSize,
+        duration: duration,
+        success: success,
+        error: error,
+      ),
+    );
+  }
 }
 
 class _StorageResult {
@@ -256,3 +314,22 @@ class _StorageResult {
   final String? filePath;
 }
 
+typedef ArtworkTelemetryCallback = void Function(ArtworkFetchEvent event);
+
+class ArtworkFetchEvent {
+  ArtworkFetchEvent({
+    required this.url,
+    required this.fromCache,
+    this.byteSize,
+    this.duration,
+    this.success = true,
+    this.error,
+  });
+
+  final String url;
+  final bool fromCache;
+  final int? byteSize;
+  final Duration? duration;
+  final bool success;
+  final String? error;
+}

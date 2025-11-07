@@ -84,9 +84,9 @@
 - [x] Update playback/details screens to read user flags, history, and artwork cache.
 
 ## Telemetry & Observability
-- [ ] Emit structured logs/metrics around imports, query latency, and cache hits (non-PII).
-- [ ] Add crash-safe error storage for failed imports with redacted payload excerpts.
-- [ ] Provide developer tooling to inspect DB (e.g., Drift devtools integration, export snapshot).
+- [x] Emit structured logs/metrics around imports, query latency, and cache hits (non-PII).
+- [x] Add crash-safe error storage for failed imports with redacted payload excerpts.
+- [x] Provide developer tooling to inspect DB (e.g., Drift devtools integration, export snapshot).
 
 ## Testing & QA
 - [ ] Write unit tests for each DAO/importer using seeded fixtures (including delta + deletion cases).

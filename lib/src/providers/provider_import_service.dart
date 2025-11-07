@@ -16,6 +16,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
+import 'package:openiptv/src/providers/telemetry_service.dart';
 
 final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
   return ProviderImportService(ref);
@@ -45,6 +46,15 @@ class ProviderImportService {
       return;
     }
 
+    final kind = profile.record.kind.name;
+    unawaited(
+      _logImportMetric(
+        providerId: providerId,
+        kind: kind,
+        phase: 'started',
+        metadata: {'providerName': profile.record.displayName},
+      ),
+    );
     try {
       switch (profile.record.kind) {
         case ProviderKind.xtream:
@@ -57,11 +67,30 @@ class ProviderImportService {
           await _importStalker(providerId, profile);
           break;
       }
+      unawaited(
+        _logImportMetric(
+          providerId: providerId,
+          kind: kind,
+          phase: 'completed',
+        ),
+      );
     } catch (error, stackTrace) {
       _logError(
         'Initial import failed for ${profile.record.displayName}',
         error,
         stackTrace,
+      );
+      unawaited(
+        _logCrashSafeError(
+          category: 'import',
+          message:
+              'Import failed for ${profile.record.displayName} (${profile.record.kind.name})',
+          metadata: {
+            'providerId': providerId,
+            'providerKind': kind,
+            'error': error.toString(),
+          },
+        ),
       );
     }
   }
@@ -257,13 +286,29 @@ class ProviderImportService {
     String action,
   ) async {
     try {
+      final stopwatch = Stopwatch()..start();
       final response = await _xtreamHttpClient.getPlayerApi(
         config,
         queryParameters: {'action': action},
       );
+      stopwatch.stop();
+      unawaited(
+        _logQueryLatency(
+          source: 'xtream.$action',
+          duration: stopwatch.elapsed,
+        ),
+      );
       return _normalizeXtreamPayload(response.body);
     } catch (error, stackTrace) {
       _logError('Xtream action $action failed', error, stackTrace);
+      unawaited(
+        _logQueryLatency(
+          source: 'xtream.$action',
+          duration: Duration.zero,
+          success: false,
+          metadata: {'error': error.toString()},
+        ),
+      );
       return const [];
     }
   }
@@ -274,6 +319,7 @@ class ProviderImportService {
     required String module,
   }) async {
     try {
+      final stopwatch = Stopwatch()..start();
       final envelope = await _stalkerHttpClient.getPortal(
         config,
         queryParameters: {
@@ -281,6 +327,13 @@ class ProviderImportService {
           'action': 'get_categories',
         },
         headers: baseHeaders,
+      );
+      stopwatch.stop();
+      unawaited(
+        _logQueryLatency(
+          source: 'stalker.$module',
+          duration: stopwatch.elapsed,
+        ),
       );
       final decoded = _maybeDecodeJson(envelope.body);
       if (decoded is Map) {
@@ -301,6 +354,14 @@ class ProviderImportService {
         'Stalker categories fetch failed for module $module',
         error,
         stackTrace,
+      );
+      unawaited(
+        _logQueryLatency(
+          source: 'stalker.$module',
+          duration: Duration.zero,
+          success: false,
+          metadata: {'error': error.toString()},
+        ),
       );
     }
     return const [];
@@ -405,6 +466,55 @@ class ProviderImportService {
       debugPrint('$message: $error');
       debugPrintStack(stackTrace: stackTrace);
     }
+  }
+
+  Future<void> _logImportMetric({
+    required int providerId,
+    required String kind,
+    required String phase,
+    Map<String, Object?>? metadata,
+  }) async {
+    try {
+      final telemetry = await _ref.read(telemetryServiceProvider.future);
+      await telemetry.logImportMetric(
+        providerId: providerId,
+        providerKind: kind,
+        phase: phase,
+        metadata: metadata,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _logQueryLatency({
+    required String source,
+    required Duration duration,
+    bool success = true,
+    Map<String, Object?>? metadata,
+  }) async {
+    try {
+      final telemetry = await _ref.read(telemetryServiceProvider.future);
+      await telemetry.logQueryLatency(
+        source: source,
+        duration: duration,
+        success: success,
+        metadata: metadata,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _logCrashSafeError({
+    required String category,
+    required String message,
+    Map<String, Object?>? metadata,
+  }) async {
+    try {
+      final telemetry = await _ref.read(telemetryServiceProvider.future);
+      await telemetry.logCrashSafeError(
+        category: category,
+        message: message,
+        metadata: metadata,
+      );
+    } catch (_) {}
   }
 
   void _debug(String message) {

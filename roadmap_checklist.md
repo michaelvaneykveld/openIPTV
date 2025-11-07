@@ -92,7 +92,7 @@
 - [x] Write unit tests for each DAO/importer using seeded fixtures (including delta + deletion cases). -> see `test/data/import/xtream_importer_test.dart`, `test/data/import/m3u_importer_test.dart`, and `test/data/import/stalker_importer_test.dart`.
 - [x] Add performance regression tests (50k channels, multi-day EPG) ensuring query SLAs. -> see `test/perf/db_performance_test.dart`.
 - [x] Create integration tests exercising UI flows against an in-memory DB with seeded data. -> `test/ui/player_shell_test.dart`.
-- [ ] Document manual QA scenarios (multi-provider, offline replay, retention sweeps).
+- [x] Document manual QA scenarios (multi-provider, offline replay, retention sweeps). -> `docs/db/manual_qa_scenarios.md`.
 
 ## Release Readiness
 - [ ] Conduct security review (storage, logging, encryption toggles).

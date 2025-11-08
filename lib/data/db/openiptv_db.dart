@@ -1,13 +1,9 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/backends.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-// ignore: deprecated_import
-import 'package:drift/web.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart'
@@ -18,6 +14,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
 import 'database_flags.dart';
 import 'database_key_store.dart';
+import 'web_query_executor_stub.dart'
+    if (dart.library.js) 'web_query_executor_web.dart' as web_db;
 
 part 'openiptv_db.g.dart';
 
@@ -598,7 +596,7 @@ class DatabaseIntegrityException implements Exception {
 
 QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
   if (kIsWeb) {
-    return _openWebDatabase();
+    return web_db.createWebQueryExecutor();
   }
   return LazyDatabase(() async {
     final directory = await _resolveStorageDirectory();
@@ -659,13 +657,6 @@ Future<Directory> _resolveStorageDirectory() async {
 bool _useNativeDatabase() {
   if (kIsWeb) return false;
   return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-}
-
-QueryExecutor _openWebDatabase() {
-  return WebDatabase(
-    'openiptv_web.db',
-    logStatements: false,
-  );
 }
 
 class SqlCipherQueryExecutor extends DelegatedDatabase {

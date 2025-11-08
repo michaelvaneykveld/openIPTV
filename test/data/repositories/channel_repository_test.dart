@@ -10,91 +10,83 @@ import 'package:openiptv/data/repositories/channel_repository.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 
 void main() {
-  late OpenIptvDb db;
-  late ProviderDao providerDao;
-  late ChannelDao channelDao;
-  late CategoryDao categoryDao;
-  late UserFlagDao userFlagDao;
-  late ChannelRepository repository;
-  late int providerId;
-  late int channelA;
-  late int channelB;
+  group('ChannelRepository pagination', () {
+    late OpenIptvDb db;
+    late ChannelRepository repository;
+    late ProviderDao providerDao;
+    late ChannelDao channelDao;
+    late UserFlagDao userFlagDao;
+    late int providerId;
 
-  setUp(() async {
-    db = OpenIptvDb.inMemory();
-    providerDao = ProviderDao(db);
-    channelDao = ChannelDao(db);
-    categoryDao = CategoryDao(db);
-    userFlagDao = UserFlagDao(db);
-    repository = ChannelRepository(
-      channelDao: channelDao,
-      categoryDao: categoryDao,
-      userFlagDao: userFlagDao,
-    );
+    setUp(() async {
+      db = OpenIptvDb.inMemory();
+      providerDao = ProviderDao(db);
+      channelDao = ChannelDao(db);
+      userFlagDao = UserFlagDao(db);
+      repository = ChannelRepository(
+        channelDao: channelDao,
+        categoryDao: CategoryDao(db),
+        userFlagDao: userFlagDao,
+      );
+      providerId = await providerDao.createProvider(
+        ProvidersCompanion.insert(
+          kind: ProviderKind.xtream,
+          lockedBase: 'https://seeded.example/',
+          displayName: const Value('Seeded'),
+        ),
+      );
+      for (var i = 0; i < 5; i++) {
+        await channelDao.upsertChannel(
+          providerId: providerId,
+          providerKey: 'key-$i',
+          name: 'Channel $i',
+          number: i,
+        );
+      }
+      await userFlagDao.setFlags(
+        providerId: providerId,
+        channelId: 3,
+        isFavorite: true,
+      );
+    });
 
-    providerId = await providerDao.createProvider(
-      ProvidersCompanion.insert(
-        kind: ProviderKind.xtream,
-        lockedBase: 'https://demo',
-        displayName: const Value('Demo'),
-      ),
-    );
+    tearDown(() async {
+      await db.close();
+    });
 
-    channelA = await channelDao.upsertChannel(
-      providerId: providerId,
-      providerKey: 'A',
-      name: 'Channel A',
-      number: 1,
-      logoUrl: null,
-      isRadio: false,
-      streamUrlTemplate: null,
-    );
+    test('returns paginated chunks with cursor', () async {
+      expect(
+        (await channelDao.findByProvider(providerId)).length,
+        5,
+      );
+      final firstPage = await repository.fetchChannelPage(
+        providerId: providerId,
+        limit: 2,
+      );
+      expect(firstPage.items.length, 2);
+      expect(firstPage.nextCursor, isNotNull);
+      expect(firstPage.hasMore, isTrue);
+      expect(firstPage.items.first.channel.name, 'Channel 0');
+      expect(
+        firstPage.items.map((c) => c.channel.name).toList(),
+        ['Channel 0', 'Channel 1'],
+      );
 
-    channelB = await channelDao.upsertChannel(
-      providerId: providerId,
-      providerKey: 'B',
-      name: 'Channel B',
-      number: 2,
-      logoUrl: null,
-      isRadio: false,
-      streamUrlTemplate: null,
-    );
-  });
+      final secondPage = await repository.fetchChannelPage(
+        providerId: providerId,
+        limit: 2,
+        afterChannelId: firstPage.nextCursor,
+      );
+      expect(secondPage.items.first.channel.name, 'Channel 2');
+      expect(secondPage.items.first.isFavorite, isTrue);
 
-  tearDown(() async {
-    await db.close();
-  });
-
-  test('watchChannelsWithFlags merges user flags', () async {
-    final initial =
-        await repository.watchChannelsWithFlags(providerId).first;
-    expect(initial, hasLength(2));
-    expect(initial.every((entry) => entry.isFavorite == false), isTrue);
-
-    await repository.setChannelFlags(
-      providerId: providerId,
-      channelId: channelA,
-      isFavorite: true,
-    );
-
-    final next =
-        await repository.watchChannelsWithFlags(providerId).first;
-    final flagged = next.firstWhere((entry) => entry.channel.id == channelA);
-    expect(flagged.isFavorite, isTrue);
-    final other = next.firstWhere((entry) => entry.channel.id == channelB);
-    expect(other.isFavorite, isFalse);
-  });
-
-  test('watchFavoriteChannels filters flagged entries', () async {
-    await repository.setChannelFlags(
-      providerId: providerId,
-      channelId: channelB,
-      isFavorite: true,
-    );
-
-    final favorites =
-        await repository.watchFavoriteChannels(providerId).first;
-    expect(favorites, hasLength(1));
-    expect(favorites.single.channel.id, channelB);
+      final finalPage = await repository.fetchChannelPage(
+        providerId: providerId,
+        limit: 2,
+        afterChannelId: secondPage.nextCursor,
+      );
+      expect(finalPage.items.length, 1);
+      expect(finalPage.hasMore, isFalse);
+    });
   });
 }

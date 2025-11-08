@@ -67,5 +67,15 @@ class UserFlagDao extends DatabaseAccessor<OpenIptvDb>
       ..limit(1);
     return query.watchSingleOrNull();
   }
-}
 
+  Future<Map<int, UserFlagRecord>> fetchForChannels(
+    Iterable<int> channelIds,
+  ) async {
+    final ids = channelIds.toSet();
+    if (ids.isEmpty) return const {};
+    final rows = await (select(userFlags)
+          ..where((tbl) => tbl.channelId.isIn(ids.toList())))
+        .get();
+    return {for (final row in rows) row.channelId: row};
+  }
+}

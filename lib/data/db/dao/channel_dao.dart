@@ -98,6 +98,26 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     return query.get();
   }
 
+  Future<List<ChannelRecord>> fetchChannelPage({
+    required int providerId,
+    int limit = 200,
+    int? afterId,
+  }) {
+    final query = select(channels)
+      ..where((tbl) => tbl.providerId.equals(providerId));
+    if (afterId != null) {
+      query.where((tbl) => tbl.id.isBiggerThanValue(afterId));
+    }
+    query.orderBy([
+      (tbl) =>
+          OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
+      (tbl) => OrderingTerm(expression: tbl.name),
+      (tbl) => OrderingTerm(expression: tbl.id),
+    ]);
+    query.limit(limit);
+    return query.get();
+  }
+
   Future<int> bulkUpsertChannels(
     List<ChannelsCompanion> entries, {
     int chunkSize = 500,

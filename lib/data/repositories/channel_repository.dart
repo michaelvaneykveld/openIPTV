@@ -41,6 +41,48 @@ class ChannelRepository {
   Stream<List<ChannelRecord>> watchChannels(int providerId) =>
       channelDao.watchChannelsForProvider(providerId);
 
+  Future<ChannelPage> fetchChannelPage({
+    required int providerId,
+    int limit = 200,
+    int? afterChannelId,
+  }) async {
+    final rows = await channelDao.fetchChannelPage(
+      providerId: providerId,
+      limit: limit,
+      afterId: afterChannelId,
+    );
+    final flags = await userFlagDao.fetchForChannels(
+      rows.map((c) => c.id),
+    );
+    final items = rows
+        .map(
+          (channel) => ChannelWithFlags(
+            channel: channel,
+            flags: flags[channel.id],
+          ),
+        )
+        .toList(growable: false);
+    var hasMore = false;
+    int? nextCursor;
+    if (items.isNotEmpty) {
+      final lastId = items.last.channel.id;
+      final peek = await channelDao.fetchChannelPage(
+        providerId: providerId,
+        limit: 1,
+        afterId: lastId,
+      );
+      hasMore = peek.isNotEmpty;
+      if (hasMore) {
+        nextCursor = lastId;
+      }
+    }
+    return ChannelPage(
+      items: items,
+      nextCursor: nextCursor,
+      hasMore: hasMore,
+    );
+  }
+
   Stream<List<ChannelWithFlags>> watchChannelsWithFlags(int providerId) {
     final channels = channelDao.channels;
     final flags = userFlagDao.userFlags;
@@ -176,4 +218,17 @@ class ChannelWithFlags {
   bool get isFavorite => flags?.isFavorite ?? false;
   bool get isHidden => flags?.isHidden ?? false;
   bool get isPinned => flags?.isPinned ?? false;
+}
+
+class ChannelPage {
+  ChannelPage({
+    required this.items,
+    this.nextCursor,
+    this.hasMore = false,
+  });
+
+  final List<ChannelWithFlags> items;
+  final int? nextCursor;
+
+  final bool hasMore;
 }

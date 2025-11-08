@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart';
 
 import '../openiptv_db.dart';
@@ -94,5 +96,49 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     final query =
         select(channels)..where((tbl) => tbl.providerId.equals(providerId));
     return query.get();
+  }
+
+  Future<int> bulkUpsertChannels(
+    List<ChannelsCompanion> entries, {
+    int chunkSize = 500,
+  }) async {
+    if (entries.isEmpty) return 0;
+    final safeChunk = math.max(1, chunkSize);
+    var total = 0;
+    for (var offset = 0; offset < entries.length; offset += safeChunk) {
+      final chunk = entries.sublist(
+        offset,
+        math.min(entries.length, offset + safeChunk),
+      );
+      await batch((batch) {
+        for (final entry in chunk) {
+          batch.insert(
+            channels,
+            entry,
+            onConflict: DoUpdate(
+              (_) => entry,
+              target: [channels.providerId, channels.providerChannelKey],
+            ),
+          );
+        }
+      });
+      total += chunk.length;
+    }
+    return total;
+  }
+
+  Future<Map<String, int>> fetchIdsForProviderKeys(
+    int providerId,
+    Iterable<String> providerKeys,
+  ) async {
+    final distinctKeys = providerKeys.toSet();
+    if (distinctKeys.isEmpty) return const {};
+    final query = select(channels)
+      ..where((tbl) => tbl.providerId.equals(providerId))
+      ..where((tbl) => tbl.providerChannelKey.isIn(distinctKeys.toList()));
+    final rows = await query.get();
+    return {
+      for (final row in rows) row.providerChannelKey: row.id,
+    };
   }
 }

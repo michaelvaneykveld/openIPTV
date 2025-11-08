@@ -1,4 +1,7 @@
 
+import 'dart:math' as math;
+
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
 
 import '../db/dao/category_dao.dart';
@@ -331,31 +334,65 @@ class XtreamImporter {
     required CategoryKind kind,
     required bool isRadio,
   }) async {
-    var upserts = 0;
+    if (raw.isEmpty) {
+      return 0;
+    }
+    final prepared = <_ChannelUpsertEntry>[];
     for (final item in raw) {
       final key = _resolveChannelKey(item);
       final name = _coerceString(item['name']) ?? '';
       if (key.isEmpty || name.isEmpty) continue;
-      final channelId = await txn.channels.upsertChannel(
+      final companion = ChannelsCompanion.insert(
         providerId: providerId,
-        providerKey: key,
+        providerChannelKey: key,
         name: name,
-        logoUrl: _coerceString(item['stream_icon']) ??
-            _coerceString(item['logo']) ??
-            _coerceString(item['thumbnail']),
-        number: _parseInt(item['num']),
-        isRadio: isRadio,
-        streamUrlTemplate: null,
-        seenAt: DateTime.now().toUtc(),
+        logoUrl: Value(
+          _coerceString(item['stream_icon']) ??
+              _coerceString(item['logo']) ??
+              _coerceString(item['thumbnail']),
+        ),
+        number: Value(_parseInt(item['num'])),
+        isRadio: Value(isRadio),
+        lastSeenAt: Value(DateTime.now().toUtc()),
       );
-      final categoryId = _resolveCategoryId(item, kind, categoryIndex);
-      if (categoryId != null) {
-        await txn.channels.linkChannelToCategory(
-          channelId: channelId,
-          categoryId: categoryId,
-        );
+      prepared.add(
+        _ChannelUpsertEntry(
+          providerKey: key,
+          companion: companion,
+          categoryId: _resolveCategoryId(item, kind, categoryIndex),
+        ),
+      );
+    }
+    if (prepared.isEmpty) {
+      return 0;
+    }
+    const chunkSize = 750;
+    var upserts = 0;
+    for (var offset = 0; offset < prepared.length; offset += chunkSize) {
+      final chunk = prepared.sublist(
+        offset,
+        math.min(prepared.length, offset + chunkSize),
+      );
+      await txn.channels.bulkUpsertChannels(
+        chunk.map((entry) => entry.companion).toList(growable: false),
+        chunkSize: chunkSize,
+      );
+      final idMap = await txn.channels.fetchIdsForProviderKeys(
+        providerId,
+        chunk.map((entry) => entry.providerKey),
+      );
+      for (final entry in chunk) {
+        final categoryId = entry.categoryId;
+        if (categoryId == null) continue;
+        final channelId = idMap[entry.providerKey];
+        if (channelId != null) {
+          await txn.channels.linkChannelToCategory(
+            channelId: channelId,
+            categoryId: categoryId,
+          );
+        }
       }
-      upserts += 1;
+      upserts += chunk.length;
     }
     return upserts;
   }
@@ -486,6 +523,18 @@ class XtreamImporter {
     }
     return int.tryParse(text);
   }
+}
+
+class _ChannelUpsertEntry {
+  _ChannelUpsertEntry({
+    required this.providerKey,
+    required this.companion,
+    this.categoryId,
+  });
+
+  final String providerKey;
+  final ChannelsCompanion companion;
+  final int? categoryId;
 }
 
 

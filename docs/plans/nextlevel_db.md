@@ -12,7 +12,7 @@ Use this backlog to track the “ultimate” database roadmap. Check items that 
 ## Phase 1 – Core Schema & Access Patterns
 - [x] Model `providers`, `channel_groups`, `channels`, `stream_endpoints`, `epg_events` in Drift.
 - [x] Add mandatory indexes: `(provider_id, stable_key)` unique, `(group_id, sort_key)`, NOCASE `name`, EPG covering indexes, `stream_endpoints(channel_id, priority)`.
-- [ ] Implement chunked bulk upserts (1–5 k rows) using `INSERT … ON CONFLICT DO UPDATE`.
+- [x] Implement chunked bulk upserts (1–5 k rows) using `INSERT … ON CONFLICT DO UPDATE`.
 - [ ] Build key-set pagination reads (no OFFSET) with prepared statements and an off-isolate write queue.
 - [x] Apply WAL-friendly PRAGMAs (`journal_mode=WAL`, `synchronous=NORMAL`, cache sizing, `foreign_keys=ON`).
 - [ ] Acceptance: import 100 k channels < 30 s and keep channel list scrolling at 60 fps.

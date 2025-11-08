@@ -57,7 +57,7 @@
 
 ## Session Log - Contextual Paste Actions
 - Moved the clipboard paste affordance into the relevant URL fields for Stalker, Xtream, and M3U (URL mode) so users can insert addresses inline without reaching for a global toolbar icon (`lib/src/ui/login_screen.dart`).
-- Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `logindesign.md`.
+- Updated the login header controls to keep only context-agnostic actions (Help, QR), aligning with the streamlined UI guidance in `docs/specs/logindesign.md`.
 
 ## Session Log - Portal Discovery Abstraction
 - Introduced a shared `PortalDiscovery` contract with reusable options, telemetry, and redaction-aware logging hooks (`lib/src/protocols/discovery/portal_discovery.dart`).
@@ -133,7 +133,7 @@
   - Specify platform storage options (Keychain, Keystore, DPAPI, Secret Service, web stance) and related configuration. (done)
   - Choose vault key conventions, rotation/cleanup strategies, and logging policies that avoid leaking secrets. (done)
   - Outline migration/testing requirements, including fallback when secure storage is unavailable and opt-in "remember me" flows. (done)
-    - Documented a two-phase migration plan: schema bump + secure vault seeding with rollback guardrails, and a dry-run mode that validates existing rows before committing secrets (`loginrework.md`, Secure Storage section).
+    - Documented a two-phase migration plan: schema bump + secure vault seeding with rollback guardrails, and a dry-run mode that validates existing rows before committing secrets (`docs/specs/loginrework.md`, Secure Storage section).
     - Added test matrix covering device bootstraps with missing `FlutterSecureStorage`, simulator/web shims, and toggled "remember me" flows to ensure drafts fall back to in-memory caches without user-visible errors.
     - Captured QA acceptance steps for upgrading from legacy preferences (verify automatic vault population, ensure opt-in flag surfaces in UI, confirm disable path purges secrets) so release sign-off is unambiguous.
 - Keep advanced panels consistent across providers (UA override, allow self-signed, custom headers). (done)

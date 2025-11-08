@@ -21,7 +21,7 @@ Use this playbook before publishing any build that contains database/schema chan
 - Ensure CI artifacts include both the new build and the last-known-good build so QA can roll back within minutes.
 
 ## 4. Docs & Communications
-- Update `README.md` and `docs/db/vision_foundation.md` with any architectural shifts, including new tables, background jobs, or CLI utilities.
+- Update `docs/notes/README.md` and `docs/db/vision_foundation.md` with any architectural shifts, including new tables, background jobs, or CLI utilities.
 - Regenerate the maintenance CLI help (`--help`) and copy the output into `docs/db/maintenance_cli.md`.
 - Publish release notes summarizing schema changes, migration expectations, and manual QA focus areas.
 

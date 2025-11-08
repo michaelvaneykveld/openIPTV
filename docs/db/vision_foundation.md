@@ -3,7 +3,7 @@
 Last updated: 2024-12-06
 
 ## Objectives, Scope, Success Metrics
-- Aligns with `database_roadmap.md` goals: multi-provider isolation, fast startup, delta sync, offline-first, secure design, deterministic migrations, 50k+ channel scalability.
+- Aligns with `docs/plans/database_roadmap.md` goals: multi-provider isolation, fast startup, delta sync, offline-first, secure design, deterministic migrations, 50k+ channel scalability.
 - Success criteria:
   - Initial data load <= 3 minutes for 50k channels / 14-day EPG on mid-tier devices.
   - Subsequent app launches load home dashboard/highlights in < 100 ms (warm cache).

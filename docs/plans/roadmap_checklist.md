@@ -1,7 +1,7 @@
 # Database Implementation Checklist
 
 ## Vision & Foundation
-- [x] Re-read `database_roadmap.md` and lock objectives, scope, and success metrics with the team. -> see `docs/db/vision_foundation.md`.
+- [x] Re-read `docs/plans/database_roadmap.md` and lock objectives, scope, and success metrics with the team. -> see `docs/db/vision_foundation.md`.
 - [x] Confirm platform support matrix (Android, iOS, Windows, Linux, macOS) and Drift/SQLite dependency versions in `pubspec.yaml`.
 - [x] Decide on DB storage location per platform and verify secure storage plumbing is ready for provider secrets.
 - [x] Define feature flags for optional SQLCipher/FTS usage per build flavour.

@@ -43,7 +43,7 @@ class StalkerPortalConfiguration {
 
   /// Creates a configuration object. Callers must provide the base URL and
   /// MAC address; other fields fall back to pragmatic defaults used by the
-  /// open-source reference clients highlighted in `REWRITE.md`.
+  /// open-source reference clients highlighted in `docs/notes/REWRITE.md`.
   StalkerPortalConfiguration({
     required Uri baseUri,
     required this.macAddress,

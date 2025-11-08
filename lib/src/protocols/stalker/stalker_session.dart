@@ -98,7 +98,7 @@ class StalkerSession {
 
   /// Helper describing whether the session should be considered stale.
   /// This makes it trivial for higher layers to force a new handshake when
-  /// encountering 401/403 responses, as recommended in `REWRITE.md`.
+  /// encountering 401/403 responses, as recommended in `docs/notes/REWRITE.md`.
   bool get isExpired {
     if (tokenTtl == null) {
       return false;

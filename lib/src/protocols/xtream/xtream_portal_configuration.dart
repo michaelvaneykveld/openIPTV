@@ -28,7 +28,7 @@ class XtreamPortalConfiguration {
   final Map<String, String> extraHeaders;
 
   /// Creates a configuration object with pragmatic defaults inspired by the
-  /// reference projects highlighted in REWRITE.md.
+  /// reference projects highlighted in docs/notes/REWRITE.md.
   XtreamPortalConfiguration({
     required Uri baseUri,
     required this.username,

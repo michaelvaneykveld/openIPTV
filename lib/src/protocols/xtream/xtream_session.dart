@@ -27,7 +27,7 @@ class XtreamSession {
       };
 
   /// Duration between the device clock and the portal's clock. Useful when
-  /// trimming EPG windows or aligning catch-up playback (per REWRITE.md).
+  /// trimming EPG windows or aligning catch-up playback (per docs/notes/REWRITE.md).
   Duration? get serverTimeOffset {
     final server = serverInfo.serverTime;
     if (server == null) {
@@ -68,4 +68,3 @@ class XtreamSession {
     return base.resolve(path);
   }
 }
-

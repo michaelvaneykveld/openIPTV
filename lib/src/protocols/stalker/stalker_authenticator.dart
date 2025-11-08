@@ -15,7 +15,7 @@ abstract class StalkerAuthenticator {
 }
 
 /// Default authenticator that uses the `StalkerHttpClient` wrapper and follows
-/// the flow documented in REWRITE.md (handshake -> token -> profile probe).
+/// the flow documented in docs/notes/REWRITE.md (handshake -> token -> profile probe).
 class DefaultStalkerAuthenticator implements StalkerAuthenticator {
   final StalkerHttpClient _httpClient;
 

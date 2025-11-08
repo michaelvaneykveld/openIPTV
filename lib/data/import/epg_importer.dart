@@ -51,8 +51,11 @@ class EpgImporter {
       (txn) async {
         final metrics = ImportMetrics();
         final companions = <EpgProgramsCompanion>[];
+        final windows = <int, _ChannelProgramWindow>{};
 
         programsByChannel.forEach((channelId, rawPrograms) {
+          DateTime? earliest;
+          DateTime? latest;
           for (final raw in rawPrograms) {
             final start = _parseDateTime(raw['start']);
             final end = _parseDateTime(raw['end']);
@@ -69,11 +72,30 @@ class EpgImporter {
                 episode: Value(_int(raw['episode'])),
               ),
             );
+            earliest = earliest == null || start.isBefore(earliest)
+                ? start
+                : earliest;
+            latest =
+                latest == null || end.isAfter(latest) ? end : latest;
+          }
+          if (earliest != null && latest != null) {
+            windows[channelId] = _ChannelProgramWindow(
+              first: earliest,
+              last: latest,
+            );
           }
         });
 
         await txn.epg.bulkUpsert(companions);
         metrics.programsUpserted = companions.length;
+
+        for (final entry in windows.entries) {
+          await txn.channels.mergeProgramWindow(
+            channelId: entry.key,
+            firstProgramAt: entry.value.first,
+            lastProgramAt: entry.value.last,
+          );
+        }
 
         if (retentionCutoffUtc != null) {
           await txn.epg.purgeOlderThan(
@@ -113,4 +135,14 @@ class EpgImporter {
     if (value is int) return value;
     return int.tryParse(value.toString());
   }
+}
+
+class _ChannelProgramWindow {
+  _ChannelProgramWindow({
+    required this.first,
+    required this.last,
+  });
+
+  final DateTime first;
+  final DateTime last;
 }

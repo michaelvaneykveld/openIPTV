@@ -69,5 +69,39 @@ void main() {
           .getSingle();
       expect(updatedRow.name, 'Updated Channel 0');
     });
+
+    test('mergeProgramWindow keeps earliest and latest timestamps', () async {
+      final channelId = await channelDao.upsertChannel(
+        providerId: providerId,
+        providerKey: 'channel-1',
+        name: 'Window Channel',
+      );
+
+      final early = DateTime.utc(2024, 1, 1, 8);
+      final late = DateTime.utc(2024, 1, 1, 10);
+      await channelDao.mergeProgramWindow(
+        channelId: channelId,
+        firstProgramAt: early,
+        lastProgramAt: late,
+      );
+
+      // Attempt to widen window.
+      await channelDao.mergeProgramWindow(
+        channelId: channelId,
+        firstProgramAt: DateTime.utc(2024, 1, 1, 9),
+        lastProgramAt: DateTime.utc(2024, 1, 1, 9, 30),
+      );
+      await channelDao.mergeProgramWindow(
+        channelId: channelId,
+        firstProgramAt: DateTime.utc(2023, 12, 31, 23),
+        lastProgramAt: DateTime.utc(2024, 1, 2),
+      );
+
+      final row = await (db.select(db.channels)
+            ..where((tbl) => tbl.id.equals(channelId)))
+          .getSingle();
+      expect(row.firstProgramAt?.toUtc(), DateTime.utc(2023, 12, 31, 23));
+      expect(row.lastProgramAt?.toUtc(), DateTime.utc(2024, 1, 2));
+    });
   });
 }

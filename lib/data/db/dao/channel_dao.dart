@@ -141,4 +141,42 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
       for (final row in rows) row.providerChannelKey: row.id,
     };
   }
+
+  Future<void> mergeProgramWindow({
+    required int channelId,
+    DateTime? firstProgramAt,
+    DateTime? lastProgramAt,
+  }) async {
+    if (firstProgramAt == null && lastProgramAt == null) {
+      return;
+    }
+    final row =
+        await (select(channels)..where((tbl) => tbl.id.equals(channelId)))
+            .getSingleOrNull();
+
+    DateTime? nextFirst = row?.firstProgramAt;
+    if (firstProgramAt != null) {
+      nextFirst = nextFirst == null || firstProgramAt.isBefore(nextFirst)
+          ? firstProgramAt
+          : nextFirst;
+    }
+
+    DateTime? nextLast = row?.lastProgramAt;
+    if (lastProgramAt != null) {
+      nextLast = nextLast == null || lastProgramAt.isAfter(nextLast)
+          ? lastProgramAt
+          : nextLast;
+    }
+
+    final shouldUpdate =
+        nextFirst != row?.firstProgramAt || nextLast != row?.lastProgramAt;
+    if (!shouldUpdate) return;
+
+    await (update(channels)..where((tbl) => tbl.id.equals(channelId))).write(
+      ChannelsCompanion(
+        firstProgramAt: Value(nextFirst),
+        lastProgramAt: Value(nextLast),
+      ),
+    );
+  }
 }

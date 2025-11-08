@@ -21,6 +21,10 @@ class Channels extends Table {
 
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 
+  DateTimeColumn get firstProgramAt => dateTime().nullable()();
+
+  DateTimeColumn get lastProgramAt => dateTime().nullable()();
+
   @override
   List<Set<Column>> get uniqueKeys => [
         {providerId, providerChannelKey}

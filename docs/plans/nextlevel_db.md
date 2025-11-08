@@ -32,7 +32,7 @@ Use this backlog to track the “ultimate” database roadmap. Check items that 
 
 ## Phase 4 – Retention, Compaction & Memory Hygiene
 - [x] Enforce an EPG retention window (D-2 … D+14) with nightly/idle sweeps (10 k-row chunks).
-- [ ] Store per-channel `min(start_ts)` / `max(end_ts)` to short-circuit range queries.
+- [x] Store per-channel `min(start_ts)` / `max(end_ts)` to short-circuit range queries.
 - [x] Run VACUUM only after large deletes and while idle/charging; expose IndexedDB size on web builds.
 - [ ] Stream DAO results directly to slivers/lazy lists; add projection tables for lightweight tile reads.
 - [ ] Acceptance: DB stays within 10–20 % of steady-state size and EPG never grows unbounded.

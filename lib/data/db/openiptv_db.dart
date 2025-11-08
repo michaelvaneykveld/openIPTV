@@ -62,7 +62,7 @@ part 'tables/vod_search_fts.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 5;
+  static const int schemaVersionLatest = 6;
 
   OpenIptvDb._(this._overrideSchemaVersion, super.executor);
 
@@ -119,12 +119,18 @@ class OpenIptvDb extends _$OpenIptvDb {
               case 4:
                 await _migrateFrom4To5();
                 break;
+              case 5:
+                await _migrateFrom5To6();
+                break;
               default:
                 break;
             }
           }
         },
         beforeOpen: (OpeningDetails details) async {
+          if (!details.wasCreated) {
+            await _verifyIntegrity();
+          }
           // Enforce fundamentals every time the database is opened.
           await customStatement('PRAGMA foreign_keys = ON;');
           await customStatement('PRAGMA synchronous = NORMAL;');
@@ -157,6 +163,19 @@ class OpenIptvDb extends _$OpenIptvDb {
     await _ensureProviderIndexes();
   }
 
+  Future<void> _migrateFrom5To6() async {
+    await _addColumnIfMissing(
+      tableName: 'channels',
+      columnName: 'first_program_at',
+      ddl: 'ALTER TABLE channels ADD COLUMN first_program_at TEXT;',
+    );
+    await _addColumnIfMissing(
+      tableName: 'channels',
+      columnName: 'last_program_at',
+      ddl: 'ALTER TABLE channels ADD COLUMN last_program_at TEXT;',
+    );
+  }
+
   Future<void> _createIfMissing(
     Migrator m,
     TableInfo<Table, dynamic> table,
@@ -167,6 +186,31 @@ class OpenIptvDb extends _$OpenIptvDb {
     ).get();
     if (existing.isEmpty) {
       await m.createTable(table);
+    }
+  }
+
+  Future<void> _addColumnIfMissing({
+    required String tableName,
+    required String columnName,
+    required String ddl,
+  }) async {
+    final info = await customSelect(
+      'PRAGMA table_info($tableName);',
+    ).get();
+    final exists = info.any(
+      (row) => row.data['name']?.toString() == columnName,
+    );
+    if (!exists) {
+      await customStatement(ddl);
+    }
+  }
+
+  Future<void> _verifyIntegrity() async {
+    final rows = await customSelect('PRAGMA integrity_check;').get();
+    if (rows.isEmpty) return;
+    final status = rows.first.data.values.first?.toString() ?? 'unknown';
+    if (status.toLowerCase() != 'ok') {
+      throw DatabaseIntegrityException(status);
     }
   }
 
@@ -537,6 +581,15 @@ class OpenIptvDb extends _$OpenIptvDb {
       'ON providers(legacy_profile_id);',
     );
   }
+}
+
+class DatabaseIntegrityException implements Exception {
+  DatabaseIntegrityException(this.result);
+
+  final String result;
+
+  @override
+  String toString() => 'DatabaseIntegrityException($result)';
 }
 
 QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {

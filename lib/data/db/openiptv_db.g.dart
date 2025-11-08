@@ -700,6 +700,30 @@ class $ChannelsTable extends Channels
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _firstProgramAtMeta = const VerificationMeta(
+    'firstProgramAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> firstProgramAt =
+      GeneratedColumn<DateTime>(
+        'first_program_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastProgramAtMeta = const VerificationMeta(
+    'lastProgramAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastProgramAt =
+      GeneratedColumn<DateTime>(
+        'last_program_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -711,6 +735,8 @@ class $ChannelsTable extends Channels
     isRadio,
     streamUrlTemplate,
     lastSeenAt,
+    firstProgramAt,
+    lastProgramAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -790,6 +816,24 @@ class $ChannelsTable extends Channels
         ),
       );
     }
+    if (data.containsKey('first_program_at')) {
+      context.handle(
+        _firstProgramAtMeta,
+        firstProgramAt.isAcceptableOrUnknown(
+          data['first_program_at']!,
+          _firstProgramAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_program_at')) {
+      context.handle(
+        _lastProgramAtMeta,
+        lastProgramAt.isAcceptableOrUnknown(
+          data['last_program_at']!,
+          _lastProgramAtMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -839,6 +883,14 @@ class $ChannelsTable extends Channels
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_seen_at'],
       ),
+      firstProgramAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}first_program_at'],
+      ),
+      lastProgramAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_program_at'],
+      ),
     );
   }
 
@@ -858,6 +910,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
   final bool isRadio;
   final String? streamUrlTemplate;
   final DateTime? lastSeenAt;
+  final DateTime? firstProgramAt;
+  final DateTime? lastProgramAt;
   const ChannelRecord({
     required this.id,
     required this.providerId,
@@ -868,6 +922,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     required this.isRadio,
     this.streamUrlTemplate,
     this.lastSeenAt,
+    this.firstProgramAt,
+    this.lastProgramAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -888,6 +944,12 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
+    }
+    if (!nullToAbsent || firstProgramAt != null) {
+      map['first_program_at'] = Variable<DateTime>(firstProgramAt);
+    }
+    if (!nullToAbsent || lastProgramAt != null) {
+      map['last_program_at'] = Variable<DateTime>(lastProgramAt);
     }
     return map;
   }
@@ -911,6 +973,12 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
+      firstProgramAt: firstProgramAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(firstProgramAt),
+      lastProgramAt: lastProgramAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastProgramAt),
     );
   }
 
@@ -933,6 +1001,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
         json['streamUrlTemplate'],
       ),
       lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
+      firstProgramAt: serializer.fromJson<DateTime?>(json['firstProgramAt']),
+      lastProgramAt: serializer.fromJson<DateTime?>(json['lastProgramAt']),
     );
   }
   @override
@@ -948,6 +1018,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       'isRadio': serializer.toJson<bool>(isRadio),
       'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
       'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
+      'firstProgramAt': serializer.toJson<DateTime?>(firstProgramAt),
+      'lastProgramAt': serializer.toJson<DateTime?>(lastProgramAt),
     };
   }
 
@@ -961,6 +1033,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     bool? isRadio,
     Value<String?> streamUrlTemplate = const Value.absent(),
     Value<DateTime?> lastSeenAt = const Value.absent(),
+    Value<DateTime?> firstProgramAt = const Value.absent(),
+    Value<DateTime?> lastProgramAt = const Value.absent(),
   }) => ChannelRecord(
     id: id ?? this.id,
     providerId: providerId ?? this.providerId,
@@ -973,6 +1047,12 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
         ? streamUrlTemplate.value
         : this.streamUrlTemplate,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
+    firstProgramAt: firstProgramAt.present
+        ? firstProgramAt.value
+        : this.firstProgramAt,
+    lastProgramAt: lastProgramAt.present
+        ? lastProgramAt.value
+        : this.lastProgramAt,
   );
   ChannelRecord copyWithCompanion(ChannelsCompanion data) {
     return ChannelRecord(
@@ -993,6 +1073,12 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
+      firstProgramAt: data.firstProgramAt.present
+          ? data.firstProgramAt.value
+          : this.firstProgramAt,
+      lastProgramAt: data.lastProgramAt.present
+          ? data.lastProgramAt.value
+          : this.lastProgramAt,
     );
   }
 
@@ -1007,7 +1093,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
           ..write('number: $number, ')
           ..write('isRadio: $isRadio, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
-          ..write('lastSeenAt: $lastSeenAt')
+          ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('firstProgramAt: $firstProgramAt, ')
+          ..write('lastProgramAt: $lastProgramAt')
           ..write(')'))
         .toString();
   }
@@ -1023,6 +1111,8 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     isRadio,
     streamUrlTemplate,
     lastSeenAt,
+    firstProgramAt,
+    lastProgramAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1036,7 +1126,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
           other.number == this.number &&
           other.isRadio == this.isRadio &&
           other.streamUrlTemplate == this.streamUrlTemplate &&
-          other.lastSeenAt == this.lastSeenAt);
+          other.lastSeenAt == this.lastSeenAt &&
+          other.firstProgramAt == this.firstProgramAt &&
+          other.lastProgramAt == this.lastProgramAt);
 }
 
 class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
@@ -1049,6 +1141,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
   final Value<bool> isRadio;
   final Value<String?> streamUrlTemplate;
   final Value<DateTime?> lastSeenAt;
+  final Value<DateTime?> firstProgramAt;
+  final Value<DateTime?> lastProgramAt;
   const ChannelsCompanion({
     this.id = const Value.absent(),
     this.providerId = const Value.absent(),
@@ -1059,6 +1153,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     this.isRadio = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.firstProgramAt = const Value.absent(),
+    this.lastProgramAt = const Value.absent(),
   });
   ChannelsCompanion.insert({
     this.id = const Value.absent(),
@@ -1070,6 +1166,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     this.isRadio = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
+    this.firstProgramAt = const Value.absent(),
+    this.lastProgramAt = const Value.absent(),
   }) : providerId = Value(providerId),
        providerChannelKey = Value(providerChannelKey),
        name = Value(name);
@@ -1083,6 +1181,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     Expression<bool>? isRadio,
     Expression<String>? streamUrlTemplate,
     Expression<DateTime>? lastSeenAt,
+    Expression<DateTime>? firstProgramAt,
+    Expression<DateTime>? lastProgramAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1095,6 +1195,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
       if (isRadio != null) 'is_radio': isRadio,
       if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
+      if (firstProgramAt != null) 'first_program_at': firstProgramAt,
+      if (lastProgramAt != null) 'last_program_at': lastProgramAt,
     });
   }
 
@@ -1108,6 +1210,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     Value<bool>? isRadio,
     Value<String?>? streamUrlTemplate,
     Value<DateTime?>? lastSeenAt,
+    Value<DateTime?>? firstProgramAt,
+    Value<DateTime?>? lastProgramAt,
   }) {
     return ChannelsCompanion(
       id: id ?? this.id,
@@ -1119,6 +1223,8 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
       isRadio: isRadio ?? this.isRadio,
       streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
+      firstProgramAt: firstProgramAt ?? this.firstProgramAt,
+      lastProgramAt: lastProgramAt ?? this.lastProgramAt,
     );
   }
 
@@ -1152,6 +1258,12 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
     }
+    if (firstProgramAt.present) {
+      map['first_program_at'] = Variable<DateTime>(firstProgramAt.value);
+    }
+    if (lastProgramAt.present) {
+      map['last_program_at'] = Variable<DateTime>(lastProgramAt.value);
+    }
     return map;
   }
 
@@ -1166,7 +1278,9 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
           ..write('number: $number, ')
           ..write('isRadio: $isRadio, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
-          ..write('lastSeenAt: $lastSeenAt')
+          ..write('lastSeenAt: $lastSeenAt, ')
+          ..write('firstProgramAt: $firstProgramAt, ')
+          ..write('lastProgramAt: $lastProgramAt')
           ..write(')'))
         .toString();
   }
@@ -9351,6 +9465,8 @@ typedef $$ChannelsTableCreateCompanionBuilder =
       Value<bool> isRadio,
       Value<String?> streamUrlTemplate,
       Value<DateTime?> lastSeenAt,
+      Value<DateTime?> firstProgramAt,
+      Value<DateTime?> lastProgramAt,
     });
 typedef $$ChannelsTableUpdateCompanionBuilder =
     ChannelsCompanion Function({
@@ -9363,6 +9479,8 @@ typedef $$ChannelsTableUpdateCompanionBuilder =
       Value<bool> isRadio,
       Value<String?> streamUrlTemplate,
       Value<DateTime?> lastSeenAt,
+      Value<DateTime?> firstProgramAt,
+      Value<DateTime?> lastProgramAt,
     });
 
 final class $$ChannelsTableReferences
@@ -9520,6 +9638,16 @@ class $$ChannelsTableFilterComposer
 
   ColumnFilters<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get firstProgramAt => $composableBuilder(
+    column: $table.firstProgramAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastProgramAt => $composableBuilder(
+    column: $table.lastProgramAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9696,6 +9824,16 @@ class $$ChannelsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get firstProgramAt => $composableBuilder(
+    column: $table.firstProgramAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastProgramAt => $composableBuilder(
+    column: $table.lastProgramAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ProvidersTableOrderingComposer get providerId {
     final $$ProvidersTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -9756,6 +9894,16 @@ class $$ChannelsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get firstProgramAt => $composableBuilder(
+    column: $table.firstProgramAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastProgramAt => $composableBuilder(
+    column: $table.lastProgramAt,
     builder: (column) => column,
   );
 
@@ -9927,6 +10075,8 @@ class $$ChannelsTableTableManager
                 Value<bool> isRadio = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
+                Value<DateTime?> firstProgramAt = const Value.absent(),
+                Value<DateTime?> lastProgramAt = const Value.absent(),
               }) => ChannelsCompanion(
                 id: id,
                 providerId: providerId,
@@ -9937,6 +10087,8 @@ class $$ChannelsTableTableManager
                 isRadio: isRadio,
                 streamUrlTemplate: streamUrlTemplate,
                 lastSeenAt: lastSeenAt,
+                firstProgramAt: firstProgramAt,
+                lastProgramAt: lastProgramAt,
               ),
           createCompanionCallback:
               ({
@@ -9949,6 +10101,8 @@ class $$ChannelsTableTableManager
                 Value<bool> isRadio = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
+                Value<DateTime?> firstProgramAt = const Value.absent(),
+                Value<DateTime?> lastProgramAt = const Value.absent(),
               }) => ChannelsCompanion.insert(
                 id: id,
                 providerId: providerId,
@@ -9959,6 +10113,8 @@ class $$ChannelsTableTableManager
                 isRadio: isRadio,
                 streamUrlTemplate: streamUrlTemplate,
                 lastSeenAt: lastSeenAt,
+                firstProgramAt: firstProgramAt,
+                lastProgramAt: lastProgramAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(

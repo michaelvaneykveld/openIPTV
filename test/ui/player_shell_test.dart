@@ -11,8 +11,12 @@ import 'package:openiptv/data/db/dao/summary_dao.dart';
 import 'package:openiptv/data/db/database_locator.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/repositories/channel_repository.dart';
+import 'package:openiptv/src/player/categories_fetchers.dart';
+import 'package:openiptv/src/player/summary_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
+import 'package:openiptv/src/providers/player_library_providers.dart';
+import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/ui/player/player_shell.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 
@@ -30,6 +34,8 @@ void main() {
     late int providerId;
     late ResolvedProviderProfile resolvedProfile;
 
+    late _FakeImportService importService;
+
     setUp(() async {
       db = OpenIptvDb.inMemory();
       providerDao = ProviderDao(db);
@@ -38,9 +44,12 @@ void main() {
       channelDao = ChannelDao(db);
       playbackHistoryDao = PlaybackHistoryDao(db);
 
+      importService = _FakeImportService();
+
       container = ProviderContainer(
         overrides: [
           openIptvDbProvider.overrideWithValue(db),
+          providerImportServiceProvider.overrideWithValue(importService),
         ],
       );
 
@@ -184,6 +193,89 @@ void main() {
 
       expect(find.text('Library'), findsOneWidget);
     });
+
+    testWidgets('shows syncing placeholder when database is empty',
+        (tester) async {
+      final localImportService = _FakeImportService();
+      final placeholderContainer = ProviderContainer(
+        overrides: [
+          openIptvDbProvider.overrideWithValue(db),
+          providerImportServiceProvider.overrideWithValue(localImportService),
+          dbCategoriesProvider(providerId).overrideWith(
+            (ref) => Stream.value(
+              const <ContentBucket, List<CategoryEntry>>{},
+            ),
+          ),
+          dbSummaryProvider(DbSummaryArgs(providerId, ProviderKind.xtream))
+              .overrideWith(
+            (ref) => Stream.value(
+              SummaryData(kind: ProviderKind.xtream),
+            ),
+          ),
+          providerFavoritesProvider(providerId).overrideWith(
+            (ref) => const Stream< List<ChannelWithFlags> >.empty(),
+          ),
+          providerRecentPlaybackProvider(providerId).overrideWith(
+            (ref) => const Stream<List<RecentChannelPlayback>>.empty(),
+          ),
+        ],
+      );
+
+      addTearDown(placeholderContainer.dispose);
+
+      await _pumpShell(tester, placeholderContainer, resolvedProfile);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Syncing provider library...'), findsOneWidget);
+      expect(localImportService.called, isTrue);
+
+      await _unmountShell(tester);
+    });
+
+    testWidgets('shows summary syncing placeholder when no counts are ready',
+        (tester) async {
+      final localImportService = _FakeImportService();
+      final placeholderContainer = ProviderContainer(
+        overrides: [
+          openIptvDbProvider.overrideWithValue(db),
+          providerImportServiceProvider.overrideWithValue(localImportService),
+          dbCategoriesProvider(providerId).overrideWith(
+            (ref) => Stream.value({
+              ContentBucket.live: [
+                CategoryEntry(id: '1', name: 'Live', count: 0),
+              ],
+            }),
+          ),
+          dbSummaryProvider(DbSummaryArgs(providerId, ProviderKind.xtream))
+              .overrideWith(
+            (ref) => Stream.value(
+              SummaryData(kind: ProviderKind.xtream),
+            ),
+          ),
+          providerFavoritesProvider(providerId).overrideWith(
+            (ref) => const Stream<List<ChannelWithFlags>>.empty(),
+          ),
+          providerRecentPlaybackProvider(providerId).overrideWith(
+            (ref) => const Stream<List<RecentChannelPlayback>>.empty(),
+          ),
+        ],
+      );
+      addTearDown(placeholderContainer.dispose);
+
+      await _pumpShell(tester, placeholderContainer, resolvedProfile);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      await tester.tap(find.byTooltip('Show summary'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Syncing provider summary...'), findsOneWidget);
+      expect(localImportService.called, isTrue);
+
+      await _unmountShell(tester);
+    });
   });
 }
 
@@ -200,6 +292,11 @@ Future<void> _pumpShell(
       ),
     ),
   );
+}
+
+Future<void> _unmountShell(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pump();
 }
 
 ResolvedProviderProfile _buildProfile(int providerId) {
@@ -222,4 +319,13 @@ ResolvedProviderProfile _buildProfile(int providerId) {
     secrets: const {},
     providerDbId: providerId,
   );
+}
+
+class _FakeImportService implements ProviderImportService {
+  bool called = false;
+
+  @override
+  Future<void> runInitialImport(ResolvedProviderProfile profile) async {
+    called = true;
+  }
 }

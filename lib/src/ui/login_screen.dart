@@ -404,7 +404,7 @@ class _SavedLoginTile extends ConsumerWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            'Syncing provider data…',
+            'Syncing provider data...',
             style: theme.textTheme.bodySmall?.copyWith(
               fontStyle: FontStyle.italic,
               color: theme.colorScheme.onSurfaceVariant,

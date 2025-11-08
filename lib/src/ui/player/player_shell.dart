@@ -147,7 +147,7 @@ class _SummaryView extends StatelessWidget {
         .toList(growable: false);
 
     if (!data.hasFields && chips.isEmpty) {
-      return const _SyncingPlaceholder(message: 'Syncing provider summary…');
+      return const _SyncingPlaceholder(message: 'Syncing provider summary...');
     }
 
     return Center(
@@ -241,7 +241,7 @@ class _CategoriesView extends StatelessWidget {
           child: Text('No categories found for this provider yet.'),
         );
       }
-      return const _SyncingPlaceholder(message: 'Syncing provider library…');
+      return const _SyncingPlaceholder(message: 'Syncing provider library...');
     }
 
     final tiles = <Widget>[];

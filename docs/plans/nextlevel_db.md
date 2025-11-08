@@ -10,8 +10,8 @@ Use this backlog to track the “ultimate” database roadmap. Check items that 
 - [ ] Maintain platform parity (Drift sqlite3/FFI for native, Drift IndexedDB for web) behind the same DAO APIs.
 
 ## Phase 1 – Core Schema & Access Patterns
-- [x] **Prioritized:** Persist last discovery payload per provider (categories + summaries) and hydrate them on app resume before hitting the network. -> `ProviderImportService` now re-runs on connection and writes categories/summaries that PlayerShell consumes via `dbCategoriesProvider`/`dbSummaryProvider`.
-- [x] **Prioritized:** Remove legacy discovery fallback once DB streams contain data; only re-run discovery if the DB is empty or explicitly refreshed. -> Player shell relies on DB streams exclusively (legacy only when provider has no DB id).
+- [x] **Prioritized:** Persist last discovery payload per provider (categories + summaries) and hydrate them on app resume before hitting the network. -> `ProviderImportService` re-primes Drift on connect; login tiles & PlayerShell read from DB-first providers.
+- [x] **Prioritized:** Remove legacy discovery fallback once DB streams contain data; only re-run discovery if the DB is empty or explicitly refreshed. -> Player shell & login UI only call legacy probes when no DB record exists.
 - [x] Model `providers`, `channel_groups`, `channels`, `stream_endpoints`, `epg_events` in Drift.
 - [x] Add mandatory indexes: `(provider_id, stable_key)` unique, `(group_id, sort_key)`, NOCASE `name`, EPG covering indexes, `stream_endpoints(channel_id, priority)`.
 - [x] Implement chunked bulk upserts (1–5 k rows) using `INSERT … ON CONFLICT DO UPDATE`.

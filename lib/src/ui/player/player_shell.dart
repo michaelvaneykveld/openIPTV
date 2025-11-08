@@ -10,6 +10,7 @@ import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
+import 'package:openiptv/src/providers/provider_import_service.dart';
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -22,6 +23,22 @@ class PlayerShell extends ConsumerStatefulWidget {
 
 class _PlayerShellState extends ConsumerState<PlayerShell> {
   bool _showSummary = false;
+  bool _importScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _maybePrimeProviderImport();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayerShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile.providerDbId != widget.profile.providerDbId) {
+      _importScheduled = false;
+      _maybePrimeProviderImport();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,40 +107,30 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
     if (providerId == null) {
       return ref.watch(legacyCategoriesProvider(widget.profile));
     }
-    final dbValue = ref.watch(dbCategoriesProvider(providerId));
-    final shouldFallback = dbValue.maybeWhen(
-      data: (map) => map.isEmpty,
-      error: (error, stackTrace) {
-        return true;
-      },
-      orElse: () => false,
-    );
-    if (!shouldFallback) {
-      return dbValue;
-    }
-    return ref.watch(legacyCategoriesProvider(widget.profile));
+    return ref.watch(dbCategoriesProvider(providerId));
   }
 
   AsyncValue<SummaryData> _watchSummary(int? providerId) {
     if (providerId == null) {
       return ref.watch(legacySummaryProvider(widget.profile));
     }
-    final dbValue = ref.watch(
+    return ref.watch(
       dbSummaryProvider(
         DbSummaryArgs(providerId, widget.profile.kind),
       ),
     );
-    final shouldFallback = dbValue.maybeWhen(
-      data: (summary) => summary.counts.isEmpty,
-      error: (error, stackTrace) {
-        return true;
-      },
-      orElse: () => false,
-    );
-    if (!shouldFallback) {
-      return dbValue;
+  }
+
+  void _maybePrimeProviderImport() {
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null || _importScheduled) {
+      return;
     }
-    return ref.watch(legacySummaryProvider(widget.profile));
+    _importScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final importService = ref.read(providerImportServiceProvider);
+      importService.runInitialImport(widget.profile);
+    });
   }
 }
 
@@ -138,6 +145,10 @@ class _SummaryView extends StatelessWidget {
     final chips = data.counts.entries
         .map((entry) => Chip(label: Text('${entry.key}: ${entry.value}')))
         .toList(growable: false);
+
+    if (!data.hasFields && chips.isEmpty) {
+      return const _SyncingPlaceholder(message: 'Syncing provider summary…');
+    }
 
     return Center(
       child: ConstrainedBox(
@@ -225,9 +236,12 @@ class _CategoriesView extends StatelessWidget {
         .toList();
 
     if (sections.isEmpty) {
-      return const Center(
-        child: Text('No categories found for this provider yet.'),
-      );
+      if (profile.providerDbId == null) {
+        return const Center(
+          child: Text('No categories found for this provider yet.'),
+        );
+      }
+      return const _SyncingPlaceholder(message: 'Syncing provider library…');
     }
 
     final tiles = <Widget>[];
@@ -385,7 +399,7 @@ class _EngagementPanel extends ConsumerWidget {
                       return const Text('Mark channels as favorites to see them here.');
                     }
                     return SizedBox(
-                      height: 86,
+                      height: 96,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: visible.length,
@@ -647,6 +661,38 @@ class _CategoriesError extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(message, textAlign: TextAlign.center),
+        ],
+      ),
+    );
+  }
+}
+
+class _SyncingPlaceholder extends StatelessWidget {
+  const _SyncingPlaceholder({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            message,
+            style: theme.textTheme.bodyMedium,
+          ),
         ],
       ),
     );

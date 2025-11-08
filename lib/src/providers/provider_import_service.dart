@@ -36,16 +36,31 @@ class ProviderImportService {
   final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   final M3uXmlClient _m3uClient = M3uXmlClient();
   final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
+  final Map<int, Future<void>> _inFlightImports = {};
 
   /// Runs the initial import job for the supplied [profile]. The work happens
   /// synchronously, so callers typically trigger it in a fire-and-forget
   /// manner (e.g. `unawaited(runInitialImport(...))`).
-  Future<void> runInitialImport(ResolvedProviderProfile profile) async {
+  Future<void> runInitialImport(ResolvedProviderProfile profile) {
     final providerId = profile.providerDbId;
     if (providerId == null) {
-      return;
+      return Future.value();
     }
+    final existing = _inFlightImports[providerId];
+    if (existing != null) {
+      return existing;
+    }
+    final future = _runImportJob(profile, providerId);
+    _inFlightImports[providerId] = future.whenComplete(() {
+      _inFlightImports.remove(providerId);
+    });
+    return future;
+  }
 
+  Future<void> _runImportJob(
+    ResolvedProviderProfile profile,
+    int providerId,
+  ) async {
     final kind = profile.record.kind.name;
     unawaited(
       _logImportMetric(

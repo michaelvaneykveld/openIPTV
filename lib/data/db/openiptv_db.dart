@@ -1,9 +1,13 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/backends.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+// ignore: deprecated_import
+import 'package:drift/web.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:flutter/foundation.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart'
@@ -593,11 +597,10 @@ class DatabaseIntegrityException implements Exception {
 }
 
 QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
+  if (kIsWeb) {
+    return _openWebDatabase();
+  }
   return LazyDatabase(() async {
-    if (kIsWeb) {
-      throw UnsupportedError('The offline database is not available on web.');
-    }
-
     final directory = await _resolveStorageDirectory();
     final dbPath = p.join(directory.path, 'openiptv.db');
 
@@ -656,6 +659,13 @@ Future<Directory> _resolveStorageDirectory() async {
 bool _useNativeDatabase() {
   if (kIsWeb) return false;
   return Platform.isWindows || Platform.isLinux || Platform.isMacOS;
+}
+
+QueryExecutor _openWebDatabase() {
+  return WebDatabase(
+    'openiptv_web.db',
+    logStatements: false,
+  );
 }
 
 class SqlCipherQueryExecutor extends DelegatedDatabase {

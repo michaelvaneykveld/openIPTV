@@ -50,7 +50,7 @@ Use this backlog to track the “ultimate” database roadmap. Check items that 
 
 ## Phase 7 – Cross-Platform Specifics
 - [x] Keep Android/iOS/macOS/Windows/Linux on sqlite3/FFI with identical schema + DAOs.
-- [ ] Implement Drift IndexedDB backend for web; if EPG FTS is too large, ship channels-only FTS or opt-in builds.
+- [x] Implement Drift IndexedDB backend for web; if EPG FTS is too large, ship channels-only FTS or opt-in builds. -> `OpenIptvDb` now opens `WebDatabase` storage on Flutter web.
 
 ## “Ultimate” Enhancements (Optional)
 - [ ] Add covering indexes or projection tables for tile-ready queries.

@@ -31,7 +31,20 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
       streamUrlTemplate: Value(streamUrlTemplate),
       lastSeenAt: Value(seenAt ?? DateTime.now().toUtc()),
     );
-    return into(channels).insertOnConflictUpdate(companion);
+    return into(channels).insert(
+      companion,
+      onConflict: DoUpdate(
+        (_) => ChannelsCompanion(
+          name: Value(name),
+          logoUrl: Value(logoUrl),
+          number: Value(number),
+          isRadio: Value(isRadio),
+          streamUrlTemplate: Value(streamUrlTemplate),
+          lastSeenAt: Value(seenAt ?? DateTime.now().toUtc()),
+        ),
+        target: [channels.providerId, channels.providerChannelKey],
+      ),
+    );
   }
 
   Future<void> markAllAsCandidateForDelete(int providerId) {

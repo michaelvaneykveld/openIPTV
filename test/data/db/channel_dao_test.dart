@@ -70,6 +70,30 @@ void main() {
       expect(updatedRow.name, 'Updated Channel 0');
     });
 
+    test('upsertChannel updates on provider/key conflicts', () async {
+      final channelId = await channelDao.upsertChannel(
+        providerId: providerId,
+        providerKey: 'dup-key',
+        name: 'Original',
+        number: 1,
+      );
+      final secondId = await channelDao.upsertChannel(
+        providerId: providerId,
+        providerKey: 'dup-key',
+        name: 'Updated',
+        number: 5,
+        isRadio: true,
+      );
+      expect(secondId, channelId);
+
+      final stored = await (db.select(db.channels)
+            ..where((tbl) => tbl.id.equals(channelId)))
+          .getSingle();
+      expect(stored.name, 'Updated');
+      expect(stored.number, 5);
+      expect(stored.isRadio, isTrue);
+    });
+
     test('mergeProgramWindow keeps earliest and latest timestamps', () async {
       final channelId = await channelDao.upsertChannel(
         providerId: providerId,

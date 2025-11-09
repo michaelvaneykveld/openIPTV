@@ -5,7 +5,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 ## First Priority - Portal Ingest Reliability
 - [ ] Portal-aware category discovery with probe chain (get_categories -> get_genres -> get_categories_v2), parental unlock hook, and derived-category fallback stored per portal dialect.
 - [ ] Per-category paging with caps/backoff plus radio coverage; global "*" paging only as a limited fallback.
-- [ ] Offload imports to a dedicated isolate that streams progress, keeps Drift writes off the UI thread, and supports cancel/resume.
+- [x] Offload imports to a dedicated isolate that streams progress, keeps Drift writes off the UI thread, and supports cancel/resume. -> ProviderImportService now spawns a Drift worker isolate (non-web, non-encrypted builds) and relays progress via a typed event stream.
 - [ ] Persist resume tokens/checkpoints per provider+category so subsequent sessions resume instead of rewalking from the start.
 - [ ] Surface lightweight progress UI (state + cancel) while imports run in the background.
 

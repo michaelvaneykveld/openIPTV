@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:openiptv/data/import/import_context.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
 
 void main() {
@@ -71,5 +73,66 @@ http://example.com/plain
     expect(normalized, hasLength(1));
     expect(normalized.single['category_id'], 99);
     expect(normalized.single['title'], 'Sports');
+  });
+
+  test('ProviderImportMetricsSummary maps ImportMetrics correctly', () {
+    final metrics = ImportMetrics()
+      ..channelsUpserted = 5
+      ..categoriesUpserted = 3
+      ..moviesUpserted = 2
+      ..seriesUpserted = 1
+      ..seasonsUpserted = 4
+      ..episodesUpserted = 8
+      ..channelsDeleted = 6
+      ..programsUpserted = 10
+      ..duration = const Duration(seconds: 2);
+
+    final summary = ProviderImportMetricsSummary.fromMetrics(metrics);
+    expect(summary.channelsUpserted, 5);
+    expect(summary.categoriesUpserted, 3);
+    expect(summary.moviesUpserted, 2);
+    expect(summary.seriesUpserted, 1);
+    expect(summary.seasonsUpserted, 4);
+    expect(summary.episodesUpserted, 8);
+    expect(summary.channelsDeleted, 6);
+    expect(summary.programsUpserted, 10);
+    expect(summary.durationMs, 2000);
+  });
+
+  test('ProviderImportEventSerializer round-trips progress events', () {
+    const event = ProviderImportProgressEvent(
+      providerId: 7,
+      kind: ProviderKind.xtream,
+      phase: 'fetch',
+      metadata: {'count': 3},
+    );
+    final payload = ProviderImportEventSerializer.serialize(event);
+    final decoded = ProviderImportEventSerializer.deserialize(payload);
+    expect(decoded, isA<ProviderImportProgressEvent>());
+    final progress = decoded! as ProviderImportProgressEvent;
+    expect(progress.providerId, 7);
+    expect(progress.kind, ProviderKind.xtream);
+    expect(progress.phase, 'fetch');
+    expect(progress.metadata['count'], 3);
+  });
+
+  test('ProviderImportEventSerializer round-trips result events', () {
+    final summary = ProviderImportMetricsSummary(
+      channelsUpserted: 12,
+      durationMs: 1500,
+    );
+    final event = ProviderImportResultEvent(
+      providerId: 9,
+      kind: ProviderKind.m3u,
+      metrics: summary,
+    );
+    final payload = ProviderImportEventSerializer.serialize(event);
+    final decoded = ProviderImportEventSerializer.deserialize(payload);
+    expect(decoded, isA<ProviderImportResultEvent>());
+    final result = decoded! as ProviderImportResultEvent;
+    expect(result.providerId, 9);
+    expect(result.kind, ProviderKind.m3u);
+    expect(result.metrics.channelsUpserted, 12);
+    expect(result.metrics.durationMs, 1500);
   });
 }

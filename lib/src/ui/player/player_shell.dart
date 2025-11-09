@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
+import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -25,11 +27,15 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
   bool _showSummary = false;
   bool _importScheduled = false;
   bool _isRefreshing = false;
+  ProviderImportEvent? _importEvent;
+  StreamSubscription<ProviderImportEvent>? _importSubscription;
+  bool _isCancellingImport = false;
 
   @override
   void initState() {
     super.initState();
     _maybePrimeProviderImport();
+    _subscribeToImportProgress();
   }
 
   @override
@@ -38,13 +44,21 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
     if (oldWidget.profile.providerDbId != widget.profile.providerDbId) {
       _importScheduled = false;
       _maybePrimeProviderImport();
+      _subscribeToImportProgress();
     }
+  }
+
+  @override
+  void dispose() {
+    _importSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final categoriesAsync = _watchCategories(widget.profile.providerDbId);
     final summaryAsync = _watchSummary(widget.profile.providerDbId);
+    final progressBanner = _buildImportProgressBanner();
 
     final isReloadingCategories = categoriesAsync.isLoading;
     return Scaffold(
@@ -82,29 +96,40 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
                     )
                   : const Icon(Icons.refresh),
             ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          child: _showSummary
-              ? summaryAsync.when(
-                  data: (data) => _SummaryView(data: data),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, stackTrace) =>
-                      _CategoriesError(message: error.toString()),
-                )
-              : categoriesAsync.when(
-                  data: (data) =>
-                      _CategoriesView(profile: widget.profile, data: data),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, stackTrace) =>
-                      _CategoriesError(message: error.toString()),
-                ),
-        ),
+      body: Column(
+        children: [
+          if (progressBanner != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: progressBanner,
+            ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: _showSummary
+                    ? summaryAsync.when(
+                        data: (data) => _SummaryView(data: data),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (error, stackTrace) =>
+                            _CategoriesError(message: error.toString()),
+                      )
+                    : categoriesAsync.when(
+                        data: (data) =>
+                            _CategoriesView(profile: widget.profile, data: data),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (error, stackTrace) =>
+                            _CategoriesError(message: error.toString()),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -135,6 +160,98 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       final importService = ref.read(providerImportServiceProvider);
       importService.runInitialImport(widget.profile);
     });
+  }
+
+  void _subscribeToImportProgress() {
+    _importSubscription?.cancel();
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null) {
+      setState(() {
+        _importEvent = null;
+      });
+      return;
+    }
+    final service = ref.read(providerImportServiceProvider);
+    _importSubscription = service.watchProgress(providerId).listen((event) {
+      if (!mounted) return;
+      if (event is ProviderImportProgressEvent) {
+        setState(() => _importEvent = event);
+      } else {
+        setState(() => _importEvent = null);
+      }
+    });
+  }
+
+  Future<void> _handleCancelImport() async {
+    if (_isCancellingImport) return;
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null) return;
+    setState(() => _isCancellingImport = true);
+    try {
+      await ref.read(providerImportServiceProvider).cancelImport(providerId);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCancellingImport = false;
+        });
+      }
+    }
+  }
+
+  Widget? _buildImportProgressBanner() {
+    final event = _importEvent;
+    if (event is! ProviderImportProgressEvent) {
+      return null;
+    }
+    final phase = event.phase;
+    if (_isTerminalPhase(phase)) {
+      return null;
+    }
+    final message = _describePhase(event);
+    return ImportProgressBanner(
+      message: message,
+      showCancel: !_isCancellingImport,
+      onCancel: _isCancellingImport ? null : _handleCancelImport,
+    );
+  }
+
+  bool _isTerminalPhase(String phase) {
+    switch (phase) {
+      case 'completed':
+      case 'error':
+      case 'cancelled':
+        return true;
+    }
+    return false;
+  }
+
+  String _describePhase(ProviderImportProgressEvent event) {
+    switch (event.phase) {
+      case 'started':
+        return 'Preparing provider import...';
+      case 'xtream.fetch':
+        return 'Fetching Xtream catalog...';
+      case 'm3u.fetch':
+        return 'Downloading playlist...';
+      case 'stalker.session':
+        return 'Authenticating with Stalker portal...';
+      case 'stalker.categories.fetch':
+        return 'Discovering categories...';
+      case 'stalker.categories.ready':
+        final live = event.metadata['live'];
+        final vod = event.metadata['vod'];
+        final series = event.metadata['series'];
+        return 'Categories ready '
+            '(live: $live, vod: $vod, series: $series)...';
+      case 'stalker.items.ready':
+        final live = event.metadata['live'];
+        final vod = event.metadata['vod'];
+        final series = event.metadata['series'];
+        return 'Ingesting items '
+            '(live: $live, vod: $vod, series: $series)...';
+      default:
+        return 'Importing provider data...';
+    }
   }
 
   Future<void> _handleRefresh() async {

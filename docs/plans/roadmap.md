@@ -83,6 +83,12 @@
 - Documented the gaps that keep large portals from populating live/vod/series/radio consistently and laid out a staged fix inside `docs/plans/nextlevel_db.md`.
 - Prioritised portal-aware category discovery (probe chain, parental unlock hook, derived fallback) plus per-category paging with caps/backoff so we stop walking the "*" bucket endlessly.
 - Outlined the isolate-based import worker, resume-token persistence, and progress/cancel UX so heavy ingest stays off the UI thread and survives app restarts.
+
+## Session Log - Import Worker Offload
+- Refactored `ProviderImportService` to expose a progress stream and dispatch typed progress/result/error events per provider, enabling UI surfaces to react without polling.
+- Added an isolate-backed worker path (default on desktop/mobile) that spawns a Drift connection against the real database file, runs the importer off the UI isolate, and reports telemetry via a send-port reporter.
+- Safeguarded the offload flag for web/SQLCipher builds, falling back to the in-process path when isolation isn't viable, and documented the milestone in `docs/plans/nextlevel_db.md`.
+- Hooked the new progress stream into both the login surface and PlayerShell so users now see live fetch/import status plus a cancel control that triggers the worker shutdown path.
 - Introduced shared discovery interceptors for redacted logging and retry jitter across Stalker, Xtream, and M3U probes (`lib/src/protocols/discovery/discovery_interceptors.dart`, `lib/src/protocols/*/*_portal_discovery.dart`).
 
 ## Session Log - Discovery Retry Policy

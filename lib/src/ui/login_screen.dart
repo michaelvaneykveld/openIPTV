@@ -37,6 +37,7 @@ import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/ui/discovery_cache_manager.dart';
 import 'package:openiptv/src/ui/player/player_shell.dart' as player;
+import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
@@ -492,6 +493,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   static const String _discoveryCacheStorageKey = 'discovery_cache_v1';
   static const Duration _discoveryCacheTtl = Duration(hours: 24);
   static const Duration _discoveryCacheRefreshLeeway = Duration(hours: 2);
+  StreamSubscription<ProviderImportEvent>? _importProgressSubscription;
+  ProviderImportProgressEvent? _importProgressEvent;
+  int? _activeImportProviderId;
+  bool _isCancellingImport = false;
 
   void _debugPrintSafe(String message) {
     debugPrint(redactSensitiveText(message));
@@ -660,6 +665,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void dispose() {
     _flowSubscription?.close();
+    _importProgressSubscription?.cancel();
     // Dispose controllers to prevent memory leaks.
     _portalUrlController.dispose();
     _macAddressController.dispose();
@@ -729,6 +735,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             final banner = flowState.bannerMessage != null
                 ? _buildBanner(context, flowState.bannerMessage!)
                 : null;
+            final importBanner = _buildImportProgressBanner();
 
             if (isWide) {
               return Column(
@@ -736,6 +743,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   header,
                   if (banner != null) banner,
+                  if (importBanner != null) importBanner,
                   Expanded(
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -755,6 +763,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               children: [
                 header,
                 if (banner != null) banner,
+                if (importBanner != null) importBanner,
                 _buildProviderSelectors(flowState, isBusy),
                 Expanded(
                   child: AnimatedSwitcher(
@@ -3039,6 +3048,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (providerId == null) {
       return;
     }
+    _trackImportProgress(providerId);
     final importService = ref.read(providerImportServiceProvider);
     final label = profile.record.displayName.isEmpty
         ? 'provider'
@@ -3047,7 +3057,84 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     unawaited(importService.runInitialImport(profile));
   }
 
-  Future<int?> _ensureDbProviderIdForProfile(
+    void _trackImportProgress(int providerId) {
+    _importProgressSubscription?.cancel();
+    _activeImportProviderId = providerId;
+    final service = ref.read(providerImportServiceProvider);
+    _importProgressSubscription = service.watchProgress(providerId).listen((event) {
+      if (!mounted) return;
+      if (event is ProviderImportProgressEvent) {
+        setState(() => _importProgressEvent = event);
+      } else {
+        setState(() => _importProgressEvent = null);
+      }
+    });
+  }
+
+  Future<void> _handleCancelImportRequest() async {
+    if (_isCancellingImport) return;
+    final providerId = _activeImportProviderId;
+    if (providerId == null) return;
+    setState(() => _isCancellingImport = true);
+    try {
+      await ref.read(providerImportServiceProvider).cancelImport(providerId);
+    } finally {
+      if (mounted) {
+        setState(() => _isCancellingImport = false);
+      }
+    }
+  }
+
+  Widget? _buildImportProgressBanner() {
+    final event = _importProgressEvent;
+    if (event == null || _isTerminalLoginPhase(event.phase)) {
+      return null;
+    }
+    final message = _describeImportPhase(event);
+    return ImportProgressBanner(
+      message: message,
+      showCancel: !_isCancellingImport,
+      onCancel: _isCancellingImport ? null : _handleCancelImportRequest,
+    );
+  }
+
+  bool _isTerminalLoginPhase(String phase) {
+    switch (phase) {
+      case 'completed':
+      case 'error':
+      case 'cancelled':
+        return true;
+    }
+    return false;
+  }
+
+  String _describeImportPhase(ProviderImportProgressEvent event) {
+    switch (event.phase) {
+      case 'started':
+        return 'Preparing provider sync...';
+      case 'xtream.fetch':
+        return 'Fetching Xtream catalog...';
+      case 'm3u.fetch':
+        return 'Downloading playlist...';
+      case 'stalker.session':
+        return 'Authenticating with portal...';
+      case 'stalker.categories.fetch':
+        return 'Discovering categories...';
+      case 'stalker.categories.ready':
+        final live = event.metadata['live'];
+        final vod = event.metadata['vod'];
+        final series = event.metadata['series'];
+        return 'Categories ready (live: $live, vod: $vod, series: $series)...';
+      case 'stalker.items.ready':
+        final live = event.metadata['live'];
+        final vod = event.metadata['vod'];
+        final series = event.metadata['series'];
+        return 'Importing items (live: $live, vod: $vod, series: $series)...';
+      default:
+        return 'Seeding provider data...';
+    }
+  }
+Future<int?> _ensureDbProviderIdForProfile(
     ProviderProfileRecord profile, {
     required bool createIfMissing,
   }) {
@@ -3985,5 +4072,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 }
+
+
 
 

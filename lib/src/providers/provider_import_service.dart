@@ -1,12 +1,20 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:isolate';
 
+import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:openiptv/data/db/database_flags.dart';
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/data/import/import_context.dart';
 import 'package:openiptv/data/import/m3u_importer.dart';
 import 'package:openiptv/data/import/stalker_importer.dart';
 import 'package:openiptv/data/import/xtream_importer.dart';
+import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
@@ -20,8 +28,19 @@ import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/telemetry_service.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
+final providerImportReporterProvider =
+    Provider<ProviderImportReporter?>((ref) => null);
+
+final providerImportOffloadProvider = Provider<bool>((ref) => true);
+
 final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
-  return ProviderImportService(ref);
+  final reporter = ref.watch(providerImportReporterProvider);
+  final enableOffload = ref.watch(providerImportOffloadProvider);
+  return ProviderImportService(
+    ref,
+    reporter: reporter,
+    enableOffload: enableOffload,
+  );
 });
 
 /// Coordinates the first-time database seeding for newly-onboarded providers.
@@ -31,14 +50,95 @@ final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
 /// the Drift database via the importers. Each protocol implementation lives
 /// behind a small helper so we can extend coverage incrementally.
 class ProviderImportService {
-  ProviderImportService(this._ref);
+  ProviderImportService(
+    this._ref, {
+    ProviderImportReporter? reporter,
+    bool enableOffload = true,
+  }) : _enableOffload = enableOffload {
+    _reporter = reporter ?? _LocalImportReporter(_publishEvent);
+    _ref.onDispose(() {
+      for (final controller in _progressControllers.values) {
+        controller.close();
+      }
+      _progressControllers.clear();
+    });
+  }
 
   final Ref _ref;
+  late final ProviderImportReporter _reporter;
+  final bool _enableOffload;
 
   final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   final M3uXmlClient _m3uClient = M3uXmlClient();
   final StalkerHttpClient _stalkerHttpClient = StalkerHttpClient();
   final Map<int, Future<void>> _inFlightImports = {};
+  final Map<int, StreamController<ProviderImportEvent>> _progressControllers =
+      {};
+  bool get _canUseWorker => !kIsWeb && !DatabaseFlags.enableSqlCipher;
+  final Map<int, _WorkerHandle> _workerHandles = {};
+
+  Stream<ProviderImportEvent> watchProgress(int providerId) {
+    return _controllerFor(providerId).stream;
+  }
+
+  Future<void> cancelImport(int providerId) async {
+    final handle = _workerHandles.remove(providerId);
+    if (handle != null) {
+      await handle.cancel();
+      return;
+    }
+    _debug('No active import worker for providerId=$providerId to cancel.');
+  }
+
+  StreamController<ProviderImportEvent> _controllerFor(int providerId) {
+    return _progressControllers.putIfAbsent(
+      providerId,
+      () => StreamController<ProviderImportEvent>.broadcast(),
+    );
+  }
+
+  void _publishEvent(ProviderImportEvent event) {
+    final controller = _controllerFor(event.providerId);
+    if (!controller.isClosed) {
+      controller.add(event);
+    }
+  }
+
+  void _emitProgress(
+    ResolvedProviderProfile profile,
+    String phase, {
+    Map<String, Object?>? metadata,
+  }) {
+    final providerId = profile.providerDbId;
+    if (providerId == null) {
+      return;
+    }
+    _reporter.report(
+      ProviderImportProgressEvent(
+        providerId: providerId,
+        kind: profile.record.kind,
+        phase: phase,
+        metadata: metadata ?? const {},
+      ),
+    );
+  }
+
+  Map<String, Object?> _metricsMetadata(ImportMetrics? metrics) {
+    if (metrics == null) {
+      return const {};
+    }
+    return {
+      'channelsUpserted': metrics.channelsUpserted,
+      'categoriesUpserted': metrics.categoriesUpserted,
+      'moviesUpserted': metrics.moviesUpserted,
+      'seriesUpserted': metrics.seriesUpserted,
+      'seasonsUpserted': metrics.seasonsUpserted,
+      'episodesUpserted': metrics.episodesUpserted,
+      'channelsDeleted': metrics.channelsDeleted,
+      'programsUpserted': metrics.programsUpserted,
+      'durationMs': metrics.duration.inMilliseconds,
+    };
+  }
 
   /// Runs the initial import job for the supplied [profile]. The work happens
   /// synchronously, so callers typically trigger it in a fire-and-forget
@@ -52,7 +152,9 @@ class ProviderImportService {
     if (existing != null) {
       return existing;
     }
-    final future = _runImportJob(profile, providerId);
+    final future = _enableOffload && _canUseWorker
+        ? _runImportInIsolate(profile, providerId)
+        : _runImportJob(profile, providerId);
     _inFlightImports[providerId] = future.whenComplete(() {
       _inFlightImports.remove(providerId);
     });
@@ -63,7 +165,9 @@ class ProviderImportService {
     ResolvedProviderProfile profile,
     int providerId,
   ) async {
-    final kind = profile.record.kind.name;
+    final providerKind = profile.record.kind;
+    final kind = providerKind.name;
+    _emitProgress(profile, 'started');
     unawaited(
       _logImportMetric(
         providerId: providerId,
@@ -73,15 +177,16 @@ class ProviderImportService {
       ),
     );
     try {
+      ImportMetrics? metrics;
       switch (profile.record.kind) {
         case ProviderKind.xtream:
-          await _importXtream(providerId, profile);
+          metrics = await _importXtream(providerId, profile);
           break;
         case ProviderKind.m3u:
-          await _importM3u(providerId, profile);
+          metrics = await _importM3u(providerId, profile);
           break;
         case ProviderKind.stalker:
-          await _importStalker(providerId, profile);
+          metrics = await _importStalker(providerId, profile);
           break;
       }
       unawaited(
@@ -91,7 +196,31 @@ class ProviderImportService {
           phase: 'completed',
         ),
       );
+      _emitProgress(
+        profile,
+        'completed',
+        metadata: _metricsMetadata(metrics),
+      );
+      _reporter.report(
+        ProviderImportResultEvent(
+          providerId: providerId,
+          kind: providerKind,
+          metrics: ProviderImportMetricsSummary.fromMetrics(metrics),
+        ),
+      );
     } catch (error, stackTrace) {
+      _emitProgress(
+        profile,
+        'error',
+        metadata: {'message': error.toString()},
+      );
+      _reporter.report(
+        ProviderImportErrorEvent(
+          providerId: providerId,
+          kind: providerKind,
+          message: error.toString(),
+        ),
+      );
       _logError(
         'Initial import failed for ${profile.record.displayName}',
         error,
@@ -112,7 +241,7 @@ class ProviderImportService {
     }
   }
 
-  Future<void> _importXtream(
+  Future<ImportMetrics?> _importXtream(
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
@@ -123,9 +252,10 @@ class ProviderImportService {
         'Xtream import skipped for ${profile.record.displayName}: '
         'missing credentials.',
       );
-      return;
+      return null;
     }
 
+    _emitProgress(profile, 'xtream.fetch');
     final userAgent = profile.record.configuration['userAgent'];
     final config = XtreamPortalConfiguration(
       baseUri: profile.lockedBase,
@@ -159,7 +289,7 @@ class ProviderImportService {
     }
 
     final importer = _ref.read(xtreamImporterProvider);
-    await importer.importAll(
+    return importer.importAll(
       providerId: providerId,
       live: liveStreams,
       vod: vodStreams,
@@ -170,7 +300,7 @@ class ProviderImportService {
     );
   }
 
-  Future<void> _importM3u(
+  Future<ImportMetrics?> _importM3u(
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
@@ -182,10 +312,11 @@ class ProviderImportService {
         'M3U import skipped for ${profile.record.displayName}: '
         'no playlist source available.',
       );
-      return;
+      return null;
     }
 
     try {
+      _emitProgress(profile, 'm3u.fetch');
       final configuration = playlistUrl != null && playlistUrl.isNotEmpty
           ? M3uXmlPortalConfiguration.fromUrls(
               portalId: profile.record.id,
@@ -217,11 +348,11 @@ class ProviderImportService {
       final entries = ProviderImportService.parseM3uEntries(playlistText);
       if (entries.isEmpty) {
         _debug('Parsed playlist for ${profile.record.displayName} is empty.');
-        return;
+        return null;
       }
 
       final importer = _ref.read(m3uImporterProvider);
-      await importer.importEntries(
+      return importer.importEntries(
         providerId: providerId,
         entries: Stream<M3uEntry>.fromIterable(entries),
       );
@@ -231,10 +362,128 @@ class ProviderImportService {
         error,
         stackTrace,
       );
+      return null;
     }
   }
 
-  Future<void> _importStalker(
+  Future<void> _runImportInIsolate(
+    ResolvedProviderProfile profile,
+    int providerId,
+  ) async {
+    final controller = _controllerFor(providerId);
+    if (controller.hasListener == false) {
+      // Ensure the controller exists even before listeners attach.
+      _publishEvent(
+        ProviderImportProgressEvent(
+          providerId: providerId,
+          kind: profile.record.kind,
+          phase: 'scheduled',
+        ),
+      );
+    }
+    final receivePort = ReceivePort();
+    final errorPort = ReceivePort();
+    final exitPort = ReceivePort();
+    final completer = Completer<void>();
+    StreamSubscription? progressSub;
+    StreamSubscription? errorSub;
+    StreamSubscription? exitSub;
+    Isolate? isolate;
+    var cleanedUp = false;
+
+    Future<void> cleanup({bool cancelled = false}) async {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      _workerHandles.remove(providerId);
+      await progressSub?.cancel();
+      await errorSub?.cancel();
+      await exitSub?.cancel();
+      receivePort.close();
+      errorPort.close();
+      exitPort.close();
+      if (cancelled) {
+        isolate?.kill(priority: Isolate.immediate);
+        _publishEvent(
+          ProviderImportProgressEvent(
+            providerId: providerId,
+            kind: profile.record.kind,
+            phase: 'cancelled',
+          ),
+        );
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      } else {
+        isolate?.kill(priority: Isolate.immediate);
+      }
+    }
+
+    try {
+      final dbFile = await OpenIptvDb.resolveDatabaseFile();
+      if (!await dbFile.exists()) {
+        await cleanup();
+        return _runImportJob(profile, providerId);
+      }
+      final request = _ProviderImportWorkerRequest(
+        sendPort: receivePort.sendPort,
+        profile: _serializeProfile(profile),
+        dbPath: dbFile.path,
+      );
+      isolate = await Isolate.spawn<_ProviderImportWorkerRequest>(
+        _providerImportWorkerEntry,
+        request,
+        onError: errorPort.sendPort,
+        onExit: exitPort.sendPort,
+      );
+      _workerHandles[providerId] = _WorkerHandle(
+        providerKind: profile.record.kind,
+        cancelCallback: () => cleanup(cancelled: true),
+      );
+    } catch (error, stackTrace) {
+      _logError('Failed to spawn import worker', error, stackTrace);
+      await cleanup();
+      return _runImportJob(profile, providerId);
+    }
+
+    progressSub = receivePort.listen((message) {
+      final event = ProviderImportEventSerializer.deserialize(message);
+      if (event != null) {
+        _publishEvent(event);
+      }
+    });
+
+    errorSub = errorPort.listen((dynamic message) async {
+      await cleanup();
+      final error = message is List && message.isNotEmpty ? message.first : message;
+      final stackTrace = message is List && message.length > 1
+          ? StackTrace.fromString('${message[1]}')
+          : StackTrace.current;
+      _publishEvent(
+        ProviderImportErrorEvent(
+          providerId: providerId,
+          kind: profile.record.kind,
+          message: error?.toString() ?? 'Import worker error',
+        ),
+      );
+      if (!completer.isCompleted) {
+        completer.completeError(
+          Exception(error?.toString() ?? 'Import worker error'),
+          stackTrace,
+        );
+      }
+    });
+
+    exitSub = exitPort.listen((_) async {
+      await cleanup();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+
+    return completer.future;
+  }
+
+  Future<ImportMetrics?> _importStalker(
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
@@ -244,7 +493,7 @@ class ProviderImportService {
         'Stalker import skipped for ${profile.record.displayName}: '
         'missing MAC address.',
       );
-      return;
+      return null;
     }
 
     final configuration = StalkerPortalConfiguration(
@@ -256,10 +505,12 @@ class ProviderImportService {
     );
 
     try {
+      _emitProgress(profile, 'stalker.session');
       final session = await _ref.read(
         stalkerSessionProvider(configuration).future,
       );
       final headers = session.buildAuthenticatedHeaders();
+      _emitProgress(profile, 'stalker.categories.fetch');
       final live = await _fetchStalkerCategories(
         configuration,
         session,
@@ -366,9 +617,29 @@ class ProviderImportService {
           ),
         );
       }
+      _emitProgress(
+        profile,
+        'stalker.categories.ready',
+        metadata: {
+          'live': live.length,
+          'vod': vod.length,
+          'series': series.length,
+          'radio': radio.length,
+        },
+      );
+      _emitProgress(
+        profile,
+        'stalker.items.ready',
+        metadata: {
+          'live': liveItems.length,
+          'vod': vodItems.length,
+          'series': seriesItems.length,
+          'radio': radioItems.length,
+        },
+      );
 
       final importer = _ref.read(stalkerImporterProvider);
-      await importer.importCatalog(
+      return importer.importCatalog(
         providerId: providerId,
         liveCategories: live,
         vodCategories: vod,
@@ -385,6 +656,7 @@ class ProviderImportService {
         error,
         stackTrace,
       );
+      return null;
     }
   }
 
@@ -1339,4 +1611,342 @@ class _StalkerCategoryProbe {
 
   final String action;
   final bool includeJsToggle;
+}
+
+class _WorkerHandle {
+  _WorkerHandle({
+    required this.providerKind,
+    required this.cancelCallback,
+  });
+
+  final ProviderKind providerKind;
+  final Future<void> Function() cancelCallback;
+
+  Future<void> cancel() => cancelCallback();
+}
+
+/// --- Progress Reporting & Serialization ------------------------------------
+
+abstract class ProviderImportReporter {
+  void report(ProviderImportEvent event);
+}
+
+class _LocalImportReporter implements ProviderImportReporter {
+  _LocalImportReporter(this._emit);
+
+  final void Function(ProviderImportEvent) _emit;
+
+  @override
+  void report(ProviderImportEvent event) {
+    _emit(event);
+  }
+}
+
+class _SendPortImportReporter implements ProviderImportReporter {
+  _SendPortImportReporter(this._port);
+
+  final SendPort _port;
+
+  @override
+  void report(ProviderImportEvent event) {
+    _port.send(ProviderImportEventSerializer.serialize(event));
+  }
+}
+
+sealed class ProviderImportEvent {
+  const ProviderImportEvent({required this.providerId, required this.kind});
+
+  final int providerId;
+  final ProviderKind kind;
+}
+
+class ProviderImportProgressEvent extends ProviderImportEvent {
+  const ProviderImportProgressEvent({
+    required super.providerId,
+    required super.kind,
+    required this.phase,
+    this.metadata = const {},
+  });
+
+  final String phase;
+  final Map<String, Object?> metadata;
+}
+
+class ProviderImportResultEvent extends ProviderImportEvent {
+  const ProviderImportResultEvent({
+    required super.providerId,
+    required super.kind,
+    required this.metrics,
+  });
+
+  final ProviderImportMetricsSummary metrics;
+}
+
+class ProviderImportErrorEvent extends ProviderImportEvent {
+  const ProviderImportErrorEvent({
+    required super.providerId,
+    required super.kind,
+    required this.message,
+  });
+
+  final String message;
+}
+
+class ProviderImportMetricsSummary {
+  const ProviderImportMetricsSummary({
+    this.channelsUpserted = 0,
+    this.categoriesUpserted = 0,
+    this.moviesUpserted = 0,
+    this.seriesUpserted = 0,
+    this.seasonsUpserted = 0,
+    this.episodesUpserted = 0,
+    this.channelsDeleted = 0,
+    this.programsUpserted = 0,
+    this.durationMs = 0,
+  });
+
+  final int channelsUpserted;
+  final int categoriesUpserted;
+  final int moviesUpserted;
+  final int seriesUpserted;
+  final int seasonsUpserted;
+  final int episodesUpserted;
+  final int channelsDeleted;
+  final int programsUpserted;
+  final int durationMs;
+
+  static ProviderImportMetricsSummary fromMetrics(ImportMetrics? metrics) {
+    if (metrics == null) {
+      return const ProviderImportMetricsSummary();
+    }
+    return ProviderImportMetricsSummary(
+      channelsUpserted: metrics.channelsUpserted,
+      categoriesUpserted: metrics.categoriesUpserted,
+      moviesUpserted: metrics.moviesUpserted,
+      seriesUpserted: metrics.seriesUpserted,
+      seasonsUpserted: metrics.seasonsUpserted,
+      episodesUpserted: metrics.episodesUpserted,
+      channelsDeleted: metrics.channelsDeleted,
+      programsUpserted: metrics.programsUpserted,
+      durationMs: metrics.duration.inMilliseconds,
+    );
+  }
+
+  factory ProviderImportMetricsSummary.fromJson(Map<String, dynamic> json) {
+    return ProviderImportMetricsSummary(
+      channelsUpserted: json['channelsUpserted'] as int? ?? 0,
+      categoriesUpserted: json['categoriesUpserted'] as int? ?? 0,
+      moviesUpserted: json['moviesUpserted'] as int? ?? 0,
+      seriesUpserted: json['seriesUpserted'] as int? ?? 0,
+      seasonsUpserted: json['seasonsUpserted'] as int? ?? 0,
+      episodesUpserted: json['episodesUpserted'] as int? ?? 0,
+      channelsDeleted: json['channelsDeleted'] as int? ?? 0,
+      programsUpserted: json['programsUpserted'] as int? ?? 0,
+      durationMs: json['durationMs'] as int? ?? 0,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+        'channelsUpserted': channelsUpserted,
+        'categoriesUpserted': categoriesUpserted,
+        'moviesUpserted': moviesUpserted,
+        'seriesUpserted': seriesUpserted,
+        'seasonsUpserted': seasonsUpserted,
+        'episodesUpserted': episodesUpserted,
+        'channelsDeleted': channelsDeleted,
+        'programsUpserted': programsUpserted,
+        'durationMs': durationMs,
+      };
+}
+
+class ProviderImportEventSerializer {
+  static Map<String, Object?> serialize(ProviderImportEvent event) {
+    final base = <String, Object?>{
+      'providerId': event.providerId,
+      'kind': event.kind.index,
+    };
+    if (event is ProviderImportProgressEvent) {
+      return {
+        ...base,
+        'type': 'progress',
+        'phase': event.phase,
+        'metadata': event.metadata,
+      };
+    }
+    if (event is ProviderImportResultEvent) {
+      return {
+        ...base,
+        'type': 'result',
+        'metrics': event.metrics.toJson(),
+      };
+    }
+    if (event is ProviderImportErrorEvent) {
+      return {
+        ...base,
+        'type': 'error',
+        'message': event.message,
+      };
+    }
+    return {
+      ...base,
+      'type': 'unknown',
+    };
+  }
+
+  static ProviderImportEvent? deserialize(Object? message) {
+    if (message is! Map) return null;
+    final map = message.cast<String, Object?>();
+    final providerId = map['providerId'] as int?;
+    final kindIndex = map['kind'] as int?;
+    if (providerId == null || kindIndex == null) {
+      return null;
+    }
+    final kind = ProviderKind.values[kindIndex];
+    switch (map['type']) {
+      case 'progress':
+        final metadata = (map['metadata'] as Map?)?.cast<String, Object?>() ??
+            const <String, Object?>{};
+        return ProviderImportProgressEvent(
+          providerId: providerId,
+          kind: kind,
+          phase: map['phase'] as String? ?? 'unknown',
+          metadata: metadata,
+        );
+      case 'result':
+        final metricsJson =
+            (map['metrics'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{};
+        return ProviderImportResultEvent(
+          providerId: providerId,
+          kind: kind,
+          metrics: ProviderImportMetricsSummary.fromJson(metricsJson),
+        );
+      case 'error':
+        return ProviderImportErrorEvent(
+          providerId: providerId,
+          kind: kind,
+          message: map['message']?.toString() ?? 'unknown error',
+        );
+      default:
+        return null;
+    }
+  }
+}
+
+class _ProviderImportWorkerRequest {
+  const _ProviderImportWorkerRequest({
+    required this.sendPort,
+    required this.profile,
+    required this.dbPath,
+  });
+
+  final SendPort sendPort;
+  final Map<String, Object?> profile;
+  final String dbPath;
+}
+
+Map<String, Object?> _serializeProfile(ResolvedProviderProfile profile) {
+  final record = profile.record;
+  return {
+    'providerDbId': profile.providerDbId,
+    'secrets': profile.secrets,
+    'record': {
+      'id': record.id,
+      'kind': record.kind.index,
+      'displayName': record.displayName,
+      'lockedBase': record.lockedBase.toString(),
+      'needsUserAgent': record.needsUserAgent,
+      'allowSelfSignedTls': record.allowSelfSignedTls,
+      'followRedirects': record.followRedirects,
+      'configuration': record.configuration,
+      'hints': record.hints,
+      'createdAt': record.createdAt.toIso8601String(),
+      'updatedAt': record.updatedAt.toIso8601String(),
+      'lastOkAt': record.lastOkAt?.toIso8601String(),
+      'lastError': record.lastError,
+      'hasSecrets': record.hasSecrets,
+    },
+  };
+}
+
+ResolvedProviderProfile _deserializeProfile(
+  Map<String, Object?> payload,
+) {
+  final recordJson =
+      (payload['record'] as Map).cast<String, Object?>();
+  final record = ProviderProfileRecord(
+    id: recordJson['id'] as String,
+    kind: ProviderKind.values[recordJson['kind'] as int],
+    displayName: recordJson['displayName'] as String,
+    lockedBase: Uri.parse(recordJson['lockedBase'] as String),
+    needsUserAgent: recordJson['needsUserAgent'] as bool? ?? false,
+    allowSelfSignedTls: recordJson['allowSelfSignedTls'] as bool? ?? false,
+    followRedirects: recordJson['followRedirects'] as bool? ?? true,
+    configuration:
+        (recordJson['configuration'] as Map?)?.cast<String, String>() ??
+        const <String, String>{},
+    hints: (recordJson['hints'] as Map?)?.cast<String, String>() ??
+        const <String, String>{},
+    createdAt: DateTime.parse(recordJson['createdAt'] as String),
+    updatedAt: DateTime.parse(recordJson['updatedAt'] as String),
+    lastOkAt: recordJson['lastOkAt'] == null
+        ? null
+        : DateTime.parse(recordJson['lastOkAt'] as String),
+    lastError: recordJson['lastError'] as String?,
+    hasSecrets: recordJson['hasSecrets'] as bool? ?? false,
+  );
+  final secrets =
+      (payload['secrets'] as Map?)?.cast<String, String>() ??
+      const <String, String>{};
+  final providerDbId = payload['providerDbId'] as int?;
+  return ResolvedProviderProfile(
+    record: record,
+    secrets: secrets,
+    providerDbId: providerDbId,
+  );
+}
+
+Future<void> _providerImportWorkerEntry(
+  _ProviderImportWorkerRequest request,
+) async {
+  final profile = _deserializeProfile(request.profile);
+  final db = OpenIptvDb.forTesting(
+    NativeDatabase(
+      File(request.dbPath),
+      logStatements: false,
+    ),
+  );
+  final telemetryFile = File(
+    '${Directory.systemTemp.path}/openiptv_worker_telemetry.log',
+  );
+  final telemetry = TelemetryService(telemetryFile);
+  final container = ProviderContainer(
+    overrides: [
+      openIptvDbProvider.overrideWithValue(db),
+      telemetryServiceProvider.overrideWith((ref) async => telemetry),
+      providerImportReporterProvider.overrideWithValue(
+        _SendPortImportReporter(request.sendPort),
+      ),
+      providerImportOffloadProvider.overrideWithValue(false),
+    ],
+  );
+  try {
+    final service = container.read(providerImportServiceProvider);
+    await service.runInitialImport(profile);
+  } catch (error, stackTrace) {
+    request.sendPort.send(
+      ProviderImportEventSerializer.serialize(
+        ProviderImportErrorEvent(
+          providerId: profile.providerDbId ?? -1,
+          kind: profile.record.kind,
+          message: error.toString(),
+        ),
+      ),
+    );
+    Zone.current.handleUncaughtError(error, stackTrace);
+  } finally {
+    telemetry.dispose();
+    container.dispose();
+    await db.close();
+  }
 }

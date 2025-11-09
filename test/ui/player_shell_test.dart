@@ -328,4 +328,11 @@ class _FakeImportService implements ProviderImportService {
   Future<void> runInitialImport(ResolvedProviderProfile profile) async {
     called = true;
   }
+
+  @override
+  Stream<ProviderImportEvent> watchProgress(int providerId) =>
+      const Stream<ProviderImportEvent>.empty();
+
+  @override
+  Future<void> cancelImport(int providerId) async {}
 }

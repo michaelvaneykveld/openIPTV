@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -423,74 +423,95 @@ class ProviderImportService {
     Map<String, String> baseHeaders, {
     required String module,
   }) async {
-    try {
-      final stopwatch = Stopwatch()..start();
-      for (final includeJs in [true, false]) {
+    const probes = [
+      _StalkerCategoryProbe(action: 'get_categories'),
+      _StalkerCategoryProbe(
+        action: 'get_categories_v2',
+        includeJsToggle: false,
+      ),
+    ];
+    for (final probe in probes) {
+      final result = await _tryFetchStalkerCategoryProbe(
+        config: config,
+        session: session,
+        headers: baseHeaders,
+        module: module,
+        probe: probe,
+      );
+      if (result.isNotEmpty) {
+        return result;
+      }
+    }
+
+    final genreFallback = await _fetchStalkerGenres(
+      config,
+      session,
+      baseHeaders,
+      module: module,
+    );
+    if (genreFallback.isNotEmpty) {
+      return genreFallback;
+    }
+    if (kDebugMode) {
+      debugPrint(
+        redactSensitiveText(
+          'Stalker categories module=$module returned 0 entries '
+          '(all attempts exhausted)',
+        ),
+      );
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> _tryFetchStalkerCategoryProbe({
+    required StalkerPortalConfiguration config,
+    required StalkerSession session,
+    required Map<String, String> headers,
+    required String module,
+    required _StalkerCategoryProbe probe,
+  }) async {
+    final toggles = probe.includeJsToggle ? [true, false] : [false];
+    for (final includeJs in toggles) {
+      try {
+        final stopwatch = Stopwatch()..start();
         final envelope = await _stalkerHttpClient.getPortal(
           config,
           queryParameters: {
             'type': module,
-            'action': 'get_categories',
+            'action': probe.action,
             'token': session.token,
             'mac': config.macAddress.toLowerCase(),
             if (includeJs) 'JsHttpRequest': '1-xml',
           },
-          headers: baseHeaders,
+          headers: headers,
         );
         stopwatch.stop();
         unawaited(
           _logQueryLatency(
-            source: 'stalker.$module',
+            source: 'stalker.$module.${probe.action}',
             duration: stopwatch.elapsed,
           ),
         );
         final decoded = _decodePortalMap(envelope.body);
-        final categories =
-            decoded['js'] ?? decoded['categories'] ?? decoded['data'];
-        if (categories is List && categories.isNotEmpty) {
-          return categories
-              .whereType<Map>()
-              .map(
-                (entry) =>
-                    entry.map((key, value) => MapEntry(key.toString(), value)),
-              )
-              .toList();
+        final categories = _extractPortalCategories(decoded);
+        if (categories.isNotEmpty) {
+          return categories;
         }
-        if (!includeJs) {
-          break;
-        }
-      }
-      final genreFallback = await _fetchStalkerGenres(
-        config,
-        session,
-        baseHeaders,
-        module: module,
-      );
-      if (genreFallback.isNotEmpty) {
-        return genreFallback;
-      }
-      if (kDebugMode) {
-        debugPrint(
-          redactSensitiveText(
-            'Stalker categories module=$module returned 0 entries '
-            '(all attempts exhausted)',
+      } catch (error, stackTrace) {
+        _logError(
+          'Stalker categories action ${probe.action} failed for module $module',
+          error,
+          stackTrace,
+        );
+        unawaited(
+          _logQueryLatency(
+            source: 'stalker.$module.${probe.action}',
+            duration: Duration.zero,
+            success: false,
+            metadata: {'error': error.toString()},
           ),
         );
       }
-    } catch (error, stackTrace) {
-      _logError(
-        'Stalker categories fetch failed for module $module',
-        error,
-        stackTrace,
-      );
-      unawaited(
-        _logQueryLatency(
-          source: 'stalker.$module',
-          duration: Duration.zero,
-          success: false,
-          metadata: {'error': error.toString()},
-        ),
-      );
     }
     return const [];
   }
@@ -619,35 +640,57 @@ class ProviderImportService {
   }
 
   List<Map<String, dynamic>> _extractPortalItems(Map<String, dynamic> parsed) {
-    final candidates = <dynamic>[
-      parsed['data'],
-      parsed['js'],
-      parsed['results'],
-    ];
-    for (final candidate in candidates) {
-      if (candidate is List && candidate.isNotEmpty) {
-        return candidate
-            .whereType<Map>()
-            .map(
-              (entry) =>
-                  entry.map((key, value) => MapEntry(key.toString(), value)),
-            )
-            .toList();
-      }
-      if (candidate is Map && candidate['data'] is List) {
-        final nested = candidate['data'] as List;
-        if (nested.isNotEmpty) {
-          return nested
-              .whereType<Map>()
-              .map(
-                (entry) =>
-                    entry.map((key, value) => MapEntry(key.toString(), value)),
-              )
-              .toList();
-        }
+    return _extractPortalListFromCandidates(
+      parsed,
+      const ['data', 'js', 'results'],
+    );
+  }
+
+  List<Map<String, dynamic>> _extractPortalCategories(
+    Map<String, dynamic> parsed,
+  ) {
+    return _extractPortalListFromCandidates(
+      parsed,
+      const ['js', 'categories', 'genres', 'data', 'results'],
+    );
+  }
+
+  static List<Map<String, dynamic>> _extractPortalListFromCandidates(
+    Map<String, dynamic> parsed,
+    List<String> candidateKeys,
+  ) {
+    for (final key in candidateKeys) {
+      final normalized = _normalizePortalListCandidate(parsed[key]);
+      if (normalized != null && normalized.isNotEmpty) {
+        return normalized;
       }
     }
     return const [];
+  }
+
+  static List<Map<String, dynamic>>? _normalizePortalListCandidate(
+    dynamic candidate,
+  ) {
+    if (candidate is List && candidate.isNotEmpty) {
+      return candidate
+          .whereType<Map>()
+          .map(
+            (entry) =>
+                entry.map((key, value) => MapEntry(key.toString(), value)),
+          )
+          .toList();
+    }
+    if (candidate is Map) {
+      const nestedKeys = ['data', 'results', 'items', 'categories', 'genres'];
+      for (final nestedKey in nestedKeys) {
+        final nested = candidate[nestedKey];
+        final normalized = _normalizePortalListCandidate(nested);
+        if (normalized != null && normalized.isNotEmpty) {
+          return normalized;
+        }
+      }
+    }
+    return null;
   }
 
   Future<List<Map<String, dynamic>>> _fetchStalkerGenres(
@@ -669,15 +712,12 @@ class ProviderImportService {
         headers: headers,
       );
       final decoded = _decodePortalMap(response.body);
-      final data = decoded['js'] ?? decoded['genres'] ?? decoded['data'];
-      if (data is List && data.isNotEmpty) {
-        return data
-            .whereType<Map>()
-            .map(
-              (entry) =>
-                  entry.map((key, value) => MapEntry(key.toString(), value)),
-            )
-            .toList();
+      final data = _extractPortalListFromCandidates(
+        decoded,
+        const ['js', 'genres', 'data', 'results'],
+      );
+      if (data.isNotEmpty) {
+        return data;
       }
     } catch (error, stackTrace) {
       _logError(
@@ -999,7 +1039,7 @@ class ProviderImportService {
   String _previewBody(dynamic body) {
     final text = body is String ? body : jsonEncode(body ?? const {});
     if (text.length > 200) {
-      return '${text.substring(0, 200)}…';
+      return '${text.substring(0, 200)}ÔÇª';
     }
     return text;
   }
@@ -1175,6 +1215,17 @@ class ProviderImportService {
     }
   }
 
+  /// Exposed for unit tests to validate category payload normalization.
+  @visibleForTesting
+  static List<Map<String, dynamic>> normalizePortalCategoryPayload(
+    Map<String, dynamic> payload,
+  ) {
+    return _extractPortalListFromCandidates(
+      payload,
+      const ['js', 'categories', 'genres', 'data', 'results'],
+    );
+  }
+
   /// Exposed for unit tests to validate the playlist parser.
   @visibleForTesting
   static List<M3uEntry> parseM3uEntries(String contents) {
@@ -1278,4 +1329,14 @@ class _DerivedCategory {
 
   final String id;
   final String title;
+}
+
+class _StalkerCategoryProbe {
+  const _StalkerCategoryProbe({
+    required this.action,
+    this.includeJsToggle = true,
+  });
+
+  final String action;
+  final bool includeJsToggle;
 }

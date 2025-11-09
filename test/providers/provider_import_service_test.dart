@@ -43,4 +43,33 @@ http://example.com/plain
     expect(entry.name, 'Plain Entry');
     expect(entry.isRadio, isFalse);
   });
+
+  test('normalizePortalCategoryPayload reads categories key', () {
+    final payload = {
+      'categories': [
+        {'id': 1, 'title': 'Movies'},
+        {'id': '2', 'title': 'Series'},
+      ],
+    };
+    final normalized =
+        ProviderImportService.normalizePortalCategoryPayload(payload);
+    expect(normalized, hasLength(2));
+    expect(normalized.first['id'], 1);
+    expect(normalized.last['title'], 'Series');
+  });
+
+  test('normalizePortalCategoryPayload unwraps nested js data', () {
+    final payload = {
+      'js': {
+        'data': [
+          {'category_id': 99, 'title': 'Sports'},
+        ],
+      },
+    };
+    final normalized =
+        ProviderImportService.normalizePortalCategoryPayload(payload);
+    expect(normalized, hasLength(1));
+    expect(normalized.single['category_id'], 99);
+    expect(normalized.single['title'], 'Sports');
+  });
 }

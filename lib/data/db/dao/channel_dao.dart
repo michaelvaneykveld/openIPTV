@@ -20,7 +20,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     bool isRadio = false,
     String? streamUrlTemplate,
     DateTime? seenAt,
-  }) {
+  }) async {
     final companion = ChannelsCompanion.insert(
       providerId: providerId,
       providerChannelKey: providerKey,
@@ -31,7 +31,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
       streamUrlTemplate: Value(streamUrlTemplate),
       lastSeenAt: Value(seenAt ?? DateTime.now().toUtc()),
     );
-    return into(channels).insert(
+    final record = await into(channels).insertReturning(
       companion,
       onConflict: DoUpdate(
         (_) => ChannelsCompanion(
@@ -45,6 +45,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
         target: [channels.providerId, channels.providerChannelKey],
       ),
     );
+    return record.id;
   }
 
   Future<void> markAllAsCandidateForDelete(int providerId) {
@@ -58,7 +59,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
   Future<int> purgeStaleChannels({
     required int providerId,
     required DateTime olderThan,
-  }) {
+  }) async {
     final query = delete(channels)
       ..where((tbl) => tbl.providerId.equals(providerId))
       ..where((tbl) => tbl.lastSeenAt.isSmallerThanValue(olderThan));

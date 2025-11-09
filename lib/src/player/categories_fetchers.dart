@@ -107,18 +107,13 @@ final legacyCategoriesProvider = FutureProvider.autoDispose
       return coordinator.fetch(profile);
     });
 
-final dbCategoriesProvider =
-    StreamProvider.autoDispose.family<CategoryMap, int>((ref, providerId) {
+final dbCategoriesProvider = StreamProvider.autoDispose
+    .family<CategoryMap, int>((ref, providerId) {
       final db = ref.watch(openIptvDbProvider);
       final selectable = db.customSelect(
         _dbCategoriesSql,
         variables: [Variable<int>(providerId)],
-        readsFrom: {
-          db.categories,
-          db.channelCategories,
-          db.movies,
-          db.series,
-        },
+        readsFrom: {db.categories, db.channelCategories, db.movies, db.series},
       );
       return selectable.watch().map(_mapDbCategoriesToEntries);
     });
@@ -238,8 +233,9 @@ Future<List<CategoryPreviewItem>> _loadChannelPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
-  final rows = await db.customSelect(
-    '''
+  final rows = await db
+      .customSelect(
+        '''
 SELECT ch.id, ch.name, ch.logo_url, ch.number
 FROM channel_categories cc
 JOIN channels ch ON ch.id = cc.channel_id
@@ -247,16 +243,16 @@ WHERE cc.category_id = ?
 ORDER BY (ch.number IS NULL), ch.number, ch.name
 LIMIT 6;
 ''',
-    variables: [Variable<int>(categoryId)],
-  ).get();
+        variables: [Variable<int>(categoryId)],
+      )
+      .get();
 
   return rows
       .map(
         (row) => CategoryPreviewItem(
           id: row.read<int>('id').toString(),
           title: row.read<String>('name'),
-          subtitle:
-              _formatChannelSubtitle(row.readNullable<int>('number')),
+          subtitle: _formatChannelSubtitle(row.readNullable<int>('number')),
           artUri: row.readNullable<String>('logo_url'),
         ),
       )
@@ -267,16 +263,18 @@ Future<List<CategoryPreviewItem>> _loadVodPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
-  final rows = await db.customSelect(
-    '''
+  final rows = await db
+      .customSelect(
+        '''
 SELECT mv.id, mv.title, mv.year, mv.poster_url
 FROM movies mv
 WHERE mv.category_id = ?
 ORDER BY mv.title
 LIMIT 6;
 ''',
-    variables: [Variable<int>(categoryId)],
-  ).get();
+        variables: [Variable<int>(categoryId)],
+      )
+      .get();
 
   return rows
       .map(
@@ -294,16 +292,18 @@ Future<List<CategoryPreviewItem>> _loadSeriesPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
-  final rows = await db.customSelect(
-    '''
+  final rows = await db
+      .customSelect(
+        '''
 SELECT s.id, s.title, s.year, s.poster_url
 FROM series s
 WHERE s.category_id = ?
 ORDER BY s.title
 LIMIT 6;
 ''',
-    variables: [Variable<int>(categoryId)],
-  ).get();
+        variables: [Variable<int>(categoryId)],
+      )
+      .get();
 
   return rows
       .map(
@@ -1583,7 +1583,6 @@ class _StalkerCategoriesFetcher {
 class _M3uCategoriesFetcher {
   const _M3uCategoriesFetcher();
 
-  static const int _previewLimitPerCategory = 12;
   static const Duration _previewTtl = Duration(minutes: 5);
   static const String _defaultGroupLabel = 'Ungrouped';
 
@@ -1611,7 +1610,7 @@ class _M3uCategoriesFetcher {
     ResolvedProviderProfile profile,
     ContentBucket bucket,
     String categoryId, {
-    int limit = _previewLimitPerCategory,
+    int? limit,
   }) async {
     final cacheKey = _cacheKey(profile);
     final normalizedGroup = _normalizeGroup(categoryId);
@@ -1785,9 +1784,6 @@ class _M3uCategoriesFetcher {
     final group = _normalizeGroup(pending.group);
     final bucketMap = previews[pending.bucket]!;
     final list = bucketMap.putIfAbsent(group, () => <CategoryPreviewItem>[]);
-    if (list.length >= _previewLimitPerCategory) {
-      return;
-    }
 
     final subtitle = _buildSubtitle(pending);
     final idCandidates = <String?>[
@@ -1878,9 +1874,9 @@ class _M3uCategoriesFetcher {
 
   List<CategoryPreviewItem> _truncate(
     List<CategoryPreviewItem> items,
-    int limit,
+    int? limit,
   ) {
-    if (items.length <= limit) {
+    if (limit == null || limit <= 0 || items.length <= limit) {
       return List<CategoryPreviewItem>.from(items, growable: false);
     }
     return List<CategoryPreviewItem>.from(items.take(limit), growable: false);

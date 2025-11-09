@@ -65,84 +65,108 @@ class M3uImporter {
     required int providerId,
     required Stream<M3uEntry> entries,
   }) {
-    return context.runWithRetry((txn) async {
-      final metrics = ImportMetrics();
+    return context.runWithRetry(
+      (txn) async {
+        final metrics = ImportMetrics();
 
-      await txn.channels.markAllAsCandidateForDelete(providerId);
+        await txn.channels.markAllAsCandidateForDelete(providerId);
+        await txn.movies.markAllAsCandidateForDelete(providerId);
+        await txn.series.markSeriesForDeletion(providerId);
 
-      final categoryCache = <String, int>{};
-      var liveCount = 0;
-      var radioCount = 0;
+        final categoryCache = <String, int>{};
+        final totals = <CategoryKind, int>{
+          for (final kind in CategoryKind.values) kind: 0,
+        };
 
-      await for (final entry in entries) {
-        final channelId = await txn.channels.upsertChannel(
-          providerId: providerId,
-          providerKey: entry.key,
-          name: entry.name,
-          logoUrl: entry.logoUrl,
-          isRadio: entry.isRadio,
-          streamUrlTemplate: entry.key,
-        );
-        metrics.channelsUpserted += 1;
-
-        final categoryKind =
-            entry.isRadio ? CategoryKind.radio : CategoryKind.live;
-        final cacheKey = '${categoryKind.name}:${entry.group}';
-        var categoryId = categoryCache[cacheKey];
-        if (categoryId == null) {
-          categoryId = await txn.categories.upsertCategory(
+        await for (final entry in entries) {
+          final kind = _inferCategoryKind(entry);
+          final normalizedGroup = _normalizeGroupName(entry.group);
+          final categoryId = await _resolveCategoryId(
+            txn: txn,
+            cache: categoryCache,
             providerId: providerId,
-            kind: categoryKind,
-            providerKey: entry.group,
-            name: entry.group,
-            position: null,
+            kind: kind,
+            groupName: normalizedGroup,
+            metrics: metrics,
           );
-          categoryCache[cacheKey] = categoryId;
-          metrics.categoriesUpserted += 1;
+          final seenAt = DateTime.now().toUtc();
+          final channelId = await txn.channels.upsertChannel(
+            providerId: providerId,
+            providerKey: entry.key,
+            name: entry.name,
+            logoUrl: entry.logoUrl,
+            isRadio: kind == CategoryKind.radio,
+            streamUrlTemplate: entry.key,
+          );
+          metrics.channelsUpserted += 1;
+
+          await _safeLinkChannelToCategory(
+            txn: txn,
+            channelId: channelId,
+            categoryId: categoryId,
+          );
+
+          totals[kind] = (totals[kind] ?? 0) + 1;
+          if (kind == CategoryKind.vod) {
+            await txn.movies.upsertMovie(
+              providerId: providerId,
+              providerVodKey: entry.key,
+              title: entry.name,
+              categoryId: categoryId,
+              posterUrl: entry.logoUrl,
+              streamUrlTemplate: entry.key,
+              seenAt: seenAt,
+            );
+            metrics.moviesUpserted += 1;
+          } else if (kind == CategoryKind.series) {
+            await _upsertSeriesEntry(
+              txn: txn,
+              providerId: providerId,
+              entry: entry,
+              categoryId: categoryId,
+              metrics: metrics,
+              seenAt: seenAt,
+            );
+          }
         }
-        await _safeLinkChannelToCategory(
-          txn: txn,
-          channelId: channelId,
-          categoryId: categoryId,
+
+        final purgeCutoff = DateTime.now().subtract(const Duration(days: 3));
+        metrics.channelsDeleted = await txn.channels.purgeStaleChannels(
+          providerId: providerId,
+          olderThan: purgeCutoff,
+        );
+        await txn.movies.purgeStaleMovies(
+          providerId: providerId,
+          olderThan: purgeCutoff,
+        );
+        await txn.series.purgeStaleSeries(
+          providerId: providerId,
+          olderThan: purgeCutoff,
         );
 
-        if (entry.isRadio) {
-          radioCount += 1;
-        } else {
-          liveCount += 1;
+        for (final kind in CategoryKind.values) {
+          await txn.summaries.upsertSummary(
+            providerId: providerId,
+            kind: kind,
+            totalItems: totals[kind] ?? 0,
+          );
         }
-      }
 
-      final purgeCutoff = DateTime.now()
-          .subtract(const Duration(days: 3));
-      metrics.channelsDeleted = await txn.channels.purgeStaleChannels(
-        providerId: providerId,
-        olderThan: purgeCutoff,
-      );
+        await txn.providers.setLastSyncAt(
+          providerId: providerId,
+          lastSyncAt: DateTime.now().toUtc(),
+        );
 
-      await txn.summaries.upsertSummary(
-        providerId: providerId,
-        kind: CategoryKind.live,
-        totalItems: liveCount,
-      );
-      await txn.summaries.upsertSummary(
-        providerId: providerId,
-        kind: CategoryKind.radio,
-        totalItems: radioCount,
-      );
-
-      await txn.providers.setLastSyncAt(
-        providerId: providerId,
-        lastSyncAt: DateTime.now().toUtc(),
-      );
-
-      return metrics;
-    },
-        providerId: providerId,
-        importType: 'm3u',
-        metricsSelector: (result) => result);
+        return metrics;
+      },
+      providerId: providerId,
+      importType: 'm3u',
+      metricsSelector: (result) => result,
+    );
   }
 }
+
+const _defaultGroupLabel = 'Ungrouped';
 
 Future<void> _safeLinkChannelToCategory({
   required ImportTxn txn,
@@ -168,6 +192,117 @@ Future<void> _safeLinkChannelToCategory({
   }
 }
 
+Future<int> _resolveCategoryId({
+  required ImportTxn txn,
+  required Map<String, int> cache,
+  required int providerId,
+  required CategoryKind kind,
+  required String groupName,
+  required ImportMetrics metrics,
+}) async {
+  final cacheKey = '${kind.name}:$groupName';
+  final cached = cache[cacheKey];
+  if (cached != null) {
+    return cached;
+  }
+  final id = await txn.categories.upsertCategory(
+    providerId: providerId,
+    kind: kind,
+    providerKey: groupName,
+    name: groupName,
+    position: null,
+  );
+  cache[cacheKey] = id;
+  metrics.categoriesUpserted += 1;
+  return id;
+}
 
+String _normalizeGroupName(String? value) {
+  if (value == null) {
+    return _defaultGroupLabel;
+  }
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return _defaultGroupLabel;
+  }
+  return trimmed;
+}
 
+CategoryKind _inferCategoryKind(M3uEntry entry) {
+  final name = entry.name.toLowerCase();
+  final group = entry.group.toLowerCase();
+  if (entry.isRadio || name.contains('radio') || _looksLikeRadioGroup(group)) {
+    return CategoryKind.radio;
+  }
+  if (_looksLikeSeriesGroup(group) || name.contains('series')) {
+    return CategoryKind.series;
+  }
+  if (_looksLikeVodGroup(group) ||
+      name.contains('movie') ||
+      name.contains('film')) {
+    return CategoryKind.vod;
+  }
+  return CategoryKind.live;
+}
 
+bool _looksLikeVodGroup(String group) {
+  return group.contains('vod') ||
+      group.contains('movie') ||
+      group.contains('film') ||
+      group.contains('filme');
+}
+
+bool _looksLikeSeriesGroup(String group) {
+  return group.contains('series') ||
+      group.contains('shows') ||
+      group.contains('serial');
+}
+
+bool _looksLikeRadioGroup(String group) {
+  return group.contains('radio') || group.contains('audio');
+}
+
+Future<void> _upsertSeriesEntry({
+  required ImportTxn txn,
+  required int providerId,
+  required M3uEntry entry,
+  required int categoryId,
+  required ImportMetrics metrics,
+  required DateTime seenAt,
+}) async {
+  final seriesId = await txn.series.upsertSeries(
+    providerId: providerId,
+    providerSeriesKey: entry.key,
+    title: entry.name,
+    categoryId: categoryId,
+    posterUrl: entry.logoUrl,
+    seenAt: seenAt,
+  );
+  metrics.seriesUpserted += 1;
+
+  await txn.series.deleteHierarchyForSeries(seriesId);
+
+  final seasonId = await txn.series.upsertSeason(
+    seriesId: seriesId,
+    seasonNumber: 1,
+    name: 'Season 1',
+  );
+  if (seasonId <= 0) {
+    return;
+  }
+  metrics.seasonsUpserted += 1;
+
+  final episodeId = await txn.series.upsertEpisode(
+    seriesId: seriesId,
+    seasonId: seasonId,
+    providerEpisodeKey: entry.key,
+    seasonNumber: 1,
+    episodeNumber: 1,
+    title: entry.name,
+    streamUrlTemplate: entry.key,
+    seenAt: seenAt,
+  );
+  if (episodeId > 0) {
+    metrics.episodesUpserted += 1;
+  }
+}

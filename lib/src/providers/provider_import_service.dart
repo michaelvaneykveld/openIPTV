@@ -18,6 +18,7 @@ import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/telemetry_service.dart';
+import 'package:openiptv/src/utils/url_redaction.dart';
 
 final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
   return ProviderImportService(ref);
@@ -261,48 +262,72 @@ class ProviderImportService {
       final headers = session.buildAuthenticatedHeaders();
       final live = await _fetchStalkerCategories(
         configuration,
+        session,
         headers,
         module: 'itv',
       );
       final vod = await _fetchStalkerCategories(
         configuration,
+        session,
         headers,
         module: 'vod',
       );
       final series = await _fetchStalkerCategories(
         configuration,
+        session,
         headers,
         module: 'series',
       );
       final radio = await _fetchStalkerCategories(
         configuration,
+        session,
         headers,
         module: 'radio',
       );
-      final liveItems = await _fetchStalkerListing(
+      final liveItems = await _fetchStalkerItems(
         configuration: configuration,
         headers: headers,
         session: session,
         module: 'itv',
+        categories: live,
       );
-      final vodItems = await _fetchStalkerListing(
+      final vodItems = await _fetchStalkerItems(
         configuration: configuration,
         headers: headers,
         session: session,
         module: 'vod',
+        categories: vod,
       );
-      final seriesItems = await _fetchStalkerListing(
+      final seriesItems = await _fetchStalkerItems(
         configuration: configuration,
         headers: headers,
         session: session,
         module: 'series',
+        categories: series,
       );
-      final radioItems = await _fetchStalkerListing(
+      final radioItems = await _fetchStalkerItems(
         configuration: configuration,
         headers: headers,
         session: session,
         module: 'radio',
+        categories: radio,
       );
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker categories fetched: '
+            'live=${live.length}, vod=${vod.length}, '
+            'series=${series.length}, radio=${radio.length}',
+          ),
+        );
+        debugPrint(
+          redactSensitiveText(
+            'Stalker listing counts: '
+            'live=${liveItems.length}, vod=${vodItems.length}, '
+            'series=${seriesItems.length}, radio=${radioItems.length}',
+          ),
+        );
+      }
 
       final importer = _ref.read(stalkerImporterProvider);
       await importer.importCatalog(
@@ -356,27 +381,35 @@ class ProviderImportService {
 
   Future<List<Map<String, dynamic>>> _fetchStalkerCategories(
     StalkerPortalConfiguration config,
+    StalkerSession session,
     Map<String, String> baseHeaders, {
     required String module,
   }) async {
     try {
       final stopwatch = Stopwatch()..start();
-      final envelope = await _stalkerHttpClient.getPortal(
-        config,
-        queryParameters: {'type': module, 'action': 'get_categories'},
-        headers: baseHeaders,
-      );
-      stopwatch.stop();
-      unawaited(
-        _logQueryLatency(
-          source: 'stalker.$module',
-          duration: stopwatch.elapsed,
-        ),
-      );
-      final decoded = _maybeDecodeJson(envelope.body);
-      if (decoded is Map) {
-        final categories = decoded['js'] ?? decoded['categories'];
-        if (categories is List) {
+      for (final includeJs in [true, false]) {
+        final envelope = await _stalkerHttpClient.getPortal(
+          config,
+          queryParameters: {
+            'type': module,
+            'action': 'get_categories',
+            'token': session.token,
+            'mac': config.macAddress.toLowerCase(),
+            if (includeJs) 'JsHttpRequest': '1-xml',
+          },
+          headers: baseHeaders,
+        );
+        stopwatch.stop();
+        unawaited(
+          _logQueryLatency(
+            source: 'stalker.$module',
+            duration: stopwatch.elapsed,
+          ),
+        );
+        final decoded = _decodePortalMap(envelope.body);
+        final categories =
+            decoded['js'] ?? decoded['categories'] ?? decoded['data'];
+        if (categories is List && categories.isNotEmpty) {
           return categories
               .whereType<Map>()
               .map(
@@ -385,6 +418,26 @@ class ProviderImportService {
               )
               .toList();
         }
+        if (!includeJs) {
+          break;
+        }
+      }
+      final genreFallback = await _fetchStalkerGenres(
+        config,
+        session,
+        baseHeaders,
+        module: module,
+      );
+      if (genreFallback.isNotEmpty) {
+        return genreFallback;
+      }
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker categories module=$module returned 0 entries '
+            '(all attempts exhausted)',
+          ),
+        );
       }
     } catch (error, stackTrace) {
       _logError(
@@ -404,6 +457,50 @@ class ProviderImportService {
     return const [];
   }
 
+  Future<List<Map<String, dynamic>>> _fetchStalkerItems({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+    required List<Map<String, dynamic>> categories,
+  }) async {
+    // Try per-category paging first for modules that typically enforce
+    // global caps (VOD, series, radio). Live channels usually work via the
+    // bulk endpoint since portals expect `/get_all_channels`.
+    if (categories.isNotEmpty &&
+        (module == 'vod' || module == 'series' || module == 'radio')) {
+      final perCategory = await _fetchStalkerItemsForCategories(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: module,
+        categories: categories,
+      );
+      if (perCategory.isNotEmpty) {
+        return perCategory;
+      }
+    }
+
+    for (final action in _bulkActionsForModule(module)) {
+      final bulk = await _fetchStalkerBulk(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: module,
+        action: action,
+      );
+      if (bulk.isNotEmpty) {
+        return bulk;
+      }
+    }
+    return _fetchStalkerListing(
+      configuration: configuration,
+      headers: headers,
+      session: session,
+      module: module,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> _fetchStalkerListing({
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
@@ -411,7 +508,8 @@ class ProviderImportService {
     required String module,
   }) async {
     final results = <Map<String, dynamic>>[];
-    const maxPages = 200;
+    const maxPages = 25;
+    int? expectedPages;
     for (var page = 1; page <= maxPages; page += 1) {
       try {
         final response = await _stalkerHttpClient.getPortal(
@@ -419,19 +517,50 @@ class ProviderImportService {
           queryParameters: {
             'type': module,
             'action': 'get_ordered_list',
-            'p': '$page',
+            'p': '${page - 1}',
             'JsHttpRequest': '1-xml',
             'token': session.token,
             'mac': configuration.macAddress.toLowerCase(),
           },
           headers: headers,
         );
-        final entries = _extractPortalItems(response.body);
+        final envelope = _decodePortalMap(response.body);
+        final entries = _extractPortalItems(envelope);
+        final pageSize = _extractMaxPageItems(envelope);
+        final totalItems = _extractTotalItems(envelope);
         if (entries.isEmpty) {
+          if (kDebugMode) {
+            debugPrint(
+              redactSensitiveText(
+                'Stalker listing module=$module page=$page returned 0 items. '
+                'Payload preview: ${_previewBody(response.body)}',
+              ),
+            );
+          }
           break;
         }
         results.addAll(entries);
-        if (entries.length < 50) {
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker listing module=$module page=$page '
+              'items=${entries.length} (pageSize=${pageSize ?? 'n/a'}, '
+              'total=${totalItems ?? 'n/a'})',
+            ),
+          );
+        }
+        if (pageSize != null && entries.length < pageSize) {
+          break;
+        }
+        if (totalItems != null && pageSize != null && pageSize > 0) {
+          expectedPages ??= ((totalItems + pageSize - 1) ~/ pageSize)
+              .clamp(1, maxPages)
+              .toInt();
+        }
+        if (totalItems != null && results.length >= totalItems) {
+          break;
+        }
+        if (expectedPages != null && page >= expectedPages) {
           break;
         }
       } catch (error, stackTrace) {
@@ -446,28 +575,252 @@ class ProviderImportService {
     return results;
   }
 
-  List<Map<String, dynamic>> _extractPortalItems(dynamic body) {
-    final parsed = _decodePortalMap(body);
-    final data = parsed['data'];
-    if (data is List) {
-      return data
-          .whereType<Map>()
-          .map(
-            (entry) =>
-                entry.map((key, value) => MapEntry(key.toString(), value)),
-          )
-          .toList();
-    }
-    if (data is Map && data['data'] is List) {
-      return (data['data'] as List)
-          .whereType<Map>()
-          .map(
-            (entry) =>
-                entry.map((key, value) => MapEntry(key.toString(), value)),
-          )
-          .toList();
+  List<Map<String, dynamic>> _extractPortalItems(Map<String, dynamic> parsed) {
+    final candidates = <dynamic>[
+      parsed['data'],
+      parsed['js'],
+      parsed['results'],
+    ];
+    for (final candidate in candidates) {
+      if (candidate is List && candidate.isNotEmpty) {
+        return candidate
+            .whereType<Map>()
+            .map(
+              (entry) =>
+                  entry.map((key, value) => MapEntry(key.toString(), value)),
+            )
+            .toList();
+      }
+      if (candidate is Map && candidate['data'] is List) {
+        final nested = candidate['data'] as List;
+        if (nested.isNotEmpty) {
+          return nested
+              .whereType<Map>()
+              .map(
+                (entry) =>
+                    entry.map((key, value) => MapEntry(key.toString(), value)),
+              )
+              .toList();
+        }
+      }
     }
     return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchStalkerGenres(
+    StalkerPortalConfiguration config,
+    StalkerSession session,
+    Map<String, String> headers, {
+    required String module,
+  }) async {
+    try {
+      final response = await _stalkerHttpClient.getPortal(
+        config,
+        queryParameters: {
+          'type': module,
+          'action': 'get_genres',
+          'JsHttpRequest': '1-xml',
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+        },
+        headers: headers,
+      );
+      final decoded = _decodePortalMap(response.body);
+      final data = decoded['js'] ?? decoded['genres'] ?? decoded['data'];
+      if (data is List && data.isNotEmpty) {
+        return data
+            .whereType<Map>()
+            .map(
+              (entry) =>
+                  entry.map((key, value) => MapEntry(key.toString(), value)),
+            )
+            .toList();
+      }
+    } catch (error, stackTrace) {
+      _logError(
+        'Stalker genres fetch failed for module $module',
+        error,
+        stackTrace,
+      );
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchStalkerItemsForCategories({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+    required List<Map<String, dynamic>> categories,
+  }) async {
+    const maxPagesPerCategory = 200;
+    final seenKeys = <String>{};
+    final aggregated = <Map<String, dynamic>>[];
+
+    for (final category in categories) {
+      final categoryId = _coerceString(
+        category['id'] ??
+            category['category_id'] ??
+            category['tv_genre_id'] ??
+            category['alias'],
+      );
+      if (categoryId == null || categoryId.isEmpty) {
+        continue;
+      }
+      if (_isCategoryLocked(category)) {
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker skipping locked/censored category $categoryId '
+              'for module=$module',
+            ),
+          );
+        }
+        continue;
+      }
+
+      int? expectedPages;
+      for (var page = 1; page <= maxPagesPerCategory; page += 1) {
+        try {
+          final response = await _stalkerHttpClient.getPortal(
+            configuration,
+            queryParameters: {
+              'type': module,
+              'action': 'get_ordered_list',
+              'p': '${page - 1}',
+              'genre': categoryId,
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': configuration.macAddress.toLowerCase(),
+            },
+            headers: headers,
+          );
+          final envelope = _decodePortalMap(response.body);
+          final entries = _extractPortalItems(envelope);
+          final pageSize = _extractMaxPageItems(envelope);
+          final totalItems =
+              _extractTotalItems(envelope) ??
+              _coerceInt(category['items'] ?? category['movies_count']);
+
+          if (kDebugMode) {
+            debugPrint(
+              redactSensitiveText(
+                'Stalker cat=$categoryId module=$module page=$page '
+                'items=${entries.length} total=${totalItems ?? 'n/a'}',
+              ),
+            );
+          }
+
+          if (entries.isEmpty) {
+            break;
+          }
+
+          for (final entry in entries) {
+            final idKey =
+                _coerceString(entry['id'] ?? entry['cmd'] ?? entry['name']) ??
+                '${categoryId}_${entry.hashCode}';
+            if (seenKeys.add('$module:$idKey')) {
+              entry.putIfAbsent('category_id', () => categoryId);
+              aggregated.add(entry);
+            }
+          }
+
+          if (pageSize != null && entries.length < pageSize) {
+            break;
+          }
+          if (totalItems != null && aggregated.length >= totalItems) {
+            break;
+          }
+          if (totalItems != null &&
+              pageSize != null &&
+              pageSize > 0 &&
+              expectedPages == null) {
+            expectedPages = ((totalItems + pageSize - 1) ~/ pageSize).clamp(
+              1,
+              maxPagesPerCategory,
+            );
+          }
+          if (expectedPages != null && page >= expectedPages) {
+            break;
+          }
+        } catch (error, stackTrace) {
+          _logError(
+            'Stalker category $categoryId fetch failed',
+            error,
+            stackTrace,
+          );
+          break;
+        }
+      }
+    }
+
+    return aggregated;
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchStalkerBulk({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+    required String action,
+  }) async {
+    try {
+      final response = await _stalkerHttpClient.getPortal(
+        configuration,
+        queryParameters: {
+          'type': module,
+          'action': action,
+          'JsHttpRequest': '1-xml',
+          'token': session.token,
+          'mac': configuration.macAddress.toLowerCase(),
+        },
+        headers: headers,
+      );
+      final parsed = _decodePortalMap(response.body);
+      final items = _extractPortalItems(parsed);
+      if (kDebugMode) {
+        debugPrint(
+          redactSensitiveText(
+            'Stalker bulk action=$action module=$module items=${items.length}',
+          ),
+        );
+      }
+      return items;
+    } catch (error, stackTrace) {
+      _logError('Stalker $action failed for module $module', error, stackTrace);
+      return const [];
+    }
+  }
+
+  List<String> _bulkActionsForModule(String module) {
+    switch (module) {
+      case 'itv':
+      case 'radio':
+        return const ['get_all_channels'];
+      case 'vod':
+        return const ['get_all_movies', 'get_all_vod'];
+      case 'series':
+        return const ['get_all_series', 'get_all_video_clubs'];
+      default:
+        return const [];
+    }
+  }
+
+  bool _isCategoryLocked(Map<String, dynamic> category) {
+    final locked = _coerceInt(category['locked']);
+    if (locked == 1) {
+      return true;
+    }
+    final censored = _coerceInt(category['censored']);
+    final allowChildren = _coerceInt(category['allow_children']);
+    if (censored == 1 && (allowChildren == null || allowChildren == 0)) {
+      return true;
+    }
+    final adult = _coerceString(category['adult']);
+    if (adult == '1' || adult?.toLowerCase() == 'true') {
+      return true;
+    }
+    return false;
   }
 
   Map<String, dynamic> _decodePortalMap(dynamic body) {
@@ -491,6 +844,72 @@ class ProviderImportService {
 
   String _stripHtmlComments(String input) {
     return input.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '').trim();
+  }
+
+  int? _extractMaxPageItems(Map<String, dynamic> parsed) {
+    final scopes = [
+      parsed,
+      if (parsed['js'] is Map) parsed['js'],
+      if (parsed['data'] is Map) parsed['data'],
+    ];
+    for (final scope in scopes) {
+      if (scope is Map) {
+        final value = scope['max_page_items'] ?? scope['maxPageItems'];
+        if (value is int) return value;
+        if (value is String) {
+          final asInt = int.tryParse(value);
+          if (asInt != null) return asInt;
+        }
+      }
+    }
+    return null;
+  }
+
+  int? _extractTotalItems(Map<String, dynamic> parsed) {
+    final scopes = [
+      parsed,
+      if (parsed['js'] is Map) parsed['js'],
+      if (parsed['data'] is Map) parsed['data'],
+    ];
+    for (final scope in scopes) {
+      if (scope is Map) {
+        final value = scope['total_items'] ?? scope['totalItems'];
+        if (value is int) return value;
+        if (value is String) {
+          final asInt = int.tryParse(value);
+          if (asInt != null) return asInt;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _previewBody(dynamic body) {
+    final text = body is String ? body : jsonEncode(body ?? const {});
+    if (text.length > 200) {
+      return '${text.substring(0, 200)}…';
+    }
+    return text;
+  }
+
+  String? _coerceString(dynamic value) {
+    if (value == null) return null;
+    if (value is String) {
+      final trimmed = value.trim();
+      return trimmed.isEmpty ? null : trimmed;
+    }
+    if (value is num || value is bool) {
+      return value.toString();
+    }
+    return null;
+  }
+
+  int? _coerceInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    final text = _coerceString(value);
+    return text == null ? null : int.tryParse(text);
   }
 
   List<Map<String, dynamic>> _normalizeXtreamPayload(dynamic payload) {

@@ -266,30 +266,65 @@ class ProviderImportService {
         headers,
         module: 'itv',
       );
-      final vod = await _fetchStalkerCategories(
+      var vod = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
         module: 'vod',
       );
-      final series = await _fetchStalkerCategories(
+      var series = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
         module: 'series',
       );
-      final radio = await _fetchStalkerCategories(
+      var radio = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
         module: 'radio',
       );
+
+      if (_needsDerivedCategories(vod)) {
+        final derived = await _deriveCategoriesFromGlobal(
+          configuration: configuration,
+          headers: headers,
+          session: session,
+          module: 'vod',
+        );
+        if (derived.isNotEmpty) {
+          vod = derived;
+        }
+      }
+      if (_needsDerivedCategories(series)) {
+        final derived = await _deriveCategoriesFromGlobal(
+          configuration: configuration,
+          headers: headers,
+          session: session,
+          module: 'series',
+        );
+        if (derived.isNotEmpty) {
+          series = derived;
+        }
+      }
+      if (_needsDerivedCategories(radio)) {
+        final derived = await _deriveCategoriesFromGlobal(
+          configuration: configuration,
+          headers: headers,
+          session: session,
+          module: 'radio',
+        );
+        if (derived.isNotEmpty) {
+          radio = derived;
+        }
+      }
       final liveItems = await _fetchStalkerItems(
         configuration: configuration,
         headers: headers,
         session: session,
         module: 'itv',
         categories: live,
+        enableCategoryPaging: false,
       );
       final vodItems = await _fetchStalkerItems(
         configuration: configuration,
@@ -297,6 +332,7 @@ class ProviderImportService {
         session: session,
         module: 'vod',
         categories: vod,
+        enableCategoryPaging: true,
       );
       final seriesItems = await _fetchStalkerItems(
         configuration: configuration,
@@ -304,6 +340,7 @@ class ProviderImportService {
         session: session,
         module: 'series',
         categories: series,
+        enableCategoryPaging: true,
       );
       final radioItems = await _fetchStalkerItems(
         configuration: configuration,
@@ -311,6 +348,7 @@ class ProviderImportService {
         session: session,
         module: 'radio',
         categories: radio,
+        enableCategoryPaging: true,
       );
       if (kDebugMode) {
         debugPrint(
@@ -463,12 +501,14 @@ class ProviderImportService {
     required StalkerSession session,
     required String module,
     required List<Map<String, dynamic>> categories,
+    bool enableCategoryPaging = true,
   }) async {
-    // Try per-category paging first for modules that typically enforce
-    // global caps (VOD, series, radio). Live channels usually work via the
-    // bulk endpoint since portals expect `/get_all_channels`.
-    if (categories.isNotEmpty &&
-        (module == 'vod' || module == 'series' || module == 'radio')) {
+    final allowPerCategory =
+        enableCategoryPaging &&
+        categories.isNotEmpty &&
+        module != 'itv' &&
+        !_needsDerivedCategories(categories);
+    if (allowPerCategory) {
       final perCategory = await _fetchStalkerItemsForCategories(
         configuration: configuration,
         headers: headers,
@@ -506,9 +546,10 @@ class ProviderImportService {
     required Map<String, String> headers,
     required StalkerSession session,
     required String module,
+    int maxPages = 25,
+    String? categoryId,
   }) async {
     final results = <Map<String, dynamic>>[];
-    const maxPages = 25;
     int? expectedPages;
     for (var page = 1; page <= maxPages; page += 1) {
       try {
@@ -521,6 +562,7 @@ class ProviderImportService {
             'JsHttpRequest': '1-xml',
             'token': session.token,
             'mac': configuration.macAddress.toLowerCase(),
+            if (categoryId != null) 'genre': categoryId,
           },
           headers: headers,
         );
@@ -541,11 +583,12 @@ class ProviderImportService {
         }
         results.addAll(entries);
         if (kDebugMode) {
+          final genreSuffix = categoryId == null ? '' : ', genre=$categoryId';
           debugPrint(
             redactSensitiveText(
               'Stalker listing module=$module page=$page '
               'items=${entries.length} (pageSize=${pageSize ?? 'n/a'}, '
-              'total=${totalItems ?? 'n/a'})',
+              'total=${totalItems ?? 'n/a'}$genreSuffix)',
             ),
           );
         }
@@ -755,6 +798,75 @@ class ProviderImportService {
     }
 
     return aggregated;
+  }
+
+  Future<List<Map<String, dynamic>>> _deriveCategoriesFromGlobal({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+  }) async {
+    const samplePages = 5;
+    final seeds = await _fetchStalkerListing(
+      configuration: configuration,
+      headers: headers,
+      session: session,
+      module: module,
+      maxPages: samplePages,
+    );
+    if (seeds.isEmpty) {
+      return const [];
+    }
+
+    final derived = <String, _DerivedCategory>{};
+    for (final entry in seeds) {
+      final id = _coerceString(
+        entry['category_id'] ??
+            entry['genre_id'] ??
+            entry['tv_genre_id'] ??
+            entry['genre'],
+      );
+      final title = _coerceString(
+        entry['category_title'] ??
+            entry['genre_title'] ??
+            entry['genre_name'] ??
+            entry['genre'] ??
+            entry['tv_genre_title'],
+      );
+      if (title == null || title.isEmpty) {
+        continue;
+      }
+      final resolvedId = (id == null || id.isEmpty || id == '*')
+          ? 'derived:${title.toLowerCase().hashCode}'
+          : id;
+      derived.putIfAbsent(
+        resolvedId,
+        () => _DerivedCategory(id: resolvedId, title: title),
+      );
+    }
+
+    return derived.values
+        .map((cat) => {'id': cat.id, 'title': cat.title, 'name': cat.title})
+        .toList();
+  }
+
+  bool _needsDerivedCategories(List<Map<String, dynamic>> categories) {
+    if (categories.isEmpty) {
+      return true;
+    }
+    final hasRealCategory = categories.any((category) {
+      final id = _coerceString(
+        category['id'] ??
+            category['category_id'] ??
+            category['tv_genre_id'] ??
+            category['alias'],
+      );
+      if (id == null || id.isEmpty || id == '*') {
+        return false;
+      }
+      return true;
+    });
+    return !hasRealCategory;
   }
 
   Future<List<Map<String, dynamic>>> _fetchStalkerBulk({
@@ -1159,4 +1271,11 @@ class _M3uMetadata {
       isRadio: isRadio ?? this.isRadio,
     );
   }
+}
+
+class _DerivedCategory {
+  _DerivedCategory({required this.id, required this.title});
+
+  final String id;
+  final String title;
 }

@@ -52,7 +52,7 @@ void main() {
     await db.close();
   });
 
-  test('importCategories upserts categories, summaries, and metrics', () async {
+  test('importCatalog upserts categories, media, and summaries', () async {
     final liveCategories = [
       {'id': '1', 'title': 'General', 'number': 1},
       {'id': '2', 'title': 'Sports', 'number': 2},
@@ -66,14 +66,46 @@ void main() {
     final radioCategories = [
       {'id': '30', 'title': 'Radio'},
     ];
+    final liveStreams = [
+      {'id': 'c1', 'name': 'Channel One', 'category_id': '1', 'cmd': 'udp://1'},
+    ];
+    final radioStreams = [
+      {
+        'id': 'r1',
+        'name': 'Radio One',
+        'category_id': '30',
+        'cmd': 'http://radio',
+      },
+    ];
+    final vodItems = [
+      {
+        'id': 'm1',
+        'name': 'Movie One',
+        'category_id': '10',
+        'description': 'Plot',
+        'screenshot_uri': 'http://art/movie.png',
+      },
+    ];
+    final seriesItems = [
+      {
+        'id': 's1',
+        'name': 'Series One',
+        'category_id': '20',
+        'description': 'Overview',
+        'screenshot_uri': 'http://art/series.png',
+      },
+    ];
 
-    final metrics = await importer.importCategories(
+    final metrics = await importer.importCatalog(
       providerId: providerId,
-      live: liveCategories,
-      vod: vodCategories,
-      series: seriesCategories,
-      radio: radioCategories,
-      totalsByCategory: {'live': 80},
+      liveCategories: liveCategories,
+      vodCategories: vodCategories,
+      seriesCategories: seriesCategories,
+      radioCategories: radioCategories,
+      liveItems: liveStreams,
+      radioItems: radioStreams,
+      vodItems: vodItems,
+      seriesItems: seriesItems,
     );
 
     expect(
@@ -83,29 +115,50 @@ void main() {
           seriesCategories.length +
           radioCategories.length,
     );
+    expect(metrics.channelsUpserted, 2);
+    expect(metrics.moviesUpserted, 1);
+    expect(metrics.seriesUpserted, 1);
 
-    final storedLive =
-        await categoryDao.fetchForProvider(providerId, kind: CategoryKind.live);
+    final storedLive = await categoryDao.fetchForProvider(
+      providerId,
+      kind: CategoryKind.live,
+    );
     expect(storedLive.map((c) => c.name), containsAll(['General', 'Sports']));
 
     final summaries = await summaryDao.mapForProvider(providerId);
-    expect(summaries[CategoryKind.live], 80);
+    expect(summaries[CategoryKind.live], 1);
     expect(summaries[CategoryKind.vod], 1);
     expect(summaries[CategoryKind.series], 1);
     expect(summaries[CategoryKind.radio], 1);
 
-    final updatedMetrics = await importer.importCategories(
+    final storedMovies = await db.select(db.movies).get();
+    expect(storedMovies, hasLength(1));
+    final storedSeries = await db.select(db.series).get();
+    expect(storedSeries, hasLength(1));
+
+    final updatedMetrics = await importer.importCatalog(
       providerId: providerId,
-      live: [
+      liveCategories: [
         {'id': '1', 'title': 'General HD', 'number': 1},
         {'id': '3', 'title': 'Kids', 'number': 3},
       ],
-      vod: vodCategories,
+      vodCategories: vodCategories,
+      liveItems: [
+        {
+          'id': 'c2',
+          'name': 'Channel Two',
+          'category_id': '1',
+          'cmd': 'udp://2',
+        },
+      ],
+      radioItems: radioStreams,
     );
     expect(updatedMetrics.categoriesUpserted, 3);
 
-    final updatedLive =
-        await categoryDao.fetchForProvider(providerId, kind: CategoryKind.live);
+    final updatedLive = await categoryDao.fetchForProvider(
+      providerId,
+      kind: CategoryKind.live,
+    );
     expect(updatedLive, hasLength(3));
     expect(
       updatedLive.map((c) => c.name),
@@ -113,6 +166,7 @@ void main() {
     );
 
     final updatedSummaries = await summaryDao.mapForProvider(providerId);
-    expect(updatedSummaries[CategoryKind.live], 2);
+    expect(updatedSummaries[CategoryKind.live], 1);
+    expect(updatedSummaries[CategoryKind.radio], 1);
   });
 }

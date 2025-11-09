@@ -1,4 +1,3 @@
-
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
@@ -55,121 +54,157 @@ class XtreamImporter {
     required List<Map<String, dynamic>> seriesCategories,
     Map<String, List<Map<String, dynamic>>> seriesEpisodes = const {},
   }) {
-    return context.runWithRetry((txn) async {
-      final metrics = ImportMetrics();
+    return context.runWithRetry(
+      (txn) async {
+        final metrics = ImportMetrics();
 
-      await txn.channels.markAllAsCandidateForDelete(providerId);
-      await txn.movies.markAllAsCandidateForDelete(providerId);
-      await txn.series.markSeriesForDeletion(providerId);
+        await txn.channels.markAllAsCandidateForDelete(providerId);
+        await txn.movies.markAllAsCandidateForDelete(providerId);
+        await txn.series.markSeriesForDeletion(providerId);
 
-      final liveCatMap = await _upsertCategories(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.live,
-        raw: liveCategories,
-        metrics: metrics,
-      );
-      final vodCatMap = await _upsertCategories(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.vod,
-        raw: vodCategories,
-        metrics: metrics,
-      );
-      final seriesCatMap = await _upsertCategories(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.series,
-        raw: seriesCategories,
-        metrics: metrics,
-      );
+        final liveCategorySplit = _splitRadioCategories(liveCategories);
+        final radioCategoryKeys = liveCategorySplit.radio
+            .map(_resolveCategoryKey)
+            .where((key) => key.isNotEmpty)
+            .toSet();
+        final liveCatMap = await _upsertCategories(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.live,
+          raw: liveCategorySplit.live,
+          metrics: metrics,
+        );
+        final radioCatMap = liveCategorySplit.radio.isEmpty
+            ? <String, int>{}
+            : await _upsertCategories(
+                txn,
+                providerId: providerId,
+                kind: CategoryKind.radio,
+                raw: liveCategorySplit.radio,
+                metrics: metrics,
+              );
+        final vodCatMap = await _upsertCategories(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.vod,
+          raw: vodCategories,
+          metrics: metrics,
+        );
+        final seriesCatMap = await _upsertCategories(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.series,
+          raw: seriesCategories,
+          metrics: metrics,
+        );
 
-      metrics.channelsUpserted += await _upsertChannelPayload(
-        txn,
-        providerId: providerId,
-        raw: live,
-        categoryIndex: liveCatMap,
-        kind: CategoryKind.live,
-        isRadio: false,
-      );
-      metrics.channelsUpserted += await _upsertChannelPayload(
-        txn,
-        providerId: providerId,
-        raw: vod,
-        categoryIndex: vodCatMap,
-        kind: CategoryKind.vod,
-        isRadio: false,
-      );
-      metrics.channelsUpserted += await _upsertChannelPayload(
-        txn,
-        providerId: providerId,
-        raw: series,
-        categoryIndex: seriesCatMap,
-        kind: CategoryKind.series,
-        isRadio: false,
-      );
+        final liveStreamSplit = _splitRadioStreams(live, radioCategoryKeys);
+        metrics.channelsUpserted += await _upsertChannelPayload(
+          txn,
+          providerId: providerId,
+          raw: liveStreamSplit.live,
+          categoryIndex: liveCatMap,
+          kind: CategoryKind.live,
+          isRadio: false,
+        );
+        if (liveStreamSplit.radio.isNotEmpty) {
+          metrics.channelsUpserted += await _upsertChannelPayload(
+            txn,
+            providerId: providerId,
+            raw: liveStreamSplit.radio,
+            categoryIndex: radioCatMap,
+            kind: CategoryKind.radio,
+            isRadio: true,
+          );
+        }
+        metrics.channelsUpserted += await _upsertChannelPayload(
+          txn,
+          providerId: providerId,
+          raw: vod,
+          categoryIndex: vodCatMap,
+          kind: CategoryKind.vod,
+          isRadio: false,
+        );
+        metrics.channelsUpserted += await _upsertChannelPayload(
+          txn,
+          providerId: providerId,
+          raw: series,
+          categoryIndex: seriesCatMap,
+          kind: CategoryKind.series,
+          isRadio: false,
+        );
 
-      await _upsertMovies(
-        txn,
-        providerId: providerId,
-        payload: vod,
-        categoryIndex: vodCatMap,
-        metrics: metrics,
-      );
+        await _upsertMovies(
+          txn,
+          providerId: providerId,
+          payload: vod,
+          categoryIndex: vodCatMap,
+          metrics: metrics,
+        );
 
-      await _upsertSeriesData(
-        txn,
-        providerId: providerId,
-        seriesPayload: series,
-        seriesEpisodes: seriesEpisodes,
-        categoryIndex: seriesCatMap,
-        metrics: metrics,
-      );
+        await _upsertSeriesData(
+          txn,
+          providerId: providerId,
+          seriesPayload: series,
+          seriesEpisodes: seriesEpisodes,
+          categoryIndex: seriesCatMap,
+          metrics: metrics,
+        );
 
-      final purgeCutoff = DateTime.now()
-          .subtract(const Duration(days: 7)); // retention window
-      metrics.channelsDeleted = await txn.channels.purgeStaleChannels(
-        providerId: providerId,
-        olderThan: purgeCutoff,
-      );
-      await txn.movies.purgeStaleMovies(
-        providerId: providerId,
-        olderThan: purgeCutoff,
-      );
-      await txn.series.purgeStaleSeries(
-        providerId: providerId,
-        olderThan: purgeCutoff,
-      );
+        final purgeCutoff = DateTime.now().subtract(
+          const Duration(days: 7),
+        ); // retention window
+        metrics.channelsDeleted = await txn.channels.purgeStaleChannels(
+          providerId: providerId,
+          olderThan: purgeCutoff,
+        );
+        await txn.movies.purgeStaleMovies(
+          providerId: providerId,
+          olderThan: purgeCutoff,
+        );
+        await txn.series.purgeStaleSeries(
+          providerId: providerId,
+          olderThan: purgeCutoff,
+        );
 
-      await _upsertSummary(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.live,
-        total: live.length,
-      );
-      await _upsertSummary(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.vod,
-        total: metrics.moviesUpserted,
-      );
-      await _upsertSummary(
-        txn,
-        providerId: providerId,
-        kind: CategoryKind.series,
-        total: metrics.seriesUpserted,
-      );
+        await _upsertSummary(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.live,
+          total: liveStreamSplit.live.length,
+        );
+        await _upsertSummary(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.vod,
+          total: metrics.moviesUpserted,
+        );
+        await _upsertSummary(
+          txn,
+          providerId: providerId,
+          kind: CategoryKind.series,
+          total: metrics.seriesUpserted,
+        );
+        if (liveStreamSplit.radio.isNotEmpty) {
+          await _upsertSummary(
+            txn,
+            providerId: providerId,
+            kind: CategoryKind.radio,
+            total: liveStreamSplit.radio.length,
+          );
+        }
 
-      await txn.providers.setLastSyncAt(
-        providerId: providerId,
-        lastSyncAt: DateTime.now().toUtc(),
-      );
+        await txn.providers.setLastSyncAt(
+          providerId: providerId,
+          lastSyncAt: DateTime.now().toUtc(),
+        );
 
-      return metrics;
-    },
-        providerId: providerId,
-        importType: 'xtream',
-        metricsSelector: (result) => result);
+        return metrics;
+      },
+      providerId: providerId,
+      importType: 'xtream',
+      metricsSelector: (result) => result,
+    );
   }
 
   Future<Map<String, int>> _upsertCategories(
@@ -210,22 +245,29 @@ class XtreamImporter {
       final key = _resolveVodKey(item);
       final title = _coerceString(item['name'] ?? item['title']) ?? '';
       if (key.isEmpty || title.isEmpty) continue;
-      final categoryId =
-          _resolveCategoryId(item, CategoryKind.vod, categoryIndex);
+      final categoryId = _resolveCategoryId(
+        item,
+        CategoryKind.vod,
+        categoryIndex,
+      );
       await txn.movies.upsertMovie(
         providerId: providerId,
         providerVodKey: key,
         title: title,
         categoryId: categoryId,
-        year: _parseYear(item['releasedate'] ?? item['release_date'] ?? item['year']),
-        overview:
-            _coerceString(item['plot'] ?? item['description'] ?? item['overview']),
+        year: _parseYear(
+          item['releasedate'] ?? item['release_date'] ?? item['year'],
+        ),
+        overview: _coerceString(
+          item['plot'] ?? item['description'] ?? item['overview'],
+        ),
         posterUrl: _coerceString(
           item['stream_icon'] ?? item['cover'] ?? item['movie_image'],
         ),
         durationSec: _parseDurationSeconds(item['duration']),
-        streamUrlTemplate:
-            _coerceString(item['stream_url'] ?? item['direct_source']),
+        streamUrlTemplate: _coerceString(
+          item['stream_url'] ?? item['direct_source'],
+        ),
         seenAt: seenAt,
       );
       metrics.moviesUpserted += 1;
@@ -243,10 +285,14 @@ class XtreamImporter {
     final seenAt = DateTime.now().toUtc();
     for (final seriesItem in seriesPayload) {
       final seriesKey = _resolveSeriesKey(seriesItem);
-      final title = _coerceString(seriesItem['name'] ?? seriesItem['title']) ?? '';
+      final title =
+          _coerceString(seriesItem['name'] ?? seriesItem['title']) ?? '';
       if (seriesKey.isEmpty || title.isEmpty) continue;
-      final categoryId =
-          _resolveCategoryId(seriesItem, CategoryKind.series, categoryIndex);
+      final categoryId = _resolveCategoryId(
+        seriesItem,
+        CategoryKind.series,
+        categoryIndex,
+      );
       await txn.series.upsertSeries(
         providerId: providerId,
         providerSeriesKey: seriesKey,
@@ -254,10 +300,14 @@ class XtreamImporter {
         categoryId: categoryId,
         year: _parseYear(seriesItem['release_date'] ?? seriesItem['year']),
         overview: _coerceString(
-          seriesItem['plot'] ?? seriesItem['description'] ?? seriesItem['overview'],
+          seriesItem['plot'] ??
+              seriesItem['description'] ??
+              seriesItem['overview'],
         ),
         posterUrl: _coerceString(
-          seriesItem['cover'] ?? seriesItem['series_icon'] ?? seriesItem['stream_icon'],
+          seriesItem['cover'] ??
+              seriesItem['series_icon'] ??
+              seriesItem['stream_icon'],
         ),
         seenAt: seenAt,
       );
@@ -283,8 +333,9 @@ class XtreamImporter {
         if (episodeKey == null || episodeKey.isEmpty) continue;
         final seasonNumber =
             _parseInt(rawEpisode['season'] ?? rawEpisode['season_number']) ?? 1;
-        final episodeNumber =
-            _parseInt(rawEpisode['episode'] ?? rawEpisode['episode_num']);
+        final episodeNumber = _parseInt(
+          rawEpisode['episode'] ?? rawEpisode['episode_num'],
+        );
 
         var seasonId = seasonCache[seasonNumber];
         if (seasonId == null) {
@@ -313,11 +364,15 @@ class XtreamImporter {
           episodeNumber: episodeNumber,
           title: _coerceString(rawEpisode['title'] ?? rawEpisode['name']),
           overview: _coerceString(
-            rawEpisode['plot'] ?? rawEpisode['description'] ?? rawEpisode['overview'],
+            rawEpisode['plot'] ??
+                rawEpisode['description'] ??
+                rawEpisode['overview'],
           ),
           durationSec: _parseDurationSeconds(rawEpisode['duration']),
           streamUrlTemplate: _coerceString(
-            rawEpisode['stream_url'] ?? rawEpisode['direct_source'] ?? rawEpisode['url'],
+            rawEpisode['stream_url'] ??
+                rawEpisode['direct_source'] ??
+                rawEpisode['url'],
           ),
           seenAt: seenAt,
         );
@@ -412,14 +467,16 @@ class XtreamImporter {
 
   String _resolveCategoryKey(Map<String, dynamic> item) {
     return _coerceString(
-      item['category_id'] ?? item['id'] ?? item['parent_id'],
-    ) ?? ''; 
+          item['category_id'] ?? item['id'] ?? item['parent_id'],
+        ) ??
+        '';
   }
 
   String _resolveCategoryName(Map<String, dynamic> item) {
     return _coerceString(
-      item['category_name'] ?? item['name'] ?? item['title'],
-    ) ?? ''; 
+          item['category_name'] ?? item['name'] ?? item['title'],
+        ) ??
+        '';
   }
 
   int? _parsePosition(dynamic value) {
@@ -427,12 +484,64 @@ class XtreamImporter {
     return _parseInt(value);
   }
 
+  _CategorySplit _splitRadioCategories(List<Map<String, dynamic>> categories) {
+    final live = <Map<String, dynamic>>[];
+    final radio = <Map<String, dynamic>>[];
+    for (final category in categories) {
+      final label =
+          _coerceString(category['category_name'] ?? category['name']) ?? '';
+      if (label.toLowerCase().contains('radio')) {
+        radio.add(category);
+      } else {
+        live.add(category);
+      }
+    }
+    return _CategorySplit(live: live, radio: radio);
+  }
+
+  _StreamSplit _splitRadioStreams(
+    List<Map<String, dynamic>> streams,
+    Set<String> radioCategoryKeys,
+  ) {
+    final live = <Map<String, dynamic>>[];
+    final radio = <Map<String, dynamic>>[];
+    for (final stream in streams) {
+      if (_looksLikeRadioStream(stream, radioCategoryKeys)) {
+        radio.add(stream);
+      } else {
+        live.add(stream);
+      }
+    }
+    return _StreamSplit(live: live, radio: radio);
+  }
+
+  bool _looksLikeRadioStream(
+    Map<String, dynamic> stream,
+    Set<String> radioCategoryKeys,
+  ) {
+    final streamType =
+        _coerceString(stream['stream_type'])?.toLowerCase() ?? '';
+    if (streamType.contains('radio')) {
+      return true;
+    }
+    final flag = stream['is_radio'];
+    if (flag is num && flag.toInt() == 1) {
+      return true;
+    }
+    if (flag is bool && flag) {
+      return true;
+    }
+    final categoryId = _coerceString(stream['category_id']);
+    if (categoryId != null && radioCategoryKeys.contains(categoryId)) {
+      return true;
+    }
+    final name = _coerceString(stream['name'])?.toLowerCase() ?? '';
+    return name.contains('radio');
+  }
+
   String _resolveVodKey(Map<String, dynamic> item) {
     return _coerceString(
-          item['stream_id'] ??
-              item['vod_id'] ??
-              item['movie_id'] ??
-              item['id'],
+          item['stream_id'] ?? item['vod_id'] ?? item['movie_id'] ?? item['id'],
         ) ??
         '';
   }
@@ -537,11 +646,16 @@ class _ChannelUpsertEntry {
   final int? categoryId;
 }
 
+class _CategorySplit {
+  _CategorySplit({required this.live, required this.radio});
 
+  final List<Map<String, dynamic>> live;
+  final List<Map<String, dynamic>> radio;
+}
 
+class _StreamSplit {
+  _StreamSplit({required this.live, required this.radio});
 
-
-
-
-
-
+  final List<Map<String, dynamic>> live;
+  final List<Map<String, dynamic>> radio;
+}

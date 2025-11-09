@@ -61,6 +61,7 @@ Use this backlog to track the “ultimate” database roadmap. Check items that 
 
 ## Implementation Snapshot
 - [x] DB bootstrap: schema + indices + PRAGMAs + DAO skeletons.
+- [x] Provider importers hydrate Drift for M3U/Xtream/Stalker (live/vod/series/radio buckets).
 - [ ] Ingest engine: isolate parsing, chunked upserts, idempotent runs.
 - [x] Search: channel FTS + triggers.
 - [x] Retention: sweeper + compaction guardrails.

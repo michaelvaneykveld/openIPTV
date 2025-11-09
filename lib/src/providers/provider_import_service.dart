@@ -13,6 +13,7 @@ import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
@@ -188,7 +189,8 @@ class ProviderImportService {
           ? M3uXmlPortalConfiguration.fromUrls(
               portalId: profile.record.id,
               playlistUrl: playlistUrl,
-              xmltvUrl: profile.secrets['epgUrl'] ??
+              xmltvUrl:
+                  profile.secrets['epgUrl'] ??
                   profile.record.configuration['lockedEpg'],
               displayName: profile.record.displayName,
               playlistHeaders: _decodeCustomHeaders(profile),
@@ -213,9 +215,7 @@ class ProviderImportService {
       );
       final entries = ProviderImportService.parseM3uEntries(playlistText);
       if (entries.isEmpty) {
-        _debug(
-          'Parsed playlist for ${profile.record.displayName} is empty.',
-        );
+        _debug('Parsed playlist for ${profile.record.displayName} is empty.');
         return;
       }
 
@@ -255,8 +255,9 @@ class ProviderImportService {
     );
 
     try {
-      final session =
-          await _ref.read(stalkerSessionProvider(configuration).future);
+      final session = await _ref.read(
+        stalkerSessionProvider(configuration).future,
+      );
       final headers = session.buildAuthenticatedHeaders();
       final live = await _fetchStalkerCategories(
         configuration,
@@ -278,14 +279,42 @@ class ProviderImportService {
         headers,
         module: 'radio',
       );
+      final liveItems = await _fetchStalkerListing(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: 'itv',
+      );
+      final vodItems = await _fetchStalkerListing(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: 'vod',
+      );
+      final seriesItems = await _fetchStalkerListing(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: 'series',
+      );
+      final radioItems = await _fetchStalkerListing(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: 'radio',
+      );
 
       final importer = _ref.read(stalkerImporterProvider);
-      await importer.importCategories(
+      await importer.importCatalog(
         providerId: providerId,
-        live: live,
-        vod: vod,
-        series: series,
-        radio: radio,
+        liveCategories: live,
+        vodCategories: vod,
+        seriesCategories: series,
+        radioCategories: radio,
+        liveItems: liveItems,
+        vodItems: vodItems,
+        seriesItems: seriesItems,
+        radioItems: radioItems,
       );
     } catch (error, stackTrace) {
       _logError(
@@ -308,10 +337,7 @@ class ProviderImportService {
       );
       stopwatch.stop();
       unawaited(
-        _logQueryLatency(
-          source: 'xtream.$action',
-          duration: stopwatch.elapsed,
-        ),
+        _logQueryLatency(source: 'xtream.$action', duration: stopwatch.elapsed),
       );
       return _normalizeXtreamPayload(response.body);
     } catch (error, stackTrace) {
@@ -337,10 +363,7 @@ class ProviderImportService {
       final stopwatch = Stopwatch()..start();
       final envelope = await _stalkerHttpClient.getPortal(
         config,
-        queryParameters: {
-          'type': module,
-          'action': 'get_categories',
-        },
+        queryParameters: {'type': module, 'action': 'get_categories'},
         headers: baseHeaders,
       );
       stopwatch.stop();
@@ -357,9 +380,8 @@ class ProviderImportService {
           return categories
               .whereType<Map>()
               .map(
-                (entry) => entry.map(
-                  (key, value) => MapEntry(key.toString(), value),
-                ),
+                (entry) =>
+                    entry.map((key, value) => MapEntry(key.toString(), value)),
               )
               .toList();
         }
@@ -382,15 +404,103 @@ class ProviderImportService {
     return const [];
   }
 
+  Future<List<Map<String, dynamic>>> _fetchStalkerListing({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+  }) async {
+    final results = <Map<String, dynamic>>[];
+    const maxPages = 200;
+    for (var page = 1; page <= maxPages; page += 1) {
+      try {
+        final response = await _stalkerHttpClient.getPortal(
+          configuration,
+          queryParameters: {
+            'type': module,
+            'action': 'get_ordered_list',
+            'p': '$page',
+            'JsHttpRequest': '1-xml',
+            'token': session.token,
+            'mac': configuration.macAddress.toLowerCase(),
+          },
+          headers: headers,
+        );
+        final entries = _extractPortalItems(response.body);
+        if (entries.isEmpty) {
+          break;
+        }
+        results.addAll(entries);
+        if (entries.length < 50) {
+          break;
+        }
+      } catch (error, stackTrace) {
+        _logError(
+          'Stalker listing fetch failed for module $module page $page',
+          error,
+          stackTrace,
+        );
+        break;
+      }
+    }
+    return results;
+  }
+
+  List<Map<String, dynamic>> _extractPortalItems(dynamic body) {
+    final parsed = _decodePortalMap(body);
+    final data = parsed['data'];
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map(
+            (entry) =>
+                entry.map((key, value) => MapEntry(key.toString(), value)),
+          )
+          .toList();
+    }
+    if (data is Map && data['data'] is List) {
+      return (data['data'] as List)
+          .whereType<Map>()
+          .map(
+            (entry) =>
+                entry.map((key, value) => MapEntry(key.toString(), value)),
+          )
+          .toList();
+    }
+    return const [];
+  }
+
+  Map<String, dynamic> _decodePortalMap(dynamic body) {
+    if (body is Map) {
+      return body.map((key, value) => MapEntry(key.toString(), value));
+    }
+    if (body is String) {
+      final cleaned = _stripHtmlComments(body.trim());
+      if (cleaned.isEmpty) return const {};
+      try {
+        final decoded = jsonDecode(cleaned);
+        if (decoded is Map) {
+          return decoded.map((key, value) => MapEntry(key.toString(), value));
+        }
+      } catch (_) {
+        return const {};
+      }
+    }
+    return const {};
+  }
+
+  String _stripHtmlComments(String input) {
+    return input.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '').trim();
+  }
+
   List<Map<String, dynamic>> _normalizeXtreamPayload(dynamic payload) {
     final decoded = _maybeDecodeJson(payload);
     if (decoded is List) {
       return decoded
           .whereType<Map>()
           .map(
-            (entry) => entry.map(
-              (key, value) => MapEntry(key.toString(), value),
-            ),
+            (entry) =>
+                entry.map((key, value) => MapEntry(key.toString(), value)),
           )
           .toList();
     }
@@ -414,9 +524,8 @@ class ProviderImportService {
         final flattened = decoded.values
             .whereType<Map>()
             .map(
-              (entry) => entry.map(
-                (key, value) => MapEntry(key.toString(), value),
-              ),
+              (entry) =>
+                  entry.map((key, value) => MapEntry(key.toString(), value)),
             )
             .toList();
         if (flattened.isNotEmpty) {
@@ -460,10 +569,7 @@ class ProviderImportService {
     return const {};
   }
 
-  String _decodePlaylistBytes(
-    Uint8List bytes, {
-    String? preferredEncoding,
-  }) {
+  String _decodePlaylistBytes(Uint8List bytes, {String? preferredEncoding}) {
     // Attempt UTF-8 first; fall back to latin-1 for legacy playlists.
     try {
       return utf8.decode(bytes, allowMalformed: true);
@@ -558,7 +664,8 @@ class ProviderImportService {
         metadata = _M3uMetadata(
           name: _extractTitle(line),
           group: _extractAttribute(line, 'group-title') ?? metadata.group,
-          logo: _extractAttribute(line, 'tvg-logo') ??
+          logo:
+              _extractAttribute(line, 'tvg-logo') ??
               _extractAttribute(line, 'logo'),
           isRadio: (_extractAttribute(line, 'radio') ?? '')
               .toLowerCase()
@@ -596,10 +703,7 @@ class ProviderImportService {
   }
 
   static String? _extractAttribute(String line, String attribute) {
-    final regex = RegExp(
-      '$attribute="([^"]*)"',
-      caseSensitive: false,
-    );
+    final regex = RegExp('$attribute="([^"]*)"', caseSensitive: false);
     final match = regex.firstMatch(line);
     final value = match?.group(1)?.trim();
     return value == null || value.isEmpty ? null : value;
@@ -616,12 +720,7 @@ class ProviderImportService {
 }
 
 class _M3uMetadata {
-  const _M3uMetadata({
-    this.name,
-    this.group,
-    this.logo,
-    this.isRadio = false,
-  });
+  const _M3uMetadata({this.name, this.group, this.logo, this.isRadio = false});
 
   final String? name;
   final String? group;

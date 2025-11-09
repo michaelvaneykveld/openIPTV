@@ -54,88 +54,89 @@ void main() {
     await db.close();
   });
 
-  test('importAll upserts streams, summaries, and purges stale channels', () async {
-    final liveCategories = [
-      {
-        'category_id': '100',
-        'category_name': 'News',
-      },
-    ];
-    final liveStreams = [
-      {
-        'stream_id': 101,
-        'name': 'BBC One',
-        'category_id': '100',
-      },
-    ];
-    final vodCategories = [
-      {
-        'category_id': '200',
-        'category_name': 'Movies',
-      },
-    ];
-    final vodStreams = [
-      {
-        'stream_id': 501,
-        'name': 'Action Movie',
-        'category_id': '200',
-      },
-    ];
+  test(
+    'importAll upserts streams, summaries, and purges stale channels',
+    () async {
+      final liveCategories = [
+        {'category_id': '100', 'category_name': 'News'},
+        {'category_id': '999', 'category_name': 'Radio Lounge'},
+      ];
+      final liveStreams = [
+        {'stream_id': 101, 'name': 'BBC One', 'category_id': '100'},
+        {
+          'stream_id': 401,
+          'name': 'Jazz FM',
+          'category_id': '999',
+          'stream_type': 'radio_streams',
+        },
+      ];
+      final vodCategories = [
+        {'category_id': '200', 'category_name': 'Movies'},
+      ];
+      final vodStreams = [
+        {'stream_id': 501, 'name': 'Action Movie', 'category_id': '200'},
+      ];
 
-    await importer.importAll(
-      providerId: providerId,
-      live: liveStreams,
-      vod: vodStreams,
-      series: const [],
-      liveCategories: liveCategories,
-      vodCategories: vodCategories,
-      seriesCategories: const [],
-    );
+      await importer.importAll(
+        providerId: providerId,
+        live: liveStreams,
+        vod: vodStreams,
+        series: const [],
+        liveCategories: liveCategories,
+        vodCategories: vodCategories,
+        seriesCategories: const [],
+      );
 
-    final channelsAfterFirstImport =
-        await db.select(db.channels).get();
-    expect(channelsAfterFirstImport, hasLength(2));
+      final channelsAfterFirstImport = await db.select(db.channels).get();
+      expect(channelsAfterFirstImport, hasLength(3));
 
-    final summaries =
-        await summaryDao.mapForProvider(providerId);
-    expect(summaries[CategoryKind.live], 1);
-    expect(summaries[CategoryKind.vod], 1);
+      final summaries = await summaryDao.mapForProvider(providerId);
+      expect(summaries[CategoryKind.live], 1);
+      expect(summaries[CategoryKind.vod], 1);
+      expect(summaries[CategoryKind.radio], 1);
 
-    // Age only the original live stream so the next import can purge it.
-    final staleTimestamp =
-        DateTime.now().toUtc().subtract(const Duration(days: 10));
-    await (db.update(db.channels)
-          ..where((tbl) => tbl.providerId.equals(providerId))
-          ..where((tbl) => tbl.providerChannelKey.equals('101')))
-        .write(ChannelsCompanion(lastSeenAt: Value(staleTimestamp)));
+      // Age only the original live stream so the next import can purge it.
+      final staleTimestamp = DateTime.now().toUtc().subtract(
+        const Duration(days: 10),
+      );
+      await (db.update(db.channels)
+            ..where((tbl) => tbl.providerId.equals(providerId))
+            ..where((tbl) => tbl.providerChannelKey.equals('101')))
+          .write(ChannelsCompanion(lastSeenAt: Value(staleTimestamp)));
 
-    final liveReplacement = [
-      {
-        'stream_id': 102,
-        'name': 'CNN',
-        'category_id': '100',
-      },
-    ];
+      final liveReplacement = [
+        {'stream_id': 102, 'name': 'CNN', 'category_id': '100'},
+        {
+          'stream_id': 401,
+          'name': 'Jazz FM',
+          'category_id': '999',
+          'stream_type': 'radio',
+        },
+      ];
 
-    await importer.importAll(
-      providerId: providerId,
-      live: liveReplacement,
-      vod: const [],
-      series: const [],
-      liveCategories: liveCategories,
-      vodCategories: vodCategories,
-      seriesCategories: const [],
-    );
+      await importer.importAll(
+        providerId: providerId,
+        live: liveReplacement,
+        vod: const [],
+        series: const [],
+        liveCategories: liveCategories,
+        vodCategories: vodCategories,
+        seriesCategories: const [],
+      );
 
-    final finalChannels = await db.select(db.channels).get();
-    expect(finalChannels, hasLength(1));
-    expect(finalChannels.single.providerChannelKey, '102');
-    expect(
-      finalChannels.map((c) => c.providerChannelKey),
-      isNot(contains('101')),
-    );
-    final updatedSummaries = await summaryDao.mapForProvider(providerId);
-    expect(updatedSummaries[CategoryKind.live], 1);
-    expect(updatedSummaries[CategoryKind.vod] ?? 0, 0);
-  });
+      final finalChannels = await db.select(db.channels).get();
+      expect(
+        finalChannels.map((c) => c.providerChannelKey),
+        containsAll(['102', '401']),
+      );
+      expect(
+        finalChannels.map((c) => c.providerChannelKey),
+        isNot(contains('101')),
+      );
+      final updatedSummaries = await summaryDao.mapForProvider(providerId);
+      expect(updatedSummaries[CategoryKind.live], 1);
+      expect(updatedSummaries[CategoryKind.vod] ?? 0, 0);
+      expect(updatedSummaries[CategoryKind.radio], 1);
+    },
+  );
 }

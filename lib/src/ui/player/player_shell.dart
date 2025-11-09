@@ -24,6 +24,7 @@ class PlayerShell extends ConsumerStatefulWidget {
 class _PlayerShellState extends ConsumerState<PlayerShell> {
   bool _showSummary = false;
   bool _importScheduled = false;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -66,15 +67,20 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       floatingActionButton: _showSummary
           ? null
           : FloatingActionButton(
-              onPressed: isReloadingCategories
+              onPressed: isReloadingCategories || _isRefreshing
                   ? null
-                  : () {
-                      ref.invalidate(
-                        legacyCategoriesProvider(widget.profile),
-                      );
-                    },
+                  : _handleRefresh,
               tooltip: 'Reload categories',
-              child: const Icon(Icons.refresh),
+              child: _isRefreshing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.refresh),
             ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -115,9 +121,7 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       return ref.watch(legacySummaryProvider(widget.profile));
     }
     return ref.watch(
-      dbSummaryProvider(
-        DbSummaryArgs(providerId, widget.profile.kind),
-      ),
+      dbSummaryProvider(DbSummaryArgs(providerId, widget.profile.kind)),
     );
   }
 
@@ -131,6 +135,28 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       final importService = ref.read(providerImportServiceProvider);
       importService.runInitialImport(widget.profile);
     });
+  }
+
+  Future<void> _handleRefresh() async {
+    if (_isRefreshing) {
+      return;
+    }
+    setState(() => _isRefreshing = true);
+    try {
+      final providerId = widget.profile.providerDbId;
+      if (providerId == null) {
+        ref
+          ..invalidate(legacyCategoriesProvider(widget.profile))
+          ..invalidate(legacySummaryProvider(widget.profile));
+        return;
+      }
+      final importService = ref.read(providerImportServiceProvider);
+      await importService.runInitialImport(widget.profile);
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshing = false);
+      }
+    }
   }
 }
 
@@ -364,10 +390,7 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
 }
 
 class _EngagementPanel extends ConsumerWidget {
-  const _EngagementPanel({
-    required this.profile,
-    required this.providerId,
-  });
+  const _EngagementPanel({required this.profile, required this.providerId});
 
   final ResolvedProviderProfile profile;
   final int providerId;
@@ -396,7 +419,9 @@ class _EngagementPanel extends ConsumerWidget {
                   data: (favorites) {
                     final visible = favorites.take(12).toList();
                     if (visible.isEmpty) {
-                      return const Text('Mark channels as favorites to see them here.');
+                      return const Text(
+                        'Mark channels as favorites to see them here.',
+                      );
                     }
                     return SizedBox(
                       height: 96,
@@ -414,7 +439,9 @@ class _EngagementPanel extends ConsumerWidget {
                   },
                   loading: () => const SizedBox(
                     height: 48,
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
                   error: (error, stackTrace) => Text(
                     'Unable to load favorites: $error',
@@ -433,7 +460,9 @@ class _EngagementPanel extends ConsumerWidget {
                         .take(5)
                         .toList();
                     if (visible.isEmpty) {
-                      return const Text('Watch a channel to build your history.');
+                      return const Text(
+                        'Watch a channel to build your history.',
+                      );
                     }
                     return Column(
                       children: [
@@ -444,7 +473,9 @@ class _EngagementPanel extends ConsumerWidget {
                   },
                   loading: () => const SizedBox(
                     height: 48,
-                    child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    child: Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
                   error: (error, stackTrace) => Text(
                     'Unable to load history: $error',
@@ -684,15 +715,13 @@ class _SyncingPlaceholder extends StatelessWidget {
             height: 28,
             child: CircularProgressIndicator(
               strokeWidth: 3,
-              valueColor:
-                  AlwaysStoppedAnimation<Color>(theme.colorScheme.primary),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                theme.colorScheme.primary,
+              ),
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            message,
-            style: theme.textTheme.bodyMedium,
-          ),
+          Text(message, style: theme.textTheme.bodyMedium),
         ],
       ),
     );

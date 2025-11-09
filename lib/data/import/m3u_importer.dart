@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
+import 'package:sqlite3/sqlite3.dart';
 
 import '../db/dao/category_dao.dart';
 import '../db/dao/provider_dao.dart';
@@ -98,7 +100,8 @@ class M3uImporter {
           categoryCache[cacheKey] = categoryId;
           metrics.categoriesUpserted += 1;
         }
-        await txn.channels.linkChannelToCategory(
+        await _safeLinkChannelToCategory(
+          txn: txn,
           channelId: channelId,
           categoryId: categoryId,
         );
@@ -138,6 +141,30 @@ class M3uImporter {
         providerId: providerId,
         importType: 'm3u',
         metricsSelector: (result) => result);
+  }
+}
+
+Future<void> _safeLinkChannelToCategory({
+  required ImportTxn txn,
+  required int channelId,
+  required int categoryId,
+}) async {
+  try {
+    await txn.channels.linkChannelToCategory(
+      channelId: channelId,
+      categoryId: categoryId,
+    );
+  } on SqliteException catch (error) {
+    if (error.extendedResultCode == 787) {
+      if (kDebugMode) {
+        debugPrint(
+          'Skipping channel-category link due to missing row '
+          '(channelId=$channelId, categoryId=$categoryId)',
+        );
+      }
+      return;
+    }
+    rethrow;
   }
 }
 

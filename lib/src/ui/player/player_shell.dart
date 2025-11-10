@@ -119,8 +119,10 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
                             _CategoriesError(message: error.toString()),
                       )
                     : categoriesAsync.when(
-                        data: (data) =>
-                            _CategoriesView(profile: widget.profile, data: data),
+                        data: (data) => _CategoriesView(
+                          profile: widget.profile,
+                          data: data,
+                        ),
                         loading: () =>
                             const Center(child: CircularProgressIndicator()),
                         error: (error, stackTrace) =>
@@ -302,10 +304,7 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         return;
       }
       final importService = ref.read(providerImportServiceProvider);
-      await importService.runInitialImport(
-        widget.profile,
-        forceRefresh: true,
-      );
+      await importService.runInitialImport(widget.profile, forceRefresh: true);
     } finally {
       if (mounted) {
         setState(() => _isRefreshing = false);
@@ -325,15 +324,14 @@ class _SummaryView extends StatelessWidget {
     final normalizedCounts = <String, int>{};
     data.counts.forEach((key, value) {
       final normalized = _normalizeCountLabel(key);
-      normalizedCounts.update(normalized, (prev) => prev + value,
-          ifAbsent: () => value);
+      normalizedCounts.update(
+        normalized,
+        (prev) => prev + value,
+        ifAbsent: () => value,
+      );
     });
     final chips = normalizedCounts.entries
-        .map(
-          (entry) => Chip(
-            label: Text('${entry.key}: ${entry.value}'),
-          ),
-        )
+        .map((entry) => Chip(label: Text('${entry.key}: ${entry.value}')))
         .toList(growable: false);
 
     if (!data.hasFields && chips.isEmpty) {
@@ -496,7 +494,6 @@ class _CategoriesView extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _CategoryTile extends ConsumerStatefulWidget {

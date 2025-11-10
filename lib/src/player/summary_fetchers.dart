@@ -16,6 +16,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
+import 'package:openiptv/src/providers/portal_summary_cache.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
@@ -24,11 +25,41 @@ final summaryCoordinatorProvider = Provider<_SummaryCoordinator>((ref) {
   return _SummaryCoordinator(ref);
 });
 
+const _summaryCacheTtl = Duration(hours: 12);
+
+final portalSummaryCacheProvider =
+    Provider<Future<PortalSummaryCache>>((ref) {
+  return PortalSummaryCache.openDefault();
+});
+
 /// Loads [SummaryData] for the supplied profile via legacy network routes.
 final legacySummaryProvider = FutureProvider.autoDispose
     .family<SummaryData, ResolvedProviderProfile>((ref, profile) async {
       final coordinator = ref.read(summaryCoordinatorProvider);
-      return coordinator.fetch(profile);
+      final providerId = profile.providerDbId;
+      PortalSummaryCache? cache;
+      SummaryData? cached;
+      if (providerId != null) {
+        final summaryCache = await ref.read(portalSummaryCacheProvider);
+        cache = summaryCache;
+        cached = await summaryCache.read(providerId);
+        if (cached != null &&
+            DateTime.now().difference(cached.fetchedAt) < _summaryCacheTtl) {
+          return cached;
+        }
+      }
+      try {
+        final summary = await coordinator.fetch(profile);
+        if (providerId != null && cache != null) {
+          await cache.write(providerId, summary);
+        }
+        return summary;
+      } catch (error) {
+        if (cached != null) {
+          return cached;
+        }
+        rethrow;
+      }
     });
 
 final dbSummaryProvider = StreamProvider.autoDispose

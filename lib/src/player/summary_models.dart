@@ -77,4 +77,48 @@ class SummaryData {
 
   bool get hasFields => fields.isNotEmpty;
   bool get hasCounts => counts.isNotEmpty;
+
+  Map<String, dynamic> toJson() => {
+        'kind': kind.index,
+        'fields': fields,
+        'counts': counts,
+        'fetchedAt': fetchedAt.toUtc().toIso8601String(),
+      };
+
+  factory SummaryData.fromJson(Map<String, dynamic> json) {
+    Map<String, String>? parseFields(dynamic value) {
+      if (value is Map) {
+        return value.map(
+          (key, value) => MapEntry('$key', value?.toString() ?? ''),
+        );
+      }
+      return null;
+    }
+
+    Map<String, int>? parseCounts(dynamic value) {
+      if (value is Map) {
+        return value.map(
+          (key, value) =>
+              MapEntry('$key', value is int ? value : int.tryParse('$value') ?? 0),
+        );
+      }
+      return null;
+    }
+
+    var kindIndex = json['kind'] is int
+        ? json['kind'] as int
+        : int.tryParse('${json['kind']}') ?? 0;
+    if (kindIndex < 0 || kindIndex >= ProviderKind.values.length) {
+      kindIndex = 0;
+    }
+    final fetchedAtRaw = json['fetchedAt'] as String?;
+    return SummaryData(
+      kind: ProviderKind.values[kindIndex.clamp(0, ProviderKind.values.length - 1)],
+      fields: parseFields(json['fields']),
+      counts: parseCounts(json['counts']),
+      fetchedAt: fetchedAtRaw == null
+          ? DateTime.now()
+          : DateTime.tryParse(fetchedAtRaw)?.toLocal() ?? DateTime.now(),
+    );
+  }
 }

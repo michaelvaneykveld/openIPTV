@@ -833,7 +833,9 @@ class _StalkerCategoriesFetcher {
       final query = <String, dynamic>{
         'type': module,
         'action': 'get_ordered_list',
-        'p': '1',
+        'p': '0',
+        'from': '0',
+        'cnt': '$limit',
         'JsHttpRequest': '1-xml',
         'token': session.token,
         'mac': config.macAddress.toLowerCase(),

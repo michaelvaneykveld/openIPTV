@@ -168,13 +168,17 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
     if (legacyData == null) {
       return const AsyncValue.loading();
     }
-    final counts = dbCounts.value?.counts;
+    final dbCountsMap = dbCounts.value?.counts ?? const <String, int>{};
+    final mergedCounts = Map<String, int>.from(legacyData.counts);
+    dbCountsMap.forEach((key, value) {
+      if (value > 0) {
+        mergedCounts[key] = value;
+      }
+    });
     final merged = SummaryData(
       kind: legacyData.kind,
       fields: legacyData.fields,
-      counts: counts == null || counts.isEmpty
-          ? legacyData.counts
-          : counts,
+      counts: mergedCounts,
       fetchedAt: legacyData.fetchedAt,
     );
     return AsyncValue.data(merged);

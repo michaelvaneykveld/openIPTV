@@ -24,6 +24,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
+import 'package:openiptv/src/providers/import_resume_store.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/telemetry_service.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
@@ -33,13 +34,20 @@ final providerImportReporterProvider =
 
 final providerImportOffloadProvider = Provider<bool>((ref) => true);
 
+final importResumeStoreFutureProvider =
+    Provider<Future<ImportResumeStore>>((ref) {
+  return ImportResumeStore.openDefault();
+});
+
 final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
   final reporter = ref.watch(providerImportReporterProvider);
   final enableOffload = ref.watch(providerImportOffloadProvider);
+  final resumeStoreFuture = ref.watch(importResumeStoreFutureProvider);
   return ProviderImportService(
     ref,
     reporter: reporter,
     enableOffload: enableOffload,
+    resumeStoreFuture: resumeStoreFuture,
   );
 });
 
@@ -54,7 +62,10 @@ class ProviderImportService {
     this._ref, {
     ProviderImportReporter? reporter,
     bool enableOffload = true,
-  }) : _enableOffload = enableOffload {
+    Future<ImportResumeStore>? resumeStoreFuture,
+  })  : _enableOffload = enableOffload,
+        _resumeStoreFuture =
+            resumeStoreFuture ?? ImportResumeStore.openDefault() {
     _reporter = reporter ?? _LocalImportReporter(_publishEvent);
     _ref.onDispose(() {
       for (final controller in _progressControllers.values) {
@@ -67,6 +78,7 @@ class ProviderImportService {
   final Ref _ref;
   late final ProviderImportReporter _reporter;
   final bool _enableOffload;
+  final Future<ImportResumeStore> _resumeStoreFuture;
 
   final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   final M3uXmlClient _m3uClient = M3uXmlClient();
@@ -201,6 +213,8 @@ class ProviderImportService {
         'completed',
         metadata: _metricsMetadata(metrics),
       );
+      final resumeStore = await _resumeStoreFuture;
+      await resumeStore.clearProvider(providerId);
       _reporter.report(
         ProviderImportResultEvent(
           providerId: providerId,
@@ -487,6 +501,7 @@ class ProviderImportService {
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
+    final resumeStore = await _resumeStoreFuture;
     final mac = profile.record.configuration['macAddress'];
     if (mac == null || mac.isEmpty) {
       _debug(
@@ -538,6 +553,8 @@ class ProviderImportService {
 
       if (_needsDerivedCategories(vod)) {
         final derived = await _deriveCategoriesFromGlobal(
+          providerId: providerId,
+          resumeStore: resumeStore,
           configuration: configuration,
           headers: headers,
           session: session,
@@ -549,6 +566,8 @@ class ProviderImportService {
       }
       if (_needsDerivedCategories(series)) {
         final derived = await _deriveCategoriesFromGlobal(
+          providerId: providerId,
+          resumeStore: resumeStore,
           configuration: configuration,
           headers: headers,
           session: session,
@@ -560,6 +579,8 @@ class ProviderImportService {
       }
       if (_needsDerivedCategories(radio)) {
         final derived = await _deriveCategoriesFromGlobal(
+          providerId: providerId,
+          resumeStore: resumeStore,
           configuration: configuration,
           headers: headers,
           session: session,
@@ -570,6 +591,8 @@ class ProviderImportService {
         }
       }
       final liveItems = await _fetchStalkerItems(
+        providerId: providerId,
+        resumeStore: resumeStore,
         configuration: configuration,
         headers: headers,
         session: session,
@@ -578,6 +601,8 @@ class ProviderImportService {
         enableCategoryPaging: false,
       );
       final vodItems = await _fetchStalkerItems(
+        providerId: providerId,
+        resumeStore: resumeStore,
         configuration: configuration,
         headers: headers,
         session: session,
@@ -586,6 +611,8 @@ class ProviderImportService {
         enableCategoryPaging: true,
       );
       final seriesItems = await _fetchStalkerItems(
+        providerId: providerId,
+        resumeStore: resumeStore,
         configuration: configuration,
         headers: headers,
         session: session,
@@ -594,6 +621,8 @@ class ProviderImportService {
         enableCategoryPaging: true,
       );
       final radioItems = await _fetchStalkerItems(
+        providerId: providerId,
+        resumeStore: resumeStore,
         configuration: configuration,
         headers: headers,
         session: session,
@@ -789,6 +818,8 @@ class ProviderImportService {
   }
 
   Future<List<Map<String, dynamic>>> _fetchStalkerItems({
+    required int providerId,
+    required ImportResumeStore resumeStore,
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
     required StalkerSession session,
@@ -803,6 +834,8 @@ class ProviderImportService {
         !_needsDerivedCategories(categories);
     if (allowPerCategory) {
       final perCategory = await _fetchStalkerItemsForCategories(
+        providerId: providerId,
+        resumeStore: resumeStore,
         configuration: configuration,
         headers: headers,
         session: session,
@@ -827,6 +860,8 @@ class ProviderImportService {
       }
     }
     return _fetchStalkerListing(
+      providerId: providerId,
+      resumeStore: resumeStore,
       configuration: configuration,
       headers: headers,
       session: session,
@@ -841,10 +876,29 @@ class ProviderImportService {
     required String module,
     int maxPages = 25,
     String? categoryId,
+    int? providerId,
+    ImportResumeStore? resumeStore,
+    bool enableResume = true,
   }) async {
     final results = <Map<String, dynamic>>[];
     int? expectedPages;
-    for (var page = 1; page <= maxPages; page += 1) {
+    final resumeKey = categoryId ?? '*';
+    var startPage = 1;
+    final resumeStoreRef = resumeStore;
+    final resumeProviderId = providerId;
+    if (enableResume &&
+        resumeProviderId != null &&
+        resumeStoreRef != null) {
+      final checkpoint = await resumeStoreRef.readNextPage(
+        resumeProviderId,
+        module,
+        resumeKey,
+      );
+      if (checkpoint != null && checkpoint > 1) {
+        startPage = checkpoint;
+      }
+    }
+    for (var page = startPage; page <= maxPages; page += 1) {
       try {
         final response = await _stalkerHttpClient.getPortal(
           configuration,
@@ -898,6 +952,16 @@ class ProviderImportService {
         }
         if (expectedPages != null && page >= expectedPages) {
           break;
+        }
+        if (enableResume &&
+            resumeProviderId != null &&
+            resumeStoreRef != null) {
+          await resumeStoreRef.writeNextPage(
+            resumeProviderId,
+            module,
+            resumeKey,
+            page + 1,
+          );
         }
       } catch (error, stackTrace) {
         _logError(
@@ -1002,6 +1066,8 @@ class ProviderImportService {
   }
 
   Future<List<Map<String, dynamic>>> _fetchStalkerItemsForCategories({
+    required int providerId,
+    required ImportResumeStore resumeStore,
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
     required StalkerSession session,
@@ -1026,86 +1092,40 @@ class ProviderImportService {
         if (kDebugMode) {
           debugPrint(
             redactSensitiveText(
-              'Stalker skipping locked/censored category $categoryId '
-              'for module=$module',
+              'Stalker skipping locked/censored category $categoryId for module=$module',
             ),
           );
         }
         continue;
       }
 
-      int? expectedPages;
-      for (var page = 1; page <= maxPagesPerCategory; page += 1) {
-        try {
-          final response = await _stalkerHttpClient.getPortal(
-            configuration,
-            queryParameters: {
-              'type': module,
-              'action': 'get_ordered_list',
-              'p': '${page - 1}',
-              'genre': categoryId,
-              'JsHttpRequest': '1-xml',
-              'token': session.token,
-              'mac': configuration.macAddress.toLowerCase(),
-            },
-            headers: headers,
-          );
-          final envelope = _decodePortalMap(response.body);
-          final entries = _extractPortalItems(envelope);
-          final pageSize = _extractMaxPageItems(envelope);
-          final totalItems =
-              _extractTotalItems(envelope) ??
-              _coerceInt(category['items'] ?? category['movies_count']);
-
-          if (kDebugMode) {
-            debugPrint(
-              redactSensitiveText(
-                'Stalker cat=$categoryId module=$module page=$page '
-                'items=${entries.length} total=${totalItems ?? 'n/a'}',
-              ),
-            );
+      try {
+        final entries = await _fetchStalkerListing(
+          providerId: providerId,
+          resumeStore: resumeStore,
+          configuration: configuration,
+          headers: headers,
+          session: session,
+          module: module,
+          maxPages: maxPagesPerCategory,
+          categoryId: categoryId,
+        );
+        for (final entry in entries) {
+          final idKey = _coerceString(
+                entry['id'] ?? entry['cmd'] ?? entry['name'],
+              ) ??
+              '${categoryId}_${entry.hashCode}';
+          if (seenKeys.add('$module:$idKey')) {
+            entry.putIfAbsent('category_id', () => categoryId);
+            aggregated.add(entry);
           }
-
-          if (entries.isEmpty) {
-            break;
-          }
-
-          for (final entry in entries) {
-            final idKey =
-                _coerceString(entry['id'] ?? entry['cmd'] ?? entry['name']) ??
-                '${categoryId}_${entry.hashCode}';
-            if (seenKeys.add('$module:$idKey')) {
-              entry.putIfAbsent('category_id', () => categoryId);
-              aggregated.add(entry);
-            }
-          }
-
-          if (pageSize != null && entries.length < pageSize) {
-            break;
-          }
-          if (totalItems != null && aggregated.length >= totalItems) {
-            break;
-          }
-          if (totalItems != null &&
-              pageSize != null &&
-              pageSize > 0 &&
-              expectedPages == null) {
-            expectedPages = ((totalItems + pageSize - 1) ~/ pageSize).clamp(
-              1,
-              maxPagesPerCategory,
-            );
-          }
-          if (expectedPages != null && page >= expectedPages) {
-            break;
-          }
-        } catch (error, stackTrace) {
-          _logError(
-            'Stalker category $categoryId fetch failed',
-            error,
-            stackTrace,
-          );
-          break;
         }
+      } catch (error, stackTrace) {
+        _logError(
+          'Stalker category $categoryId fetch failed',
+          error,
+          stackTrace,
+        );
       }
     }
 
@@ -1113,6 +1133,8 @@ class ProviderImportService {
   }
 
   Future<List<Map<String, dynamic>>> _deriveCategoriesFromGlobal({
+    required int providerId,
+    required ImportResumeStore resumeStore,
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
     required StalkerSession session,
@@ -1120,11 +1142,14 @@ class ProviderImportService {
   }) async {
     const samplePages = 5;
     final seeds = await _fetchStalkerListing(
+      providerId: providerId,
+      resumeStore: resumeStore,
       configuration: configuration,
       headers: headers,
       session: session,
       module: module,
       maxPages: samplePages,
+      enableResume: false,
     );
     if (seeds.isEmpty) {
       return const [];
@@ -1910,12 +1935,15 @@ Future<void> _providerImportWorkerEntry(
   _ProviderImportWorkerRequest request,
 ) async {
   final profile = _deserializeProfile(request.profile);
+  final dbFile = File(request.dbPath);
   final db = OpenIptvDb.forTesting(
     NativeDatabase(
-      File(request.dbPath),
+      dbFile,
       logStatements: false,
     ),
   );
+  final resumeStoreFuture =
+      ImportResumeStore.openAtDirectory(dbFile.parent.path);
   final telemetryFile = File(
     '${Directory.systemTemp.path}/openiptv_worker_telemetry.log',
   );
@@ -1928,6 +1956,7 @@ Future<void> _providerImportWorkerEntry(
         _SendPortImportReporter(request.sendPort),
       ),
       providerImportOffloadProvider.overrideWithValue(false),
+      importResumeStoreFutureProvider.overrideWithValue(resumeStoreFuture),
     ],
   );
   try {
@@ -1950,3 +1979,4 @@ Future<void> _providerImportWorkerEntry(
     await db.close();
   }
 }
+

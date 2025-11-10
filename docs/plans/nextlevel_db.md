@@ -31,7 +31,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 
 ### 5) Counting mismatches: why totals differ
 - [x] Maintain per-content-type seen-ID sets to de-dupe across categories and the "*" bucket so portal totals line up with DB counts. -> Category paging now keeps `seenKeys` per module and the global `"*"` sweep tracks `seenEntryKeys`, so duplicates no longer inflate totals.
-- [ ] Retry transient errors with jitter before assuming a category is empty, and respect adult/parental preferences when counting.
+- [x] Retry transient errors with jitter before assuming a category is empty, and respect adult/parental preferences when counting. -> `_retryWithJitter` now wraps Stalker portal calls with randomized delays before failing.
 
 ### 6) Missing safety rails
 - [x] Enforce hard caps: global "*" = 30 pages, per-category = 200 pages, plus 200–600?ms jitter/backoff between requests. Log when a cap triggers. -> `_fetchStalkerListing` enforces `_stalkerMaxGlobalPages`/`_stalkerMaxCategoryPages`, applies randomized delays, and logs resume/cap exits.

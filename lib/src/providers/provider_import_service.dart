@@ -103,6 +103,8 @@ class ProviderImportService {
   static const int _stalkerMaxGlobalPages = 25;
   static const Duration _stalkerPageBackoffMin = Duration(milliseconds: 200);
   static const Duration _stalkerPageBackoffMax = Duration(milliseconds: 600);
+  static const Duration _stalkerRetryMinDelay = Duration(milliseconds: 120);
+  static const Duration _stalkerRetryMaxDelay = Duration(milliseconds: 400);
   static final Random _stalkerBackoffRandom = Random();
 
   Stream<ProviderImportEvent> watchProgress(int providerId) {
@@ -970,16 +972,18 @@ class ProviderImportService {
     for (final includeJs in toggles) {
       try {
         final stopwatch = Stopwatch()..start();
-        final envelope = await _stalkerHttpClient.getPortal(
-          config,
-          queryParameters: {
-            'type': module,
-            'action': probe.action,
-            'token': session.token,
-            'mac': config.macAddress.toLowerCase(),
-            if (includeJs) 'JsHttpRequest': '1-xml',
-          },
-          headers: headers,
+        final envelope = await _retryWithJitter(
+          () => _stalkerHttpClient.getPortal(
+            config,
+            queryParameters: {
+              'type': module,
+              'action': probe.action,
+              'token': session.token,
+              'mac': config.macAddress.toLowerCase(),
+              if (includeJs) 'JsHttpRequest': '1-xml',
+            },
+            headers: headers,
+          ),
         );
         stopwatch.stop();
         unawaited(
@@ -1113,18 +1117,20 @@ class ProviderImportService {
     final initialPage = startPage;
     for (var page = startPage; page <= maxPages; page += 1) {
       try {
-        final response = await _stalkerHttpClient.getPortal(
-          configuration,
-          queryParameters: {
-            'type': module,
-            'action': 'get_ordered_list',
-            'p': '${page - 1}',
-            'JsHttpRequest': '1-xml',
-            'token': session.token,
-            'mac': configuration.macAddress.toLowerCase(),
-            if (categoryId != null) 'genre': categoryId,
-          },
-          headers: headers,
+        final response = await _retryWithJitter(
+          () => _stalkerHttpClient.getPortal(
+            configuration,
+            queryParameters: {
+              'type': module,
+              'action': 'get_ordered_list',
+              'p': '${page - 1}',
+              'JsHttpRequest': '1-xml',
+              'token': session.token,
+              'mac': configuration.macAddress.toLowerCase(),
+              if (categoryId != null) 'genre': categoryId,
+            },
+            headers: headers,
+          ),
         );
         final envelope = _decodePortalMap(response.body);
         final entries = _extractPortalItems(envelope);
@@ -1288,16 +1294,18 @@ class ProviderImportService {
     required String module,
   }) async {
     try {
-      final response = await _stalkerHttpClient.getPortal(
-        config,
-        queryParameters: {
-          'type': module,
-          'action': 'get_genres',
-          'JsHttpRequest': '1-xml',
-          'token': session.token,
-          'mac': config.macAddress.toLowerCase(),
-        },
-        headers: headers,
+      final response = await _retryWithJitter(
+        () => _stalkerHttpClient.getPortal(
+          config,
+          queryParameters: {
+            'type': module,
+            'action': 'get_genres',
+            'JsHttpRequest': '1-xml',
+            'token': session.token,
+            'mac': config.macAddress.toLowerCase(),
+          },
+          headers: headers,
+        ),
       );
       final decoded = _decodePortalMap(response.body);
       final data = _extractPortalListFromCandidates(decoded, const [
@@ -1572,16 +1580,18 @@ class ProviderImportService {
     required String action,
   }) async {
     try {
-      final response = await _stalkerHttpClient.getPortal(
-        configuration,
-        queryParameters: {
-          'type': module,
-          'action': action,
-          'JsHttpRequest': '1-xml',
-          'token': session.token,
-          'mac': configuration.macAddress.toLowerCase(),
-        },
-        headers: headers,
+      final response = await _retryWithJitter(
+        () => _stalkerHttpClient.getPortal(
+          configuration,
+          queryParameters: {
+            'type': module,
+            'action': action,
+            'JsHttpRequest': '1-xml',
+            'token': session.token,
+            'mac': configuration.macAddress.toLowerCase(),
+          },
+          headers: headers,
+        ),
       );
       final parsed = _decodePortalMap(response.body);
       final items = _extractPortalItems(parsed);
@@ -1785,18 +1795,61 @@ class ProviderImportService {
   }
 
   Future<void> _applyStalkerPageBackoff() async {
-    final minMs = _stalkerPageBackoffMin.inMilliseconds;
-    final maxMs = _stalkerPageBackoffMax.inMilliseconds;
+    final delay = _jitterBetween(
+      _stalkerPageBackoffMin,
+      _stalkerPageBackoffMax,
+    );
+    if (delay <= Duration.zero) {
+      return;
+    }
+    await Future<void>.delayed(delay);
+  }
+
+  Duration _jitterBetween(Duration min, Duration max) {
+    final minMs = min.inMilliseconds;
+    final maxMs = max.inMilliseconds;
     if (maxMs <= 0) {
-      return;
+      return Duration.zero;
     }
-    final range = maxMs - minMs;
-    final jitter = range > 0 ? _stalkerBackoffRandom.nextInt(range + 1) : 0;
-    final delayMs = minMs + jitter;
-    if (delayMs <= 0) {
-      return;
+    var lower = minMs;
+    if (lower < 0) {
+      lower = 0;
     }
-    await Future<void>.delayed(Duration(milliseconds: delayMs));
+    var upper = maxMs;
+    if (upper < lower) {
+      upper = lower;
+    }
+    final span = upper - lower;
+    final offset = span > 0 ? _stalkerBackoffRandom.nextInt(span + 1) : 0;
+    return Duration(milliseconds: lower + offset);
+  }
+
+  Future<T> _retryWithJitter<T>(
+    Future<T> Function() operation, {
+    int maxAttempts = 3,
+    Duration minDelay = _stalkerRetryMinDelay,
+    Duration maxDelay = _stalkerRetryMaxDelay,
+  }) async {
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await operation();
+      } catch (error, stackTrace) {
+        if (attempt == maxAttempts - 1) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        if (kDebugMode) {
+          debugPrint(
+            'Retrying portal call (attempt ${attempt + 2}/$maxAttempts) '
+            'after error: $error',
+          );
+        }
+        final delay = _jitterBetween(minDelay, maxDelay);
+        if (delay > Duration.zero) {
+          await Future<void>.delayed(delay);
+        }
+      }
+    }
+    throw StateError('retryWithJitter exhausted attempts unexpectedly.');
   }
 
   String _fingerprintPortalEntries(List<Map<String, dynamic>> entries) {

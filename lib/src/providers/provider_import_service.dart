@@ -91,6 +91,9 @@ class ProviderImportService {
       {};
   bool get _canUseWorker => !kIsWeb && !DatabaseFlags.enableSqlCipher;
   final Map<int, _WorkerHandle> _workerHandles = {};
+  static const int _stalkerMaxCategoryPages = 80;
+  static const int _stalkerMaxGlobalPages = 25;
+  static const Duration _stalkerPageDelay = Duration(milliseconds: 15);
 
   Stream<ProviderImportEvent> watchProgress(int providerId) {
     return _controllerFor(providerId).stream;
@@ -661,7 +664,7 @@ class ProviderImportService {
         session: session,
         module: 'itv',
         categories: live,
-        enableCategoryPaging: false,
+        enableCategoryPaging: true,
         onLockedCategory: noteLockedCategory,
       );
       final vodItems = await _fetchStalkerItems(
@@ -936,11 +939,12 @@ class ProviderImportService {
     required List<Map<String, dynamic>> categories,
     bool enableCategoryPaging = true,
     void Function()? onLockedCategory,
+    int? maxCategoryPages,
   }) async {
+    final categoryPageCap = maxCategoryPages ?? _stalkerMaxCategoryPages;
     final allowPerCategory =
         enableCategoryPaging &&
         categories.isNotEmpty &&
-        module != 'itv' &&
         !_needsDerivedCategories(categories);
     if (allowPerCategory) {
       final perCategory = await _fetchStalkerItemsForCategories(
@@ -952,6 +956,7 @@ class ProviderImportService {
         module: module,
         categories: categories,
         onLockedCategory: onLockedCategory,
+        maxPagesPerCategory: categoryPageCap,
       );
       if (perCategory.isNotEmpty) {
         return perCategory;
@@ -977,6 +982,7 @@ class ProviderImportService {
       headers: headers,
       session: session,
       module: module,
+      maxPages: _stalkerMaxGlobalPages,
     );
   }
 
@@ -985,7 +991,7 @@ class ProviderImportService {
     required Map<String, String> headers,
     required StalkerSession session,
     required String module,
-    int maxPages = 25,
+    int maxPages = _stalkerMaxGlobalPages,
     String? categoryId,
     int? providerId,
     ImportResumeStore? resumeStore,
@@ -1009,6 +1015,7 @@ class ProviderImportService {
         startPage = checkpoint;
       }
     }
+    final initialPage = startPage;
     for (var page = startPage; page <= maxPages; page += 1) {
       try {
         final response = await _stalkerHttpClient.getPortal(
@@ -1029,7 +1036,7 @@ class ProviderImportService {
         final pageSize = _extractMaxPageItems(envelope);
         final totalItems = _extractTotalItems(envelope);
         if (entries.isEmpty) {
-          if (kDebugMode) {
+          if (kDebugMode && _shouldLogStalkerPage(initialPage, page)) {
             debugPrint(
               redactSensitiveText(
                 'Stalker listing module=$module page=$page returned 0 items. '
@@ -1040,7 +1047,7 @@ class ProviderImportService {
           break;
         }
         results.addAll(entries);
-        if (kDebugMode) {
+        if (kDebugMode && _shouldLogStalkerPage(initialPage, page)) {
           final genreSuffix = categoryId == null ? '' : ', genre=$categoryId';
           debugPrint(
             redactSensitiveText(
@@ -1073,6 +1080,9 @@ class ProviderImportService {
             resumeKey,
             page + 1,
           );
+        }
+        if (_stalkerPageDelay > Duration.zero) {
+          await Future<void>.delayed(_stalkerPageDelay);
         }
       } catch (error, stackTrace) {
         _logError(
@@ -1185,8 +1195,8 @@ class ProviderImportService {
     required String module,
     required List<Map<String, dynamic>> categories,
     void Function()? onLockedCategory,
+    required int maxPagesPerCategory,
   }) async {
-    const maxPagesPerCategory = 200;
     final seenKeys = <String>{};
     final aggregated = <Map<String, dynamic>>[];
 
@@ -1539,6 +1549,14 @@ class ProviderImportService {
       return '${text.substring(0, 200)}ÔÇª';
     }
     return text;
+  }
+
+  bool _shouldLogStalkerPage(int initialPage, int page) {
+    final delta = page - initialPage;
+    if (delta <= 2) {
+      return true;
+    }
+    return delta % 10 == 0;
   }
 
   String? _coerceString(dynamic value) {

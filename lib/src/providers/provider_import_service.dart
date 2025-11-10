@@ -809,6 +809,24 @@ class ProviderImportService {
       if (dialectDirty) {
         await resumeStore.writeStalkerDialect(providerId, portalDialect);
       }
+      _logStalkerRunSummary(
+        profile: profile,
+        liveOutcome: liveOutcome,
+        liveCategories: live,
+        vodOutcome: vodOutcome,
+        vodCategories: vod,
+        seriesOutcome: seriesOutcome,
+        seriesCategories: series,
+        radioOutcome: radioOutcome,
+        radioCategories: radio,
+        liveItems: liveItems,
+        vodItems: vodItems,
+        seriesItems: seriesItems,
+        radioItems: radioItems,
+        ingestVodDuringImport: ingestVodDuringImport,
+        ingestSeriesDuringImport: ingestSeriesDuringImport,
+        sawLockedCategory: sawLockedCategory,
+      );
       return metrics;
     } catch (error, stackTrace) {
       _logError(
@@ -1636,6 +1654,77 @@ class ProviderImportService {
       return true;
     }
     return delta % 10 == 0;
+  }
+
+  void _logStalkerRunSummary({
+    required ResolvedProviderProfile profile,
+    required _StalkerCategoryFetchOutcome liveOutcome,
+    required List<Map<String, dynamic>> liveCategories,
+    required _StalkerCategoryFetchOutcome vodOutcome,
+    required List<Map<String, dynamic>> vodCategories,
+    required _StalkerCategoryFetchOutcome seriesOutcome,
+    required List<Map<String, dynamic>> seriesCategories,
+    required _StalkerCategoryFetchOutcome radioOutcome,
+    required List<Map<String, dynamic>> radioCategories,
+    required List<Map<String, dynamic>> liveItems,
+    required List<Map<String, dynamic>> vodItems,
+    required List<Map<String, dynamic>> seriesItems,
+    required List<Map<String, dynamic>> radioItems,
+    required bool ingestVodDuringImport,
+    required bool ingestSeriesDuringImport,
+    required bool sawLockedCategory,
+  }) {
+    final segments = <String>[
+      'Stalker import "${profile.record.displayName}"',
+      _describeStalkerSegment(
+        bucket: 'live',
+        outcome: liveOutcome,
+        categories: liveCategories,
+        ingested: true,
+        ingestedCount: liveItems.length,
+      ),
+      _describeStalkerSegment(
+        bucket: 'vod',
+        outcome: vodOutcome,
+        categories: vodCategories,
+        ingested: ingestVodDuringImport,
+        ingestedCount: vodItems.length,
+      ),
+      _describeStalkerSegment(
+        bucket: 'series',
+        outcome: seriesOutcome,
+        categories: seriesCategories,
+        ingested: ingestSeriesDuringImport,
+        ingestedCount: seriesItems.length,
+      ),
+      _describeStalkerSegment(
+        bucket: 'radio',
+        outcome: radioOutcome,
+        categories: radioCategories,
+        ingested: true,
+        ingestedCount: radioItems.length,
+      ),
+      'adult=${sawLockedCategory ? 'requires-unlock' : 'off'}',
+    ];
+    _debug(segments.join(' | '));
+  }
+
+  String _describeStalkerSegment({
+    required String bucket,
+    required _StalkerCategoryFetchOutcome outcome,
+    required List<Map<String, dynamic>> categories,
+    required bool ingested,
+    required int ingestedCount,
+  }) {
+    final buffer = StringBuffer()
+      ..write('$bucket: action=${outcome.strategy}')
+      ..write(', cats=${categories.length}');
+    if (ingested) {
+      buffer.write(', items=$ingestedCount');
+    } else {
+      buffer.write(', items=deferred');
+    }
+    return buffer.toString();
   }
 
   String _fingerprintPortalEntries(List<Map<String, dynamic>> entries) {

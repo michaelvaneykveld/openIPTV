@@ -768,15 +768,34 @@ class _RecentPlaybackTile extends ConsumerWidget {
   }
 }
 
-class _CategoryPreviewList extends ConsumerWidget {
+class _CategoryPreviewList extends StatefulWidget {
   const _CategoryPreviewList({required this.result, required this.icon});
 
   final CategoryPreviewResult result;
   final IconData icon;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final items = result.items;
+  State<_CategoryPreviewList> createState() => _CategoryPreviewListState();
+}
+
+class _CategoryPreviewListState extends State<_CategoryPreviewList> {
+  late final ScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.result.items;
     if (items.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
@@ -790,8 +809,10 @@ class _CategoryPreviewList extends ConsumerWidget {
     return SizedBox(
       height: height,
       child: Scrollbar(
+        controller: _controller,
         thumbVisibility: true,
         child: ListView.separated(
+          controller: _controller,
           primary: false,
           shrinkWrap: true,
           physics: const ClampingScrollPhysics(),
@@ -804,7 +825,7 @@ class _CategoryPreviewList extends ConsumerWidget {
               contentPadding: EdgeInsets.zero,
               leading: _ArtworkAvatar(
                 url: item.artUri ?? '',
-                fallbackIcon: icon,
+                fallbackIcon: widget.icon,
                 size: 40,
               ),
               title: Text(item.title),

@@ -1070,6 +1070,7 @@ class ProviderImportService {
   }) async {
     final results = <Map<String, dynamic>>[];
     final seenPageFingerprints = <String>{};
+    final seenEntryKeys = <String>{};
     int? expectedPages;
     var hitPageCap = false;
     final resumeKey = categoryId ?? '*';
@@ -1129,13 +1130,22 @@ class ProviderImportService {
           }
           break;
         }
-        results.addAll(entries);
+        var newEntries = entries.length;
+        final filteredEntries = <Map<String, dynamic>>[];
+        for (final entry in entries) {
+          final identity = _stableEntryIdentity(entry);
+          if (seenEntryKeys.add('$module:$identity')) {
+            filteredEntries.add(entry);
+          }
+        }
+        newEntries = filteredEntries.length;
+        results.addAll(filteredEntries);
         if (kDebugMode && _shouldLogStalkerPage(initialPage, page)) {
           final genreSuffix = categoryId == null ? '' : ', genre=$categoryId';
           debugPrint(
             redactSensitiveText(
               'Stalker listing module=$module page=$page '
-              'items=${entries.length} (pageSize=${pageSize ?? 'n/a'}, '
+              'items=$newEntries (pageSize=${pageSize ?? 'n/a'}, '
               'total=${totalItems ?? 'n/a'}$genreSuffix)',
             ),
           );

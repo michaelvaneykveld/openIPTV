@@ -160,7 +160,7 @@ class M3uImporter {
         return metrics;
       },
       providerId: providerId,
-      importType: 'm3u',
+      importType: 'm3u.catalog',
       metricsSelector: (result) => result,
     );
   }

@@ -191,6 +191,7 @@ class ProviderImportService {
         'Skipping import for ${profile.record.displayName} '
         '(fresh enough, forceRefresh=$forceRefresh)',
       );
+      await _performHealthCheck(profile);
       return;
     }
     final future = _enableOffload && _canUseWorker
@@ -714,28 +715,6 @@ class ProviderImportService {
         enableCategoryPaging: true,
         onLockedCategory: noteLockedCategory,
       );
-      final vodItems = await _fetchStalkerItems(
-        providerId: providerId,
-        resumeStore: resumeStore,
-        configuration: configuration,
-        headers: headers,
-        session: session,
-        module: 'vod',
-        categories: vod,
-        enableCategoryPaging: true,
-        onLockedCategory: noteLockedCategory,
-      );
-      final seriesItems = await _fetchStalkerItems(
-        providerId: providerId,
-        resumeStore: resumeStore,
-        configuration: configuration,
-        headers: headers,
-        session: session,
-        module: 'series',
-        categories: series,
-        enableCategoryPaging: true,
-        onLockedCategory: noteLockedCategory,
-      );
       final radioItems = await _fetchStalkerItems(
         providerId: providerId,
         resumeStore: resumeStore,
@@ -747,6 +726,36 @@ class ProviderImportService {
         enableCategoryPaging: true,
         onLockedCategory: noteLockedCategory,
       );
+      final bool ingestVodDuringImport =
+          profile.record.configuration['ingestVodOnImport'] == 'true';
+      final bool ingestSeriesDuringImport =
+          profile.record.configuration['ingestSeriesOnImport'] == 'true';
+      final vodItems = ingestVodDuringImport
+          ? await _fetchStalkerItems(
+              providerId: providerId,
+              resumeStore: resumeStore,
+              configuration: configuration,
+              headers: headers,
+              session: session,
+              module: 'vod',
+              categories: vod,
+              enableCategoryPaging: true,
+              onLockedCategory: noteLockedCategory,
+            )
+          : const <Map<String, dynamic>>[];
+      final seriesItems = ingestSeriesDuringImport
+          ? await _fetchStalkerItems(
+              providerId: providerId,
+              resumeStore: resumeStore,
+              configuration: configuration,
+              headers: headers,
+              session: session,
+              module: 'series',
+              categories: series,
+              enableCategoryPaging: true,
+              onLockedCategory: noteLockedCategory,
+            )
+          : const <Map<String, dynamic>>[];
       if (kDebugMode) {
         debugPrint(
           redactSensitiveText(
@@ -784,6 +793,15 @@ class ProviderImportService {
         },
       );
 
+      final liveSummaryTotal = liveItems.length;
+      final radioSummaryTotal = radioItems.length;
+      final vodSummaryTotal = ingestVodDuringImport
+          ? vodItems.length
+          : _estimateCategoryItemCount(vod);
+      final seriesSummaryTotal = ingestSeriesDuringImport
+          ? seriesItems.length
+          : _estimateCategoryItemCount(series);
+
       final importer = _ref.read(stalkerImporterProvider);
       final metrics = await importer.importCatalog(
         providerId: providerId,
@@ -795,6 +813,10 @@ class ProviderImportService {
         vodItems: vodItems,
         seriesItems: seriesItems,
         radioItems: radioItems,
+        liveSummaryOverride: liveSummaryTotal,
+        vodSummaryOverride: vodSummaryTotal,
+        seriesSummaryOverride: seriesSummaryTotal,
+        radioSummaryOverride: radioSummaryTotal,
       );
       final finalDialect =
           portalDialect.updateParentalUnlock(sawLockedCategory);
@@ -1459,6 +1481,25 @@ class ProviderImportService {
     return !hasRealCategory;
   }
 
+  int _estimateCategoryItemCount(List<Map<String, dynamic>> categories) {
+    var total = 0;
+    for (final category in categories) {
+      final count = _coerceInt(
+        category['items_count'] ??
+            category['total_items'] ??
+            category['count'] ??
+            category['movie_count'] ??
+            category['movies_count'] ??
+            category['series_count'] ??
+            category['records_count'],
+      );
+      if (count != null && count > 0) {
+        total += count;
+      }
+    }
+    return total;
+  }
+
   Future<List<Map<String, dynamic>>> _fetchStalkerBulk({
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
@@ -1818,6 +1859,39 @@ class ProviderImportService {
   ImportRunDao _importRunDao() {
     final db = _ref.read(openIptvDbProvider);
     return ImportRunDao(db);
+  }
+
+  Future<void> _performHealthCheck(ResolvedProviderProfile profile) async {
+    try {
+      switch (profile.kind) {
+        case ProviderKind.stalker:
+          final mac = profile.record.configuration['macAddress'];
+          if (mac == null || mac.isEmpty) {
+            return;
+          }
+          final config = StalkerPortalConfiguration(
+            baseUri: profile.lockedBase,
+            macAddress: mac,
+            userAgent: profile.record.configuration['userAgent'],
+            allowSelfSignedTls: profile.record.allowSelfSignedTls,
+            extraHeaders: _decodeCustomHeaders(profile),
+          );
+          await _ref
+              .read(stalkerSessionProvider(config).future)
+              .timeout(const Duration(seconds: 4));
+          break;
+        case ProviderKind.xtream:
+        case ProviderKind.m3u:
+          // TODO: add lightweight health checks if needed.
+          break;
+      }
+    } catch (error, stackTrace) {
+      _logError(
+        'Health check failed for ${profile.record.displayName}',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   void _debug(String message) {

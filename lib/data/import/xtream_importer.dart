@@ -202,7 +202,7 @@ class XtreamImporter {
         return metrics;
       },
       providerId: providerId,
-      importType: 'xtream',
+      importType: 'xtream.catalog',
       metricsSelector: (result) => result,
     );
   }

@@ -43,6 +43,10 @@ class StalkerImporter {
     List<Map<String, dynamic>> vodItems = const [],
     List<Map<String, dynamic>> seriesItems = const [],
     List<Map<String, dynamic>> radioItems = const [],
+    int? liveSummaryOverride,
+    int? vodSummaryOverride,
+    int? seriesSummaryOverride,
+    int? radioSummaryOverride,
   }) {
     return context.runWithRetry(
       (txn) async {
@@ -132,22 +136,22 @@ class StalkerImporter {
         await txn.summaries.upsertSummary(
           providerId: providerId,
           kind: CategoryKind.live,
-          totalItems: liveCount,
+          totalItems: liveSummaryOverride ?? liveCount,
         );
         await txn.summaries.upsertSummary(
           providerId: providerId,
           kind: CategoryKind.vod,
-          totalItems: vodCount,
+          totalItems: vodSummaryOverride ?? vodCount,
         );
         await txn.summaries.upsertSummary(
           providerId: providerId,
           kind: CategoryKind.series,
-          totalItems: seriesCount,
+          totalItems: seriesSummaryOverride ?? seriesCount,
         );
         await txn.summaries.upsertSummary(
           providerId: providerId,
           kind: CategoryKind.radio,
-          totalItems: radioCount,
+          totalItems: radioSummaryOverride ?? radioCount,
         );
 
         await txn.providers.setLastSyncAt(

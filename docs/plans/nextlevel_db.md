@@ -9,9 +9,9 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
 - [ ] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile.
 - [ ] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it.
-- [ ] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops.
+- [x] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops. -> `_fetchStalkerListing` fingerprints each page and filters `seenEntryKeys`, while per-category fetches keep their own `seenKeys`.
 - [x] Persist resume tokens + derived categories per portal. -> `ImportResumeStore` now writes checkpoints + derived buckets alongside `openiptv.db`.
-- [ ] Surface lightweight import progress with cancel/undo affordances in the UI.
+- [x] Surface lightweight import progress with cancel/undo affordances in the UI. -> Login + PlayerShell now render `ImportProgressBanner` with determinate progress and cancel hooks wired to `ProviderImportService.cancelImport`.
 
 ### 1) Category discovery: common pitfalls & fixes
 - [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3–5 global pages off-isolate, cache for ~24h).
@@ -23,19 +23,19 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 
 ### 3) Paging semantics: mixing `p=` with `from/cnt`
 - [ ] Detect both paging shapes during bootstrap, memoize the preference in `PortalDialect.prefersFromCnt`, and respect it for every category.
-- [ ] Hash each page's payload to break loops, and hard-stop when a duplicate or the configured page cap is reached.
+- [x] Hash each page's payload to break loops, and hard-stop when a duplicate or the configured page cap is reached. -> `_fetchStalkerListing` now stores page fingerprints and aborts immediately after a repeat while logging page-cap exits.
 
 ### 4) Doing heavy work on the UI isolate
 - [ ] Finish the worker-isolate importer: spawn a Drift isolate connection, stream progress events, honour cancel, and ensure the UI isolate only receives lightweight updates.
 - [ ] Prioritise categories currently expanded in the UI so previews stay responsive while background paging continues for the rest.
 
 ### 5) Counting mismatches: why totals differ
-- [ ] Maintain per-content-type seen-ID sets to de-dupe across categories and the "*" bucket so portal totals line up with DB counts.
+- [x] Maintain per-content-type seen-ID sets to de-dupe across categories and the "*" bucket so portal totals line up with DB counts. -> Category paging now keeps `seenKeys` per module and the global `"*"` sweep tracks `seenEntryKeys`, so duplicates no longer inflate totals.
 - [ ] Retry transient errors with jitter before assuming a category is empty, and respect adult/parental preferences when counting.
 
 ### 6) Missing safety rails
-- [ ] Enforce hard caps: global "*" ≤ 30 pages, per-category ≤ 200 pages, plus 200–600 ms jitter/backoff between requests. Log when a cap triggers.
-- [ ] Emit diagnostics per run (category action used, paging shape, portal totals vs ingested totals) so regressions surface quickly.
+- [x] Enforce hard caps: global "*" = 30 pages, per-category = 200 pages, plus 200�600?ms jitter/backoff between requests. Log when a cap triggers. -> `_fetchStalkerListing` enforces `_stalkerMaxGlobalPages`/`_stalkerMaxCategoryPages`, applies randomized delays, and logs resume/cap exits.
+- [x] Emit diagnostics per run (category action used, paging shape, portal totals vs ingested totals) so regressions surface quickly. -> `_logCategoryStrategy` and `_logStalkerRunSummary` now print the winning probe, counts, and adult state once per run.
 - [x] Resume checkpoints already land in `ImportResumeStore`; extend diagnostics so stale checkpoints expire with the same TTL as derived categories.
 
 ### 7) Quick diff-plan you can apply now
@@ -43,7 +43,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Persist `PortalDialect` (category action, paging shape, parental flag) and reuse it for every session.
 - [ ] Implement the category probe chain + derived-category fallback from item 1.
 - [ ] Move ingestion to the worker isolate with dedupe, resume tokens, caps, and backpressure wired in.
-- [ ] Log a single-line ingestion summary per run (e.g., `vod: action=get_genres, paging=from/cnt, cats=42, items=5123 (dedup:-211), adult=off`).
+- [x] Log a single-line ingestion summary per run (e.g., `vod: action=get_genres, paging=from/cnt, cats=42, items=5123 (dedup:-211), adult=off`). -> `_logStalkerRunSummary` emits a concise per-run summary for each Stalker import.
 
 ## North-Star Metrics
 - [ ] Cold tune-to-first-channel <= 2.0s; warm <= 1.2s.

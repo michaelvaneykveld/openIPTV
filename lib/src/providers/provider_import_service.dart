@@ -31,13 +31,15 @@ import 'package:openiptv/src/providers/telemetry_service.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 
-final providerImportReporterProvider =
-    Provider<ProviderImportReporter?>((ref) => null);
+final providerImportReporterProvider = Provider<ProviderImportReporter?>(
+  (ref) => null,
+);
 
 final providerImportOffloadProvider = Provider<bool>((ref) => true);
 
-final importResumeStoreFutureProvider =
-    Provider<Future<ImportResumeStore>>((ref) {
+final importResumeStoreFutureProvider = Provider<Future<ImportResumeStore>>((
+  ref,
+) {
   return ImportResumeStore.openDefault();
 });
 
@@ -67,9 +69,9 @@ class ProviderImportService {
     ProviderImportReporter? reporter,
     bool enableOffload = true,
     Future<ImportResumeStore>? resumeStoreFuture,
-  })  : _enableOffload = enableOffload,
-        _resumeStoreFuture =
-            resumeStoreFuture ?? ImportResumeStore.openDefault() {
+  }) : _enableOffload = enableOffload,
+       _resumeStoreFuture =
+           resumeStoreFuture ?? ImportResumeStore.openDefault() {
     _reporter = reporter ?? _LocalImportReporter(_publishEvent);
     _ref.onDispose(() {
       for (final controller in _progressControllers.values) {
@@ -195,16 +197,8 @@ class ProviderImportService {
       return;
     }
     final future = _enableOffload && _canUseWorker
-        ? _runImportInIsolate(
-            profile,
-            providerId,
-            forceRefresh: forceRefresh,
-          )
-        : _runImportJob(
-            profile,
-            providerId,
-            forceRefresh: forceRefresh,
-          );
+        ? _runImportInIsolate(profile, providerId, forceRefresh: forceRefresh)
+        : _runImportJob(profile, providerId, forceRefresh: forceRefresh);
     _inFlightImports[providerId] = future.whenComplete(() {
       _inFlightImports.remove(providerId);
     });
@@ -251,11 +245,7 @@ class ProviderImportService {
           phase: 'completed',
         ),
       );
-      _emitProgress(
-        profile,
-        'completed',
-        metadata: _metricsMetadata(metrics),
-      );
+      _emitProgress(profile, 'completed', metadata: _metricsMetadata(metrics));
       final resumeStore = await _resumeStoreFuture;
       await resumeStore.clearProvider(providerId);
       _reporter.report(
@@ -266,11 +256,7 @@ class ProviderImportService {
         ),
       );
     } catch (error, stackTrace) {
-      _emitProgress(
-        profile,
-        'error',
-        metadata: {'message': error.toString()},
-      );
+      _emitProgress(profile, 'error', metadata: {'message': error.toString()});
       _reporter.report(
         ProviderImportErrorEvent(
           providerId: providerId,
@@ -480,11 +466,7 @@ class ProviderImportService {
       final dbFile = await OpenIptvDb.resolveDatabaseFile();
       if (!await dbFile.exists()) {
         await cleanup();
-        return _runImportJob(
-          profile,
-          providerId,
-          forceRefresh: forceRefresh,
-        );
+        return _runImportJob(profile, providerId, forceRefresh: forceRefresh);
       }
       final request = _ProviderImportWorkerRequest(
         sendPort: receivePort.sendPort,
@@ -505,11 +487,7 @@ class ProviderImportService {
     } catch (error, stackTrace) {
       _logError('Failed to spawn import worker', error, stackTrace);
       await cleanup();
-      return _runImportJob(
-        profile,
-        providerId,
-        forceRefresh: forceRefresh,
-      );
+      return _runImportJob(profile, providerId, forceRefresh: forceRefresh);
     }
 
     progressSub = receivePort.listen((message) {
@@ -521,7 +499,9 @@ class ProviderImportService {
 
     errorSub = errorPort.listen((dynamic message) async {
       await cleanup();
-      final error = message is List && message.isNotEmpty ? message.first : message;
+      final error = message is List && message.isNotEmpty
+          ? message.first
+          : message;
       final stackTrace = message is List && message.length > 1
           ? StackTrace.fromString('${message[1]}')
           : StackTrace.current;
@@ -564,6 +544,7 @@ class ProviderImportService {
     void noteLockedCategory() {
       sawLockedCategory = true;
     }
+
     final mac = profile.record.configuration['macAddress'];
     if (mac == null || mac.isEmpty) {
       _debug(
@@ -818,8 +799,9 @@ class ProviderImportService {
         seriesSummaryOverride: seriesSummaryTotal,
         radioSummaryOverride: radioSummaryTotal,
       );
-      final finalDialect =
-          portalDialect.updateParentalUnlock(sawLockedCategory);
+      final finalDialect = portalDialect.updateParentalUnlock(
+        sawLockedCategory,
+      );
       if (!identical(finalDialect, portalDialect)) {
         portalDialect = finalDialect;
         dialectDirty = true;
@@ -1069,14 +1051,13 @@ class ProviderImportService {
     bool enableResume = true,
   }) async {
     final results = <Map<String, dynamic>>[];
+    final seenPageFingerprints = <String>{};
     int? expectedPages;
     final resumeKey = categoryId ?? '*';
     var startPage = 1;
     final resumeStoreRef = resumeStore;
     final resumeProviderId = providerId;
-    if (enableResume &&
-        resumeProviderId != null &&
-        resumeStoreRef != null) {
+    if (enableResume && resumeProviderId != null && resumeStoreRef != null) {
       final checkpoint = await resumeStoreRef.readNextPage(
         resumeProviderId,
         module,
@@ -1112,6 +1093,18 @@ class ProviderImportService {
               redactSensitiveText(
                 'Stalker listing module=$module page=$page returned 0 items. '
                 'Payload preview: ${_previewBody(response.body)}',
+              ),
+            );
+          }
+          break;
+        }
+        final fingerprint = _fingerprintPortalEntries(entries);
+        if (fingerprint.isNotEmpty && !seenPageFingerprints.add(fingerprint)) {
+          if (kDebugMode) {
+            debugPrint(
+              redactSensitiveText(
+                'Stalker listing module=$module page=$page repeated payload; '
+                'stopping to avoid infinite loop.',
               ),
             );
           }
@@ -1168,19 +1161,23 @@ class ProviderImportService {
   }
 
   List<Map<String, dynamic>> _extractPortalItems(Map<String, dynamic> parsed) {
-    return _extractPortalListFromCandidates(
-      parsed,
-      const ['data', 'js', 'results'],
-    );
+    return _extractPortalListFromCandidates(parsed, const [
+      'data',
+      'js',
+      'results',
+    ]);
   }
 
   List<Map<String, dynamic>> _extractPortalCategories(
     Map<String, dynamic> parsed,
   ) {
-    return _extractPortalListFromCandidates(
-      parsed,
-      const ['js', 'categories', 'genres', 'data', 'results'],
-    );
+    return _extractPortalListFromCandidates(parsed, const [
+      'js',
+      'categories',
+      'genres',
+      'data',
+      'results',
+    ]);
   }
 
   static List<Map<String, dynamic>> _extractPortalListFromCandidates(
@@ -1240,10 +1237,12 @@ class ProviderImportService {
         headers: headers,
       );
       final decoded = _decodePortalMap(response.body);
-      final data = _extractPortalListFromCandidates(
-        decoded,
-        const ['js', 'genres', 'data', 'results'],
-      );
+      final data = _extractPortalListFromCandidates(decoded, const [
+        'js',
+        'genres',
+        'data',
+        'results',
+      ]);
       if (data.isNotEmpty) {
         return data;
       }
@@ -1281,10 +1280,7 @@ class ProviderImportService {
       if (categoryId == null || categoryId.isEmpty) {
         continue;
       }
-      if (_isCategoryLocked(
-        category,
-        onLockedCategory: onLockedCategory,
-      )) {
+      if (_isCategoryLocked(category, onLockedCategory: onLockedCategory)) {
         if (kDebugMode) {
           debugPrint(
             redactSensitiveText(
@@ -1307,9 +1303,8 @@ class ProviderImportService {
           categoryId: categoryId,
         );
         for (final entry in entries) {
-          final idKey = _coerceString(
-                entry['id'] ?? entry['cmd'] ?? entry['name'],
-              ) ??
+          final idKey =
+              _coerceString(entry['id'] ?? entry['cmd'] ?? entry['name']) ??
               '${categoryId}_${entry.hashCode}';
           if (seenKeys.add('$module:$idKey')) {
             entry.putIfAbsent('category_id', () => categoryId);
@@ -1387,19 +1382,12 @@ class ProviderImportService {
     String module,
     StalkerPortalDialect? dialect,
   ) {
-    const defaultOrder = [
-      'get_categories',
-      'get_genres',
-      'get_categories_v2',
-    ];
+    const defaultOrder = ['get_categories', 'get_genres', 'get_categories_v2'];
     final preferred = dialect?.preferredActionFor(module);
     if (preferred == null || !defaultOrder.contains(preferred)) {
       return defaultOrder;
     }
-    return [
-      preferred,
-      ...defaultOrder.where((action) => action != preferred),
-    ];
+    return [preferred, ...defaultOrder.where((action) => action != preferred)];
   }
 
   _StalkerCategoryProbe? _probeForAction(String action) {
@@ -1441,7 +1429,8 @@ class ProviderImportService {
   ) {
     final derived = <StalkerDerivedCategory>[];
     for (final entry in categories) {
-      final id = _coerceString(
+      final id =
+          _coerceString(
             entry['id'] ??
                 entry['category_id'] ??
                 entry['tv_genre_id'] ??
@@ -1647,6 +1636,39 @@ class ProviderImportService {
       return true;
     }
     return delta % 10 == 0;
+  }
+
+  String _fingerprintPortalEntries(List<Map<String, dynamic>> entries) {
+    if (entries.isEmpty) {
+      return '';
+    }
+    final buffer = StringBuffer();
+    for (final entry in entries) {
+      buffer.write(_stableEntryIdentity(entry));
+      buffer.write(';');
+    }
+    return buffer.toString();
+  }
+
+  String _stableEntryIdentity(Map<String, dynamic> entry) {
+    const keyCandidates = [
+      'id',
+      'cmd',
+      'name',
+      'num',
+      'stream_id',
+      'movie_id',
+      'series_id',
+      'category_id',
+      'uid',
+    ];
+    for (final key in keyCandidates) {
+      final value = _coerceString(entry[key]);
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return entry.hashCode.toRadixString(16);
   }
 
   String? _coerceString(dynamic value) {
@@ -1905,10 +1927,13 @@ class ProviderImportService {
   static List<Map<String, dynamic>> normalizePortalCategoryPayload(
     Map<String, dynamic> payload,
   ) {
-    return _extractPortalListFromCandidates(
-      payload,
-      const ['js', 'categories', 'genres', 'data', 'results'],
-    );
+    return _extractPortalListFromCandidates(payload, const [
+      'js',
+      'categories',
+      'genres',
+      'data',
+      'results',
+    ]);
   }
 
   /// Exposed for unit tests to validate the playlist parser.
@@ -2040,10 +2065,7 @@ class _StalkerCategoryFetchOutcome {
 }
 
 class _WorkerHandle {
-  _WorkerHandle({
-    required this.providerKind,
-    required this.cancelCallback,
-  });
+  _WorkerHandle({required this.providerKind, required this.cancelCallback});
 
   final ProviderKind providerKind;
   final Future<void> Function() cancelCallback;
@@ -2173,16 +2195,16 @@ class ProviderImportMetricsSummary {
   }
 
   Map<String, Object?> toJson() => {
-        'channelsUpserted': channelsUpserted,
-        'categoriesUpserted': categoriesUpserted,
-        'moviesUpserted': moviesUpserted,
-        'seriesUpserted': seriesUpserted,
-        'seasonsUpserted': seasonsUpserted,
-        'episodesUpserted': episodesUpserted,
-        'channelsDeleted': channelsDeleted,
-        'programsUpserted': programsUpserted,
-        'durationMs': durationMs,
-      };
+    'channelsUpserted': channelsUpserted,
+    'categoriesUpserted': categoriesUpserted,
+    'moviesUpserted': moviesUpserted,
+    'seriesUpserted': seriesUpserted,
+    'seasonsUpserted': seasonsUpserted,
+    'episodesUpserted': episodesUpserted,
+    'channelsDeleted': channelsDeleted,
+    'programsUpserted': programsUpserted,
+    'durationMs': durationMs,
+  };
 }
 
 class ProviderImportEventSerializer {
@@ -2200,23 +2222,12 @@ class ProviderImportEventSerializer {
       };
     }
     if (event is ProviderImportResultEvent) {
-      return {
-        ...base,
-        'type': 'result',
-        'metrics': event.metrics.toJson(),
-      };
+      return {...base, 'type': 'result', 'metrics': event.metrics.toJson()};
     }
     if (event is ProviderImportErrorEvent) {
-      return {
-        ...base,
-        'type': 'error',
-        'message': event.message,
-      };
+      return {...base, 'type': 'error', 'message': event.message};
     }
-    return {
-      ...base,
-      'type': 'unknown',
-    };
+    return {...base, 'type': 'unknown'};
   }
 
   static ProviderImportEvent? deserialize(Object? message) {
@@ -2230,7 +2241,8 @@ class ProviderImportEventSerializer {
     final kind = ProviderKind.values[kindIndex];
     switch (map['type']) {
       case 'progress':
-        final metadata = (map['metadata'] as Map?)?.cast<String, Object?>() ??
+        final metadata =
+            (map['metadata'] as Map?)?.cast<String, Object?>() ??
             const <String, Object?>{};
         return ProviderImportProgressEvent(
           providerId: providerId,
@@ -2297,11 +2309,8 @@ Map<String, Object?> _serializeProfile(ResolvedProviderProfile profile) {
   };
 }
 
-ResolvedProviderProfile _deserializeProfile(
-  Map<String, Object?> payload,
-) {
-  final recordJson =
-      (payload['record'] as Map).cast<String, Object?>();
+ResolvedProviderProfile _deserializeProfile(Map<String, Object?> payload) {
+  final recordJson = (payload['record'] as Map).cast<String, Object?>();
   final record = ProviderProfileRecord(
     id: recordJson['id'] as String,
     kind: ProviderKind.values[recordJson['kind'] as int],
@@ -2313,7 +2322,8 @@ ResolvedProviderProfile _deserializeProfile(
     configuration:
         (recordJson['configuration'] as Map?)?.cast<String, String>() ??
         const <String, String>{},
-    hints: (recordJson['hints'] as Map?)?.cast<String, String>() ??
+    hints:
+        (recordJson['hints'] as Map?)?.cast<String, String>() ??
         const <String, String>{},
     createdAt: DateTime.parse(recordJson['createdAt'] as String),
     updatedAt: DateTime.parse(recordJson['updatedAt'] as String),
@@ -2340,13 +2350,11 @@ Future<void> _providerImportWorkerEntry(
   final profile = _deserializeProfile(request.profile);
   final dbFile = File(request.dbPath);
   final db = OpenIptvDb.forTesting(
-    NativeDatabase(
-      dbFile,
-      logStatements: false,
-    ),
+    NativeDatabase(dbFile, logStatements: false),
   );
-  final resumeStoreFuture =
-      ImportResumeStore.openAtDirectory(dbFile.parent.path);
+  final resumeStoreFuture = ImportResumeStore.openAtDirectory(
+    dbFile.parent.path,
+  );
   final telemetryFile = File(
     '${Directory.systemTemp.path}/openiptv_worker_telemetry.log',
   );
@@ -2364,10 +2372,7 @@ Future<void> _providerImportWorkerEntry(
   );
   try {
     final service = container.read(providerImportServiceProvider);
-    await service.runInitialImport(
-      profile,
-      forceRefresh: request.forceRefresh,
-    );
+    await service.runInitialImport(profile, forceRefresh: request.forceRefresh);
   } catch (error, stackTrace) {
     request.sendPort.send(
       ProviderImportEventSerializer.serialize(
@@ -2385,4 +2390,3 @@ Future<void> _providerImportWorkerEntry(
     await db.close();
   }
 }
-

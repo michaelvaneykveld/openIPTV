@@ -50,6 +50,16 @@ class CategoryPreviewItem {
   final String? artUri;
 }
 
+class CategoryPreviewResult {
+  const CategoryPreviewResult({
+    required this.items,
+    this.totalItems,
+  });
+
+  final List<CategoryPreviewItem> items;
+  final int? totalItems;
+}
+
 class _CategoryAccumulator {
   _CategoryAccumulator({required this.id, required this.name});
 
@@ -128,7 +138,7 @@ final dbCategoriesProvider = StreamProvider.autoDispose
     });
 
 final categoryPreviewProvider = FutureProvider.autoDispose
-    .family<List<CategoryPreviewItem>, CategoryPreviewRequest>((
+    .family<CategoryPreviewResult, CategoryPreviewRequest>((
       ref,
       request,
     ) async {
@@ -142,7 +152,7 @@ final categoryPreviewProvider = FutureProvider.autoDispose
             bucket: request.bucket,
             categoryId: parsedId,
           );
-          if (preview.isNotEmpty) {
+          if (preview.items.isNotEmpty) {
             return preview;
           }
         }
@@ -225,7 +235,7 @@ ContentBucket _bucketForCategoryKind(CategoryKind kind) {
   }
 }
 
-Future<List<CategoryPreviewItem>> _loadPreviewFromDb({
+Future<CategoryPreviewResult> _loadPreviewFromDb({
   required OpenIptvDb db,
   required ContentBucket bucket,
   required int categoryId,
@@ -241,7 +251,7 @@ Future<List<CategoryPreviewItem>> _loadPreviewFromDb({
   }
 }
 
-Future<List<CategoryPreviewItem>> _loadChannelPreviewFromDb(
+Future<CategoryPreviewResult> _loadChannelPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
@@ -252,14 +262,13 @@ SELECT ch.id, ch.name, ch.logo_url, ch.number
 FROM channel_categories cc
 JOIN channels ch ON ch.id = cc.channel_id
 WHERE cc.category_id = ?
-ORDER BY (ch.number IS NULL), ch.number, ch.name
-LIMIT 6;
+ORDER BY (ch.number IS NULL), ch.number, ch.name;
 ''',
         variables: [Variable<int>(categoryId)],
       )
       .get();
 
-  return rows
+  final items = rows
       .map(
         (row) => CategoryPreviewItem(
           id: row.read<int>('id').toString(),
@@ -269,9 +278,11 @@ LIMIT 6;
         ),
       )
       .toList();
+
+  return CategoryPreviewResult(items: items, totalItems: items.length);
 }
 
-Future<List<CategoryPreviewItem>> _loadVodPreviewFromDb(
+Future<CategoryPreviewResult> _loadVodPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
@@ -281,14 +292,13 @@ Future<List<CategoryPreviewItem>> _loadVodPreviewFromDb(
 SELECT mv.id, mv.title, mv.year, mv.poster_url
 FROM movies mv
 WHERE mv.category_id = ?
-ORDER BY mv.title
-LIMIT 6;
+ORDER BY mv.title;
 ''',
         variables: [Variable<int>(categoryId)],
       )
       .get();
 
-  return rows
+  final items = rows
       .map(
         (row) => CategoryPreviewItem(
           id: row.read<int>('id').toString(),
@@ -298,9 +308,10 @@ LIMIT 6;
         ),
       )
       .toList();
+  return CategoryPreviewResult(items: items, totalItems: items.length);
 }
 
-Future<List<CategoryPreviewItem>> _loadSeriesPreviewFromDb(
+Future<CategoryPreviewResult> _loadSeriesPreviewFromDb(
   OpenIptvDb db,
   int categoryId,
 ) async {
@@ -310,14 +321,13 @@ Future<List<CategoryPreviewItem>> _loadSeriesPreviewFromDb(
 SELECT s.id, s.title, s.year, s.poster_url
 FROM series s
 WHERE s.category_id = ?
-ORDER BY s.title
-LIMIT 6;
+ORDER BY s.title;
 ''',
         variables: [Variable<int>(categoryId)],
       )
       .get();
 
-  return rows
+  final items = rows
       .map(
         (row) => CategoryPreviewItem(
           id: row.read<int>('id').toString(),
@@ -327,6 +337,7 @@ LIMIT 6;
         ),
       )
       .toList();
+  return CategoryPreviewResult(items: items, totalItems: items.length);
 }
 
 String? _formatChannelSubtitle(int? number) {
@@ -376,7 +387,7 @@ class _CategoriesCoordinator {
     }
   }
 
-  Future<List<CategoryPreviewItem>> preview(CategoryPreviewRequest request) {
+  Future<CategoryPreviewResult> preview(CategoryPreviewRequest request) {
     switch (request.profile.kind) {
       case ProviderKind.xtream:
         return const _XtreamCategoriesFetcher().fetchPreview(
@@ -480,16 +491,15 @@ class _XtreamCategoriesFetcher {
     }..removeWhere((_, value) => value.isEmpty);
   }
 
-  Future<List<CategoryPreviewItem>> fetchPreview({
+  Future<CategoryPreviewResult> fetchPreview({
     required ResolvedProviderProfile profile,
     required ContentBucket bucket,
     required String categoryId,
     String? providerKey,
-    int limit = 12,
   }) async {
     final action = _actionForBucket(bucket);
     if (action == null) {
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
 
     final dio = _prepareDio(profile);
@@ -517,15 +527,15 @@ class _XtreamCategoriesFetcher {
           .timeout(const Duration(seconds: 5));
       final data = response.data;
       if (data is! List) {
-        return const [];
+        return const CategoryPreviewResult(items: []);
       }
 
       final items = _parsePreviewItems(
         action: action,
         payload: data,
-        limit: limit,
+        limit: null,
       );
-      return items;
+      return CategoryPreviewResult(items: items, totalItems: items.length);
     } on DioException catch (error, stackTrace) {
       if (kDebugMode) {
         debugPrint(
@@ -535,14 +545,14 @@ class _XtreamCategoriesFetcher {
           ),
         );
       }
-      return const [];
+      return const CategoryPreviewResult(items: []);
     } on TimeoutException {
       if (kDebugMode) {
         debugPrint(
           redactSensitiveText('Xtream $action preview $categoryId timed out.'),
         );
       }
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
   }
 
@@ -593,7 +603,7 @@ class _XtreamCategoriesFetcher {
   List<CategoryPreviewItem> _parsePreviewItems({
     required String action,
     required List<dynamic> payload,
-    required int limit,
+    int? limit,
   }) {
     final items = <CategoryPreviewItem>[];
     for (final raw in payload) {
@@ -626,7 +636,7 @@ class _XtreamCategoriesFetcher {
           artUri: art.isNotEmpty ? art : null,
         ),
       );
-      if (items.length >= limit) {
+      if (limit != null && items.length >= limit) {
         break;
       }
     }
@@ -824,21 +834,20 @@ class _StalkerCategoriesFetcher {
     }
   }
 
-  Future<List<CategoryPreviewItem>> fetchPreview({
+  Future<CategoryPreviewResult> fetchPreview({
     required ResolvedProviderProfile profile,
     required ContentBucket bucket,
     required String categoryId,
     String? providerKey,
-    int limit = 12,
   }) async {
     final module = _moduleForBucket(bucket);
     if (module == null) {
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
 
     final config = _buildConfiguration(profile);
     if (config.macAddress.isEmpty) {
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
 
     try {
@@ -849,31 +858,59 @@ class _StalkerCategoriesFetcher {
                 .read(stalkerSessionProvider(config).future)
                 .timeout(const Duration(seconds: 3));
       final headers = session.buildAuthenticatedHeaders();
-      final query = <String, dynamic>{
-        'type': module,
-        'action': 'get_ordered_list',
-        'p': '0',
-        'from': '0',
-        'cnt': '$limit',
-        'JsHttpRequest': '1-xml',
-        'token': session.token,
-        'mac': config.macAddress.toLowerCase(),
-      };
       final genreKey = (providerKey ?? categoryId).trim();
-      if (genreKey.isNotEmpty && genreKey != '*') {
-        query['genre'] = genreKey;
+
+      const pageSize = 200;
+      final items = <CategoryPreviewItem>[];
+      final seenSignatures = <String>{};
+      int? totalItems;
+
+      for (var page = 0; page < 500; page++) {
+        final query = <String, dynamic>{
+          'type': module,
+          'action': 'get_ordered_list',
+          'p': '$page',
+          'from': '${page * pageSize}',
+          'cnt': '$pageSize',
+          'JsHttpRequest': '1-xml',
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+        };
+        if (genreKey.isNotEmpty && genreKey != '*') {
+          query['genre'] = genreKey;
+        }
+
+        final response = await _client
+            .getPortal(config, queryParameters: query, headers: headers)
+            .timeout(const Duration(seconds: 10));
+        final envelope = _decodePortalMap(response.body);
+        totalItems ??= _extractTotalItems(envelope);
+        final chunk = _parsePreviewItems(
+          module: module,
+          body: response.body,
+          limit: null,
+        );
+        if (chunk.isEmpty) {
+          break;
+        }
+        final signature = jsonEncode(envelope['data']);
+        if (!seenSignatures.add(signature)) {
+          break;
+        }
+        items.addAll(chunk);
+        switch (totalItems) {
+          case final int target when items.length >= target:
+            break;
+        }
+        if (chunk.length < pageSize) {
+          break;
+        }
       }
 
-      final response = await _client
-          .getPortal(config, queryParameters: query, headers: headers)
-          .timeout(const Duration(seconds: 10));
-
-      final items = _parsePreviewItems(
-        module: module,
-        body: response.body,
-        limit: limit,
+      return CategoryPreviewResult(
+        items: items,
+        totalItems: totalItems ?? items.length,
       );
-      return items;
     } catch (error, stackTrace) {
       if (kDebugMode) {
         debugPrint(
@@ -882,7 +919,7 @@ class _StalkerCategoriesFetcher {
           ),
         );
       }
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
   }
 
@@ -1478,7 +1515,7 @@ class _StalkerCategoriesFetcher {
   List<CategoryPreviewItem> _parsePreviewItems({
     required String module,
     required dynamic body,
-    required int limit,
+    int? limit,
   }) {
     final map = _decodePortalMap(body);
     final data = map['data'];
@@ -1515,7 +1552,7 @@ class _StalkerCategoriesFetcher {
           artUri: art.isNotEmpty ? art : null,
         ),
       );
-      if (items.length >= limit) {
+      if (limit != null && items.length >= limit) {
         break;
       }
     }
@@ -1640,12 +1677,11 @@ class _M3uCategoriesFetcher {
     return result.categories;
   }
 
-  Future<List<CategoryPreviewItem>> fetchPreview(
+  Future<CategoryPreviewResult> fetchPreview(
     ResolvedProviderProfile profile,
     ContentBucket bucket,
-    String categoryId, {
-    int? limit,
-  }) async {
+    String categoryId,
+  ) async {
     final cacheKey = _cacheKey(profile);
     final normalizedGroup = _normalizeGroup(categoryId);
     final now = DateTime.now();
@@ -1654,20 +1690,20 @@ class _M3uCategoriesFetcher {
     if (entry != null && !entry.isExpired(now, _previewTtl)) {
       final items = entry.lookup(bucket, normalizedGroup);
       if (items != null) {
-        return SynchronousFuture(_truncate(items, limit));
+        return CategoryPreviewResult(items: items, totalItems: items.length);
       }
     }
 
     await fetch(profile);
     final refreshed = _previewCache[cacheKey];
     if (refreshed == null) {
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
     final items = refreshed.lookup(bucket, normalizedGroup);
     if (items == null) {
-      return const [];
+      return const CategoryPreviewResult(items: []);
     }
-    return _truncate(items, limit);
+    return CategoryPreviewResult(items: items, totalItems: items.length);
   }
 
   Future<_M3uParseResult> _fetchRemote(
@@ -1905,16 +1941,6 @@ class _M3uCategoriesFetcher {
       previews: previews,
       fetchedAt: DateTime.now(),
     );
-  }
-
-  List<CategoryPreviewItem> _truncate(
-    List<CategoryPreviewItem> items,
-    int? limit,
-  ) {
-    if (limit == null || limit <= 0 || items.length <= limit) {
-      return List<CategoryPreviewItem>.from(items, growable: false);
-    }
-    return List<CategoryPreviewItem>.from(items.take(limit), growable: false);
   }
 
   String _cacheKey(ResolvedProviderProfile profile) => profile.record.id;

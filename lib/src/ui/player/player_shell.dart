@@ -323,7 +323,11 @@ class _SummaryView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final chips = data.counts.entries
-        .map((entry) => Chip(label: Text('${entry.key}: ${entry.value}')))
+        .map(
+          (entry) => Chip(
+            label: Text('${_summaryLabel(entry.key)}: ${entry.value}'),
+          ),
+        )
         .toList(growable: false);
 
     if (!data.hasFields && chips.isEmpty) {
@@ -392,6 +396,25 @@ class _SummaryView extends StatelessWidget {
       ProviderKind.m3u: 'M3U Playlist Summary',
     };
     return labels[kind] ?? 'Provider Summary';
+  }
+
+  String _summaryLabel(String raw) {
+    final lower = raw.toLowerCase();
+    switch (lower) {
+      case 'live':
+        return 'Live';
+      case 'films':
+      case 'vod':
+      case 'movies':
+        return 'Movies';
+      case 'series':
+        return 'Series';
+      case 'radio':
+        return 'Radio';
+      default:
+        if (raw.isEmpty) return raw;
+        return raw[0].toUpperCase() + raw.substring(1);
+    }
   }
 }
 
@@ -467,6 +490,7 @@ class _CategoriesView extends StatelessWidget {
       ),
     );
   }
+
 }
 
 class _CategoryTile extends ConsumerStatefulWidget {
@@ -488,6 +512,7 @@ class _CategoryTile extends ConsumerStatefulWidget {
 
 class _CategoryTileState extends ConsumerState<_CategoryTile> {
   bool _expanded = false;
+  int? _resolvedCount;
 
   @override
   Widget build(BuildContext context) {
@@ -508,7 +533,21 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
     Widget? preview;
     if (_expanded && previewAsync != null) {
       preview = previewAsync.when(
-        data: (items) => _CategoryPreviewList(items: items, icon: widget.icon),
+        data: (result) {
+          final resolved = result.totalItems ?? result.items.length;
+          if (resolved != _resolvedCount) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              setState(() {
+                _resolvedCount = resolved;
+              });
+            });
+          }
+          return _CategoryPreviewList(
+            items: result.items,
+            icon: widget.icon,
+          );
+        },
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
           child: Center(child: CircularProgressIndicator()),
@@ -530,7 +569,7 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
       leading: Icon(widget.icon, color: theme.colorScheme.secondary),
       title: Text(widget.category.name),
       trailing: Text(
-        widget.category.count?.toString() ?? '--',
+        (_resolvedCount ?? widget.category.count)?.toString() ?? '--',
         style: theme.textTheme.labelLarge,
       ),
       onExpansionChanged: (value) {

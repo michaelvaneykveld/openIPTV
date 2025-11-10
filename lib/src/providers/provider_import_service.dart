@@ -2121,6 +2121,10 @@ class ProviderImportService {
           // TODO: add lightweight health checks if needed.
           break;
       }
+    } on TimeoutException catch (error) {
+      _debug(
+        'Health check timed out for ${profile.record.displayName}: $error',
+      );
     } catch (error, stackTrace) {
       _logError(
         'Health check failed for ${profile.record.displayName}',

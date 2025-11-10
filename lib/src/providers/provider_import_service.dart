@@ -1071,6 +1071,7 @@ class ProviderImportService {
     final results = <Map<String, dynamic>>[];
     final seenPageFingerprints = <String>{};
     int? expectedPages;
+    var hitPageCap = false;
     final resumeKey = categoryId ?? '*';
     var startPage = 1;
     final resumeStoreRef = resumeStore;
@@ -1153,6 +1154,10 @@ class ProviderImportService {
         if (expectedPages != null && page >= expectedPages) {
           break;
         }
+        if (page == maxPages) {
+          hitPageCap = true;
+          break;
+        }
         if (enableResume &&
             resumeProviderId != null &&
             resumeStoreRef != null) {
@@ -1174,6 +1179,15 @@ class ProviderImportService {
         );
         break;
       }
+    }
+    if (hitPageCap && kDebugMode) {
+      final scope = categoryId == null ? 'global' : 'category=$categoryId';
+      debugPrint(
+        redactSensitiveText(
+          'Stalker listing module=$module hit page cap ($maxPages) for $scope; '
+          'returned ${results.length} items so far.',
+        ),
+      );
     }
     return results;
   }

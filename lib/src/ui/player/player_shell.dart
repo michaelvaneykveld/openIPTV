@@ -142,12 +142,42 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
   }
 
   AsyncValue<SummaryData> _watchSummary(int? providerId) {
+    final legacy = ref.watch(legacySummaryProvider(widget.profile));
     if (providerId == null) {
-      return ref.watch(legacySummaryProvider(widget.profile));
+      return legacy;
     }
-    return ref.watch(
+    final dbCounts = ref.watch(
       dbSummaryProvider(DbSummaryArgs(providerId, widget.profile.kind)),
     );
+    if (legacy.isLoading || dbCounts.isLoading) {
+      return const AsyncValue.loading();
+    }
+    if (legacy.hasError) {
+      return AsyncValue.error(
+        legacy.error!,
+        legacy.stackTrace ?? StackTrace.current,
+      );
+    }
+    if (dbCounts.hasError) {
+      return AsyncValue.error(
+        dbCounts.error!,
+        dbCounts.stackTrace ?? StackTrace.current,
+      );
+    }
+    final legacyData = legacy.value;
+    if (legacyData == null) {
+      return const AsyncValue.loading();
+    }
+    final counts = dbCounts.value?.counts;
+    final merged = SummaryData(
+      kind: legacyData.kind,
+      fields: legacyData.fields,
+      counts: counts == null || counts.isEmpty
+          ? legacyData.counts
+          : counts,
+      fetchedAt: legacyData.fetchedAt,
+    );
+    return AsyncValue.data(merged);
   }
 
   void _maybePrimeProviderImport() {
@@ -268,7 +298,10 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         return;
       }
       final importService = ref.read(providerImportServiceProvider);
-      await importService.runInitialImport(widget.profile);
+      await importService.runInitialImport(
+        widget.profile,
+        forceRefresh: true,
+      );
     } finally {
       if (mounted) {
         setState(() => _isRefreshing = false);

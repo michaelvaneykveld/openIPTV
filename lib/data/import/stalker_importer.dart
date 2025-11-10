@@ -158,7 +158,7 @@ class StalkerImporter {
         return metrics;
       },
       providerId: providerId,
-      importType: 'stalker',
+      importType: 'stalker.catalog',
       metricsSelector: (result) => result,
     );
   }

@@ -7,6 +7,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:openiptv/data/db/dao/import_run_dao.dart';
 import 'package:openiptv/data/db/database_flags.dart';
 import 'package:openiptv/data/db/database_locator.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
@@ -82,6 +83,10 @@ class ProviderImportService {
   late final ProviderImportReporter _reporter;
   final bool _enableOffload;
   final Future<ImportResumeStore> _resumeStoreFuture;
+
+  static const Duration _stalkerImportTtl = Duration(hours: 6);
+  static const Duration _xtreamImportTtl = Duration(hours: 2);
+  static const Duration _m3uImportTtl = Duration(hours: 1);
 
   final XtreamHttpClient _xtreamHttpClient = XtreamHttpClient();
   final M3uXmlClient _m3uClient = M3uXmlClient();
@@ -161,28 +166,55 @@ class ProviderImportService {
   /// Runs the initial import job for the supplied [profile]. The work happens
   /// synchronously, so callers typically trigger it in a fire-and-forget
   /// manner (e.g. `unawaited(runInitialImport(...))`).
-  Future<void> runInitialImport(ResolvedProviderProfile profile) {
+  Future<void> runInitialImport(
+    ResolvedProviderProfile profile, {
+    bool forceRefresh = false,
+  }) async {
     final providerId = profile.providerDbId;
     if (providerId == null) {
-      return Future.value();
+      return;
     }
     final existing = _inFlightImports[providerId];
     if (existing != null) {
-      return existing;
+      if (!forceRefresh) {
+        await existing;
+        return;
+      }
+      await existing;
+    }
+    if (await _shouldSkipImport(
+      providerId: providerId,
+      kind: profile.kind,
+      forceRefresh: forceRefresh,
+    )) {
+      _debug(
+        'Skipping import for ${profile.record.displayName} '
+        '(fresh enough, forceRefresh=$forceRefresh)',
+      );
+      return;
     }
     final future = _enableOffload && _canUseWorker
-        ? _runImportInIsolate(profile, providerId)
-        : _runImportJob(profile, providerId);
+        ? _runImportInIsolate(
+            profile,
+            providerId,
+            forceRefresh: forceRefresh,
+          )
+        : _runImportJob(
+            profile,
+            providerId,
+            forceRefresh: forceRefresh,
+          );
     _inFlightImports[providerId] = future.whenComplete(() {
       _inFlightImports.remove(providerId);
     });
-    return future;
+    await future;
   }
 
   Future<void> _runImportJob(
     ResolvedProviderProfile profile,
-    int providerId,
-  ) async {
+    int providerId, {
+    bool forceRefresh = false,
+  }) async {
     final providerKind = profile.record.kind;
     final kind = providerKind.name;
     _emitProgress(profile, 'started');
@@ -204,7 +236,11 @@ class ProviderImportService {
           metrics = await _importM3u(providerId, profile);
           break;
         case ProviderKind.stalker:
-          metrics = await _importStalker(providerId, profile);
+          metrics = await _importStalker(
+            providerId,
+            profile,
+            forceRefresh: forceRefresh,
+          );
           break;
       }
       unawaited(
@@ -388,8 +424,9 @@ class ProviderImportService {
 
   Future<void> _runImportInIsolate(
     ResolvedProviderProfile profile,
-    int providerId,
-  ) async {
+    int providerId, {
+    bool forceRefresh = false,
+  }) async {
     final controller = _controllerFor(providerId);
     if (controller.hasListener == false) {
       // Ensure the controller exists even before listeners attach.
@@ -442,12 +479,17 @@ class ProviderImportService {
       final dbFile = await OpenIptvDb.resolveDatabaseFile();
       if (!await dbFile.exists()) {
         await cleanup();
-        return _runImportJob(profile, providerId);
+        return _runImportJob(
+          profile,
+          providerId,
+          forceRefresh: forceRefresh,
+        );
       }
       final request = _ProviderImportWorkerRequest(
         sendPort: receivePort.sendPort,
         profile: _serializeProfile(profile),
         dbPath: dbFile.path,
+        forceRefresh: forceRefresh,
       );
       isolate = await Isolate.spawn<_ProviderImportWorkerRequest>(
         _providerImportWorkerEntry,
@@ -462,7 +504,11 @@ class ProviderImportService {
     } catch (error, stackTrace) {
       _logError('Failed to spawn import worker', error, stackTrace);
       await cleanup();
-      return _runImportJob(profile, providerId);
+      return _runImportJob(
+        profile,
+        providerId,
+        forceRefresh: forceRefresh,
+      );
     }
 
     progressSub = receivePort.listen((message) {
@@ -505,8 +551,9 @@ class ProviderImportService {
 
   Future<ImportMetrics?> _importStalker(
     int providerId,
-    ResolvedProviderProfile profile,
-  ) async {
+    ResolvedProviderProfile profile, {
+    bool forceRefresh = false,
+  }) async {
     final resumeStore = await _resumeStoreFuture;
     var portalDialect =
         await resumeStore.readStalkerDialect(providerId) ??
@@ -1726,6 +1773,53 @@ class ProviderImportService {
     } catch (_) {}
   }
 
+  Future<bool> _shouldSkipImport({
+    required int providerId,
+    required ProviderKind kind,
+    required bool forceRefresh,
+  }) async {
+    if (forceRefresh) return false;
+    final ttl = _importTtlForKind(kind);
+    if (ttl == null) return false;
+    final dao = _importRunDao();
+    final latest = await dao.latestRun(
+      providerId: providerId,
+      importType: _importTypeForKind(kind),
+    );
+    if (latest == null) {
+      return false;
+    }
+    final age = DateTime.now().toUtc().difference(latest.startedAt);
+    return age < ttl;
+  }
+
+  Duration? _importTtlForKind(ProviderKind kind) {
+    switch (kind) {
+      case ProviderKind.stalker:
+        return _stalkerImportTtl;
+      case ProviderKind.xtream:
+        return _xtreamImportTtl;
+      case ProviderKind.m3u:
+        return _m3uImportTtl;
+    }
+  }
+
+  String _importTypeForKind(ProviderKind kind) {
+    switch (kind) {
+      case ProviderKind.stalker:
+        return 'stalker.catalog';
+      case ProviderKind.xtream:
+        return 'xtream.catalog';
+      case ProviderKind.m3u:
+        return 'm3u.catalog';
+    }
+  }
+
+  ImportRunDao _importRunDao() {
+    final db = _ref.read(openIptvDbProvider);
+    return ImportRunDao(db);
+  }
+
   void _debug(String message) {
     if (kDebugMode) {
       debugPrint(message);
@@ -2096,11 +2190,13 @@ class _ProviderImportWorkerRequest {
     required this.sendPort,
     required this.profile,
     required this.dbPath,
+    required this.forceRefresh,
   });
 
   final SendPort sendPort;
   final Map<String, Object?> profile;
   final String dbPath;
+  final bool forceRefresh;
 }
 
 Map<String, Object?> _serializeProfile(ResolvedProviderProfile profile) {
@@ -2194,7 +2290,10 @@ Future<void> _providerImportWorkerEntry(
   );
   try {
     final service = container.read(providerImportServiceProvider);
-    await service.runInitialImport(profile);
+    await service.runInitialImport(
+      profile,
+      forceRefresh: request.forceRefresh,
+    );
   } catch (error, stackTrace) {
     request.sendPort.send(
       ProviderImportEventSerializer.serialize(

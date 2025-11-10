@@ -325,7 +325,10 @@ class _FakeImportService implements ProviderImportService {
   bool called = false;
 
   @override
-  Future<void> runInitialImport(ResolvedProviderProfile profile) async {
+  Future<void> runInitialImport(
+    ResolvedProviderProfile profile, {
+    bool forceRefresh = false,
+  }) async {
     called = true;
   }
 

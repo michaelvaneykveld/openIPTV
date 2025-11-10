@@ -63,6 +63,26 @@ class ImportRunDao extends DatabaseAccessor<OpenIptvDb>
       ..limit(limit);
     return query.get();
   }
+
+  Future<ImportRunRecord?> latestRun({
+    required int providerId,
+    required String importType,
+  }) {
+    final query = select(importRuns)
+      ..where(
+        (tbl) =>
+            tbl.providerId.equals(providerId) &
+            tbl.importType.equals(importType),
+      )
+      ..orderBy([
+        (tbl) => OrderingTerm(
+              expression: tbl.startedAt,
+              mode: OrderingMode.desc,
+            ),
+      ])
+      ..limit(1);
+    return query.getSingleOrNull();
+  }
 }
 
 class ImportMetricsSnapshot {

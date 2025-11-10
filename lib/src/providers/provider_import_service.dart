@@ -942,6 +942,20 @@ class ProviderImportService {
     int? maxCategoryPages,
   }) async {
     final categoryPageCap = maxCategoryPages ?? _stalkerMaxCategoryPages;
+    final bulkActions = _bulkActionsForModule(module);
+    for (final action in bulkActions) {
+      final bulk = await _fetchStalkerBulk(
+        configuration: configuration,
+        headers: headers,
+        session: session,
+        module: module,
+        action: action,
+      );
+      if (bulk.isNotEmpty) {
+        return bulk;
+      }
+    }
+
     final allowPerCategory =
         enableCategoryPaging &&
         categories.isNotEmpty &&
@@ -963,18 +977,6 @@ class ProviderImportService {
       }
     }
 
-    for (final action in _bulkActionsForModule(module)) {
-      final bulk = await _fetchStalkerBulk(
-        configuration: configuration,
-        headers: headers,
-        session: session,
-        module: module,
-        action: action,
-      );
-      if (bulk.isNotEmpty) {
-        return bulk;
-      }
-    }
     return _fetchStalkerListing(
       providerId: providerId,
       resumeStore: resumeStore,

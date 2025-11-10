@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:math';
 
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
@@ -100,7 +101,9 @@ class ProviderImportService {
   final Map<int, _WorkerHandle> _workerHandles = {};
   static const int _stalkerMaxCategoryPages = 80;
   static const int _stalkerMaxGlobalPages = 25;
-  static const Duration _stalkerPageDelay = Duration(milliseconds: 15);
+  static const Duration _stalkerPageBackoffMin = Duration(milliseconds: 200);
+  static const Duration _stalkerPageBackoffMax = Duration(milliseconds: 600);
+  static final Random _stalkerBackoffRandom = Random();
 
   Stream<ProviderImportEvent> watchProgress(int providerId) {
     return _controllerFor(providerId).stream;
@@ -900,6 +903,7 @@ class ProviderImportService {
         );
       }
       if (result.isNotEmpty) {
+        _logCategoryStrategy(module, action, result.length);
         return _StalkerCategoryFetchOutcome(
           strategy: action,
           categories: result,
@@ -911,6 +915,11 @@ class ProviderImportService {
     if (cachedDerived != null &&
         !cachedDerived.isExpired(_derivedCategoryTtl) &&
         cachedDerived.categories.isNotEmpty) {
+      _logCategoryStrategy(
+        module,
+        _StalkerCategoryFetchOutcome.strategyDerivedCache,
+        cachedDerived.categories.length,
+      );
       return _StalkerCategoryFetchOutcome(
         strategy: _StalkerCategoryFetchOutcome.strategyDerivedCache,
         categories: cachedDerived.toPortalCategories(),
@@ -926,6 +935,11 @@ class ProviderImportService {
       module: module,
     );
     if (derived.isNotEmpty) {
+      _logCategoryStrategy(
+        module,
+        _StalkerCategoryFetchOutcome.strategyDerivedSample,
+        derived.length,
+      );
       return _StalkerCategoryFetchOutcome(
         strategy: _StalkerCategoryFetchOutcome.strategyDerivedSample,
         categories: derived,
@@ -1087,6 +1101,15 @@ class ProviderImportService {
         startPage = checkpoint;
       }
     }
+    if (startPage > 1 && kDebugMode) {
+      final scope = categoryId == null ? 'global' : 'category=$categoryId';
+      debugPrint(
+        redactSensitiveText(
+          'Resuming Stalker listing module=$module $scope from page '
+          '$startPage',
+        ),
+      );
+    }
     final initialPage = startPage;
     for (var page = startPage; page <= maxPages; page += 1) {
       try {
@@ -1178,9 +1201,7 @@ class ProviderImportService {
             page + 1,
           );
         }
-        if (_stalkerPageDelay > Duration.zero) {
-          await Future<void>.delayed(_stalkerPageDelay);
-        }
+        await _applyStalkerPageBackoff();
       } catch (error, stackTrace) {
         _logError(
           'Stalker listing fetch failed for module $module page $page',
@@ -1430,6 +1451,18 @@ class ProviderImportService {
       return defaultOrder;
     }
     return [preferred, ...defaultOrder.where((action) => action != preferred)];
+  }
+
+  void _logCategoryStrategy(String module, String strategy, int count) {
+    if (!kDebugMode) {
+      return;
+    }
+    debugPrint(
+      redactSensitiveText(
+        'Stalker categories module=$module strategy=$strategy '
+        'categories=$count',
+      ),
+    );
   }
 
   _StalkerCategoryProbe? _probeForAction(String action) {
@@ -1749,6 +1782,21 @@ class ProviderImportService {
       buffer.write(', items=deferred');
     }
     return buffer.toString();
+  }
+
+  Future<void> _applyStalkerPageBackoff() async {
+    final minMs = _stalkerPageBackoffMin.inMilliseconds;
+    final maxMs = _stalkerPageBackoffMax.inMilliseconds;
+    if (maxMs <= 0) {
+      return;
+    }
+    final range = maxMs - minMs;
+    final jitter = range > 0 ? _stalkerBackoffRandom.nextInt(range + 1) : 0;
+    final delayMs = minMs + jitter;
+    if (delayMs <= 0) {
+      return;
+    }
+    await Future<void>.delayed(Duration(milliseconds: delayMs));
   }
 
   String _fingerprintPortalEntries(List<Map<String, dynamic>> entries) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_dialect.dart';
 import 'package:path/path.dart' as p;
 
 class ImportResumeStore {
@@ -12,6 +13,7 @@ class ImportResumeStore {
   Map<String, dynamic>? _cache;
   final _AsyncMutex _mutex = _AsyncMutex();
   static const _ttl = Duration(hours: 12);
+  static const _dialectPrefix = 'dialect:stalker:';
 
   static Future<ImportResumeStore> openDefault() async {
     final dbFile = await OpenIptvDb.resolveDatabaseFile();
@@ -78,6 +80,37 @@ class ImportResumeStore {
       _cache!.removeWhere(
         (key, value) => key.startsWith('$providerId::'),
       );
+      await _persist();
+    });
+  }
+
+  Future<StalkerPortalDialect?> readStalkerDialect(int providerId) {
+    return _mutex.synchronized(() async {
+      await _ensureCache();
+      final key = '$_dialectPrefix$providerId';
+      final entry = _cache![key];
+      if (entry is! Map) {
+        return null;
+      }
+      final dialect = StalkerPortalDialect.fromJson(
+        entry.map((entryKey, value) => MapEntry('$entryKey', value)),
+      );
+      if (dialect.isExpired(_ttl)) {
+        _cache!.remove(key);
+        await _persist();
+        return null;
+      }
+      return dialect;
+    });
+  }
+
+  Future<void> writeStalkerDialect(
+    int providerId,
+    StalkerPortalDialect dialect,
+  ) {
+    return _mutex.synchronized(() async {
+      await _ensureCache();
+      _cache!['$_dialectPrefix$providerId'] = dialect.toJson();
       await _persist();
     });
   }

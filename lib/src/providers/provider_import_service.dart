@@ -14,13 +14,13 @@ import 'package:openiptv/data/import/import_context.dart';
 import 'package:openiptv/data/import/m3u_importer.dart';
 import 'package:openiptv/data/import/stalker_importer.dart';
 import 'package:openiptv/data/import/xtream_importer.dart';
-import 'package:openiptv/storage/provider_profile_repository.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_client.dart';
 import 'package:openiptv/src/protocols/m3uxml/m3u_xml_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_dialect.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_http_client.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
@@ -28,6 +28,7 @@ import 'package:openiptv/src/providers/import_resume_store.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/telemetry_service.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
+import 'package:openiptv/storage/provider_profile_repository.dart';
 
 final providerImportReporterProvider =
     Provider<ProviderImportReporter?>((ref) => null);
@@ -58,6 +59,8 @@ final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
 /// the Drift database via the importers. Each protocol implementation lives
 /// behind a small helper so we can extend coverage incrementally.
 class ProviderImportService {
+  static const Duration _derivedCategoryTtl = Duration(hours: 24);
+
   ProviderImportService(
     this._ref, {
     ProviderImportReporter? reporter,
@@ -502,6 +505,14 @@ class ProviderImportService {
     ResolvedProviderProfile profile,
   ) async {
     final resumeStore = await _resumeStoreFuture;
+    var portalDialect =
+        await resumeStore.readStalkerDialect(providerId) ??
+        StalkerPortalDialect();
+    var dialectDirty = false;
+    var sawLockedCategory = false;
+    void noteLockedCategory() {
+      sawLockedCategory = true;
+    }
     final mac = profile.record.configuration['macAddress'];
     if (mac == null || mac.isEmpty) {
       _debug(
@@ -526,30 +537,82 @@ class ProviderImportService {
       );
       final headers = session.buildAuthenticatedHeaders();
       _emitProgress(profile, 'stalker.categories.fetch');
-      final live = await _fetchStalkerCategories(
+      final liveOutcome = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
+        providerId: providerId,
+        resumeStore: resumeStore,
+        dialect: portalDialect,
         module: 'itv',
       );
-      var vod = await _fetchStalkerCategories(
+      var live = liveOutcome.categories;
+      var nextDialect = _applyCategoryOutcome(
+        portalDialect,
+        module: 'itv',
+        outcome: liveOutcome,
+      );
+      if (!identical(nextDialect, portalDialect)) {
+        portalDialect = nextDialect;
+        dialectDirty = true;
+      }
+      final vodOutcome = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
+        providerId: providerId,
+        resumeStore: resumeStore,
+        dialect: portalDialect,
         module: 'vod',
       );
-      var series = await _fetchStalkerCategories(
+      var vod = vodOutcome.categories;
+      nextDialect = _applyCategoryOutcome(
+        portalDialect,
+        module: 'vod',
+        outcome: vodOutcome,
+      );
+      if (!identical(nextDialect, portalDialect)) {
+        portalDialect = nextDialect;
+        dialectDirty = true;
+      }
+      final seriesOutcome = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
+        providerId: providerId,
+        resumeStore: resumeStore,
+        dialect: portalDialect,
         module: 'series',
       );
-      var radio = await _fetchStalkerCategories(
+      var series = seriesOutcome.categories;
+      nextDialect = _applyCategoryOutcome(
+        portalDialect,
+        module: 'series',
+        outcome: seriesOutcome,
+      );
+      if (!identical(nextDialect, portalDialect)) {
+        portalDialect = nextDialect;
+        dialectDirty = true;
+      }
+      final radioOutcome = await _fetchStalkerCategories(
         configuration,
         session,
         headers,
+        providerId: providerId,
+        resumeStore: resumeStore,
+        dialect: portalDialect,
         module: 'radio',
       );
+      var radio = radioOutcome.categories;
+      nextDialect = _applyCategoryOutcome(
+        portalDialect,
+        module: 'radio',
+        outcome: radioOutcome,
+      );
+      if (!identical(nextDialect, portalDialect)) {
+        portalDialect = nextDialect;
+        dialectDirty = true;
+      }
 
       if (_needsDerivedCategories(vod)) {
         final derived = await _deriveCategoriesFromGlobal(
@@ -599,6 +662,7 @@ class ProviderImportService {
         module: 'itv',
         categories: live,
         enableCategoryPaging: false,
+        onLockedCategory: noteLockedCategory,
       );
       final vodItems = await _fetchStalkerItems(
         providerId: providerId,
@@ -609,6 +673,7 @@ class ProviderImportService {
         module: 'vod',
         categories: vod,
         enableCategoryPaging: true,
+        onLockedCategory: noteLockedCategory,
       );
       final seriesItems = await _fetchStalkerItems(
         providerId: providerId,
@@ -619,6 +684,7 @@ class ProviderImportService {
         module: 'series',
         categories: series,
         enableCategoryPaging: true,
+        onLockedCategory: noteLockedCategory,
       );
       final radioItems = await _fetchStalkerItems(
         providerId: providerId,
@@ -629,6 +695,7 @@ class ProviderImportService {
         module: 'radio',
         categories: radio,
         enableCategoryPaging: true,
+        onLockedCategory: noteLockedCategory,
       );
       if (kDebugMode) {
         debugPrint(
@@ -668,7 +735,7 @@ class ProviderImportService {
       );
 
       final importer = _ref.read(stalkerImporterProvider);
-      return importer.importCatalog(
+      final metrics = await importer.importCatalog(
         providerId: providerId,
         liveCategories: live,
         vodCategories: vod,
@@ -679,6 +746,16 @@ class ProviderImportService {
         seriesItems: seriesItems,
         radioItems: radioItems,
       );
+      final finalDialect =
+          portalDialect.updateParentalUnlock(sawLockedCategory);
+      if (!identical(finalDialect, portalDialect)) {
+        portalDialect = finalDialect;
+        dialectDirty = true;
+      }
+      if (dialectDirty) {
+        await resumeStore.writeStalkerDialect(providerId, portalDialect);
+      }
+      return metrics;
     } catch (error, stackTrace) {
       _logError(
         'Stalker import failed for ${profile.record.displayName}',
@@ -718,40 +795,69 @@ class ProviderImportService {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchStalkerCategories(
+  Future<_StalkerCategoryFetchOutcome> _fetchStalkerCategories(
     StalkerPortalConfiguration config,
     StalkerSession session,
     Map<String, String> baseHeaders, {
+    required int providerId,
+    required ImportResumeStore resumeStore,
     required String module,
+    StalkerPortalDialect? dialect,
   }) async {
-    const probes = [
-      _StalkerCategoryProbe(action: 'get_categories'),
-      _StalkerCategoryProbe(
-        action: 'get_categories_v2',
-        includeJsToggle: false,
-      ),
-    ];
-    for (final probe in probes) {
-      final result = await _tryFetchStalkerCategoryProbe(
-        config: config,
-        session: session,
-        headers: baseHeaders,
-        module: module,
-        probe: probe,
-      );
+    final actions = _buildCategoryActionOrder(module, dialect);
+    for (final action in actions) {
+      List<Map<String, dynamic>> result = const [];
+      if (action == 'get_genres') {
+        result = await _fetchStalkerGenres(
+          config,
+          session,
+          baseHeaders,
+          module: module,
+        );
+      } else {
+        final probe = _probeForAction(action);
+        if (probe == null) {
+          continue;
+        }
+        result = await _tryFetchStalkerCategoryProbe(
+          config: config,
+          session: session,
+          headers: baseHeaders,
+          module: module,
+          probe: probe,
+        );
+      }
       if (result.isNotEmpty) {
-        return result;
+        return _StalkerCategoryFetchOutcome(
+          strategy: action,
+          categories: result,
+        );
       }
     }
 
-    final genreFallback = await _fetchStalkerGenres(
-      config,
-      session,
-      baseHeaders,
+    final cachedDerived = dialect?.derivedCategoriesFor(module);
+    if (cachedDerived != null &&
+        !cachedDerived.isExpired(_derivedCategoryTtl) &&
+        cachedDerived.categories.isNotEmpty) {
+      return _StalkerCategoryFetchOutcome(
+        strategy: _StalkerCategoryFetchOutcome.strategyDerivedCache,
+        categories: cachedDerived.toPortalCategories(),
+      );
+    }
+
+    final derived = await _deriveCategoriesFromGlobal(
+      providerId: providerId,
+      resumeStore: resumeStore,
+      configuration: config,
+      headers: baseHeaders,
+      session: session,
       module: module,
     );
-    if (genreFallback.isNotEmpty) {
-      return genreFallback;
+    if (derived.isNotEmpty) {
+      return _StalkerCategoryFetchOutcome(
+        strategy: _StalkerCategoryFetchOutcome.strategyDerivedSample,
+        categories: derived,
+      );
     }
     if (kDebugMode) {
       debugPrint(
@@ -761,7 +867,10 @@ class ProviderImportService {
         ),
       );
     }
-    return const [];
+    return const _StalkerCategoryFetchOutcome(
+      strategy: _StalkerCategoryFetchOutcome.strategyNone,
+      categories: <Map<String, dynamic>>[],
+    );
   }
 
   Future<List<Map<String, dynamic>>> _tryFetchStalkerCategoryProbe({
@@ -826,6 +935,7 @@ class ProviderImportService {
     required String module,
     required List<Map<String, dynamic>> categories,
     bool enableCategoryPaging = true,
+    void Function()? onLockedCategory,
   }) async {
     final allowPerCategory =
         enableCategoryPaging &&
@@ -841,6 +951,7 @@ class ProviderImportService {
         session: session,
         module: module,
         categories: categories,
+        onLockedCategory: onLockedCategory,
       );
       if (perCategory.isNotEmpty) {
         return perCategory;
@@ -1073,6 +1184,7 @@ class ProviderImportService {
     required StalkerSession session,
     required String module,
     required List<Map<String, dynamic>> categories,
+    void Function()? onLockedCategory,
   }) async {
     const maxPagesPerCategory = 200;
     final seenKeys = <String>{};
@@ -1088,7 +1200,10 @@ class ProviderImportService {
       if (categoryId == null || categoryId.isEmpty) {
         continue;
       }
-      if (_isCategoryLocked(category)) {
+      if (_isCategoryLocked(
+        category,
+        onLockedCategory: onLockedCategory,
+      )) {
         if (kDebugMode) {
           debugPrint(
             redactSensitiveText(
@@ -1155,7 +1270,7 @@ class ProviderImportService {
       return const [];
     }
 
-    final derived = <String, _DerivedCategory>{};
+    final derived = <String, StalkerDerivedCategory>{};
     for (final entry in seeds) {
       final id = _coerceString(
         entry['category_id'] ??
@@ -1178,13 +1293,92 @@ class ProviderImportService {
           : id;
       derived.putIfAbsent(
         resolvedId,
-        () => _DerivedCategory(id: resolvedId, title: title),
+        () => StalkerDerivedCategory(id: resolvedId, title: title),
       );
     }
 
     return derived.values
         .map((cat) => {'id': cat.id, 'title': cat.title, 'name': cat.title})
         .toList();
+  }
+
+  List<String> _buildCategoryActionOrder(
+    String module,
+    StalkerPortalDialect? dialect,
+  ) {
+    const defaultOrder = [
+      'get_categories',
+      'get_genres',
+      'get_categories_v2',
+    ];
+    final preferred = dialect?.preferredActionFor(module);
+    if (preferred == null || !defaultOrder.contains(preferred)) {
+      return defaultOrder;
+    }
+    return [
+      preferred,
+      ...defaultOrder.where((action) => action != preferred),
+    ];
+  }
+
+  _StalkerCategoryProbe? _probeForAction(String action) {
+    switch (action) {
+      case 'get_categories':
+        return const _StalkerCategoryProbe(action: 'get_categories');
+      case 'get_categories_v2':
+        return const _StalkerCategoryProbe(
+          action: 'get_categories_v2',
+          includeJsToggle: false,
+        );
+      default:
+        return null;
+    }
+  }
+
+  StalkerPortalDialect _applyCategoryOutcome(
+    StalkerPortalDialect dialect, {
+    required String module,
+    required _StalkerCategoryFetchOutcome outcome,
+  }) {
+    var updated = dialect;
+    if (outcome.strategy ==
+        _StalkerCategoryFetchOutcome.strategyDerivedSample) {
+      final derivedModels = _mapDerivedCategoriesForDialect(outcome.categories);
+      if (derivedModels.isNotEmpty) {
+        updated = updated.recordDerivedCategories(module, derivedModels);
+      }
+    } else if (outcome.isAction) {
+      updated = updated
+          .recordPreferredAction(module, outcome.strategy)
+          .clearDerivedCategories(module);
+    }
+    return updated;
+  }
+
+  List<StalkerDerivedCategory> _mapDerivedCategoriesForDialect(
+    List<Map<String, dynamic>> categories,
+  ) {
+    final derived = <StalkerDerivedCategory>[];
+    for (final entry in categories) {
+      final id = _coerceString(
+            entry['id'] ??
+                entry['category_id'] ??
+                entry['tv_genre_id'] ??
+                entry['alias'],
+          ) ??
+          'derived:${entry.hashCode}';
+      final title =
+          _coerceString(
+            entry['title'] ??
+                entry['name'] ??
+                entry['genre_title'] ??
+                entry['genre'] ??
+                entry['tv_genre_title'],
+          ) ??
+          id;
+      derived.add(StalkerDerivedCategory(id: id, title: title));
+    }
+    return derived;
   }
 
   bool _needsDerivedCategories(List<Map<String, dynamic>> categories) {
@@ -1198,7 +1392,7 @@ class ProviderImportService {
             category['tv_genre_id'] ??
             category['alias'],
       );
-      if (id == null || id.isEmpty || id == '*') {
+      if (id == null || id.isEmpty || id == '*' || id.startsWith('derived:')) {
         return false;
       }
       return true;
@@ -1255,18 +1449,24 @@ class ProviderImportService {
     }
   }
 
-  bool _isCategoryLocked(Map<String, dynamic> category) {
+  bool _isCategoryLocked(
+    Map<String, dynamic> category, {
+    void Function()? onLockedCategory,
+  }) {
     final locked = _coerceInt(category['locked']);
     if (locked == 1) {
+      onLockedCategory?.call();
       return true;
     }
     final censored = _coerceInt(category['censored']);
     final allowChildren = _coerceInt(category['allow_children']);
     if (censored == 1 && (allowChildren == null || allowChildren == 0)) {
+      onLockedCategory?.call();
       return true;
     }
     final adult = _coerceString(category['adult']);
     if (adult == '1' || adult?.toLowerCase() == 'true') {
+      onLockedCategory?.call();
       return true;
     }
     return false;
@@ -1621,13 +1821,6 @@ class _M3uMetadata {
   }
 }
 
-class _DerivedCategory {
-  _DerivedCategory({required this.id, required this.title});
-
-  final String id;
-  final String title;
-}
-
 class _StalkerCategoryProbe {
   const _StalkerCategoryProbe({
     required this.action,
@@ -1636,6 +1829,26 @@ class _StalkerCategoryProbe {
 
   final String action;
   final bool includeJsToggle;
+}
+
+class _StalkerCategoryFetchOutcome {
+  const _StalkerCategoryFetchOutcome({
+    required this.strategy,
+    required this.categories,
+  });
+
+  final String strategy;
+  final List<Map<String, dynamic>> categories;
+
+  bool get isAction =>
+      strategy != strategyDerivedCache &&
+      strategy != strategyDerivedSample &&
+      strategy != strategyNone &&
+      strategy.isNotEmpty;
+
+  static const String strategyDerivedCache = 'derived-cache';
+  static const String strategyDerivedSample = 'derived-sampled';
+  static const String strategyNone = 'none';
 }
 
 class _WorkerHandle {

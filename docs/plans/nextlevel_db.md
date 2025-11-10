@@ -3,7 +3,7 @@
 Use this backlog to track the "ultimate" database roadmap. Check items that already ship in `main`; leave the rest for future work.
 
 ## First Priority - Portal Ingest Reliability
-- [ ] Portal-aware category discovery with probe chain (get_categories -> get_genres -> get_categories_v2), parental unlock hook, and derived-category fallback stored per portal dialect.
+- [x] Portal-aware category discovery with probe chain (get_categories -> get_genres -> get_categories_v2), parental unlock hook, and derived-category fallback stored per portal dialect. -> Stalker imports now consult a persisted dialect (preferred category action + derived cache), reuse cached buckets, retry probes in the new sequence, and flag portals that surface locked categories so the UI can prompt for the parental password.
 - [ ] Per-category paging with caps/backoff plus radio coverage; global "*" paging only as a limited fallback.
 - [x] Offload imports to a dedicated isolate that streams progress, keeps Drift writes off the UI thread, and supports cancel/resume. -> ProviderImportService now spawns a Drift worker isolate (non-web, non-encrypted builds) and relays progress via a typed event stream.
 - [x] Persist resume tokens/checkpoints per provider+category so subsequent sessions resume instead of rewalking from the start. -> Stalker imports now persist per-category page checkpoints in a JSON sidecar next to the Drift DB, reuse them across isolate restarts, and clear them once an import fully completes.

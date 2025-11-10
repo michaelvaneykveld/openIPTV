@@ -3,12 +3,47 @@
 Use this backlog to track the "ultimate" database roadmap. Check items that already ship in `main`; leave the rest for future work.
 
 ## First Priority - Portal Ingest Reliability
-- [x] Portal-aware category discovery with probe chain (get_categories -> get_genres -> get_categories_v2), parental unlock hook, and derived-category fallback stored per portal dialect. -> Stalker imports now consult a persisted dialect (preferred category action + derived cache), reuse cached buckets, retry probes in the new sequence, and flag portals that surface locked categories so the UI can prompt for the parental password.
-- [x] Per-category paging with caps/backoff plus radio coverage; global "*" paging only as a limited fallback. -> All Stalker modules (including Live/Radio) now prefer the bulk `get_all_*` endpoints, falling back to capped per-category paging with short inter-page yields, and only then to a 25-page "*" sweep. This keeps imports under control and eliminates the minutes-long, multi-novel logs.
-- [x] Gate catalog refreshes by staleness/explicit refresh and keep metadata cards populated. -> Provider imports now short-circuit unless the last catalog sync is older than the per-protocol TTL (or the user taps refresh), Stalker VOD/series ingestion defers to on-demand fetches (categories only), and the PlayerShell summary card merges DB counts with freshly polled legacy metadata so the portal info panel always shows expiry/plan details.
-- [x] Offload imports to a dedicated isolate that streams progress, keeps Drift writes off the UI thread, and supports cancel/resume. -> ProviderImportService now spawns a Drift worker isolate (non-web, non-encrypted builds) and relays progress via a typed event stream.
-- [x] Persist resume tokens/checkpoints per provider+category so subsequent sessions resume instead of rewalking from the start. -> Stalker imports now persist per-category page checkpoints in a JSON sidecar next to the Drift DB, reuse them across isolate restarts, and clear them once an import fully completes.
-- [ ] Surface lightweight progress UI (state + cancel) while imports run in the background.
+
+### TL;DR Fixes (mirrors item 0 in the brief)
+- [ ] Always probe categories via `get_categories → get_genres → get_categories_v2 → (if censored) parental unlock → re-probe`, then cache the winning action in `PortalDialect`.
+- [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
+- [ ] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile.
+- [ ] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it.
+- [ ] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops.
+- [x] Persist resume tokens + derived categories per portal. -> `ImportResumeStore` now writes checkpoints + derived buckets alongside `openiptv.db`.
+- [ ] Surface lightweight import progress with cancel/undo affordances in the UI.
+
+### 1) Category discovery: common pitfalls & fixes
+- [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3–5 global pages off-isolate, cache for ~24h).
+- [ ] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once.
+
+### 2) Authentication & headers
+- [ ] Wrap all Stalker calls in a client/decorator that injects the full handshake header/cookie tuple (Authorization bearer, MAC cookie, `stb_lang`, timezone, UA) on every request—not just handshake/discovery.
+- [ ] Re-apply parental-unlock state (if provided) before catalog calls and cache the outcome so subsequent imports stay in sync.
+
+### 3) Paging semantics: mixing `p=` with `from/cnt`
+- [ ] Detect both paging shapes during bootstrap, memoize the preference in `PortalDialect.prefersFromCnt`, and respect it for every category.
+- [ ] Hash each page's payload to break loops, and hard-stop when a duplicate or the configured page cap is reached.
+
+### 4) Doing heavy work on the UI isolate
+- [ ] Finish the worker-isolate importer: spawn a Drift isolate connection, stream progress events, honour cancel, and ensure the UI isolate only receives lightweight updates.
+- [ ] Prioritise categories currently expanded in the UI so previews stay responsive while background paging continues for the rest.
+
+### 5) Counting mismatches: why totals differ
+- [ ] Maintain per-content-type seen-ID sets to de-dupe across categories and the "*" bucket so portal totals line up with DB counts.
+- [ ] Retry transient errors with jitter before assuming a category is empty, and respect adult/parental preferences when counting.
+
+### 6) Missing safety rails
+- [ ] Enforce hard caps: global "*" ≤ 30 pages, per-category ≤ 200 pages, plus 200–600 ms jitter/backoff between requests. Log when a cap triggers.
+- [ ] Emit diagnostics per run (category action used, paging shape, portal totals vs ingested totals) so regressions surface quickly.
+- [x] Resume checkpoints already land in `ImportResumeStore`; extend diagnostics so stale checkpoints expire with the same TTL as derived categories.
+
+### 7) Quick diff-plan you can apply now
+- [ ] Wrap Stalker calls in the header-injecting client.
+- [ ] Persist `PortalDialect` (category action, paging shape, parental flag) and reuse it for every session.
+- [ ] Implement the category probe chain + derived-category fallback from item 1.
+- [ ] Move ingestion to the worker isolate with dedupe, resume tokens, caps, and backpressure wired in.
+- [ ] Log a single-line ingestion summary per run (e.g., `vod: action=get_genres, paging=from/cnt, cats=42, items=5123 (dedup:-211), adult=off`).
 
 ## North-Star Metrics
 - [ ] Cold tune-to-first-channel <= 2.0s; warm <= 1.2s.

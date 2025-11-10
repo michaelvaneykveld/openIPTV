@@ -157,7 +157,7 @@ SELECT
   c.id AS category_id,
   c.name AS category_name,
   c.kind AS category_kind,
-  c.provider_key AS provider_key,
+  c.provider_category_key AS provider_key,
   COALESCE(
     CASE c.kind
       WHEN 'live' THEN (

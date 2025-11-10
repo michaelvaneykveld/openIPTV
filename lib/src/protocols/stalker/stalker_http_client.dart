@@ -41,6 +41,10 @@ class StalkerHttpClient {
     required Map<String, String> headers,
   }) async {
     _applyTlsOverrides(configuration.allowSelfSignedTls);
+    final normalizedHeaders = _mergeStbHeaders(
+      configuration: configuration,
+      headers: headers,
+    );
     // Compose the absolute URL once. Using `resolve` ensures we respect any
     // portal that runs under a sub-path.
     var uri = configuration.baseUri.resolve('portal.php');
@@ -58,7 +62,7 @@ class StalkerHttpClient {
       uri,
       options: Options(
         responseType: ResponseType.plain,
-        headers: headers,
+        headers: normalizedHeaders,
         validateStatus: (status) => status != null && status < 500,
       ),
     );
@@ -73,6 +77,71 @@ class StalkerHttpClient {
       headers: response.headers.map,
       cookies: cookies,
     );
+  }
+
+  Map<String, String> _mergeStbHeaders({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+  }) {
+    final merged = <String, String>{};
+    merged.addAll(headers);
+
+    void ensureHeader(String key, String value) {
+      if (value.isEmpty) return;
+      final existing = merged[key];
+      if (existing == null || existing.trim().isEmpty) {
+        merged[key] = value;
+      }
+    }
+
+    ensureHeader('User-Agent', configuration.userAgent);
+    ensureHeader('X-User-Agent', configuration.userAgent);
+    ensureHeader('Referer', configuration.refererUri.toString());
+
+    configuration.extraHeaders.forEach((key, value) {
+      ensureHeader(key, value);
+    });
+
+    final mergedCookie = _mergeCookieHeader(
+      configuration: configuration,
+      existing: merged['Cookie'],
+    );
+    if (mergedCookie.isNotEmpty) {
+      merged['Cookie'] = mergedCookie;
+    }
+
+    return merged;
+  }
+
+  String _mergeCookieHeader({
+    required StalkerPortalConfiguration configuration,
+    required String? existing,
+  }) {
+    final entries = <String>[];
+    if (existing != null && existing.trim().isNotEmpty) {
+      entries.addAll(
+        existing
+            .split(';')
+            .map((entry) => entry.trim())
+            .where((entry) => entry.isNotEmpty),
+      );
+    }
+
+    String lowerKey(String entry) => entry.toLowerCase();
+
+    void ensureCookie(String key, String value) {
+      if (value.isEmpty) return;
+      final prefix = '${key.toLowerCase()}=';
+      if (!entries.any((entry) => lowerKey(entry).startsWith(prefix))) {
+        entries.add('$key=$value');
+      }
+    }
+
+    ensureCookie('mac', configuration.macAddress.toLowerCase());
+    ensureCookie('stb_lang', configuration.languageCode);
+    ensureCookie('timezone', configuration.timezone);
+
+    return entries.join('; ');
   }
 
   void _applyTlsOverrides(bool allowSelfSigned) {

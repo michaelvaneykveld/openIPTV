@@ -499,6 +499,7 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
                 profile: widget.profile,
                 bucket: widget.bucket,
                 categoryId: widget.category.id,
+                providerKey: widget.category.providerKey,
               ),
             ),
           )

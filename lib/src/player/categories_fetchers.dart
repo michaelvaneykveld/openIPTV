@@ -23,11 +23,17 @@ import 'package:openiptv/src/utils/url_redaction.dart';
 enum ContentBucket { live, films, series, radio }
 
 class CategoryEntry {
-  CategoryEntry({required this.id, required this.name, this.count});
+  CategoryEntry({
+    required this.id,
+    required this.name,
+    this.count,
+    this.providerKey,
+  });
 
   final String id;
   final String name;
   final int? count;
+  final String? providerKey;
 }
 
 class CategoryPreviewItem {
@@ -59,22 +65,25 @@ class CategoryPreviewRequest {
     required this.profile,
     required this.bucket,
     required this.categoryId,
+    this.providerKey,
   });
 
   final ResolvedProviderProfile profile;
   final ContentBucket bucket;
   final String categoryId;
+  final String? providerKey;
 
   @override
   bool operator ==(Object other) {
     return other is CategoryPreviewRequest &&
         other.profile == profile &&
         other.bucket == bucket &&
-        other.categoryId == categoryId;
+        other.categoryId == categoryId &&
+        other.providerKey == providerKey;
   }
 
   @override
-  int get hashCode => Object.hash(profile, bucket, categoryId);
+  int get hashCode => Object.hash(profile, bucket, categoryId, providerKey);
 }
 
 class _CategorySeed {
@@ -148,6 +157,7 @@ SELECT
   c.id AS category_id,
   c.name AS category_name,
   c.kind AS category_kind,
+  c.provider_key AS provider_key,
   COALESCE(
     CASE c.kind
       WHEN 'live' THEN (
@@ -189,10 +199,12 @@ CategoryMap _mapDbCategoriesToEntries(List<QueryRow> rows) {
     final categoryId = row.read<int>('category_id');
     final categoryName = row.read<String>('category_name');
     final itemCount = row.read<int>('item_count');
+    final providerKey = row.readNullable<String>('provider_key');
     final entry = CategoryEntry(
       id: categoryId.toString(),
       name: categoryName,
       count: itemCount,
+      providerKey: providerKey,
     );
     result.putIfAbsent(bucket, () => <CategoryEntry>[]).add(entry);
   }
@@ -371,6 +383,7 @@ class _CategoriesCoordinator {
           profile: request.profile,
           bucket: request.bucket,
           categoryId: request.categoryId,
+          providerKey: request.providerKey,
         );
       case ProviderKind.m3u:
         return const _M3uCategoriesFetcher().fetchPreview(
@@ -383,6 +396,7 @@ class _CategoriesCoordinator {
           profile: request.profile,
           bucket: request.bucket,
           categoryId: request.categoryId,
+          providerKey: request.providerKey,
         );
     }
   }
@@ -432,6 +446,7 @@ class _XtreamCategoriesFetcher {
                     id: trimmedId,
                     name: name.trim(),
                     count: count,
+                    providerKey: trimmedId,
                   );
                 }
                 return null;
@@ -469,6 +484,7 @@ class _XtreamCategoriesFetcher {
     required ResolvedProviderProfile profile,
     required ContentBucket bucket,
     required String categoryId,
+    String? providerKey,
     int limit = 12,
   }) async {
     final action = _actionForBucket(bucket);
@@ -484,7 +500,7 @@ class _XtreamCategoriesFetcher {
       'password': profile.secrets['password'] ?? '',
       'action': action,
     };
-    final normalizedId = categoryId.trim();
+    final normalizedId = (providerKey ?? categoryId).trim();
     if (normalizedId.isNotEmpty &&
         normalizedId != '*' &&
         normalizedId != '0' &&
@@ -750,6 +766,7 @@ class _StalkerCategoriesFetcher {
                 id: '*',
                 name: _fallbackCategoryLabel(module),
                 count: moduleTotal,
+                providerKey: '*',
               ),
             ];
           }
@@ -778,6 +795,7 @@ class _StalkerCategoriesFetcher {
               id: '*',
               name: _fallbackCategoryLabel(module),
               count: aggregateCount,
+              providerKey: '*',
             ),
           ...categories,
         ];
@@ -810,6 +828,7 @@ class _StalkerCategoriesFetcher {
     required ResolvedProviderProfile profile,
     required ContentBucket bucket,
     required String categoryId,
+    String? providerKey,
     int limit = 12,
   }) async {
     final module = _moduleForBucket(bucket);
@@ -840,8 +859,9 @@ class _StalkerCategoriesFetcher {
         'token': session.token,
         'mac': config.macAddress.toLowerCase(),
       };
-      if (categoryId.isNotEmpty && categoryId != '*') {
-        query['genre'] = categoryId;
+      final genreKey = (providerKey ?? categoryId).trim();
+      if (genreKey.isNotEmpty && genreKey != '*') {
+        query['genre'] = genreKey;
       }
 
       final response = await _client
@@ -1232,7 +1252,12 @@ class _StalkerCategoriesFetcher {
     for (final seed in seeds) {
       if (seed.initialCount != null) {
         results.add(
-          CategoryEntry(id: seed.id, name: seed.name, count: seed.initialCount),
+          CategoryEntry(
+            id: seed.id,
+            name: seed.name,
+            count: seed.initialCount,
+            providerKey: seed.id,
+          ),
         );
       } else {
         seedsNeedingFetch.add(seed);
@@ -1264,6 +1289,7 @@ class _StalkerCategoriesFetcher {
             id: seed.id,
             name: seed.name,
             count: total > 0 ? total : null,
+            providerKey: seed.id,
           );
         } catch (error, stackTrace) {
           if (kDebugMode) {
@@ -1273,7 +1299,12 @@ class _StalkerCategoriesFetcher {
               ),
             );
           }
-          return CategoryEntry(id: seed.id, name: seed.name, count: null);
+          return CategoryEntry(
+            id: seed.id,
+            name: seed.name,
+            count: null,
+            providerKey: seed.id,
+          );
         }
       }
 
@@ -1356,15 +1387,16 @@ class _StalkerCategoriesFetcher {
         return const [];
       }
 
-      final entries =
-          buckets.entries
-              .map(
-                (entry) => CategoryEntry(
-                  id: entry.value.id,
-                  name: entry.value.name,
-                  count: entry.value.count > 0 ? entry.value.count : null,
-                ),
-              )
+        final entries =
+            buckets.entries
+                .map(
+                  (entry) => CategoryEntry(
+                    id: entry.value.id,
+                    name: entry.value.name,
+                    count: entry.value.count > 0 ? entry.value.count : null,
+                    providerKey: entry.value.id,
+                  ),
+                )
               .toList(growable: false)
             ..sort((a, b) => a.name.compareTo(b.name));
       return entries;
@@ -1760,6 +1792,7 @@ class _M3uCategoriesFetcher {
                   id: entry.key,
                   name: entry.key,
                   count: entry.value,
+                  providerKey: entry.key,
                 ),
               )
               .toList(growable: false)

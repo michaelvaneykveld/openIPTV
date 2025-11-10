@@ -898,9 +898,8 @@ class _StalkerCategoriesFetcher {
           break;
         }
         items.addAll(chunk);
-        switch (totalItems) {
-          case final int target when items.length >= target:
-            break;
+        if (totalItems case int currentTotal when items.length >= currentTotal) {
+          break;
         }
         if (chunk.length < pageSize) {
           break;

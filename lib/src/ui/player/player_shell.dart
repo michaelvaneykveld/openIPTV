@@ -322,10 +322,16 @@ class _SummaryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final chips = data.counts.entries
+    final normalizedCounts = <String, int>{};
+    data.counts.forEach((key, value) {
+      final normalized = _normalizeCountLabel(key);
+      normalizedCounts.update(normalized, (prev) => prev + value,
+          ifAbsent: () => value);
+    });
+    final chips = normalizedCounts.entries
         .map(
           (entry) => Chip(
-            label: Text('${_summaryLabel(entry.key)}: ${entry.value}'),
+            label: Text('${entry.key}: ${entry.value}'),
           ),
         )
         .toList(growable: false);
@@ -398,7 +404,7 @@ class _SummaryView extends StatelessWidget {
     return labels[kind] ?? 'Provider Summary';
   }
 
-  String _summaryLabel(String raw) {
+  String _normalizeCountLabel(String raw) {
     final lower = raw.toLowerCase();
     switch (lower) {
       case 'live':
@@ -535,18 +541,13 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
       preview = previewAsync.when(
         data: (result) {
           final resolved = result.totalItems ?? result.items.length;
-          if (resolved != _resolvedCount) {
+          if (_resolvedCount != resolved) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-              setState(() {
-                _resolvedCount = resolved;
-              });
+              setState(() => _resolvedCount = resolved);
             });
           }
-          return _CategoryPreviewList(
-            items: result.items,
-            icon: widget.icon,
-          );
+          return _CategoryPreviewList(result: result, icon: widget.icon);
         },
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
@@ -768,13 +769,14 @@ class _RecentPlaybackTile extends ConsumerWidget {
 }
 
 class _CategoryPreviewList extends ConsumerWidget {
-  const _CategoryPreviewList({required this.items, required this.icon});
+  const _CategoryPreviewList({required this.result, required this.icon});
 
-  final List<CategoryPreviewItem> items;
+  final CategoryPreviewResult result;
   final IconData icon;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final items = result.items;
     if (items.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
@@ -782,21 +784,35 @@ class _CategoryPreviewList extends ConsumerWidget {
       );
     }
 
-    return Column(
-      children: [
-        for (final item in items)
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: _ArtworkAvatar(
-              url: item.artUri ?? '',
-              fallbackIcon: icon,
-              size: 40,
-            ),
-            title: Text(item.title),
-            subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
-          ),
-      ],
+    final baseHeight = items.length * 60.0;
+    final height = baseHeight.clamp(120.0, 360.0);
+
+    return SizedBox(
+      height: height,
+      child: Scrollbar(
+        thumbVisibility: true,
+        child: ListView.separated(
+          primary: false,
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
+          itemCount: items.length,
+          separatorBuilder: (context, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: _ArtworkAvatar(
+                url: item.artUri ?? '',
+                fallbackIcon: icon,
+                size: 40,
+              ),
+              title: Text(item.title),
+              subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
+            );
+          },
+        ),
+      ),
     );
   }
 }

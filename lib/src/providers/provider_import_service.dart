@@ -101,6 +101,7 @@ class ProviderImportService {
   final Map<int, _WorkerHandle> _workerHandles = {};
   static const int _stalkerMaxCategoryPages = 80;
   static const int _stalkerMaxGlobalPages = 25;
+  static const int _stalkerFromCntPageSize = 50;
   static const Duration _stalkerPageBackoffMin = Duration(milliseconds: 200);
   static const Duration _stalkerPageBackoffMax = Duration(milliseconds: 600);
   static const Duration _stalkerRetryMinDelay = Duration(milliseconds: 120);
@@ -550,6 +551,14 @@ class ProviderImportService {
       sawLockedCategory = true;
     }
 
+    void notePagingMode(StalkerPagingMode mode) {
+      final updated = portalDialect.recordPagingMode(mode);
+      if (!identical(updated, portalDialect)) {
+        portalDialect = updated;
+        dialectDirty = true;
+      }
+    }
+
     final mac = profile.record.configuration['macAddress'];
     if (mac == null || mac.isEmpty) {
       _debug(
@@ -581,6 +590,7 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
         module: 'itv',
       );
       var live = liveOutcome.categories;
@@ -600,6 +610,7 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
         module: 'vod',
       );
       var vod = vodOutcome.categories;
@@ -619,6 +630,7 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
         module: 'series',
       );
       var series = seriesOutcome.categories;
@@ -638,6 +650,7 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
         module: 'radio',
       );
       var radio = radioOutcome.categories;
@@ -659,6 +672,8 @@ class ProviderImportService {
           headers: headers,
           session: session,
           module: 'vod',
+          dialect: portalDialect,
+          onPagingModeDetected: notePagingMode,
         );
         if (derived.isNotEmpty) {
           vod = derived;
@@ -672,6 +687,8 @@ class ProviderImportService {
           headers: headers,
           session: session,
           module: 'series',
+          dialect: portalDialect,
+          onPagingModeDetected: notePagingMode,
         );
         if (derived.isNotEmpty) {
           series = derived;
@@ -685,6 +702,8 @@ class ProviderImportService {
           headers: headers,
           session: session,
           module: 'radio',
+          dialect: portalDialect,
+          onPagingModeDetected: notePagingMode,
         );
         if (derived.isNotEmpty) {
           radio = derived;
@@ -700,6 +719,8 @@ class ProviderImportService {
         categories: live,
         enableCategoryPaging: true,
         onLockedCategory: noteLockedCategory,
+        dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
       );
       final radioItems = await _fetchStalkerItems(
         providerId: providerId,
@@ -711,6 +732,8 @@ class ProviderImportService {
         categories: radio,
         enableCategoryPaging: true,
         onLockedCategory: noteLockedCategory,
+        dialect: portalDialect,
+        onPagingModeDetected: notePagingMode,
       );
       final bool ingestVodDuringImport =
           profile.record.configuration['ingestVodOnImport'] == 'true';
@@ -727,6 +750,8 @@ class ProviderImportService {
               categories: vod,
               enableCategoryPaging: true,
               onLockedCategory: noteLockedCategory,
+              dialect: portalDialect,
+              onPagingModeDetected: notePagingMode,
             )
           : const <Map<String, dynamic>>[];
       final seriesItems = ingestSeriesDuringImport
@@ -740,6 +765,8 @@ class ProviderImportService {
               categories: series,
               enableCategoryPaging: true,
               onLockedCategory: noteLockedCategory,
+              dialect: portalDialect,
+              onPagingModeDetected: notePagingMode,
             )
           : const <Map<String, dynamic>>[];
       if (kDebugMode) {
@@ -879,7 +906,8 @@ class ProviderImportService {
     required int providerId,
     required ImportResumeStore resumeStore,
     required String module,
-    StalkerPortalDialect? dialect,
+    required StalkerPortalDialect dialect,
+    void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     final actions = _buildCategoryActionOrder(module, dialect);
     for (final action in actions) {
@@ -913,7 +941,7 @@ class ProviderImportService {
       }
     }
 
-    final cachedDerived = dialect?.derivedCategoriesFor(module);
+    final cachedDerived = dialect.derivedCategoriesFor(module);
     if (cachedDerived != null &&
         !cachedDerived.isExpired(_derivedCategoryTtl) &&
         cachedDerived.categories.isNotEmpty) {
@@ -935,6 +963,8 @@ class ProviderImportService {
       headers: baseHeaders,
       session: session,
       module: module,
+      dialect: dialect,
+      onPagingModeDetected: onPagingModeDetected,
     );
     if (derived.isNotEmpty) {
       _logCategoryStrategy(
@@ -1027,6 +1057,8 @@ class ProviderImportService {
     bool enableCategoryPaging = true,
     void Function()? onLockedCategory,
     int? maxCategoryPages,
+    required StalkerPortalDialect dialect,
+    void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     final categoryPageCap = maxCategoryPages ?? _stalkerMaxCategoryPages;
     final bulkActions = _bulkActionsForModule(module);
@@ -1058,6 +1090,8 @@ class ProviderImportService {
         categories: categories,
         onLockedCategory: onLockedCategory,
         maxPagesPerCategory: categoryPageCap,
+        dialect: dialect,
+        onPagingModeDetected: onPagingModeDetected,
       );
       if (perCategory.isNotEmpty) {
         return perCategory;
@@ -1072,6 +1106,8 @@ class ProviderImportService {
       session: session,
       module: module,
       maxPages: _stalkerMaxGlobalPages,
+      dialect: dialect,
+      onPagingModeDetected: onPagingModeDetected,
     );
   }
 
@@ -1085,6 +1121,8 @@ class ProviderImportService {
     int? providerId,
     ImportResumeStore? resumeStore,
     bool enableResume = true,
+    required StalkerPortalDialect dialect,
+    void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     final results = <Map<String, dynamic>>[];
     final seenPageFingerprints = <String>{};
@@ -1115,33 +1153,67 @@ class ProviderImportService {
       );
     }
     final initialPage = startPage;
+    var currentPagingMode = dialect.pagingMode;
+    var attemptedAlternateMode = false;
     for (var page = startPage; page <= maxPages; page += 1) {
       try {
-        final response = await _retryWithJitter(
-          () => _stalkerHttpClient.getPortal(
-            configuration,
-            queryParameters: {
-              'type': module,
-              'action': 'get_ordered_list',
-              'p': '${page - 1}',
-              'JsHttpRequest': '1-xml',
-              'token': session.token,
-              'mac': configuration.macAddress.toLowerCase(),
-              if (categoryId != null) 'genre': categoryId,
-            },
-            headers: headers,
-          ),
+        var listing = await _requestStalkerListingPage(
+          configuration: configuration,
+          headers: headers,
+          session: session,
+          module: module,
+          page: page,
+          pagingMode: currentPagingMode,
+          categoryId: categoryId,
         );
-        final envelope = _decodePortalMap(response.body);
-        final entries = _extractPortalItems(envelope);
-        final pageSize = _extractMaxPageItems(envelope);
-        final totalItems = _extractTotalItems(envelope);
+        var entries = listing.entries;
+        var pageSize =
+            listing.pageSize ??
+            (currentPagingMode == StalkerPagingMode.fromCnt
+                ? _stalkerFromCntPageSize
+                : null);
+        var totalItems = listing.totalItems;
+        var payloadPreview = listing.payloadPreview;
+        if (entries.isEmpty && page == initialPage && !attemptedAlternateMode) {
+          attemptedAlternateMode = true;
+          final alternateMode = _alternatePagingMode(currentPagingMode);
+          final alternateListing = await _requestStalkerListingPage(
+            configuration: configuration,
+            headers: headers,
+            session: session,
+            module: module,
+            page: page,
+            pagingMode: alternateMode,
+            categoryId: categoryId,
+          );
+          if (alternateListing.entries.isNotEmpty) {
+            currentPagingMode = alternateMode;
+            onPagingModeDetected?.call(alternateMode);
+            entries = alternateListing.entries;
+            pageSize =
+                alternateListing.pageSize ??
+                (alternateMode == StalkerPagingMode.fromCnt
+                    ? _stalkerFromCntPageSize
+                    : null);
+            totalItems = alternateListing.totalItems;
+            payloadPreview = alternateListing.payloadPreview;
+            if (kDebugMode) {
+              debugPrint(
+                redactSensitiveText(
+                  'Stalker listing module=$module switched paging mode to '
+                  '${alternateMode.name}',
+                ),
+              );
+            }
+          }
+        }
         if (entries.isEmpty) {
           if (kDebugMode && _shouldLogStalkerPage(initialPage, page)) {
             debugPrint(
               redactSensitiveText(
-                'Stalker listing module=$module page=$page returned 0 items. '
-                'Payload preview: ${_previewBody(response.body)}',
+                'Stalker listing module=$module page=$page '
+                'returned 0 items (mode=${currentPagingMode.name}). '
+                'Payload preview: $payloadPreview',
               ),
             );
           }
@@ -1153,13 +1225,14 @@ class ProviderImportService {
             debugPrint(
               redactSensitiveText(
                 'Stalker listing module=$module page=$page repeated payload; '
-                'stopping to avoid infinite loop.',
+                'stopping to avoid infinite loop (mode=${currentPagingMode.name}).',
               ),
             );
           }
           break;
         }
-        var newEntries = entries.length;
+        final rawEntriesCount = entries.length;
+        var newEntries = rawEntriesCount;
         final filteredEntries = <Map<String, dynamic>>[];
         for (final entry in entries) {
           final identity = _stableEntryIdentity(entry);
@@ -1174,12 +1247,13 @@ class ProviderImportService {
           debugPrint(
             redactSensitiveText(
               'Stalker listing module=$module page=$page '
-              'items=$newEntries (pageSize=${pageSize ?? 'n/a'}, '
+              'items=$newEntries (mode=${currentPagingMode.name}, '
+              'pageSize=${pageSize ?? 'n/a'}, '
               'total=${totalItems ?? 'n/a'}$genreSuffix)',
             ),
           );
         }
-        if (pageSize != null && entries.length < pageSize) {
+        if (pageSize != null && rawEntriesCount < pageSize) {
           break;
         }
         if (totalItems != null && pageSize != null && pageSize > 0) {
@@ -1221,7 +1295,8 @@ class ProviderImportService {
       final scope = categoryId == null ? 'global' : 'category=$categoryId';
       debugPrint(
         redactSensitiveText(
-          'Stalker listing module=$module hit page cap ($maxPages) for $scope; '
+          'Stalker listing module=$module hit page cap ($maxPages) for $scope '
+          '(mode=${currentPagingMode.name}); '
           'returned ${results.length} items so far.',
         ),
       );
@@ -1337,6 +1412,8 @@ class ProviderImportService {
     required List<Map<String, dynamic>> categories,
     void Function()? onLockedCategory,
     required int maxPagesPerCategory,
+    required StalkerPortalDialect dialect,
+    void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     final seenKeys = <String>{};
     final aggregated = <Map<String, dynamic>>[];
@@ -1372,6 +1449,8 @@ class ProviderImportService {
           module: module,
           maxPages: maxPagesPerCategory,
           categoryId: categoryId,
+          dialect: dialect,
+          onPagingModeDetected: onPagingModeDetected,
         );
         for (final entry in entries) {
           final idKey =
@@ -1401,6 +1480,8 @@ class ProviderImportService {
     required Map<String, String> headers,
     required StalkerSession session,
     required String module,
+    required StalkerPortalDialect dialect,
+    void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     const samplePages = 5;
     final seeds = await _fetchStalkerListing(
@@ -1412,6 +1493,8 @@ class ProviderImportService {
       module: module,
       maxPages: samplePages,
       enableResume: false,
+      dialect: dialect,
+      onPagingModeDetected: onPagingModeDetected,
     );
     if (seeds.isEmpty) {
       return const [];
@@ -1451,10 +1534,10 @@ class ProviderImportService {
 
   List<String> _buildCategoryActionOrder(
     String module,
-    StalkerPortalDialect? dialect,
+    StalkerPortalDialect dialect,
   ) {
     const defaultOrder = ['get_categories', 'get_genres', 'get_categories_v2'];
-    final preferred = dialect?.preferredActionFor(module);
+    final preferred = dialect.preferredActionFor(module);
     if (preferred == null || !defaultOrder.contains(preferred)) {
       return defaultOrder;
     }
@@ -1850,6 +1933,56 @@ class ProviderImportService {
       }
     }
     throw StateError('retryWithJitter exhausted attempts unexpectedly.');
+  }
+
+  Future<_StalkerListingPage> _requestStalkerListingPage({
+    required StalkerPortalConfiguration configuration,
+    required Map<String, String> headers,
+    required StalkerSession session,
+    required String module,
+    required int page,
+    required StalkerPagingMode pagingMode,
+    String? categoryId,
+  }) async {
+    final queryParameters = <String, dynamic>{
+      'type': module,
+      'action': 'get_ordered_list',
+      'JsHttpRequest': '1-xml',
+      'token': session.token,
+      'mac': configuration.macAddress.toLowerCase(),
+    };
+    if (categoryId != null) {
+      queryParameters['genre'] = categoryId;
+    }
+    if (pagingMode == StalkerPagingMode.pageIndex) {
+      queryParameters['p'] = '${page - 1}';
+    } else {
+      queryParameters['from'] = '${(page - 1) * _stalkerFromCntPageSize}';
+      queryParameters['cnt'] = '$_stalkerFromCntPageSize';
+    }
+    final response = await _retryWithJitter(
+      () => _stalkerHttpClient.getPortal(
+        configuration,
+        queryParameters: queryParameters,
+        headers: headers,
+      ),
+    );
+    final parsed = _decodePortalMap(response.body);
+    final entries = _extractPortalItems(parsed);
+    final pageSize = _extractMaxPageItems(parsed);
+    final totalItems = _extractTotalItems(parsed);
+    return _StalkerListingPage(
+      entries: entries,
+      pageSize: pageSize,
+      totalItems: totalItems,
+      payloadPreview: _previewBody(response.body),
+    );
+  }
+
+  StalkerPagingMode _alternatePagingMode(StalkerPagingMode mode) {
+    return mode == StalkerPagingMode.pageIndex
+        ? StalkerPagingMode.fromCnt
+        : StalkerPagingMode.pageIndex;
   }
 
   String _fingerprintPortalEntries(List<Map<String, dynamic>> entries) {
@@ -2289,6 +2422,20 @@ class _WorkerHandle {
   final Future<void> Function() cancelCallback;
 
   Future<void> cancel() => cancelCallback();
+}
+
+class _StalkerListingPage {
+  const _StalkerListingPage({
+    required this.entries,
+    required this.pageSize,
+    required this.totalItems,
+    required this.payloadPreview,
+  });
+
+  final List<Map<String, dynamic>> entries;
+  final int? pageSize;
+  final int? totalItems;
+  final String payloadPreview;
 }
 
 /// --- Progress Reporting & Serialization ------------------------------------

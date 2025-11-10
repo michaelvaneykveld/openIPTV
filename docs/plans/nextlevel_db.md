@@ -8,7 +8,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Always probe categories via `get_categories → get_genres → get_categories_v2 → (if censored) parental unlock → re-probe`, then cache the winning action in `PortalDialect`.
 - [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
 - [x] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile. -> `StalkerHttpClient.getPortal` now enriches every request with the STB header/cookie defaults so even ad-hoc callers inherit the Infomir header shape.
-- [ ] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it.
+- [x] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it. -> `_fetchStalkerListing` now probes both paging modes, switches when needed, and records the preference in `StalkerPortalDialect`.
 - [x] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops. -> `_fetchStalkerListing` fingerprints each page and filters `seenEntryKeys`, while per-category fetches keep their own `seenKeys`.
 - [x] Persist resume tokens + derived categories per portal. -> `ImportResumeStore` now writes checkpoints + derived buckets alongside `openiptv.db`.
 - [x] Surface lightweight import progress with cancel/undo affordances in the UI. -> Login + PlayerShell now render `ImportProgressBanner` with determinate progress and cancel hooks wired to `ProviderImportService.cancelImport`.

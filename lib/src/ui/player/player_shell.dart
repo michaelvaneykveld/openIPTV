@@ -25,7 +25,6 @@ import 'package:openiptv/src/player_ui/controller/media_kit_playlist_adapter.dar
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 import 'package:openiptv/src/playback/windows_playback_policy.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
-import 'package:http/http.dart' as http;
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -1313,28 +1312,6 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       extra: {'support': support.name},
       includeFullUrl: true,
     );
-    unawaited(_probePlayable(playable));
-  }
-
-  Future<void> _probePlayable(Playable playable) async {
-    try {
-      final request = http.Request('HEAD', playable.url);
-      request.headers.addAll(playable.headers);
-      final response = await request.send().timeout(const Duration(seconds: 5));
-      PlaybackLogger.videoInfo(
-        'windows-head',
-        uri: playable.url,
-        headers: playable.headers,
-        includeFullUrl: true,
-        extra: {
-          'status': response.statusCode,
-          'type': response.headers['content-type'],
-          'acceptRanges': response.headers['accept-ranges'],
-        },
-      );
-    } catch (error) {
-      PlaybackLogger.videoError('windows-head', error: error);
-    }
   }
 }
 

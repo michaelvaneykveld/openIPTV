@@ -17,10 +17,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 
 import 'package:openiptv/src/providers/login_flow_controller.dart';
+import 'package:openiptv/src/providers/login_draft_repository.dart';
 
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
-
-import 'package:openiptv/src/providers/login_draft_repository.dart';
 
 import 'package:openiptv/src/providers/provider_import_service.dart';
 
@@ -2178,40 +2177,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(width: 12),
 
         Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              CheckboxListTile(
-                key: saveToggleKey,
+          child: CheckboxListTile(
+            key: saveToggleKey,
 
-                value: saveForLater,
+            value: saveForLater,
 
-                onChanged: isBusy
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          onSaveToggle(value);
-                        }
-                      },
+            onChanged: isBusy
+                ? null
+                : (value) {
+                    if (value != null) {
+                      onSaveToggle(value);
+                    }
+                  },
 
-                contentPadding: EdgeInsets.zero,
+            contentPadding: EdgeInsets.zero,
 
-                controlAffinity: ListTileControlAffinity.leading,
+            controlAffinity: ListTileControlAffinity.leading,
 
-                title: const Text('Save this portal for later'),
-              ),
-              if (saveForLater)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: isBusy
-                        ? null
-                        : () => unawaited(_handleSaveDraft()),
-                    icon: const Icon(Icons.bookmark_add_outlined),
-                    label: const Text('Save draft now'),
-                  ),
-                ),
-            ],
+            title: const Text('Save this portal for later'),
           ),
         ),
       ],
@@ -2244,6 +2227,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             : Text(label),
       ),
     );
+  }
+
+  // ignore: unused_element
+  Future<void> _handleSaveDraft() async {
+    final flowController = ref.read(loginFlowControllerProvider.notifier);
+
+    flowController.setBannerMessage(null);
+
+    final repository = await ref.read(loginDraftRepositoryProvider.future);
+
+    final current = ref.read(loginFlowControllerProvider);
+
+    final now = DateTime.now().toUtc();
+
+    final draft = _buildDraftFromState(current, now);
+
+    if (draft == null) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add provider details before saving a draft.'),
+        ),
+      );
+
+      return;
+    }
+
+    try {
+      await repository.saveDraft(draft);
+
+      if (!mounted) return;
+
+      _showSuccessSnackBar('Draft saved for later.');
+    } catch (error, stackTrace) {
+      _logError('Draft save error', error, stackTrace);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save draft: $error')));
+    }
   }
 
   /// Displays a prominent banner for top-level error messages.
@@ -4987,48 +5013,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   // ignore: unused_element
-
-  Future<void> _handleSaveDraft() async {
-    final flowController = ref.read(loginFlowControllerProvider.notifier);
-
-    flowController.setBannerMessage(null);
-
-    final repository = await ref.read(loginDraftRepositoryProvider.future);
-
-    final current = ref.read(loginFlowControllerProvider);
-
-    final now = DateTime.now().toUtc();
-
-    final draft = _buildDraftFromState(current, now);
-
-    if (draft == null) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Add provider details before saving a draft.'),
-        ),
-      );
-
-      return;
-    }
-
-    try {
-      await repository.saveDraft(draft);
-
-      if (!mounted) return;
-
-      _showSuccessSnackBar('Draft saved for later.');
-    } catch (error, stackTrace) {
-      _logError('Draft save error', error, stackTrace);
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to save draft: $error')));
-    }
-  }
 
   LoginDraft? _buildDraftFromState(LoginFlowState state, DateTime timestamp) {
     final data = <String, dynamic>{};

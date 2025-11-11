@@ -5,7 +5,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 ## First Priority - Portal Ingest Reliability
 
 ### TL;DR Fixes (mirrors item 0 in the brief)
-- [ ] Always probe categories via `get_categories → get_genres → get_categories_v2 → (if censored) parental unlock → re-probe`, then cache the winning action in `PortalDialect`.
+- [x] Always probe categories via `get_categories ? get_genres ? get_categories_v2 ? (if censored) parental unlock ? re-probe`, then cache the winning action in `PortalDialect`. -> `_fetchStalkerCategories` already walks this sequence for every module and records the preferred action in the dialect.
 - [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
 - [x] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile. -> `StalkerHttpClient.getPortal` now enriches every request with the STB header/cookie defaults so even ad-hoc callers inherit the Infomir header shape.
 - [x] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it. -> `_fetchStalkerListing` now probes both paging modes, switches when needed, and records the preference in `StalkerPortalDialect`.
@@ -18,7 +18,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once. -> `_importStalker` tracks `sawLockedCategory`, updates `StalkerPortalDialect.requiresParentalUnlock`, and the login/player UI reads it for prompts.
 
 ### 2) Authentication & headers
-- [ ] Wrap all Stalker calls in a client/decorator that injects the full handshake header/cookie tuple (Authorization bearer, MAC cookie, `stb_lang`, timezone, UA) on every request—not just handshake/discovery.
+- [x] Wrap all Stalker calls in a client/decorator that injects the full handshake header/cookie tuple (Authorization bearer, MAC cookie, stb_lang, timezone, UA) on every request. -> StalkerHttpClient.getPortal now normalizes every request with those headers/cookies before issuing the Dio call.
 - [ ] Re-apply parental-unlock state (if provided) before catalog calls and cache the outcome so subsequent imports stay in sync.
 
 ### 3) Paging semantics: mixing `p=` with `from/cnt`
@@ -111,3 +111,4 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Hot caches: recents + mini-EPG prewarm with key-set pagination.
 - [x] Migrations: integrity checks + downgrade coverage.
 - [x] Performance harness: scripted 10k/100k imports plus scroll/search benchmarks in CI.
+

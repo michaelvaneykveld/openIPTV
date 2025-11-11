@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:openiptv/src/player_ui/controller/mock_player_adapter.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_state.dart';
+import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
 import 'package:openiptv/src/player_ui/intent/remote_actions.dart';
 import 'package:openiptv/src/player_ui/theming/player_theme.dart';
 import 'package:openiptv/src/player_ui/ui/error_toast.dart';
@@ -19,6 +20,17 @@ class PlayerScreen extends StatefulWidget {
 
   factory PlayerScreen.mock({Key? key}) {
     final adapter = MockPlayerAdapter();
+    final controller = PlayerController(adapter: adapter);
+    return PlayerScreen(key: key, controller: controller, ownsController: true);
+  }
+
+  factory PlayerScreen.sample({
+    Key? key,
+    String url =
+        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    bool isLive = false,
+  }) {
+    final adapter = VideoPlayerAdapter.networkUrl(url, isLive: isLive);
     final controller = PlayerController(adapter: adapter);
     return PlayerScreen(key: key, controller: controller, ownsController: true);
   }
@@ -80,7 +92,10 @@ class _PlayerScreenState extends State<PlayerScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  PlayerVideoSurface(state: state),
+                  PlayerVideoSurface(
+                    state: state,
+                    videoChild: _buildVideoChild(context),
+                  ),
                   _buildOverlay(state),
                   _buildErrorToast(state),
                 ],
@@ -90,6 +105,15 @@ class _PlayerScreenState extends State<PlayerScreen> {
         ),
       ),
     );
+  }
+
+  Widget? _buildVideoChild(BuildContext context) {
+    final adapter = widget.controller.adapter;
+    if (adapter is PlayerVideoSurfaceProvider) {
+      final surfaceProvider = adapter as PlayerVideoSurfaceProvider;
+      return surfaceProvider.buildVideoSurface(context);
+    }
+    return null;
   }
 
   Widget _buildOverlay(PlayerViewState state) {

@@ -131,7 +131,9 @@ class PlayerOverlayOSD extends StatelessWidget {
           data: theme.sliderTheme.copyWith(
             overlayShape: SliderComponentShape.noOverlay,
             activeTrackColor: theme.colorScheme.primary,
-            inactiveTrackColor: theme.colorScheme.onSurface.withOpacity(0.2),
+            inactiveTrackColor: theme.colorScheme.onSurface.withValues(
+              alpha: 0.2,
+            ),
             thumbColor: theme.colorScheme.primary,
           ),
           child: Slider(
@@ -153,7 +155,7 @@ class PlayerOverlayOSD extends StatelessWidget {
             Text(
               _formatDuration(duration),
               style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withOpacity(0.8),
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
           ],

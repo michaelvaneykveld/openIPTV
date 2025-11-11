@@ -17,7 +17,7 @@ Decoration buildPlayerFocusDecoration(
           )
         : null,
     color: focused
-        ? theme.colorScheme.onSurface.withOpacity(0.08)
+        ? theme.colorScheme.onSurface.withValues(alpha: 0.08)
         : Colors.transparent,
   );
 }

@@ -13,6 +13,7 @@ import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
+import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -65,6 +66,15 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       appBar: AppBar(
         title: Text(widget.profile.record.displayName),
         actions: [
+          IconButton(
+            tooltip: 'Open new player preview',
+            icon: const Icon(Icons.smart_display_outlined),
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => PlayerScreen.sample()));
+            },
+          ),
           IconButton(
             tooltip: _showSummary ? 'Hide summary' : 'Show summary',
             icon: Icon(_showSummary ? Icons.close : Icons.info_outline),

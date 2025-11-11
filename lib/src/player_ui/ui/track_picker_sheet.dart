@@ -42,33 +42,24 @@ class PlayerTrackPickerSheet extends StatelessWidget {
                 )
               else
                 ...audioTracks.map(
-                  (track) => RadioListTile<PlayerTrack>(
-                    value: track,
-                    groupValue: selectedAudio,
-                    onChanged: (value) {
-                      if (value != null) {
-                        onAudioSelected(value);
-                      }
-                    },
-                    title: Text(track.label),
-                    subtitle: Text(
-                      [
-                        if (track.language != null)
-                          track.language!.toUpperCase(),
-                        if (track.channels != null) track.channels!,
-                        if (track.codec != null) track.codec!,
-                      ].join(' • '),
-                    ),
+                  (track) => _TrackOptionTile(
+                    title: track.label,
+                    subtitle: [
+                      if (track.language != null) track.language!.toUpperCase(),
+                      if (track.channels != null) track.channels!,
+                      if (track.codec != null) track.codec!,
+                    ].where((segment) => segment.isNotEmpty).join(' • '),
+                    selected: selectedAudio?.id == track.id,
+                    onTap: () => onAudioSelected(track),
                   ),
                 ),
               const SizedBox(height: 24),
               Text('Subtitles', style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
-              RadioListTile<PlayerTrack?>(
-                value: null,
-                groupValue: selectedText,
-                onChanged: onTextSelected,
-                title: const Text('Off'),
+              _TrackOptionTile(
+                title: 'Off',
+                selected: selectedText == null,
+                onTap: () => onTextSelected(null),
               ),
               if (textTracks.isEmpty)
                 Text(
@@ -77,20 +68,48 @@ class PlayerTrackPickerSheet extends StatelessWidget {
                 )
               else
                 ...textTracks.map(
-                  (track) => RadioListTile<PlayerTrack?>(
-                    value: track,
-                    groupValue: selectedText,
-                    onChanged: onTextSelected,
-                    title: Text(track.label),
-                    subtitle: track.language == null
-                        ? null
-                        : Text(track.language!.toUpperCase()),
+                  (track) => _TrackOptionTile(
+                    title: track.label,
+                    subtitle: track.language?.toUpperCase(),
+                    selected: selectedText?.id == track.id,
+                    onTap: () => onTextSelected(track),
                   ),
                 ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TrackOptionTile extends StatelessWidget {
+  const _TrackOptionTile({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(
+        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+        color: selected
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurface,
+      ),
+      title: Text(title),
+      subtitle: subtitle == null || subtitle!.isEmpty ? null : Text(subtitle!),
+      onTap: onTap,
     );
   }
 }

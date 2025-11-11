@@ -20,7 +20,7 @@ class PlayerErrorToast extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: theme.colorScheme.errorContainer.withOpacity(0.9),
+          color: theme.colorScheme.errorContainer.withValues(alpha: 0.9),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -44,7 +44,9 @@ class PlayerErrorToast extends StatelessWidget {
                 Text(
                   error.code,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: theme.colorScheme.onErrorContainer.withOpacity(0.7),
+                    color: theme.colorScheme.onErrorContainer.withValues(
+                      alpha: 0.7,
+                    ),
                   ),
                 ),
               ],

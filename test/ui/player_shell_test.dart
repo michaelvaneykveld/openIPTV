@@ -338,4 +338,15 @@ class _FakeImportService implements ProviderImportService {
 
   @override
   Future<void> cancelImport(int providerId) async {}
+
+  @override
+  void prioritizeCategory({
+    required int providerId,
+    required ProviderKind providerKind,
+    required String module,
+    required String categoryId,
+  }) {}
+
+  @override
+  void requestCancellation(int providerId) {}
 }

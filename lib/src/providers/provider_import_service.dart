@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:math';
 
+import 'package:drift/isolate.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,15 +45,21 @@ final importResumeStoreFutureProvider = Provider<Future<ImportResumeStore>>((
   return ImportResumeStore.openDefault();
 });
 
+final importPriorityDelegateProvider = Provider<ImportPriorityDelegate?>(
+  (ref) => null,
+);
+
 final providerImportServiceProvider = Provider<ProviderImportService>((ref) {
   final reporter = ref.watch(providerImportReporterProvider);
   final enableOffload = ref.watch(providerImportOffloadProvider);
   final resumeStoreFuture = ref.watch(importResumeStoreFutureProvider);
+  final priorityDelegate = ref.watch(importPriorityDelegateProvider);
   return ProviderImportService(
     ref,
     reporter: reporter,
     enableOffload: enableOffload,
     resumeStoreFuture: resumeStoreFuture,
+    priorityDelegate: priorityDelegate,
   );
 });
 
@@ -70,7 +77,9 @@ class ProviderImportService {
     ProviderImportReporter? reporter,
     bool enableOffload = true,
     Future<ImportResumeStore>? resumeStoreFuture,
+    ImportPriorityDelegate? priorityDelegate,
   }) : _enableOffload = enableOffload,
+       _priorityDelegate = priorityDelegate,
        _resumeStoreFuture =
            resumeStoreFuture ?? ImportResumeStore.openDefault() {
     _reporter = reporter ?? _LocalImportReporter(_publishEvent);
@@ -86,6 +95,7 @@ class ProviderImportService {
   late final ProviderImportReporter _reporter;
   final bool _enableOffload;
   final Future<ImportResumeStore> _resumeStoreFuture;
+  final ImportPriorityDelegate? _priorityDelegate;
 
   static const Duration _stalkerImportTtl = Duration(hours: 6);
   static const Duration _xtreamImportTtl = Duration(hours: 2);
@@ -99,6 +109,8 @@ class ProviderImportService {
       {};
   bool get _canUseWorker => !kIsWeb && !DatabaseFlags.enableSqlCipher;
   final Map<int, _WorkerHandle> _workerHandles = {};
+  final Map<int, _PriorityHintState> _priorityHints = {};
+  final Set<int> _cancelledProviders = <int>{};
   static const int _stalkerMaxCategoryPages = 80;
   static const int _stalkerMaxGlobalPages = 25;
   static const int _stalkerFromCntPageSize = 50;
@@ -126,6 +138,44 @@ class ProviderImportService {
       providerId,
       () => StreamController<ProviderImportEvent>.broadcast(),
     );
+  }
+
+  void requestCancellation(int providerId) {
+    _cancelledProviders.add(providerId);
+  }
+
+  void _clearCancellation(int providerId) {
+    _cancelledProviders.remove(providerId);
+  }
+
+  void _ensureNotCancelled(int providerId) {
+    if (_cancelledProviders.contains(providerId)) {
+      throw _ImportCancelledException(providerId);
+    }
+  }
+
+  void prioritizeCategory({
+    required int providerId,
+    required ProviderKind providerKind,
+    required String module,
+    required String categoryId,
+  }) {
+    if (providerKind != ProviderKind.stalker) {
+      return;
+    }
+    final state = _priorityHints.putIfAbsent(
+      providerId,
+      () => _PriorityHintState(),
+    );
+    final changed = state.bump(module, categoryId);
+    if (!changed) return;
+    final handle = _workerHandles[providerId];
+    handle?.sendPriority(module, categoryId);
+  }
+
+  Map<String, List<String>>? _prioritySnapshotFor(int providerId) {
+    final state = _priorityHints[providerId];
+    return state?.snapshot();
   }
 
   void _publishEvent(ProviderImportEvent event) {
@@ -182,6 +232,7 @@ class ProviderImportService {
     if (providerId == null) {
       return;
     }
+    _clearCancellation(providerId);
     final existing = _inFlightImports[providerId];
     if (existing != null) {
       if (!forceRefresh) {
@@ -228,6 +279,7 @@ class ProviderImportService {
       ),
     );
     try {
+      _ensureNotCancelled(providerId);
       ImportMetrics? metrics;
       switch (profile.record.kind) {
         case ProviderKind.xtream:
@@ -261,6 +313,15 @@ class ProviderImportService {
           metrics: ProviderImportMetricsSummary.fromMetrics(metrics),
         ),
       );
+    } on _ImportCancelledException {
+      _emitProgress(profile, 'cancelled');
+      _reporter.report(
+        ProviderImportProgressEvent(
+          providerId: providerId,
+          kind: providerKind,
+          phase: 'cancelled',
+        ),
+      );
     } catch (error, stackTrace) {
       _emitProgress(profile, 'error', metadata: {'message': error.toString()});
       _reporter.report(
@@ -287,6 +348,8 @@ class ProviderImportService {
           },
         ),
       );
+    } finally {
+      _clearCancellation(providerId);
     }
   }
 
@@ -294,6 +357,7 @@ class ProviderImportService {
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
+    _ensureNotCancelled(providerId);
     final username = profile.secrets['username'] ?? '';
     final password = profile.secrets['password'] ?? '';
     if (username.isEmpty || password.isEmpty) {
@@ -353,6 +417,7 @@ class ProviderImportService {
     int providerId,
     ResolvedProviderProfile profile,
   ) async {
+    _ensureNotCancelled(providerId);
     final playlistUrl = profile.secrets['playlistUrl'];
     final playlistPath = profile.record.configuration['playlistFilePath'];
     if ((playlistUrl == null || playlistUrl.isEmpty) &&
@@ -479,6 +544,7 @@ class ProviderImportService {
         profile: _serializeProfile(profile),
         dbPath: dbFile.path,
         forceRefresh: forceRefresh,
+        priorityHints: _prioritySnapshotFor(providerId),
       );
       isolate = await Isolate.spawn<_ProviderImportWorkerRequest>(
         _providerImportWorkerEntry,
@@ -486,10 +552,12 @@ class ProviderImportService {
         onError: errorPort.sendPort,
         onExit: exitPort.sendPort,
       );
-      _workerHandles[providerId] = _WorkerHandle(
+      final handle = _WorkerHandle(
         providerKind: profile.record.kind,
-        cancelCallback: () => cleanup(cancelled: true),
+        onForceTerminate: ({bool cancelled = false}) =>
+            cleanup(cancelled: cancelled),
       );
+      _workerHandles[providerId] = handle;
     } catch (error, stackTrace) {
       _logError('Failed to spawn import worker', error, stackTrace);
       await cleanup();
@@ -497,6 +565,15 @@ class ProviderImportService {
     }
 
     progressSub = receivePort.listen((message) {
+      if (message is Map &&
+          message[_WorkerMessage.type] == _WorkerMessage.controlPort) {
+        final port = message['port'];
+        if (port is SendPort) {
+          final handle = _workerHandles[providerId];
+          handle?.commandPort = port;
+        }
+        return;
+      }
       final event = ProviderImportEventSerializer.deserialize(message);
       if (event != null) {
         _publishEvent(event);
@@ -536,11 +613,46 @@ class ProviderImportService {
     return completer.future;
   }
 
+  List<Map<String, dynamic>> _applyPriorityOrdering({
+    required List<Map<String, dynamic>> categories,
+    required int providerId,
+    required String module,
+  }) {
+    final delegate = _priorityDelegate;
+    if (delegate == null || categories.isEmpty) {
+      return categories;
+    }
+    final priorities = delegate.prioritiesForModule(providerId, module);
+    if (priorities.isEmpty) {
+      return categories;
+    }
+    final order = <String, int>{
+      for (var i = 0; i < priorities.length; i++) priorities[i]: i,
+    };
+    final prioritized = <Map<String, dynamic>>[];
+    final rest = <Map<String, dynamic>>[];
+    for (final category in categories) {
+      final id = '${category['id']}';
+      if (order.containsKey(id)) {
+        prioritized.add(category);
+      } else {
+        rest.add(category);
+      }
+    }
+    prioritized.sort((a, b) {
+      final aOrder = order['${a['id']}'] ?? priorities.length;
+      final bOrder = order['${b['id']}'] ?? priorities.length;
+      return aOrder.compareTo(bOrder);
+    });
+    return [...prioritized, ...rest];
+  }
+
   Future<ImportMetrics?> _importStalker(
     int providerId,
     ResolvedProviderProfile profile, {
     bool forceRefresh = false,
   }) async {
+    _ensureNotCancelled(providerId);
     final resumeStore = await _resumeStoreFuture;
     var portalDialect =
         await resumeStore.readStalkerDialect(providerId) ??
@@ -575,14 +687,26 @@ class ProviderImportService {
       allowSelfSignedTls: profile.record.allowSelfSignedTls,
       extraHeaders: _decodeCustomHeaders(profile),
     );
+    final parentalPin =
+        profile.secrets['parentalPassword'] ??
+        profile.record.configuration['parentalPassword'];
+    if (portalDialect.requiresParentalUnlock &&
+        (parentalPin == null || parentalPin.isEmpty)) {
+      _debug(
+        'Portal ${profile.record.displayName} requires parental unlock but '
+        'no PIN is configured.',
+      );
+    }
 
     try {
       _emitProgress(profile, 'stalker.session');
+      _ensureNotCancelled(providerId);
       final session = await _ref.read(
         stalkerSessionProvider(configuration).future,
       );
       final headers = session.buildAuthenticatedHeaders();
       _emitProgress(profile, 'stalker.categories.fetch');
+      _ensureNotCancelled(providerId);
       final liveOutcome = await _fetchStalkerCategories(
         configuration,
         session,
@@ -590,10 +714,15 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        parentPassword: parentalPin,
         onPagingModeDetected: notePagingMode,
         module: 'itv',
       );
-      var live = liveOutcome.categories;
+      var live = _applyPriorityOrdering(
+        categories: liveOutcome.categories,
+        providerId: providerId,
+        module: 'itv',
+      );
       var nextDialect = _applyCategoryOutcome(
         portalDialect,
         module: 'itv',
@@ -610,10 +739,15 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        parentPassword: parentalPin,
         onPagingModeDetected: notePagingMode,
         module: 'vod',
       );
-      var vod = vodOutcome.categories;
+      var vod = _applyPriorityOrdering(
+        categories: vodOutcome.categories,
+        providerId: providerId,
+        module: 'vod',
+      );
       nextDialect = _applyCategoryOutcome(
         portalDialect,
         module: 'vod',
@@ -630,10 +764,15 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        parentPassword: parentalPin,
         onPagingModeDetected: notePagingMode,
         module: 'series',
       );
-      var series = seriesOutcome.categories;
+      var series = _applyPriorityOrdering(
+        categories: seriesOutcome.categories,
+        providerId: providerId,
+        module: 'series',
+      );
       nextDialect = _applyCategoryOutcome(
         portalDialect,
         module: 'series',
@@ -650,10 +789,15 @@ class ProviderImportService {
         providerId: providerId,
         resumeStore: resumeStore,
         dialect: portalDialect,
+        parentPassword: parentalPin,
         onPagingModeDetected: notePagingMode,
         module: 'radio',
       );
-      var radio = radioOutcome.categories;
+      var radio = _applyPriorityOrdering(
+        categories: radioOutcome.categories,
+        providerId: providerId,
+        module: 'radio',
+      );
       nextDialect = _applyCategoryOutcome(
         portalDialect,
         module: 'radio',
@@ -721,6 +865,7 @@ class ProviderImportService {
         onLockedCategory: noteLockedCategory,
         dialect: portalDialect,
         onPagingModeDetected: notePagingMode,
+        parentPassword: parentalPin,
       );
       final radioItems = await _fetchStalkerItems(
         providerId: providerId,
@@ -734,6 +879,7 @@ class ProviderImportService {
         onLockedCategory: noteLockedCategory,
         dialect: portalDialect,
         onPagingModeDetected: notePagingMode,
+        parentPassword: parentalPin,
       );
       final bool ingestVodDuringImport =
           profile.record.configuration['ingestVodOnImport'] == 'true';
@@ -752,6 +898,7 @@ class ProviderImportService {
               onLockedCategory: noteLockedCategory,
               dialect: portalDialect,
               onPagingModeDetected: notePagingMode,
+              parentPassword: parentalPin,
             )
           : const <Map<String, dynamic>>[];
       final seriesItems = ingestSeriesDuringImport
@@ -767,6 +914,7 @@ class ProviderImportService {
               onLockedCategory: noteLockedCategory,
               dialect: portalDialect,
               onPagingModeDetected: notePagingMode,
+              parentPassword: parentalPin,
             )
           : const <Map<String, dynamic>>[];
       if (kDebugMode) {
@@ -858,6 +1006,7 @@ class ProviderImportService {
         ingestVodDuringImport: ingestVodDuringImport,
         ingestSeriesDuringImport: ingestSeriesDuringImport,
         sawLockedCategory: sawLockedCategory,
+        parentalPinProvided: parentalPin?.isNotEmpty == true,
       );
       return metrics;
     } catch (error, stackTrace) {
@@ -907,6 +1056,7 @@ class ProviderImportService {
     required ImportResumeStore resumeStore,
     required String module,
     required StalkerPortalDialect dialect,
+    String? parentPassword,
     void Function(StalkerPagingMode mode)? onPagingModeDetected,
   }) async {
     final actions = _buildCategoryActionOrder(module, dialect);
@@ -918,6 +1068,7 @@ class ProviderImportService {
           session,
           baseHeaders,
           module: module,
+          parentPassword: parentPassword,
         );
       } else {
         final probe = _probeForAction(action);
@@ -930,6 +1081,7 @@ class ProviderImportService {
           headers: baseHeaders,
           module: module,
           probe: probe,
+          parentPassword: parentPassword,
         );
       }
       if (result.isNotEmpty) {
@@ -965,6 +1117,7 @@ class ProviderImportService {
       module: module,
       dialect: dialect,
       onPagingModeDetected: onPagingModeDetected,
+      parentPassword: parentPassword,
     );
     if (derived.isNotEmpty) {
       _logCategoryStrategy(
@@ -997,6 +1150,7 @@ class ProviderImportService {
     required Map<String, String> headers,
     required String module,
     required _StalkerCategoryProbe probe,
+    String? parentPassword,
   }) async {
     final toggles = probe.includeJsToggle ? [true, false] : [false];
     for (final includeJs in toggles) {
@@ -1011,6 +1165,8 @@ class ProviderImportService {
               'token': session.token,
               'mac': config.macAddress.toLowerCase(),
               if (includeJs) 'JsHttpRequest': '1-xml',
+              if (parentPassword != null && parentPassword.isNotEmpty)
+                'parent_password': parentPassword,
             },
             headers: headers,
           ),
@@ -1059,7 +1215,9 @@ class ProviderImportService {
     int? maxCategoryPages,
     required StalkerPortalDialect dialect,
     void Function(StalkerPagingMode mode)? onPagingModeDetected,
+    String? parentPassword,
   }) async {
+    _ensureNotCancelled(providerId);
     final categoryPageCap = maxCategoryPages ?? _stalkerMaxCategoryPages;
     final bulkActions = _bulkActionsForModule(module);
     for (final action in bulkActions) {
@@ -1069,6 +1227,7 @@ class ProviderImportService {
         session: session,
         module: module,
         action: action,
+        parentPassword: parentPassword,
       );
       if (bulk.isNotEmpty) {
         return _dedupeEntriesForModule(bulk, module);
@@ -1092,6 +1251,7 @@ class ProviderImportService {
         maxPagesPerCategory: categoryPageCap,
         dialect: dialect,
         onPagingModeDetected: onPagingModeDetected,
+        parentPassword: parentPassword,
       );
       if (perCategory.isNotEmpty) {
         return perCategory;
@@ -1108,6 +1268,7 @@ class ProviderImportService {
       maxPages: _stalkerMaxGlobalPages,
       dialect: dialect,
       onPagingModeDetected: onPagingModeDetected,
+      parentPassword: parentPassword,
     );
   }
 
@@ -1123,7 +1284,11 @@ class ProviderImportService {
     bool enableResume = true,
     required StalkerPortalDialect dialect,
     void Function(StalkerPagingMode mode)? onPagingModeDetected,
+    String? parentPassword,
   }) async {
+    if (providerId != null) {
+      _ensureNotCancelled(providerId);
+    }
     final results = <Map<String, dynamic>>[];
     final seenPageFingerprints = <String>{};
     final seenEntryKeys = <String>{};
@@ -1165,6 +1330,7 @@ class ProviderImportService {
           page: page,
           pagingMode: currentPagingMode,
           categoryId: categoryId,
+          parentPassword: parentPassword,
         );
         var entries = listing.entries;
         var pageSize =
@@ -1185,6 +1351,7 @@ class ProviderImportService {
             page: page,
             pagingMode: alternateMode,
             categoryId: categoryId,
+            parentPassword: parentPassword,
           );
           if (alternateListing.entries.isNotEmpty) {
             currentPagingMode = alternateMode;
@@ -1367,6 +1534,7 @@ class ProviderImportService {
     StalkerSession session,
     Map<String, String> headers, {
     required String module,
+    String? parentPassword,
   }) async {
     try {
       final response = await _retryWithJitter(
@@ -1378,6 +1546,8 @@ class ProviderImportService {
             'JsHttpRequest': '1-xml',
             'token': session.token,
             'mac': config.macAddress.toLowerCase(),
+            if (parentPassword != null && parentPassword.isNotEmpty)
+              'parent_password': parentPassword,
           },
           headers: headers,
         ),
@@ -1414,11 +1584,14 @@ class ProviderImportService {
     required int maxPagesPerCategory,
     required StalkerPortalDialect dialect,
     void Function(StalkerPagingMode mode)? onPagingModeDetected,
+    String? parentPassword,
   }) async {
+    _ensureNotCancelled(providerId);
     final seenKeys = <String>{};
     final aggregated = <Map<String, dynamic>>[];
 
     for (final category in categories) {
+      _ensureNotCancelled(providerId);
       final categoryId = _coerceString(
         category['id'] ??
             category['category_id'] ??
@@ -1451,6 +1624,7 @@ class ProviderImportService {
           categoryId: categoryId,
           dialect: dialect,
           onPagingModeDetected: onPagingModeDetected,
+          parentPassword: parentPassword,
         );
         for (final entry in entries) {
           final idKey =
@@ -1482,6 +1656,7 @@ class ProviderImportService {
     required String module,
     required StalkerPortalDialect dialect,
     void Function(StalkerPagingMode mode)? onPagingModeDetected,
+    String? parentPassword,
   }) async {
     const samplePages = 5;
     final seeds = await _fetchStalkerListing(
@@ -1496,6 +1671,7 @@ class ProviderImportService {
       dialect: dialect,
       onPagingModeDetected: onPagingModeDetected,
       categoryId: null,
+      parentPassword: parentPassword,
     );
     if (seeds.isEmpty) {
       return const [];
@@ -1662,6 +1838,7 @@ class ProviderImportService {
     required StalkerSession session,
     required String module,
     required String action,
+    String? parentPassword,
   }) async {
     try {
       final response = await _retryWithJitter(
@@ -1673,6 +1850,8 @@ class ProviderImportService {
             'JsHttpRequest': '1-xml',
             'token': session.token,
             'mac': configuration.macAddress.toLowerCase(),
+            if (parentPassword != null && parentPassword.isNotEmpty)
+              'parent_password': parentPassword,
           },
           headers: headers,
         ),
@@ -1824,6 +2003,7 @@ class ProviderImportService {
     required bool ingestVodDuringImport,
     required bool ingestSeriesDuringImport,
     required bool sawLockedCategory,
+    required bool parentalPinProvided,
   }) {
     final segments = <String>[
       'Stalker import "${profile.record.displayName}"',
@@ -1856,6 +2036,7 @@ class ProviderImportService {
         ingestedCount: radioItems.length,
       ),
       'adult=${sawLockedCategory ? 'requires-unlock' : 'off'}',
+      'parentalPin=${parentalPinProvided ? 'configured' : 'none'}',
     ];
     _debug(segments.join(' | '));
   }
@@ -1944,6 +2125,7 @@ class ProviderImportService {
     required int page,
     required StalkerPagingMode pagingMode,
     String? categoryId,
+    String? parentPassword,
   }) async {
     final queryParameters = <String, dynamic>{
       'type': module,
@@ -1960,6 +2142,9 @@ class ProviderImportService {
     } else {
       queryParameters['from'] = '${(page - 1) * _stalkerFromCntPageSize}';
       queryParameters['cnt'] = '$_stalkerFromCntPageSize';
+    }
+    if (parentPassword != null && parentPassword.isNotEmpty) {
+      queryParameters['parent_password'] = parentPassword;
     }
     final response = await _retryWithJitter(
       () => _stalkerHttpClient.getPortal(
@@ -2435,12 +2620,38 @@ class _StalkerCategoryFetchOutcome {
 }
 
 class _WorkerHandle {
-  _WorkerHandle({required this.providerKind, required this.cancelCallback});
+  _WorkerHandle({
+    required this.providerKind,
+    required Future<void> Function({bool cancelled}) onForceTerminate,
+  }) : _onForceTerminate = onForceTerminate;
 
   final ProviderKind providerKind;
-  final Future<void> Function() cancelCallback;
+  final Future<void> Function({bool cancelled}) _onForceTerminate;
+  SendPort? commandPort;
 
-  Future<void> cancel() => cancelCallback();
+  Future<void> cancel() async {
+    commandPort?.send({_WorkerMessage.type: _WorkerMessage.cancel});
+    // Give the worker a brief chance to stop gracefully before forcing exit.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await _onForceTerminate(cancelled: true);
+  }
+
+  void sendPriority(String module, String categoryId) {
+    final port = commandPort;
+    if (port == null) return;
+    port.send({
+      _WorkerMessage.type: _WorkerMessage.priority,
+      'module': module,
+      'categoryId': categoryId,
+    });
+  }
+}
+
+class _WorkerMessage {
+  static const String type = '_type';
+  static const String controlPort = 'controlPort';
+  static const String cancel = 'cancel';
+  static const String priority = 'priority';
 }
 
 class _StalkerListingPage {
@@ -2661,12 +2872,14 @@ class _ProviderImportWorkerRequest {
     required this.profile,
     required this.dbPath,
     required this.forceRefresh,
+    this.priorityHints,
   });
 
   final SendPort sendPort;
   final Map<String, Object?> profile;
   final String dbPath;
   final bool forceRefresh;
+  final Map<String, List<String>>? priorityHints;
 }
 
 Map<String, Object?> _serializeProfile(ResolvedProviderProfile profile) {
@@ -2728,14 +2941,88 @@ ResolvedProviderProfile _deserializeProfile(Map<String, Object?> payload) {
   );
 }
 
+class _ImportCancelledException implements Exception {
+  const _ImportCancelledException(this.providerId);
+
+  final int providerId;
+
+  @override
+  String toString() => 'Import cancelled for providerId=$providerId';
+}
+
+abstract class ImportPriorityDelegate {
+  List<String> prioritiesForModule(int providerId, String module);
+}
+
+class _PriorityHintState {
+  final Map<String, List<String>> _moduleHints = {};
+
+  bool bump(String module, String categoryId) {
+    final list = _moduleHints.putIfAbsent(module, () => <String>[]);
+    if (list.isNotEmpty && list.first == categoryId) {
+      return false;
+    }
+    list.remove(categoryId);
+    list.insert(0, categoryId);
+    if (list.length > 12) {
+      list.removeRange(12, list.length);
+    }
+    return true;
+  }
+
+  Map<String, List<String>> snapshot() {
+    return {
+      for (final entry in _moduleHints.entries)
+        entry.key: List<String>.from(entry.value),
+    };
+  }
+}
+
+class _WorkerPriorityDelegate implements ImportPriorityDelegate {
+  _WorkerPriorityDelegate({
+    required this.providerId,
+    Map<String, List<String>>? initial,
+  }) {
+    if (initial != null) {
+      initial.forEach((module, values) {
+        _moduleHints[module] = List<String>.from(values);
+      });
+    }
+  }
+
+  final int providerId;
+  final Map<String, List<String>> _moduleHints = {};
+
+  void bump(String module, String categoryId) {
+    final list = _moduleHints.putIfAbsent(module, () => <String>[]);
+    list.remove(categoryId);
+    list.insert(0, categoryId);
+    if (list.length > 12) {
+      list.removeRange(12, list.length);
+    }
+  }
+
+  @override
+  List<String> prioritiesForModule(int providerId, String module) {
+    if (providerId != this.providerId) {
+      return const [];
+    }
+    final list = _moduleHints[module];
+    if (list == null || list.isEmpty) return const [];
+    return List<String>.from(list);
+  }
+}
+
 Future<void> _providerImportWorkerEntry(
   _ProviderImportWorkerRequest request,
 ) async {
   final profile = _deserializeProfile(request.profile);
   final dbFile = File(request.dbPath);
-  final db = OpenIptvDb.forTesting(
-    NativeDatabase(dbFile, logStatements: false),
+  final dbIsolate = await DriftIsolate.spawn(
+    () => NativeDatabase(dbFile, logStatements: false),
   );
+  final connection = await dbIsolate.connect();
+  final db = OpenIptvDb.connect(connection);
   final resumeStoreFuture = ImportResumeStore.openAtDirectory(
     dbFile.parent.path,
   );
@@ -2743,6 +3030,10 @@ Future<void> _providerImportWorkerEntry(
     '${Directory.systemTemp.path}/openiptv_worker_telemetry.log',
   );
   final telemetry = TelemetryService(telemetryFile);
+  final priorityDelegate = _WorkerPriorityDelegate(
+    providerId: profile.providerDbId ?? -1,
+    initial: request.priorityHints,
+  );
   final container = ProviderContainer(
     overrides: [
       openIptvDbProvider.overrideWithValue(db),
@@ -2752,10 +3043,34 @@ Future<void> _providerImportWorkerEntry(
       ),
       providerImportOffloadProvider.overrideWithValue(false),
       importResumeStoreFutureProvider.overrideWithValue(resumeStoreFuture),
+      importPriorityDelegateProvider.overrideWithValue(priorityDelegate),
     ],
   );
+  final commandPort = ReceivePort();
+  request.sendPort.send({
+    _WorkerMessage.type: _WorkerMessage.controlPort,
+    'port': commandPort.sendPort,
+  });
+  StreamSubscription? commandSubscription;
   try {
     final service = container.read(providerImportServiceProvider);
+    commandSubscription = commandPort.listen((message) {
+      if (message is Map) {
+        final type = message[_WorkerMessage.type];
+        if (type == _WorkerMessage.cancel) {
+          final providerId = profile.providerDbId;
+          if (providerId != null) {
+            service.requestCancellation(providerId);
+          }
+        } else if (type == _WorkerMessage.priority) {
+          final module = message['module'] as String?;
+          final categoryId = message['categoryId'] as String?;
+          if (module != null && categoryId != null) {
+            priorityDelegate.bump(module, categoryId);
+          }
+        }
+      }
+    });
     await service.runInitialImport(profile, forceRefresh: request.forceRefresh);
   } catch (error, stackTrace) {
     request.sendPort.send(
@@ -2771,6 +3086,9 @@ Future<void> _providerImportWorkerEntry(
   } finally {
     telemetry.dispose();
     container.dispose();
+    await commandSubscription?.cancel();
+    commandPort.close();
     await db.close();
+    await dbIsolate.shutdownAll();
   }
 }

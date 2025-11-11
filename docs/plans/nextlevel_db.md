@@ -6,7 +6,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 
 ### TL;DR Fixes (mirrors item 0 in the brief)
 - [x] Always probe categories via `get_categories ? get_genres ? get_categories_v2 ? (if censored) parental unlock ? re-probe`, then cache the winning action in `PortalDialect`. -> `_fetchStalkerCategories` already walks this sequence for every module and records the preferred action in the dialect.
-- [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
+- [x] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread. -> Imports now run entirely inside the provider worker isolate and talk to Drift through a spawned DriftIsolate, so discovery paging + dedupe/resume/backpressure never hit the UI thread.
 - [x] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile. -> `StalkerHttpClient.getPortal` now enriches every request with the STB header/cookie defaults so even ad-hoc callers inherit the Infomir header shape.
 - [x] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it. -> `_fetchStalkerListing` now probes both paging modes, records the winner via `StalkerPortalDialect.recordPagingMode`, and reuses it for every module.
 - [x] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops. -> `_fetchStalkerListing` fingerprints each page and filters `seenEntryKeys`, while per-category fetches keep their own `seenKeys`.
@@ -26,7 +26,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Hash each page's payload to break loops, and hard-stop when a duplicate or the configured page cap is reached. -> `_fetchStalkerListing` now stores page fingerprints and aborts immediately after a repeat while logging page-cap exits.
 
 ### 4) Doing heavy work on the UI isolate
-- [ ] Finish the worker-isolate importer: spawn a Drift isolate connection, stream progress events, honour cancel, and ensure the UI isolate only receives lightweight updates.
+- [x] Finish the worker-isolate importer: spawn a Drift isolate connection, stream progress events, honour cancel, and ensure the UI isolate only receives lightweight updates. -> _runImportInIsolate now spins a DriftIsolate-backed worker, streams progress via the reporter, and honours cancel/prioritise commands over the control channel.
 - [ ] Prioritise categories currently expanded in the UI so previews stay responsive while background paging continues for the rest.
 
 ### 5) Counting mismatches: why totals differ
@@ -42,14 +42,14 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Wrap Stalker calls in the header-injecting client. -> `StalkerHttpClient.getPortal` now normalizes every request with the STB UA/cookie set plus Authorization + token cookies.
 - [x] Persist `PortalDialect` (category action, paging shape, parental flag) and reuse it for every session. -> Dialect snapshots (stored in `ImportResumeStore`) now capture preferred actions plus paging mode and are reloaded before each import.
 - [x] Implement the category probe chain + derived-category fallback from item 1. -> `_fetchStalkerCategories` already walks get_categories ? get_genres ? get_categories_v2, then falls back to cached/derived buckets.
-- [ ] Move ingestion to the worker isolate with dedupe, resume tokens, caps, and backpressure wired in.
+- [x] Move ingestion to the worker isolate with dedupe, resume tokens, caps, and backpressure wired in. -> Stalker/Xtream/M3U imports now execute inside the worker, reusing the existing dedupe/resume/backpressure logic without touching the UI isolate.
 - [x] Log a single-line ingestion summary per run (e.g., `vod: action=get_genres, paging=from/cnt, cats=42, items=5123 (dedup:-211), adult=off`). -> `_logStalkerRunSummary` emits a concise per-run summary for each Stalker import.
 
 ## North-Star Metrics
 - [ ] Cold tune-to-first-channel <= 2.0s; warm <= 1.2s.
 - [ ] Search 10-50k channels plus multi-million EPG rows in <= 100ms typical.
 - [ ] Keep memory stable while scrolling/importing (<= 200MB during imports via streaming/pagination).
-- [ ] Run heavy imports off the UI isolate with visible progress plus cancel/rollback.
+- [x] Run heavy imports off the UI isolate with visible progress plus cancel/rollback. -> Player/login screens keep showing the progress stream while the new cancellation token propagates stop requests (with a force-kill fallback) before cleanup.
 - [ ] Maintain platform parity (Drift sqlite3/FFI for native, Drift IndexedDB for web) behind the same DAO APIs.
 
 ## Phase 1 - Core Schema & Access Patterns
@@ -63,7 +63,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Acceptance: import 100k channels < 30s and keep channel list scrolling at 60fps.
 
 ## Phase 2 - Parsing & Ingest at Scale
-- [ ] Run M3U/XMLTV/Xtream/Stalker parsing and Drift writes inside isolates (single writer, shared readers).
+- [x] Run M3U/XMLTV/Xtream/Stalker parsing and Drift writes inside isolates (single writer, shared readers). -> Every importer now executes inside the provider worker isolate while a dedicated DriftIsolate hosts the shared writer, so parsing + writes never block the UI isolate.
 - [ ] Partition EPG imports by day and store ETag/Last-Modified hashes to skip unchanged payloads.
 - [x] Track tombstones for removed channels; schedule background hard-prune.
 - [ ] Acceptance: imports can cancel/resume safely and re-running identical input results in zero data changes.

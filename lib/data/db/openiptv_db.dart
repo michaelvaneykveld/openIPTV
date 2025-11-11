@@ -87,6 +87,11 @@ class OpenIptvDb extends _$OpenIptvDb {
     int? schemaVersionOverride,
   }) => OpenIptvDb._(schemaVersionOverride, executor);
 
+  /// Constructs a database from an existing connection, e.g. when using
+  /// a Drift isolate-hosted executor.
+  factory OpenIptvDb.connect(DatabaseConnection connection) =>
+      OpenIptvDb._(null, connection.executor);
+
   /// Resolves the on-disk location for the primary database file.
   static Future<File> resolveDatabaseFile() async {
     if (kIsWeb) {

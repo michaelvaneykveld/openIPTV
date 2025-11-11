@@ -17,6 +17,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
+import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
@@ -51,10 +52,7 @@ class CategoryPreviewItem {
 }
 
 class CategoryPreviewResult {
-  const CategoryPreviewResult({
-    required this.items,
-    this.totalItems,
-  });
+  const CategoryPreviewResult({required this.items, this.totalItems});
 
   final List<CategoryPreviewItem> items;
   final int? totalItems;
@@ -388,6 +386,20 @@ class _CategoriesCoordinator {
   }
 
   Future<CategoryPreviewResult> preview(CategoryPreviewRequest request) {
+    final providerId = request.profile.providerDbId;
+    if (providerId != null) {
+      final module = _moduleForBucket(request.bucket);
+      if (module != null) {
+        _ref
+            .read(providerImportServiceProvider)
+            .prioritizeCategory(
+              providerId: providerId,
+              providerKind: request.profile.kind,
+              module: module,
+              categoryId: request.categoryId,
+            );
+      }
+    }
     switch (request.profile.kind) {
       case ProviderKind.xtream:
         return const _XtreamCategoriesFetcher().fetchPreview(
@@ -410,6 +422,19 @@ class _CategoriesCoordinator {
           providerKey: request.providerKey,
         );
     }
+  }
+}
+
+String? _moduleForBucket(ContentBucket bucket) {
+  switch (bucket) {
+    case ContentBucket.live:
+      return 'itv';
+    case ContentBucket.films:
+      return 'vod';
+    case ContentBucket.series:
+      return 'series';
+    case ContentBucket.radio:
+      return 'radio';
   }
 }
 
@@ -898,7 +923,8 @@ class _StalkerCategoriesFetcher {
           break;
         }
         items.addAll(chunk);
-        if (totalItems case int currentTotal when items.length >= currentTotal) {
+        if (totalItems case int currentTotal
+            when items.length >= currentTotal) {
           break;
         }
         if (chunk.length < pageSize) {
@@ -1423,16 +1449,16 @@ class _StalkerCategoriesFetcher {
         return const [];
       }
 
-        final entries =
-            buckets.entries
-                .map(
-                  (entry) => CategoryEntry(
-                    id: entry.value.id,
-                    name: entry.value.name,
-                    count: entry.value.count > 0 ? entry.value.count : null,
-                    providerKey: entry.value.id,
-                  ),
-                )
+      final entries =
+          buckets.entries
+              .map(
+                (entry) => CategoryEntry(
+                  id: entry.value.id,
+                  name: entry.value.name,
+                  count: entry.value.count > 0 ? entry.value.count : null,
+                  providerKey: entry.value.id,
+                ),
+              )
               .toList(growable: false)
             ..sort((a, b) => a.name.compareTo(b.name));
       return entries;

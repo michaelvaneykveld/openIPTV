@@ -44,6 +44,7 @@ class MockPlayerAdapter implements PlayerAdapter {
            channels: '2.0',
            codec: 'AAC',
          ),
+         mediaTitle: isLive ? 'Sample Live Channel' : 'Sample VOD Clip',
        ) {
     _emit();
   }

@@ -15,6 +15,7 @@ class PlayerOverlayOSD extends StatelessWidget {
     required this.onZapPrevious,
     required this.onShowAudioSheet,
     required this.onShowSubtitlesSheet,
+    this.onExitPlayer,
   });
 
   final PlayerViewState state;
@@ -25,6 +26,7 @@ class PlayerOverlayOSD extends StatelessWidget {
   final VoidCallback onZapPrevious;
   final VoidCallback? onShowAudioSheet;
   final VoidCallback? onShowSubtitlesSheet;
+  final VoidCallback? onExitPlayer;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +48,18 @@ class PlayerOverlayOSD extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.end,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (state.mediaTitle != null && state.mediaTitle!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  state.mediaTitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
             _buildTransportRow(theme),
             const SizedBox(height: 12),
             _buildProgress(theme),
@@ -103,6 +117,13 @@ class PlayerOverlayOSD extends StatelessWidget {
           color: iconColor,
           onPressed: hasSubtitleTracks ? onShowSubtitlesSheet : null,
         ),
+        if (onExitPlayer != null)
+          _PlayerControlButton(
+            tooltip: 'Exit player',
+            icon: Icons.close_fullscreen_rounded,
+            color: iconColor,
+            onPressed: onExitPlayer,
+          ),
       ],
     );
   }

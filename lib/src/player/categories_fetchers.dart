@@ -43,12 +43,14 @@ class CategoryPreviewItem {
     required this.title,
     this.subtitle,
     this.artUri,
+    this.streamUrl,
   });
 
   final String id;
   final String title;
   final String? subtitle;
   final String? artUri;
+  final String? streamUrl;
 }
 
 class CategoryPreviewResult {
@@ -257,6 +259,7 @@ Future<CategoryPreviewResult> _loadChannelPreviewFromDb(
       .customSelect(
         '''
 SELECT ch.id, ch.name, ch.logo_url, ch.number
+     , ch.stream_url_template
 FROM channel_categories cc
 JOIN channels ch ON ch.id = cc.channel_id
 WHERE cc.category_id = ?
@@ -273,6 +276,7 @@ ORDER BY (ch.number IS NULL), ch.number, ch.name;
           title: row.read<String>('name'),
           subtitle: _formatChannelSubtitle(row.readNullable<int>('number')),
           artUri: row.readNullable<String>('logo_url'),
+          streamUrl: row.readNullable<String>('stream_url_template'),
         ),
       )
       .toList();
@@ -288,6 +292,7 @@ Future<CategoryPreviewResult> _loadVodPreviewFromDb(
       .customSelect(
         '''
 SELECT mv.id, mv.title, mv.year, mv.poster_url
+     , mv.stream_url_template
 FROM movies mv
 WHERE mv.category_id = ?
 ORDER BY mv.title;
@@ -303,6 +308,7 @@ ORDER BY mv.title;
           title: row.read<String>('title'),
           subtitle: _formatYear(row.readNullable<int>('year')),
           artUri: row.readNullable<String>('poster_url'),
+          streamUrl: row.readNullable<String>('stream_url_template'),
         ),
       )
       .toList();
@@ -332,6 +338,7 @@ ORDER BY s.title;
           title: row.read<String>('title'),
           subtitle: _formatYear(row.readNullable<int>('year')),
           artUri: row.readNullable<String>('poster_url'),
+          streamUrl: null,
         ),
       )
       .toList();
@@ -652,6 +659,12 @@ class _XtreamCategoriesFetcher {
             normalized['series_cover'] ??
             normalized['thumbnail'],
       );
+      final streamUrl = _coerceScalar(
+        normalized['stream_url'] ??
+            normalized['cmd'] ??
+            normalized['url'] ??
+            normalized['direct_source'],
+      );
       final subtitle = _composePreviewSubtitle(action, normalized);
       items.add(
         CategoryPreviewItem(
@@ -659,6 +672,7 @@ class _XtreamCategoriesFetcher {
           title: title,
           subtitle: subtitle?.isEmpty == true ? null : subtitle,
           artUri: art.isNotEmpty ? art : null,
+          streamUrl: streamUrl.isNotEmpty ? streamUrl : null,
         ),
       );
       if (limit != null && items.length >= limit) {
@@ -1569,12 +1583,19 @@ class _StalkerCategoriesFetcher {
             normalized['icon'] ??
             normalized['image'],
       );
+      final streamUrl = _coerceScalar(
+        normalized['cmd'] ??
+            normalized['stream_url'] ??
+            normalized['url'] ??
+            normalized['direct_source'],
+      );
       items.add(
         CategoryPreviewItem(
           id: id.isEmpty ? title : id,
           title: title,
           subtitle: subtitle?.isEmpty == true ? null : subtitle,
           artUri: art.isNotEmpty ? art : null,
+          streamUrl: streamUrl.isNotEmpty ? streamUrl : null,
         ),
       );
       if (limit != null && items.length >= limit) {
@@ -1898,6 +1919,7 @@ class _M3uCategoriesFetcher {
         title: pending.title,
         subtitle: subtitle,
         artUri: pending.logo?.isNotEmpty == true ? pending.logo : null,
+        streamUrl: pending.url,
       ),
     );
   }

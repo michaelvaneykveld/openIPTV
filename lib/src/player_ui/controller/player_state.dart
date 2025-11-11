@@ -65,6 +65,7 @@ class PlayerViewState {
     this.isBuffering = false,
     this.isOverlayVisible = false,
     this.isKeepScreenOnEnabled = false,
+    this.mediaTitle,
   });
 
   factory PlayerViewState.initial({
@@ -77,6 +78,7 @@ class PlayerViewState {
       isLive: isLive,
       position: position,
       buffered: buffered,
+      mediaTitle: null,
     );
   }
 
@@ -94,6 +96,7 @@ class PlayerViewState {
   final bool isBuffering;
   final bool isOverlayVisible;
   final bool isKeepScreenOnEnabled;
+  final String? mediaTitle;
 
   PlayerViewState copyWith({
     PlayerPhase? phase,
@@ -110,6 +113,7 @@ class PlayerViewState {
     bool? isBuffering,
     bool? isOverlayVisible,
     bool? isKeepScreenOnEnabled,
+    String? mediaTitle,
   }) {
     return PlayerViewState(
       phase: phase ?? this.phase,
@@ -127,6 +131,7 @@ class PlayerViewState {
       isOverlayVisible: isOverlayVisible ?? this.isOverlayVisible,
       isKeepScreenOnEnabled:
           isKeepScreenOnEnabled ?? this.isKeepScreenOnEnabled,
+      mediaTitle: mediaTitle ?? this.mediaTitle,
     );
   }
 
@@ -169,7 +174,8 @@ class PlayerViewState {
         other.error == error &&
         other.isBuffering == isBuffering &&
         other.isOverlayVisible == isOverlayVisible &&
-        other.isKeepScreenOnEnabled == isKeepScreenOnEnabled;
+        other.isKeepScreenOnEnabled == isKeepScreenOnEnabled &&
+        other.mediaTitle == mediaTitle;
   }
 
   @override
@@ -188,5 +194,6 @@ class PlayerViewState {
     isBuffering,
     isOverlayVisible,
     isKeepScreenOnEnabled,
+    mediaTitle,
   );
 }

@@ -211,6 +211,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
             onShowSubtitlesSheet: hasSubtitleTracks
                 ? () => _showTrackPicker(context, showAudio: false)
                 : null,
+            onExitPlayer: () => Navigator.of(context).maybePop(),
           ),
         ),
       ),

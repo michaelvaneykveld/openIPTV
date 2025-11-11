@@ -33,6 +33,7 @@ class PlayerSnapshot {
     this.selectedText,
     this.error,
     this.isBuffering = false,
+    this.mediaTitle,
   });
 
   final PlayerPhase phase;
@@ -47,6 +48,7 @@ class PlayerSnapshot {
   final PlayerTrack? selectedText;
   final PlayerError? error;
   final bool isBuffering;
+  final String? mediaTitle;
 
   PlayerSnapshot copyWith({
     PlayerPhase? phase,
@@ -61,6 +63,7 @@ class PlayerSnapshot {
     PlayerTrack? selectedText,
     PlayerError? error,
     bool? isBuffering,
+    String? mediaTitle,
   }) {
     return PlayerSnapshot(
       phase: phase ?? this.phase,
@@ -75,6 +78,7 @@ class PlayerSnapshot {
       selectedText: selectedText ?? this.selectedText,
       error: error ?? this.error,
       isBuffering: isBuffering ?? this.isBuffering,
+      mediaTitle: mediaTitle ?? this.mediaTitle,
     );
   }
 }
@@ -126,6 +130,7 @@ class PlayerController {
         error: snapshot.error,
         isBuffering: snapshot.isBuffering,
         isKeepScreenOnEnabled: keepScreenOn,
+        mediaTitle: snapshot.mediaTitle,
       ),
     );
     if (snapshot.phase == PlayerPhase.playing) {

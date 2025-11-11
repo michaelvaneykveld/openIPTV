@@ -761,26 +761,49 @@ class _FavoriteChannelChip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        _ArtworkAvatar(
-          url: channel.channel.logoUrl ?? '',
-          fallbackIcon: Icons.live_tv,
-          size: 56,
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 72,
-          child: Text(
-            channel.channel.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall,
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => _launch(context, ref),
+      child: Column(
+        children: [
+          _ArtworkAvatar(
+            url: channel.channel.logoUrl ?? '',
+            fallbackIcon: Icons.live_tv,
+            size: 56,
           ),
-        ),
-      ],
+          const SizedBox(height: 6),
+          SizedBox(
+            width: 72,
+            child: Text(
+              channel.channel.name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _launch(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await _pushChannelPlayer(
+      context: context,
+      channels: [channel.channel],
+      isLive: !channel.channel.isRadio,
+      initialChannelId: channel.channel.id,
+    );
+    if (!success) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No stream available for this channel.'),
+          ),
+        );
+    }
   }
 }
 
@@ -830,7 +853,31 @@ class _RecentPlaybackTile extends ConsumerWidget {
       trailing: entry.isFavorite
           ? Icon(Icons.star, color: theme.colorScheme.secondary)
           : null,
+      onTap: () => _launch(context, ref, channel),
     );
+  }
+
+  Future<void> _launch(
+    BuildContext context,
+    WidgetRef ref,
+    ChannelRecord channel,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await _pushChannelPlayer(
+      context: context,
+      channels: [channel],
+      isLive: !channel.isRadio,
+      initialChannelId: channel.id,
+    );
+    if (!success) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No stream available for this channel.'),
+          ),
+        );
+    }
   }
 }
 
@@ -923,7 +970,10 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   Future<void> _handlePlay(CategoryPreviewItem item) async {
     final providerId = widget.profile.providerDbId;
     if (providerId == null) {
-      _showSnack('Sync this provider locally to enable playback.');
+      final success = await _playPreviewItemsDirect(item);
+      if (!success) {
+        _showSnack('No playable streams in this category yet.');
+      }
       return;
     }
     final categoryId = int.tryParse(widget.category.id);
@@ -1077,6 +1127,48 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
       sources: playlist.map((entry) => entry.source).toList(growable: false),
       initialIndex: initialIndex,
     );
+  }
+
+  Future<bool> _playPreviewItemsDirect(CategoryPreviewItem tappedItem) async {
+    final isLiveBucket =
+        widget.bucket == ContentBucket.live ||
+        widget.bucket == ContentBucket.radio;
+    final playlist = widget.result.items
+        .map(
+          (preview) => (
+            preview: preview,
+            source:
+                _previewItemToMediaSource(preview, isLive: isLiveBucket),
+          ),
+        )
+        .where((entry) => entry.source != null)
+        .map((entry) => (preview: entry.preview, source: entry.source!))
+        .toList(growable: false);
+    if (playlist.isEmpty) {
+      return false;
+    }
+    var initialIndex = 0;
+    final tappedId = tappedItem.id;
+    final idx = playlist.indexWhere((entry) => entry.preview.id == tappedId);
+    if (idx >= 0) {
+      initialIndex = idx;
+    }
+    return _pushMediaPlaylist(
+      context: context,
+      sources: playlist.map((entry) => entry.source).toList(growable: false),
+      initialIndex: initialIndex,
+    );
+  }
+
+  PlayerMediaSource? _previewItemToMediaSource(
+    CategoryPreviewItem preview, {
+    required bool isLive,
+  }) {
+    final uri = _parseStreamUri(preview.streamUrl);
+    if (uri == null) {
+      return null;
+    }
+    return PlayerMediaSource(uri: uri, title: preview.title, isLive: isLive);
   }
 
   void _showSnack(String message) {

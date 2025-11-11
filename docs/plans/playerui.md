@@ -81,7 +81,7 @@
 ## Accessibility & TV Specifics
 - [x] Provide visible, non-color-only focus indicators and scaling on focused controls.[4]
 - [x] Use large tap/focus targets (72-96 px) to respect 10-foot UX guidance.[5]
-- [ ] Maintain consistent Back behavior (sheet -> OSD -> exit).
+- [x] Maintain consistent Back behavior (sheet -> OSD -> exit) and expose an explicit exit control in the OSD.
 - [x] Keep a Caption/Subtitles button visible whenever captions are available per Apple HIG.[2]
 
 ## Error Model

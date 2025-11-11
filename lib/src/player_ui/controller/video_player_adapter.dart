@@ -162,6 +162,7 @@ class VideoPlayerAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
             )
           : null,
       isBuffering: value.isBuffering,
+      mediaTitle: null,
     );
     _snapshotController.add(snapshot);
   }
@@ -362,6 +363,7 @@ class PlaylistVideoPlayerAdapter
       selectedText: textTrack,
       error: null,
       isBuffering: true,
+      mediaTitle: source.title,
     );
   }
 

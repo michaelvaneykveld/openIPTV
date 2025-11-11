@@ -15,7 +15,7 @@ WindowsPlaybackSupport classifyWindowsPlayable(Playable playable) {
   }
 
   final ext =
-      (playable.containerExtension ?? guessExtensionFromUri(playable.url))
+      (_resolveExtension(playable) ?? guessExtensionFromUri(playable.url))
           .toLowerCase();
   if (_adaptiveExtensions.contains(ext)) {
     return WindowsPlaybackSupport.hlsOrDash;
@@ -61,3 +61,23 @@ bool _requiresHeaders(Map<String, String> headers) {
 const Set<String> _adaptiveExtensions = {'m3u8', 'mpd'};
 
 const Set<String> _likelyCodecExtensions = {'ts', 'mkv', 'hevc', '265', 'ac3'};
+
+String? _resolveExtension(Playable playable) {
+  if (playable.containerExtension != null &&
+      playable.containerExtension!.isNotEmpty) {
+    return playable.containerExtension;
+  }
+  final queryExt = playable.url.queryParameters['extension'];
+  if (queryExt != null && queryExt.trim().isNotEmpty) {
+    return queryExt.trim().toLowerCase();
+  }
+  final path = playable.url.pathSegments;
+  if (path.isNotEmpty) {
+    final last = path.last;
+    final dot = last.lastIndexOf('.');
+    if (dot != -1 && dot < last.length - 1) {
+      return last.substring(dot + 1).toLowerCase();
+    }
+  }
+  return null;
+}

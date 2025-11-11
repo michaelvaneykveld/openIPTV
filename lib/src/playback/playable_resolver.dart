@@ -330,11 +330,21 @@ class PlayableResolver {
             if (!_headerBlacklist.contains(entry.key)) entry.key: entry.value,
         },
       );
-      final playable = _playableFromUri(
+      var playable = _playableFromUri(
         uri,
         isLive: isLive,
         headers: playbackHeaders,
       );
+      final inferredExtension = _stalkerExtensionFromUri(uri);
+      if (playable != null &&
+          inferredExtension != null &&
+          inferredExtension.isNotEmpty &&
+          inferredExtension != playable.containerExtension) {
+        playable = playable.copyWith(
+          containerExtension: inferredExtension,
+          mimeHint: playable.mimeHint ?? _mimeFromExtension(inferredExtension),
+        );
+      }
       if (playable == null) {
         PlaybackLogger.playableDrop('stalker-unhandled', uri: uri);
         return null;
@@ -556,4 +566,38 @@ class PlayableResolver {
     r'((https?|rtmp|udp)://[^\s]+)',
     caseSensitive: false,
   );
+
+  String? _stalkerExtensionFromUri(Uri uri) {
+    final queryExt = uri.queryParameters['extension'];
+    if (queryExt != null && queryExt.trim().isNotEmpty) {
+      return queryExt.trim().toLowerCase();
+    }
+    if (uri.pathSegments.isNotEmpty) {
+      final last = uri.pathSegments.last;
+      final dot = last.lastIndexOf('.');
+      if (dot != -1 && dot < last.length - 1) {
+        return last.substring(dot + 1).toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  String? _mimeFromExtension(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'm3u8':
+        return 'application/vnd.apple.mpegurl';
+      case 'mpd':
+        return 'application/dash+xml';
+      case 'mp4':
+        return 'video/mp4';
+      case 'ts':
+        return 'video/mp2t';
+      case 'aac':
+        return 'audio/aac';
+      case 'mp3':
+        return 'audio/mpeg';
+      default:
+        return null;
+    }
+  }
 }

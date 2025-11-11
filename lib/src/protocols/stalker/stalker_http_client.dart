@@ -44,6 +44,7 @@ class StalkerHttpClient {
     final normalizedHeaders = _mergeStbHeaders(
       configuration: configuration,
       headers: headers,
+      token: _extractToken(queryParameters['token']),
     );
     // Compose the absolute URL once. Using `resolve` ensures we respect any
     // portal that runs under a sub-path.
@@ -82,6 +83,7 @@ class StalkerHttpClient {
   Map<String, String> _mergeStbHeaders({
     required StalkerPortalConfiguration configuration,
     required Map<String, String> headers,
+    String? token,
   }) {
     final merged = <String, String>{};
     merged.addAll(headers);
@@ -97,6 +99,9 @@ class StalkerHttpClient {
     ensureHeader('User-Agent', configuration.userAgent);
     ensureHeader('X-User-Agent', configuration.userAgent);
     ensureHeader('Referer', configuration.refererUri.toString());
+    if (token != null && token.isNotEmpty) {
+      ensureHeader('Authorization', 'Bearer $token');
+    }
 
     configuration.extraHeaders.forEach((key, value) {
       ensureHeader(key, value);
@@ -105,6 +110,7 @@ class StalkerHttpClient {
     final mergedCookie = _mergeCookieHeader(
       configuration: configuration,
       existing: merged['Cookie'],
+      token: token,
     );
     if (mergedCookie.isNotEmpty) {
       merged['Cookie'] = mergedCookie;
@@ -116,6 +122,7 @@ class StalkerHttpClient {
   String _mergeCookieHeader({
     required StalkerPortalConfiguration configuration,
     required String? existing,
+    String? token,
   }) {
     final entries = <String>[];
     if (existing != null && existing.trim().isNotEmpty) {
@@ -140,8 +147,20 @@ class StalkerHttpClient {
     ensureCookie('mac', configuration.macAddress.toLowerCase());
     ensureCookie('stb_lang', configuration.languageCode);
     ensureCookie('timezone', configuration.timezone);
+    if (token != null && token.isNotEmpty) {
+      ensureCookie('token', token);
+    }
 
     return entries.join('; ');
+  }
+
+  String? _extractToken(dynamic value) {
+    if (value == null) return null;
+    final token = value.toString().trim();
+    if (token.isEmpty) {
+      return null;
+    }
+    return token;
   }
 
   void _applyTlsOverrides(bool allowSelfSigned) {

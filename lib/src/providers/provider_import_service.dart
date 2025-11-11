@@ -1071,7 +1071,7 @@ class ProviderImportService {
         action: action,
       );
       if (bulk.isNotEmpty) {
-        return bulk;
+        return _dedupeEntriesForModule(bulk, module);
       }
     }
 
@@ -2016,6 +2016,24 @@ class ProviderImportService {
       }
     }
     return entry.hashCode.toRadixString(16);
+  }
+
+  List<Map<String, dynamic>> _dedupeEntriesForModule(
+    List<Map<String, dynamic>> entries,
+    String module,
+  ) {
+    if (entries.isEmpty) {
+      return entries;
+    }
+    final seen = <String>{};
+    final deduped = <Map<String, dynamic>>[];
+    for (final entry in entries) {
+      final identity = _stableEntryIdentity(entry);
+      if (seen.add('$module:$identity')) {
+        deduped.add(entry);
+      }
+    }
+    return deduped;
   }
 
   String? _coerceString(dynamic value) {

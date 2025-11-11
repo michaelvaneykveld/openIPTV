@@ -26,11 +26,7 @@ class ImportResumeStore {
     return ImportResumeStore._(file);
   }
 
-  Future<int?> readNextPage(
-    int providerId,
-    String module,
-    String categoryKey,
-  ) {
+  Future<int?> readNextPage(int providerId, String module, String categoryKey) {
     return _mutex.synchronized(() async {
       await _ensureCache();
       final key = _hash(providerId, module, categoryKey);
@@ -39,8 +35,10 @@ class ImportResumeStore {
         return null;
       }
       final updatedAtMs = entry['updatedAt'] as int? ?? 0;
-      final updatedAt =
-          DateTime.fromMillisecondsSinceEpoch(updatedAtMs, isUtc: true);
+      final updatedAt = DateTime.fromMillisecondsSinceEpoch(
+        updatedAtMs,
+        isUtc: true,
+      );
       if (DateTime.now().toUtc().difference(updatedAt) > _ttl) {
         _cache!.remove(key);
         await _persist();
@@ -77,9 +75,7 @@ class ImportResumeStore {
   Future<void> clearProvider(int providerId) {
     return _mutex.synchronized(() async {
       await _ensureCache();
-      _cache!.removeWhere(
-        (key, value) => key.startsWith('$providerId::'),
-      );
+      _cache!.removeWhere((key, value) => key.startsWith('$providerId::'));
       await _persist();
     });
   }
@@ -127,6 +123,7 @@ class ImportResumeStore {
         final decoded = jsonDecode(contents);
         if (decoded is Map<String, dynamic>) {
           _cache = decoded;
+          await _pruneExpiredEntries();
           return;
         }
       } catch (_) {
@@ -134,6 +131,7 @@ class ImportResumeStore {
       }
     }
     _cache = <String, dynamic>{};
+    await _pruneExpiredEntries();
   }
 
   Future<void> _persist() async {
@@ -147,6 +145,46 @@ class ImportResumeStore {
 
   String _hash(int providerId, String module, String categoryKey) {
     return '$providerId::$module::$categoryKey';
+  }
+
+  Future<void> _pruneExpiredEntries() async {
+    if (_cache == null || _cache!.isEmpty) {
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    final expiredKeys = <String>[];
+    _cache!.forEach((key, value) {
+      if (key.startsWith(_dialectPrefix)) {
+        if (value is Map) {
+          final dialect = StalkerPortalDialect.fromJson(
+            value.map(
+              (entryKey, entryValue) => MapEntry('$entryKey', entryValue),
+            ),
+          );
+          if (dialect.isExpired(_ttl)) {
+            expiredKeys.add(key);
+          }
+        }
+        return;
+      }
+      if (value is Map) {
+        final updatedAtMs = value['updatedAt'] as int? ?? 0;
+        final updatedAt = DateTime.fromMillisecondsSinceEpoch(
+          updatedAtMs,
+          isUtc: true,
+        );
+        if (now.difference(updatedAt) > _ttl) {
+          expiredKeys.add(key);
+        }
+      }
+    });
+    if (expiredKeys.isEmpty) {
+      return;
+    }
+    for (final key in expiredKeys) {
+      _cache!.remove(key);
+    }
+    await _persist();
   }
 }
 

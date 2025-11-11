@@ -39,9 +39,9 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Resume checkpoints already land in `ImportResumeStore`; extend diagnostics so stale checkpoints expire with the same TTL as derived categories.
 
 ### 7) Quick diff-plan you can apply now
-- [ ] Wrap Stalker calls in the header-injecting client.
-- [ ] Persist `PortalDialect` (category action, paging shape, parental flag) and reuse it for every session.
-- [ ] Implement the category probe chain + derived-category fallback from item 1.
+- [x] Wrap Stalker calls in the header-injecting client. -> `StalkerHttpClient.getPortal` now normalizes every request with the STB UA/cookie set plus Authorization + token cookies.
+- [x] Persist `PortalDialect` (category action, paging shape, parental flag) and reuse it for every session. -> Dialect snapshots (stored in `ImportResumeStore`) now capture preferred actions plus paging mode and are reloaded before each import.
+- [x] Implement the category probe chain + derived-category fallback from item 1. -> `_fetchStalkerCategories` already walks get_categories ? get_genres ? get_categories_v2, then falls back to cached/derived buckets.
 - [ ] Move ingestion to the worker isolate with dedupe, resume tokens, caps, and backpressure wired in.
 - [x] Log a single-line ingestion summary per run (e.g., `vod: action=get_genres, paging=from/cnt, cats=42, items=5123 (dedup:-211), adult=off`). -> `_logStalkerRunSummary` emits a concise per-run summary for each Stalker import.
 

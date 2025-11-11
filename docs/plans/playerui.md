@@ -27,6 +27,7 @@
 - [x] Stalker/Ministra portals: run the MAC/token handshake once, call `create_link`/`get_link` per item, reuse session cookies/headers for playback, and report unsupported schemes (e.g. UDP/RTMP) gracefully.
 - [x] M3U/M3U8 playlists: parse `#EXTVLCOPT` header hints (User-Agent, Referer, Cookie, custom header pairs), persist them on channels/movies/episodes, and honor them when launching PlayerScreen.
 - [x] Playlist adapters honor `Playable.headers` and seek hints while the Player UI exposes an explicit “Exit player” affordance so users can return to the channel/category lists without relying solely on the Back stack.
+- [x] On Windows, classify each `Playable` (scheme, extension, headers) before launching Media Foundation so unsupported transports/headers/adaptive playlists are blocked with clear messaging and telemetry.
 
 ## UI Structure & Components
 ### PlayerScreen

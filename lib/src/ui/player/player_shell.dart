@@ -21,6 +21,8 @@ import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
 import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
+import 'package:openiptv/src/playback/windows_playback_policy.dart';
+import 'package:openiptv/src/utils/playback_logger.dart';
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -1216,12 +1218,16 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (sources.isEmpty) {
       return false;
     }
+    final platformSources = _applyPlatformPolicy(context, sources);
+    if (platformSources == null || platformSources.isEmpty) {
+      return false;
+    }
     final clampedIndex = math.max(
       0,
-      math.min(initialIndex, sources.length - 1),
+      math.min(initialIndex, platformSources.length - 1),
     );
     final adapter = PlaylistVideoPlayerAdapter(
-      sources: sources,
+      sources: platformSources,
       initialIndex: clampedIndex,
     );
     final controller = PlayerController(adapter: adapter);
@@ -1241,6 +1247,41 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<PlayerMediaSource>? _applyPlatformPolicy(
+    BuildContext context,
+    List<PlayerMediaSource> sources,
+  ) {
+    if (!_isWindowsPlatform(context)) {
+      return sources;
+    }
+    final accepted = <PlayerMediaSource>[];
+    var warned = false;
+    for (final source in sources) {
+      final support = classifyWindowsPlayable(source.playable);
+      if (support == WindowsPlaybackSupport.okDirect) {
+        accepted.add(source);
+        continue;
+      }
+      if (!warned) {
+        _showSnack(windowsSupportMessage(support));
+        warned = true;
+      }
+      PlaybackLogger.videoError(
+        'windows-policy',
+        description: '${support.name}:${source.playable.url}',
+      );
+    }
+    if (accepted.isEmpty) {
+      return null;
+    }
+    return accepted;
+  }
+
+  bool _isWindowsPlatform(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    return platform == TargetPlatform.windows;
   }
 }
 

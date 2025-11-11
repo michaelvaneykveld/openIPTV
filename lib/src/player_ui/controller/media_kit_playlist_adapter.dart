@@ -57,28 +57,8 @@ class MediaKitPlaylistAdapter
 
   @override
   Widget buildVideoSurface(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fallbackSize = MediaQuery.sizeOf(context);
-        final width = constraints.hasBoundedWidth && constraints.maxWidth > 0
-            ? constraints.maxWidth
-            : fallbackSize.width;
-        final height = constraints.hasBoundedHeight && constraints.maxHeight > 0
-            ? constraints.maxHeight
-            : fallbackSize.height;
-        return SizedBox(
-          width: width,
-          height: height,
-          child: FittedBox(
-            fit: BoxFit.cover,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: Video(controller: _videoController),
-            ),
-          ),
-        );
-      },
+    return SizedBox.expand(
+      child: Video(controller: _videoController, fit: BoxFit.cover),
     );
   }
 

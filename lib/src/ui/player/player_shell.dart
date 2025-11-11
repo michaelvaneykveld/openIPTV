@@ -1262,15 +1262,23 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       final support = classifyWindowsPlayable(source.playable);
       if (support == WindowsPlaybackSupport.okDirect) {
         accepted.add(source);
+        PlaybackLogger.videoInfo(
+          'windows-play-accepted',
+          uri: source.playable.url,
+          headers: source.playable.headers,
+          extra: {'support': support.name},
+        );
         continue;
       }
       if (!warned) {
         _showSnack(windowsSupportMessage(support));
         warned = true;
       }
-      PlaybackLogger.videoError(
-        'windows-policy',
-        description: '${support.name}:${source.playable.url}',
+      PlaybackLogger.videoInfo(
+        'windows-play-blocked',
+        uri: source.playable.url,
+        headers: source.playable.headers,
+        extra: {'support': support.name},
       );
     }
     if (accepted.isEmpty) {

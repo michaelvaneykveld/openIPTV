@@ -54,6 +54,23 @@ class PlaybackLogger {
     debugPrint('[Playback][Video] ${jsonEncode(payload)}');
   }
 
+  static void videoInfo(
+    String stage, {
+    Uri? uri,
+    Map<String, String>? headers,
+    Map<String, Object?>? extra,
+  }) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'stage': stage,
+      if (uri != null) 'stream': _summarizeUri(uri),
+      if (headers != null && headers.isNotEmpty)
+        'headers': headers.keys.toList(growable: false),
+      if (extra != null) ...extra,
+    };
+    debugPrint('[Playback][VideoInfo] ${jsonEncode(payload)}');
+  }
+
   static Map<String, Object?> _summarizeUri(Uri uri) {
     return {
       'scheme': uri.scheme,

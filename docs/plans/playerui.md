@@ -49,7 +49,7 @@
 - [x] Map Up to show the OSD (or open Audio sheet when OSD already visible).
 - [x] Map Down to show the OSD (or open Subtitles sheet when OSD already visible).
 - [x] Map Back/Escape to close sheet, then OSD, then exit player in order.
-- [ ] Prepare long-press Left/Right hook for accelerated seek (Phase-1.5).
+- [x] Prepare long-press Left/Right hook for accelerated seek (Phase-1.5).
 - [x] Ensure every control is reachable through predictable D-pad focus chains.[1]
 
 ## State Machine
@@ -68,7 +68,7 @@
 - [ ] Make first OK/Enter show the transport bar; second tap toggles Play/Pause.[2]
 - [ ] Default to best audio track (respecting preferred language) and Subtitles Off unless user prefs say otherwise.
 - [ ] For Live playback, replace time slider with LIVE badge and disable seek affordances when timeshift is unavailable.
-- [ ] Disable or grey out Audio/Subtitles buttons when track lists are empty, showing tooltips like “No subtitles available.”
+- [ ] Disable or grey out Audio/Subtitles buttons when track lists are empty, showing tooltips like "No subtitles available."
 
 ## Performance Budget
 - [ ] Keep OSD show/hide animation under 16 ms (one 60 fps frame).
@@ -78,7 +78,7 @@
 
 ## Accessibility & TV Specifics
 - [ ] Provide visible, non-color-only focus indicators and scaling on focused controls.[4]
-- [ ] Use large tap/focus targets (72–96 px) to respect 10-foot UX guidance.[5]
+- [x] Use large tap/focus targets (72-96 px) to respect 10-foot UX guidance.[5]
 - [ ] Maintain consistent Back behavior (sheet -> OSD -> exit).
 - [ ] Keep a Caption/Subtitles button visible whenever captions are available per Apple HIG.[2]
 
@@ -90,7 +90,7 @@
 ## Acceptance Criteria
 - [ ] Validate Play/Pause/Seek/Audio/Subtitles across Live, VOD, Series, and Radio (Radio shows transport without seek).
 - [ ] Confirm D-pad focus covers every control and Back unwinds layers predictably.[1]
-- [ ] Verify OSD auto-hides after 3–5 s inactivity and returns instantly on input.[2]
+- [ ] Verify OSD auto-hides after 3-5 s inactivity and returns instantly on input.[2]
 - [ ] Meet performance numbers (OSD <=16 ms, key-to-action <=100 ms) with no UI jank during playback.
 - [ ] Ensure recoverable errors show toast + Retry and keep UI responsive.
 - [ ] Keep Android devices awake during playback sessions.[3]

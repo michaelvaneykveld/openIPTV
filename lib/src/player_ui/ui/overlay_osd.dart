@@ -234,11 +234,16 @@ class _PlayerControlButtonState extends State<_PlayerControlButton> {
           decoration: buildPlayerFocusDecoration(context, focused: _isFocused),
           child: Padding(
             padding: const EdgeInsets.all(4),
-            child: IconButton(
-              tooltip: widget.tooltip,
-              iconSize: 36,
-              onPressed: widget.onPressed,
-              icon: Icon(widget.icon, color: iconColor),
+            child: SizedBox(
+              width: 72,
+              height: 72,
+              child: IconButton(
+                tooltip: widget.tooltip,
+                iconSize: 36,
+                padding: EdgeInsets.zero,
+                onPressed: widget.onPressed,
+                icon: Icon(widget.icon, color: iconColor),
+              ),
             ),
           ),
         ),

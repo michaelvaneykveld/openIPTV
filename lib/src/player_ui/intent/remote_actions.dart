@@ -7,6 +7,8 @@ enum PlayerRemoteIntent {
   togglePlayPause,
   seekForward,
   seekBackward,
+  seekForwardFast,
+  seekBackwardFast,
   zapNext,
   zapPrevious,
   showAudioSheet,
@@ -24,18 +26,31 @@ PlayerRemoteIntent? intentFromKeyEvent(
     return null;
   }
   final key = event.logicalKey;
+  final isRepeat = event is KeyRepeatEvent;
   if (_kPlayPauseKeys.contains(key)) {
     return PlayerRemoteIntent.togglePlayPause;
   }
   if (key == LogicalKeyboardKey.arrowLeft) {
+    if (!state.isLive && isRepeat) {
+      return PlayerRemoteIntent.seekBackwardFast;
+    }
     return state.isLive
         ? PlayerRemoteIntent.zapPrevious
         : PlayerRemoteIntent.seekBackward;
   }
   if (key == LogicalKeyboardKey.arrowRight) {
+    if (!state.isLive && isRepeat) {
+      return PlayerRemoteIntent.seekForwardFast;
+    }
     return state.isLive
         ? PlayerRemoteIntent.zapNext
         : PlayerRemoteIntent.seekForward;
+  }
+  if (key == LogicalKeyboardKey.mediaFastForward) {
+    return PlayerRemoteIntent.seekForwardFast;
+  }
+  if (key == LogicalKeyboardKey.mediaRewind) {
+    return PlayerRemoteIntent.seekBackwardFast;
   }
   if (key == LogicalKeyboardKey.arrowUp) {
     return PlayerRemoteIntent.showAudioSheet;
@@ -58,6 +73,10 @@ Duration seekDeltaForIntent(PlayerRemoteIntent intent) {
       return const Duration(seconds: 30);
     case PlayerRemoteIntent.seekBackward:
       return const Duration(seconds: -10);
+    case PlayerRemoteIntent.seekForwardFast:
+      return const Duration(minutes: 2);
+    case PlayerRemoteIntent.seekBackwardFast:
+      return const Duration(minutes: -1);
     default:
       return Duration.zero;
   }

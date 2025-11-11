@@ -3,6 +3,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:openiptv/src/player_ui/controller/mock_player_adapter.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
+import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
 import 'package:openiptv/src/player_ui/controller/player_state.dart';
 import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
 import 'package:openiptv/src/player_ui/intent/remote_actions.dart';
@@ -25,13 +26,67 @@ class PlayerScreen extends StatefulWidget {
     return PlayerScreen(key: key, controller: controller, ownsController: true);
   }
 
-  factory PlayerScreen.sample({
-    Key? key,
-    String url =
-        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    bool isLive = false,
-  }) {
-    final adapter = VideoPlayerAdapter.networkUrl(url, isLive: isLive);
+  factory PlayerScreen.sample({Key? key}) {
+    final sources = [
+      PlayerMediaSource(
+        uri: Uri.parse(
+          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        ),
+        title: 'Big Buck Bunny',
+        bitrateKbps: 5200,
+        audioTracks: const [
+          PlayerTrack(
+            id: 'bb-en',
+            label: 'English • Stereo',
+            language: 'en',
+            channels: '2.0',
+            codec: 'AAC',
+          ),
+          PlayerTrack(
+            id: 'bb-es',
+            label: 'Spanish • Stereo',
+            language: 'es',
+            channels: '2.0',
+            codec: 'AAC',
+          ),
+        ],
+        textTracks: const [
+          PlayerTrack(id: 'bb-en-cc', label: 'English CC', language: 'en'),
+          PlayerTrack(id: 'bb-es-cc', label: 'Español', language: 'es'),
+        ],
+      ),
+      PlayerMediaSource(
+        uri: Uri.parse(
+          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+        ),
+        title: 'Sintel',
+        bitrateKbps: 3800,
+        audioTracks: const [
+          PlayerTrack(
+            id: 'si-en',
+            label: 'English 5.1',
+            language: 'en',
+            channels: '5.1',
+            codec: 'AAC',
+          ),
+          PlayerTrack(
+            id: 'si-fr',
+            label: 'Français',
+            language: 'fr',
+            channels: '2.0',
+            codec: 'AAC',
+          ),
+        ],
+        textTracks: const [
+          PlayerTrack(id: 'si-en-cc', label: 'English CC', language: 'en'),
+          PlayerTrack(id: 'si-de', label: 'Deutsch', language: 'de'),
+        ],
+      ),
+    ];
+    final adapter = PlaylistVideoPlayerAdapter(
+      sources: sources,
+      autoPlay: true,
+    );
     final controller = PlayerController(adapter: adapter);
     return PlayerScreen(key: key, controller: controller, ownsController: true);
   }
@@ -254,6 +309,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
         break;
       case PlayerRemoteIntent.seekForward:
       case PlayerRemoteIntent.seekBackward:
+      case PlayerRemoteIntent.seekForwardFast:
+      case PlayerRemoteIntent.seekBackwardFast:
         final delta = seekDeltaForIntent(intent);
         widget.controller.seekRelative(delta);
         break;

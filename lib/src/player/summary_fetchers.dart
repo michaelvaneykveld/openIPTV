@@ -17,6 +17,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/portal_summary_cache.dart';
+import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
@@ -27,9 +28,17 @@ final summaryCoordinatorProvider = Provider<_SummaryCoordinator>((ref) {
 
 const _summaryCacheTtl = Duration(hours: 12);
 
-final portalSummaryCacheProvider =
-    Provider<Future<PortalSummaryCache>>((ref) {
+final portalSummaryCacheProvider = Provider<Future<PortalSummaryCache>>((ref) {
   return PortalSummaryCache.openDefault();
+});
+
+final portalSummarySnapshotProvider = FutureProvider.family<SummaryData?, int>((
+  ref,
+  providerId,
+) async {
+  final cacheFuture = ref.watch(portalSummaryCacheProvider);
+  final cache = await cacheFuture;
+  return cache.read(providerId);
 });
 
 /// Loads [SummaryData] for the supplied profile via legacy network routes.
@@ -65,12 +74,13 @@ final legacySummaryProvider = FutureProvider.autoDispose
 final dbSummaryProvider = StreamProvider.autoDispose
     .family<SummaryData, DbSummaryArgs>((ref, args) {
       final dao = SummaryDao(ref.watch(openIptvDbProvider));
-      return dao.watchForProvider(args.providerId).map(
+      return dao
+          .watchForProvider(args.providerId)
+          .map(
             (counts) => SummaryData(
               kind: args.kind,
               counts: counts.map(
-                (key, value) =>
-                    MapEntry(_labelForCategoryKind(key), value),
+                (key, value) => MapEntry(_labelForCategoryKind(key), value),
               ),
             ),
           );
@@ -178,7 +188,7 @@ class _XtreamSummaryFetcher {
     }
     _applyTlsOverrides(dio, profile.record.allowSelfSignedTls);
 
-    final headers = _decodeCustomHeaders(profile);
+    final headers = decodeProfileCustomHeaders(profile);
     final baseUri = ensureTrailingSlash(
       stripKnownFiles(
         profile.lockedBase,
@@ -450,7 +460,7 @@ class _StalkerSummaryFetcher {
     ResolvedProviderProfile profile,
   ) {
     final config = profile.record.configuration;
-    final headers = _decodeCustomHeaders(profile);
+    final headers = decodeProfileCustomHeaders(profile);
     final userAgent = config['userAgent'];
     final mac = config['macAddress'] ?? '';
 
@@ -578,7 +588,7 @@ class _M3uSummaryFetcher {
     }
     _applyTlsOverrides(dio, profile.record.allowSelfSignedTls);
 
-    final baseHeaders = _decodeCustomHeaders(profile);
+    final baseHeaders = decodeProfileCustomHeaders(profile);
     final probe = await _attemptPlaylistHead(
       dio: dio,
       uri: playlistUri,
@@ -754,7 +764,8 @@ Future<_HeadProbeResult> _attemptPlaylistHead({
     final status = response.statusCode;
     final contentType =
         response.headers.value('content-type')?.toLowerCase() ?? '';
-    final accepted = status != null &&
+    final accepted =
+        status != null &&
         status >= 200 &&
         status < 400 &&
         (contentType.isEmpty ||
@@ -762,7 +773,8 @@ Future<_HeadProbeResult> _attemptPlaylistHead({
             contentType.contains('audio/mpegurl') ||
             contentType.contains('application/octet-stream'));
 
-    final needsMediaUa = status != null &&
+    final needsMediaUa =
+        status != null &&
         (status == 403 || status == 406) &&
         !_hasUserAgent(headers);
 
@@ -773,7 +785,8 @@ Future<_HeadProbeResult> _attemptPlaylistHead({
     );
   } on DioException catch (error) {
     final status = error.response?.statusCode;
-    final needsMediaUa = status != null &&
+    final needsMediaUa =
+        status != null &&
         (status == 403 || status == 406) &&
         !_hasUserAgent(headers);
     return _HeadProbeResult(
@@ -791,10 +804,7 @@ Future<Response<ResponseBody>> _performPlaylistGet({
 }) async {
   final requestHeaders = _augmentPlaylistHeaders(headers);
   try {
-    return await dio.getUri(
-      uri,
-      options: Options(headers: requestHeaders),
-    );
+    return await dio.getUri(uri, options: Options(headers: requestHeaders));
   } on DioException catch (error) {
     final status = error.response?.statusCode;
     if (status != null &&
@@ -883,8 +893,7 @@ String? _formatDateValue(dynamic value) {
 String? _formatDateTimeValue(dynamic value) {
   final dt = _parseDateTime(value);
   if (dt == null) return _stringValue(value);
-  final date =
-      '${dt.year}-${_twoDigits(dt.month)}-${_twoDigits(dt.day)}';
+  final date = '${dt.year}-${_twoDigits(dt.month)}-${_twoDigits(dt.day)}';
   return '$date ${_twoDigits(dt.hour)}:${_twoDigits(dt.minute)}';
 }
 
@@ -896,8 +905,10 @@ DateTime? _parseDateTime(dynamic value) {
       return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true).toLocal();
     }
     if (value > 1000000000) {
-      return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true)
-          .toLocal();
+      return DateTime.fromMillisecondsSinceEpoch(
+        value * 1000,
+        isUtc: true,
+      ).toLocal();
     }
   }
   final text = value.toString().trim();
@@ -905,12 +916,16 @@ DateTime? _parseDateTime(dynamic value) {
   final numeric = int.tryParse(text);
   if (numeric != null) {
     if (numeric > 1000000000000) {
-      return DateTime.fromMillisecondsSinceEpoch(numeric, isUtc: true)
-          .toLocal();
+      return DateTime.fromMillisecondsSinceEpoch(
+        numeric,
+        isUtc: true,
+      ).toLocal();
     }
     if (numeric > 1000000000) {
-      return DateTime.fromMillisecondsSinceEpoch(numeric * 1000, isUtc: true)
-          .toLocal();
+      return DateTime.fromMillisecondsSinceEpoch(
+        numeric * 1000,
+        isUtc: true,
+      ).toLocal();
     }
   }
   try {
@@ -961,26 +976,6 @@ void _applyTlsOverrides(Dio dio, bool allowSelfSigned) {
       return client;
     };
   }
-}
-
-Map<String, String> _decodeCustomHeaders(ResolvedProviderProfile profile) {
-  final encoded = profile.secrets['customHeaders'];
-  if (encoded == null || encoded.isEmpty) {
-    return const {};
-  }
-  try {
-    final decoded = jsonDecode(encoded);
-    if (decoded is Map) {
-      return Map<String, String>.fromEntries(
-        decoded.entries.map(
-          (entry) => MapEntry(entry.key.toString(), entry.value.toString()),
-        ),
-      );
-    }
-  } catch (_) {
-    // Ignore malformed payloads.
-  }
-  return const {};
 }
 
 Map<String, dynamic> _decodeJson(dynamic body) {

@@ -689,6 +689,18 @@ class $ChannelsTable extends Channels
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _streamHeadersJsonMeta = const VerificationMeta(
+    'streamHeadersJson',
+  );
+  @override
+  late final GeneratedColumn<String> streamHeadersJson =
+      GeneratedColumn<String>(
+        'stream_headers_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -734,6 +746,7 @@ class $ChannelsTable extends Channels
     number,
     isRadio,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
     firstProgramAt,
     lastProgramAt,
@@ -804,6 +817,15 @@ class $ChannelsTable extends Channels
         streamUrlTemplate.isAcceptableOrUnknown(
           data['stream_url_template']!,
           _streamUrlTemplateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stream_headers_json')) {
+      context.handle(
+        _streamHeadersJsonMeta,
+        streamHeadersJson.isAcceptableOrUnknown(
+          data['stream_headers_json']!,
+          _streamHeadersJsonMeta,
         ),
       );
     }
@@ -879,6 +901,10 @@ class $ChannelsTable extends Channels
         DriftSqlType.string,
         data['${effectivePrefix}stream_url_template'],
       ),
+      streamHeadersJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_headers_json'],
+      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_seen_at'],
@@ -909,6 +935,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
   final int? number;
   final bool isRadio;
   final String? streamUrlTemplate;
+  final String? streamHeadersJson;
   final DateTime? lastSeenAt;
   final DateTime? firstProgramAt;
   final DateTime? lastProgramAt;
@@ -921,6 +948,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     this.number,
     required this.isRadio,
     this.streamUrlTemplate,
+    this.streamHeadersJson,
     this.lastSeenAt,
     this.firstProgramAt,
     this.lastProgramAt,
@@ -941,6 +969,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     map['is_radio'] = Variable<bool>(isRadio);
     if (!nullToAbsent || streamUrlTemplate != null) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate);
+    }
+    if (!nullToAbsent || streamHeadersJson != null) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
@@ -970,6 +1001,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       streamUrlTemplate: streamUrlTemplate == null && nullToAbsent
           ? const Value.absent()
           : Value(streamUrlTemplate),
+      streamHeadersJson: streamHeadersJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(streamHeadersJson),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -1000,6 +1034,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       streamUrlTemplate: serializer.fromJson<String?>(
         json['streamUrlTemplate'],
       ),
+      streamHeadersJson: serializer.fromJson<String?>(
+        json['streamHeadersJson'],
+      ),
       lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
       firstProgramAt: serializer.fromJson<DateTime?>(json['firstProgramAt']),
       lastProgramAt: serializer.fromJson<DateTime?>(json['lastProgramAt']),
@@ -1017,6 +1054,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       'number': serializer.toJson<int?>(number),
       'isRadio': serializer.toJson<bool>(isRadio),
       'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
+      'streamHeadersJson': serializer.toJson<String?>(streamHeadersJson),
       'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
       'firstProgramAt': serializer.toJson<DateTime?>(firstProgramAt),
       'lastProgramAt': serializer.toJson<DateTime?>(lastProgramAt),
@@ -1032,6 +1070,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     Value<int?> number = const Value.absent(),
     bool? isRadio,
     Value<String?> streamUrlTemplate = const Value.absent(),
+    Value<String?> streamHeadersJson = const Value.absent(),
     Value<DateTime?> lastSeenAt = const Value.absent(),
     Value<DateTime?> firstProgramAt = const Value.absent(),
     Value<DateTime?> lastProgramAt = const Value.absent(),
@@ -1046,6 +1085,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     streamUrlTemplate: streamUrlTemplate.present
         ? streamUrlTemplate.value
         : this.streamUrlTemplate,
+    streamHeadersJson: streamHeadersJson.present
+        ? streamHeadersJson.value
+        : this.streamHeadersJson,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
     firstProgramAt: firstProgramAt.present
         ? firstProgramAt.value
@@ -1070,6 +1112,9 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
       streamUrlTemplate: data.streamUrlTemplate.present
           ? data.streamUrlTemplate.value
           : this.streamUrlTemplate,
+      streamHeadersJson: data.streamHeadersJson.present
+          ? data.streamHeadersJson.value
+          : this.streamHeadersJson,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -1093,6 +1138,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
           ..write('number: $number, ')
           ..write('isRadio: $isRadio, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('firstProgramAt: $firstProgramAt, ')
           ..write('lastProgramAt: $lastProgramAt')
@@ -1110,6 +1156,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
     number,
     isRadio,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
     firstProgramAt,
     lastProgramAt,
@@ -1126,6 +1173,7 @@ class ChannelRecord extends DataClass implements Insertable<ChannelRecord> {
           other.number == this.number &&
           other.isRadio == this.isRadio &&
           other.streamUrlTemplate == this.streamUrlTemplate &&
+          other.streamHeadersJson == this.streamHeadersJson &&
           other.lastSeenAt == this.lastSeenAt &&
           other.firstProgramAt == this.firstProgramAt &&
           other.lastProgramAt == this.lastProgramAt);
@@ -1140,6 +1188,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
   final Value<int?> number;
   final Value<bool> isRadio;
   final Value<String?> streamUrlTemplate;
+  final Value<String?> streamHeadersJson;
   final Value<DateTime?> lastSeenAt;
   final Value<DateTime?> firstProgramAt;
   final Value<DateTime?> lastProgramAt;
@@ -1152,6 +1201,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     this.number = const Value.absent(),
     this.isRadio = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.firstProgramAt = const Value.absent(),
     this.lastProgramAt = const Value.absent(),
@@ -1165,6 +1215,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     this.number = const Value.absent(),
     this.isRadio = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
     this.firstProgramAt = const Value.absent(),
     this.lastProgramAt = const Value.absent(),
@@ -1180,6 +1231,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     Expression<int>? number,
     Expression<bool>? isRadio,
     Expression<String>? streamUrlTemplate,
+    Expression<String>? streamHeadersJson,
     Expression<DateTime>? lastSeenAt,
     Expression<DateTime>? firstProgramAt,
     Expression<DateTime>? lastProgramAt,
@@ -1194,6 +1246,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
       if (number != null) 'number': number,
       if (isRadio != null) 'is_radio': isRadio,
       if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
+      if (streamHeadersJson != null) 'stream_headers_json': streamHeadersJson,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
       if (firstProgramAt != null) 'first_program_at': firstProgramAt,
       if (lastProgramAt != null) 'last_program_at': lastProgramAt,
@@ -1209,6 +1262,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     Value<int?>? number,
     Value<bool>? isRadio,
     Value<String?>? streamUrlTemplate,
+    Value<String?>? streamHeadersJson,
     Value<DateTime?>? lastSeenAt,
     Value<DateTime?>? firstProgramAt,
     Value<DateTime?>? lastProgramAt,
@@ -1222,6 +1276,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
       number: number ?? this.number,
       isRadio: isRadio ?? this.isRadio,
       streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
+      streamHeadersJson: streamHeadersJson ?? this.streamHeadersJson,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
       firstProgramAt: firstProgramAt ?? this.firstProgramAt,
       lastProgramAt: lastProgramAt ?? this.lastProgramAt,
@@ -1255,6 +1310,9 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
     if (streamUrlTemplate.present) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate.value);
     }
+    if (streamHeadersJson.present) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson.value);
+    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
     }
@@ -1278,6 +1336,7 @@ class ChannelsCompanion extends UpdateCompanion<ChannelRecord> {
           ..write('number: $number, ')
           ..write('isRadio: $isRadio, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt, ')
           ..write('firstProgramAt: $firstProgramAt, ')
           ..write('lastProgramAt: $lastProgramAt')
@@ -2986,6 +3045,18 @@ class $MoviesTable extends Movies with TableInfo<$MoviesTable, MovieRecord> {
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _streamHeadersJsonMeta = const VerificationMeta(
+    'streamHeadersJson',
+  );
+  @override
+  late final GeneratedColumn<String> streamHeadersJson =
+      GeneratedColumn<String>(
+        'stream_headers_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -3009,6 +3080,7 @@ class $MoviesTable extends Movies with TableInfo<$MoviesTable, MovieRecord> {
     posterUrl,
     durationSec,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
   ];
   @override
@@ -3095,6 +3167,15 @@ class $MoviesTable extends Movies with TableInfo<$MoviesTable, MovieRecord> {
         ),
       );
     }
+    if (data.containsKey('stream_headers_json')) {
+      context.handle(
+        _streamHeadersJsonMeta,
+        streamHeadersJson.isAcceptableOrUnknown(
+          data['stream_headers_json']!,
+          _streamHeadersJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_seen_at')) {
       context.handle(
         _lastSeenAtMeta,
@@ -3157,6 +3238,10 @@ class $MoviesTable extends Movies with TableInfo<$MoviesTable, MovieRecord> {
         DriftSqlType.string,
         data['${effectivePrefix}stream_url_template'],
       ),
+      streamHeadersJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_headers_json'],
+      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_seen_at'],
@@ -3181,6 +3266,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
   final String? posterUrl;
   final int? durationSec;
   final String? streamUrlTemplate;
+  final String? streamHeadersJson;
   final DateTime? lastSeenAt;
   const MovieRecord({
     required this.id,
@@ -3193,6 +3279,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
     this.posterUrl,
     this.durationSec,
     this.streamUrlTemplate,
+    this.streamHeadersJson,
     this.lastSeenAt,
   });
   @override
@@ -3219,6 +3306,9 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
     }
     if (!nullToAbsent || streamUrlTemplate != null) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate);
+    }
+    if (!nullToAbsent || streamHeadersJson != null) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
@@ -3248,6 +3338,9 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
       streamUrlTemplate: streamUrlTemplate == null && nullToAbsent
           ? const Value.absent()
           : Value(streamUrlTemplate),
+      streamHeadersJson: streamHeadersJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(streamHeadersJson),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -3272,6 +3365,9 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
       streamUrlTemplate: serializer.fromJson<String?>(
         json['streamUrlTemplate'],
       ),
+      streamHeadersJson: serializer.fromJson<String?>(
+        json['streamHeadersJson'],
+      ),
       lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
     );
   }
@@ -3289,6 +3385,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
       'posterUrl': serializer.toJson<String?>(posterUrl),
       'durationSec': serializer.toJson<int?>(durationSec),
       'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
+      'streamHeadersJson': serializer.toJson<String?>(streamHeadersJson),
       'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
     };
   }
@@ -3304,6 +3401,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
     Value<String?> posterUrl = const Value.absent(),
     Value<int?> durationSec = const Value.absent(),
     Value<String?> streamUrlTemplate = const Value.absent(),
+    Value<String?> streamHeadersJson = const Value.absent(),
     Value<DateTime?> lastSeenAt = const Value.absent(),
   }) => MovieRecord(
     id: id ?? this.id,
@@ -3318,6 +3416,9 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
     streamUrlTemplate: streamUrlTemplate.present
         ? streamUrlTemplate.value
         : this.streamUrlTemplate,
+    streamHeadersJson: streamHeadersJson.present
+        ? streamHeadersJson.value
+        : this.streamHeadersJson,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
   );
   MovieRecord copyWithCompanion(MoviesCompanion data) {
@@ -3342,6 +3443,9 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
       streamUrlTemplate: data.streamUrlTemplate.present
           ? data.streamUrlTemplate.value
           : this.streamUrlTemplate,
+      streamHeadersJson: data.streamHeadersJson.present
+          ? data.streamHeadersJson.value
+          : this.streamHeadersJson,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -3361,6 +3465,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
           ..write('posterUrl: $posterUrl, ')
           ..write('durationSec: $durationSec, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
@@ -3378,6 +3483,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
     posterUrl,
     durationSec,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
   );
   @override
@@ -3394,6 +3500,7 @@ class MovieRecord extends DataClass implements Insertable<MovieRecord> {
           other.posterUrl == this.posterUrl &&
           other.durationSec == this.durationSec &&
           other.streamUrlTemplate == this.streamUrlTemplate &&
+          other.streamHeadersJson == this.streamHeadersJson &&
           other.lastSeenAt == this.lastSeenAt);
 }
 
@@ -3408,6 +3515,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
   final Value<String?> posterUrl;
   final Value<int?> durationSec;
   final Value<String?> streamUrlTemplate;
+  final Value<String?> streamHeadersJson;
   final Value<DateTime?> lastSeenAt;
   const MoviesCompanion({
     this.id = const Value.absent(),
@@ -3420,6 +3528,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
     this.posterUrl = const Value.absent(),
     this.durationSec = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   });
   MoviesCompanion.insert({
@@ -3433,6 +3542,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
     this.posterUrl = const Value.absent(),
     this.durationSec = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   }) : providerId = Value(providerId),
        providerVodKey = Value(providerVodKey),
@@ -3448,6 +3558,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
     Expression<String>? posterUrl,
     Expression<int>? durationSec,
     Expression<String>? streamUrlTemplate,
+    Expression<String>? streamHeadersJson,
     Expression<DateTime>? lastSeenAt,
   }) {
     return RawValuesInsertable({
@@ -3461,6 +3572,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
       if (posterUrl != null) 'poster_url': posterUrl,
       if (durationSec != null) 'duration_sec': durationSec,
       if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
+      if (streamHeadersJson != null) 'stream_headers_json': streamHeadersJson,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
     });
   }
@@ -3476,6 +3588,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
     Value<String?>? posterUrl,
     Value<int?>? durationSec,
     Value<String?>? streamUrlTemplate,
+    Value<String?>? streamHeadersJson,
     Value<DateTime?>? lastSeenAt,
   }) {
     return MoviesCompanion(
@@ -3489,6 +3602,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
       posterUrl: posterUrl ?? this.posterUrl,
       durationSec: durationSec ?? this.durationSec,
       streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
+      streamHeadersJson: streamHeadersJson ?? this.streamHeadersJson,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
     );
   }
@@ -3526,6 +3640,9 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
     if (streamUrlTemplate.present) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate.value);
     }
+    if (streamHeadersJson.present) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson.value);
+    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
     }
@@ -3545,6 +3662,7 @@ class MoviesCompanion extends UpdateCompanion<MovieRecord> {
           ..write('posterUrl: $posterUrl, ')
           ..write('durationSec: $durationSec, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
@@ -4556,6 +4674,18 @@ class $EpisodesTable extends Episodes
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _streamHeadersJsonMeta = const VerificationMeta(
+    'streamHeadersJson',
+  );
+  @override
+  late final GeneratedColumn<String> streamHeadersJson =
+      GeneratedColumn<String>(
+        'stream_headers_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _lastSeenAtMeta = const VerificationMeta(
     'lastSeenAt',
   );
@@ -4579,6 +4709,7 @@ class $EpisodesTable extends Episodes
     overview,
     durationSec,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
   ];
   @override
@@ -4671,6 +4802,15 @@ class $EpisodesTable extends Episodes
         ),
       );
     }
+    if (data.containsKey('stream_headers_json')) {
+      context.handle(
+        _streamHeadersJsonMeta,
+        streamHeadersJson.isAcceptableOrUnknown(
+          data['stream_headers_json']!,
+          _streamHeadersJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('last_seen_at')) {
       context.handle(
         _lastSeenAtMeta,
@@ -4733,6 +4873,10 @@ class $EpisodesTable extends Episodes
         DriftSqlType.string,
         data['${effectivePrefix}stream_url_template'],
       ),
+      streamHeadersJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}stream_headers_json'],
+      ),
       lastSeenAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_seen_at'],
@@ -4757,6 +4901,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
   final String? overview;
   final int? durationSec;
   final String? streamUrlTemplate;
+  final String? streamHeadersJson;
   final DateTime? lastSeenAt;
   const EpisodeRecord({
     required this.id,
@@ -4769,6 +4914,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
     this.overview,
     this.durationSec,
     this.streamUrlTemplate,
+    this.streamHeadersJson,
     this.lastSeenAt,
   });
   @override
@@ -4795,6 +4941,9 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
     }
     if (!nullToAbsent || streamUrlTemplate != null) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate);
+    }
+    if (!nullToAbsent || streamHeadersJson != null) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson);
     }
     if (!nullToAbsent || lastSeenAt != null) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt);
@@ -4826,6 +4975,9 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
       streamUrlTemplate: streamUrlTemplate == null && nullToAbsent
           ? const Value.absent()
           : Value(streamUrlTemplate),
+      streamHeadersJson: streamHeadersJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(streamHeadersJson),
       lastSeenAt: lastSeenAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastSeenAt),
@@ -4852,6 +5004,9 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
       streamUrlTemplate: serializer.fromJson<String?>(
         json['streamUrlTemplate'],
       ),
+      streamHeadersJson: serializer.fromJson<String?>(
+        json['streamHeadersJson'],
+      ),
       lastSeenAt: serializer.fromJson<DateTime?>(json['lastSeenAt']),
     );
   }
@@ -4869,6 +5024,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
       'overview': serializer.toJson<String?>(overview),
       'durationSec': serializer.toJson<int?>(durationSec),
       'streamUrlTemplate': serializer.toJson<String?>(streamUrlTemplate),
+      'streamHeadersJson': serializer.toJson<String?>(streamHeadersJson),
       'lastSeenAt': serializer.toJson<DateTime?>(lastSeenAt),
     };
   }
@@ -4884,6 +5040,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
     Value<String?> overview = const Value.absent(),
     Value<int?> durationSec = const Value.absent(),
     Value<String?> streamUrlTemplate = const Value.absent(),
+    Value<String?> streamHeadersJson = const Value.absent(),
     Value<DateTime?> lastSeenAt = const Value.absent(),
   }) => EpisodeRecord(
     id: id ?? this.id,
@@ -4900,6 +5057,9 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
     streamUrlTemplate: streamUrlTemplate.present
         ? streamUrlTemplate.value
         : this.streamUrlTemplate,
+    streamHeadersJson: streamHeadersJson.present
+        ? streamHeadersJson.value
+        : this.streamHeadersJson,
     lastSeenAt: lastSeenAt.present ? lastSeenAt.value : this.lastSeenAt,
   );
   EpisodeRecord copyWithCompanion(EpisodesCompanion data) {
@@ -4924,6 +5084,9 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
       streamUrlTemplate: data.streamUrlTemplate.present
           ? data.streamUrlTemplate.value
           : this.streamUrlTemplate,
+      streamHeadersJson: data.streamHeadersJson.present
+          ? data.streamHeadersJson.value
+          : this.streamHeadersJson,
       lastSeenAt: data.lastSeenAt.present
           ? data.lastSeenAt.value
           : this.lastSeenAt,
@@ -4943,6 +5106,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
           ..write('overview: $overview, ')
           ..write('durationSec: $durationSec, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
@@ -4960,6 +5124,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
     overview,
     durationSec,
     streamUrlTemplate,
+    streamHeadersJson,
     lastSeenAt,
   );
   @override
@@ -4976,6 +5141,7 @@ class EpisodeRecord extends DataClass implements Insertable<EpisodeRecord> {
           other.overview == this.overview &&
           other.durationSec == this.durationSec &&
           other.streamUrlTemplate == this.streamUrlTemplate &&
+          other.streamHeadersJson == this.streamHeadersJson &&
           other.lastSeenAt == this.lastSeenAt);
 }
 
@@ -4990,6 +5156,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
   final Value<String?> overview;
   final Value<int?> durationSec;
   final Value<String?> streamUrlTemplate;
+  final Value<String?> streamHeadersJson;
   final Value<DateTime?> lastSeenAt;
   const EpisodesCompanion({
     this.id = const Value.absent(),
@@ -5002,6 +5169,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
     this.overview = const Value.absent(),
     this.durationSec = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   });
   EpisodesCompanion.insert({
@@ -5015,6 +5183,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
     this.overview = const Value.absent(),
     this.durationSec = const Value.absent(),
     this.streamUrlTemplate = const Value.absent(),
+    this.streamHeadersJson = const Value.absent(),
     this.lastSeenAt = const Value.absent(),
   }) : seriesId = Value(seriesId),
        seasonId = Value(seasonId),
@@ -5030,6 +5199,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
     Expression<String>? overview,
     Expression<int>? durationSec,
     Expression<String>? streamUrlTemplate,
+    Expression<String>? streamHeadersJson,
     Expression<DateTime>? lastSeenAt,
   }) {
     return RawValuesInsertable({
@@ -5044,6 +5214,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
       if (overview != null) 'overview': overview,
       if (durationSec != null) 'duration_sec': durationSec,
       if (streamUrlTemplate != null) 'stream_url_template': streamUrlTemplate,
+      if (streamHeadersJson != null) 'stream_headers_json': streamHeadersJson,
       if (lastSeenAt != null) 'last_seen_at': lastSeenAt,
     });
   }
@@ -5059,6 +5230,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
     Value<String?>? overview,
     Value<int?>? durationSec,
     Value<String?>? streamUrlTemplate,
+    Value<String?>? streamHeadersJson,
     Value<DateTime?>? lastSeenAt,
   }) {
     return EpisodesCompanion(
@@ -5072,6 +5244,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
       overview: overview ?? this.overview,
       durationSec: durationSec ?? this.durationSec,
       streamUrlTemplate: streamUrlTemplate ?? this.streamUrlTemplate,
+      streamHeadersJson: streamHeadersJson ?? this.streamHeadersJson,
       lastSeenAt: lastSeenAt ?? this.lastSeenAt,
     );
   }
@@ -5109,6 +5282,9 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
     if (streamUrlTemplate.present) {
       map['stream_url_template'] = Variable<String>(streamUrlTemplate.value);
     }
+    if (streamHeadersJson.present) {
+      map['stream_headers_json'] = Variable<String>(streamHeadersJson.value);
+    }
     if (lastSeenAt.present) {
       map['last_seen_at'] = Variable<DateTime>(lastSeenAt.value);
     }
@@ -5128,6 +5304,7 @@ class EpisodesCompanion extends UpdateCompanion<EpisodeRecord> {
           ..write('overview: $overview, ')
           ..write('durationSec: $durationSec, ')
           ..write('streamUrlTemplate: $streamUrlTemplate, ')
+          ..write('streamHeadersJson: $streamHeadersJson, ')
           ..write('lastSeenAt: $lastSeenAt')
           ..write(')'))
         .toString();
@@ -9464,6 +9641,7 @@ typedef $$ChannelsTableCreateCompanionBuilder =
       Value<int?> number,
       Value<bool> isRadio,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
       Value<DateTime?> firstProgramAt,
       Value<DateTime?> lastProgramAt,
@@ -9478,6 +9656,7 @@ typedef $$ChannelsTableUpdateCompanionBuilder =
       Value<int?> number,
       Value<bool> isRadio,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
       Value<DateTime?> firstProgramAt,
       Value<DateTime?> lastProgramAt,
@@ -9633,6 +9812,11 @@ class $$ChannelsTableFilterComposer
 
   ColumnFilters<String> get streamUrlTemplate => $composableBuilder(
     column: $table.streamUrlTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -9819,6 +10003,11 @@ class $$ChannelsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -9889,6 +10078,11 @@ class $$ChannelsTableAnnotationComposer
 
   GeneratedColumn<String> get streamUrlTemplate => $composableBuilder(
     column: $table.streamUrlTemplate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
     builder: (column) => column,
   );
 
@@ -10074,6 +10268,7 @@ class $$ChannelsTableTableManager
                 Value<int?> number = const Value.absent(),
                 Value<bool> isRadio = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
                 Value<DateTime?> firstProgramAt = const Value.absent(),
                 Value<DateTime?> lastProgramAt = const Value.absent(),
@@ -10086,6 +10281,7 @@ class $$ChannelsTableTableManager
                 number: number,
                 isRadio: isRadio,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
                 firstProgramAt: firstProgramAt,
                 lastProgramAt: lastProgramAt,
@@ -10100,6 +10296,7 @@ class $$ChannelsTableTableManager
                 Value<int?> number = const Value.absent(),
                 Value<bool> isRadio = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
                 Value<DateTime?> firstProgramAt = const Value.absent(),
                 Value<DateTime?> lastProgramAt = const Value.absent(),
@@ -10112,6 +10309,7 @@ class $$ChannelsTableTableManager
                 number: number,
                 isRadio: isRadio,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
                 firstProgramAt: firstProgramAt,
                 lastProgramAt: lastProgramAt,
@@ -12106,6 +12304,7 @@ typedef $$MoviesTableCreateCompanionBuilder =
       Value<String?> posterUrl,
       Value<int?> durationSec,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
     });
 typedef $$MoviesTableUpdateCompanionBuilder =
@@ -12120,6 +12319,7 @@ typedef $$MoviesTableUpdateCompanionBuilder =
       Value<String?> posterUrl,
       Value<int?> durationSec,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
     });
 
@@ -12209,6 +12409,11 @@ class $$MoviesTableFilterComposer extends Composer<_$OpenIptvDb, $MoviesTable> {
 
   ColumnFilters<String> get streamUrlTemplate => $composableBuilder(
     column: $table.streamUrlTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -12313,6 +12518,11 @@ class $$MoviesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -12401,6 +12611,11 @@ class $$MoviesTableAnnotationComposer
 
   GeneratedColumn<String> get streamUrlTemplate => $composableBuilder(
     column: $table.streamUrlTemplate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
     builder: (column) => column,
   );
 
@@ -12494,6 +12709,7 @@ class $$MoviesTableTableManager
                 Value<String?> posterUrl = const Value.absent(),
                 Value<int?> durationSec = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => MoviesCompanion(
                 id: id,
@@ -12506,6 +12722,7 @@ class $$MoviesTableTableManager
                 posterUrl: posterUrl,
                 durationSec: durationSec,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
               ),
           createCompanionCallback:
@@ -12520,6 +12737,7 @@ class $$MoviesTableTableManager
                 Value<String?> posterUrl = const Value.absent(),
                 Value<int?> durationSec = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => MoviesCompanion.insert(
                 id: id,
@@ -12532,6 +12750,7 @@ class $$MoviesTableTableManager
                 posterUrl: posterUrl,
                 durationSec: durationSec,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -13677,6 +13896,7 @@ typedef $$EpisodesTableCreateCompanionBuilder =
       Value<String?> overview,
       Value<int?> durationSec,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
     });
 typedef $$EpisodesTableUpdateCompanionBuilder =
@@ -13691,6 +13911,7 @@ typedef $$EpisodesTableUpdateCompanionBuilder =
       Value<String?> overview,
       Value<int?> durationSec,
       Value<String?> streamUrlTemplate,
+      Value<String?> streamHeadersJson,
       Value<DateTime?> lastSeenAt,
     });
 
@@ -13780,6 +14001,11 @@ class $$EpisodesTableFilterComposer
 
   ColumnFilters<String> get streamUrlTemplate => $composableBuilder(
     column: $table.streamUrlTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -13884,6 +14110,11 @@ class $$EpisodesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => ColumnOrderings(column),
@@ -13979,6 +14210,11 @@ class $$EpisodesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get streamHeadersJson => $composableBuilder(
+    column: $table.streamHeadersJson,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get lastSeenAt => $composableBuilder(
     column: $table.lastSeenAt,
     builder: (column) => column,
@@ -14069,6 +14305,7 @@ class $$EpisodesTableTableManager
                 Value<String?> overview = const Value.absent(),
                 Value<int?> durationSec = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => EpisodesCompanion(
                 id: id,
@@ -14081,6 +14318,7 @@ class $$EpisodesTableTableManager
                 overview: overview,
                 durationSec: durationSec,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
               ),
           createCompanionCallback:
@@ -14095,6 +14333,7 @@ class $$EpisodesTableTableManager
                 Value<String?> overview = const Value.absent(),
                 Value<int?> durationSec = const Value.absent(),
                 Value<String?> streamUrlTemplate = const Value.absent(),
+                Value<String?> streamHeadersJson = const Value.absent(),
                 Value<DateTime?> lastSeenAt = const Value.absent(),
               }) => EpisodesCompanion.insert(
                 id: id,
@@ -14107,6 +14346,7 @@ class $$EpisodesTableTableManager
                 overview: overview,
                 durationSec: durationSec,
                 streamUrlTemplate: streamUrlTemplate,
+                streamHeadersJson: streamHeadersJson,
                 lastSeenAt: lastSeenAt,
               ),
           withReferenceMapper: (p0) => p0

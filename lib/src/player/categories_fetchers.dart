@@ -18,6 +18,9 @@ import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
+import 'package:openiptv/src/utils/header_json_codec.dart';
+import 'package:openiptv/src/utils/m3u_header_utils.dart';
+import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
@@ -38,19 +41,23 @@ class CategoryEntry {
 }
 
 class CategoryPreviewItem {
-  const CategoryPreviewItem({
+  CategoryPreviewItem({
     required this.id,
     required this.title,
     this.subtitle,
     this.artUri,
     this.streamUrl,
-  });
+    Map<String, String>? headers,
+  }) : headers = headers == null ? const {} : Map.unmodifiable(Map.of(headers));
 
   final String id;
   final String title;
   final String? subtitle;
   final String? artUri;
   final String? streamUrl;
+  final Map<String, String> headers;
+
+  bool get hasHeaders => headers.isNotEmpty;
 }
 
 class CategoryPreviewResult {
@@ -260,6 +267,7 @@ Future<CategoryPreviewResult> _loadChannelPreviewFromDb(
         '''
 SELECT ch.id, ch.name, ch.logo_url, ch.number
      , ch.stream_url_template
+     , ch.stream_headers_json
 FROM channel_categories cc
 JOIN channels ch ON ch.id = cc.channel_id
 WHERE cc.category_id = ?
@@ -277,6 +285,9 @@ ORDER BY (ch.number IS NULL), ch.number, ch.name;
           subtitle: _formatChannelSubtitle(row.readNullable<int>('number')),
           artUri: row.readNullable<String>('logo_url'),
           streamUrl: row.readNullable<String>('stream_url_template'),
+          headers: decodeHeadersJson(
+            row.readNullable<String>('stream_headers_json'),
+          ),
         ),
       )
       .toList();
@@ -293,6 +304,7 @@ Future<CategoryPreviewResult> _loadVodPreviewFromDb(
         '''
 SELECT mv.id, mv.title, mv.year, mv.poster_url
      , mv.stream_url_template
+     , mv.stream_headers_json
 FROM movies mv
 WHERE mv.category_id = ?
 ORDER BY mv.title;
@@ -309,6 +321,9 @@ ORDER BY mv.title;
           subtitle: _formatYear(row.readNullable<int>('year')),
           artUri: row.readNullable<String>('poster_url'),
           streamUrl: row.readNullable<String>('stream_url_template'),
+          headers: decodeHeadersJson(
+            row.readNullable<String>('stream_headers_json'),
+          ),
         ),
       )
       .toList();
@@ -450,7 +465,7 @@ class _XtreamCategoriesFetcher {
 
   Future<CategoryMap> fetch(ResolvedProviderProfile profile) async {
     final dio = _prepareDio(profile);
-    final headers = _decodeCustomHeaders(profile);
+    final headers = decodeProfileCustomHeaders(profile);
     final playerUri = _buildPlayerUri(profile);
 
     Future<List<CategoryEntry>> load(String action) async {
@@ -535,7 +550,7 @@ class _XtreamCategoriesFetcher {
     }
 
     final dio = _prepareDio(profile);
-    final headers = _decodeCustomHeaders(profile);
+    final headers = decodeProfileCustomHeaders(profile);
     final playerUri = _buildPlayerUri(profile);
     final query = <String, String>{
       'username': profile.secrets['username'] ?? '',
@@ -1683,7 +1698,7 @@ class _StalkerCategoriesFetcher {
     ResolvedProviderProfile profile,
   ) {
     final config = profile.record.configuration;
-    final headers = _decodeCustomHeaders(profile);
+    final headers = decodeProfileCustomHeaders(profile);
     final userAgent = config['userAgent'];
     final mac = config['macAddress'] ?? '';
 
@@ -1778,7 +1793,7 @@ class _M3uCategoriesFetcher {
     try {
       final response = await dio.getUri(
         uri,
-        options: Options(headers: _decodeCustomHeaders(profile)),
+        options: Options(headers: decodeProfileCustomHeaders(profile)),
       );
       final responseBody = response.data;
       if (responseBody is! ResponseBody) {
@@ -1851,6 +1866,13 @@ class _M3uCategoriesFetcher {
         if (group.isNotEmpty && pending != null) {
           pending = pending.copyWith(group: group);
         }
+      } else if (line.toUpperCase().startsWith('#EXTVLCOPT')) {
+        if (pending != null) {
+          final header = parseVlcOptHeader(line);
+          if (header != null) {
+            pending = pending.addHeader(header.key, header.value);
+          }
+        }
       } else if (!line.startsWith('#')) {
         if (pending != null) {
           pending = pending.copyWith(url: line);
@@ -1920,6 +1942,7 @@ class _M3uCategoriesFetcher {
         subtitle: subtitle,
         artUri: pending.logo?.isNotEmpty == true ? pending.logo : null,
         streamUrl: pending.url,
+        headers: pending.headers,
       ),
     );
   }
@@ -2095,6 +2118,7 @@ class _PendingM3uItem {
     this.catchupDays,
     this.timeshift,
     this.url,
+    this.headers = const {},
   });
 
   final ContentBucket bucket;
@@ -2108,8 +2132,13 @@ class _PendingM3uItem {
   final String? catchupDays;
   final String? timeshift;
   final String? url;
+  final Map<String, String> headers;
 
-  _PendingM3uItem copyWith({String? group, String? url}) {
+  _PendingM3uItem copyWith({
+    String? group,
+    String? url,
+    Map<String, String>? headers,
+  }) {
     return _PendingM3uItem(
       bucket: bucket,
       group: group != null && group.isNotEmpty ? group : this.group,
@@ -2122,7 +2151,14 @@ class _PendingM3uItem {
       catchupDays: catchupDays,
       timeshift: timeshift,
       url: url ?? this.url,
+      headers: headers ?? this.headers,
     );
+  }
+
+  _PendingM3uItem addHeader(String key, String value) {
+    final next = Map<String, String>.from(headers);
+    next[key] = value;
+    return copyWith(headers: Map.unmodifiable(next));
   }
 }
 
@@ -2135,26 +2171,6 @@ void _applyTlsOverrides(Dio dio, bool allowSelfSigned) {
       return client;
     };
   }
-}
-
-Map<String, String> _decodeCustomHeaders(ResolvedProviderProfile profile) {
-  final encoded = profile.secrets['customHeaders'];
-  if (encoded == null || encoded.isEmpty) {
-    return const {};
-  }
-  try {
-    final decoded = jsonDecode(encoded);
-    if (decoded is Map) {
-      return Map<String, String>.fromEntries(
-        decoded.entries.map(
-          (entry) => MapEntry(entry.key.toString(), entry.value.toString()),
-        ),
-      );
-    }
-  } catch (_) {
-    // ignore malformed payload
-  }
-  return const {};
 }
 
 Map<String, dynamic> _decodePortalMap(dynamic body) {

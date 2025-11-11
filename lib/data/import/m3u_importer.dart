@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' as r;
@@ -47,13 +48,33 @@ class M3uEntry {
     required this.group,
     required this.isRadio,
     this.logoUrl,
-  });
+    Map<String, String>? headers,
+  }) : headers = headers == null ? const {} : Map.unmodifiable(Map.of(headers));
 
   final String key;
   final String name;
   final String group;
   final bool isRadio;
   final String? logoUrl;
+  final Map<String, String> headers;
+
+  M3uEntry copyWith({
+    String? key,
+    String? name,
+    String? group,
+    bool? isRadio,
+    String? logoUrl,
+    Map<String, String>? headers,
+  }) {
+    return M3uEntry(
+      key: key ?? this.key,
+      name: name ?? this.name,
+      group: group ?? this.group,
+      isRadio: isRadio ?? this.isRadio,
+      logoUrl: logoUrl ?? this.logoUrl,
+      headers: headers ?? this.headers,
+    );
+  }
 }
 
 class M3uImporter {
@@ -99,6 +120,7 @@ class M3uImporter {
             logoUrl: entry.logoUrl,
             isRadio: kind == CategoryKind.radio,
             streamUrlTemplate: entry.key,
+            streamHeadersJson: _encodeHeaders(entry.headers),
           );
           metrics.channelsUpserted += 1;
 
@@ -117,6 +139,7 @@ class M3uImporter {
               categoryId: categoryId,
               posterUrl: entry.logoUrl,
               streamUrlTemplate: entry.key,
+              streamHeadersJson: _encodeHeaders(entry.headers),
               seenAt: seenAt,
             );
             metrics.moviesUpserted += 1;
@@ -318,9 +341,17 @@ Future<void> _upsertSeriesEntry({
     episodeNumber: 1,
     title: entry.name,
     streamUrlTemplate: entry.key,
+    streamHeadersJson: _encodeHeaders(entry.headers),
     seenAt: seenAt,
   );
   if (episodeId > 0) {
     metrics.episodesUpserted += 1;
   }
+}
+
+String? _encodeHeaders(Map<String, String> headers) {
+  if (headers.isEmpty) {
+    return null;
+  }
+  return jsonEncode(headers);
 }

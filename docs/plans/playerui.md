@@ -20,6 +20,14 @@
 ### Explicitly Deferred (Phase-2+)
 - [ ] Confirm PiP, trick-mode previews, DVR/timeshift timelines, ad markers, watch-next rails, chroma key, and advanced stats overlays remain out of Phase-1 scope.
 
+## Provider Stream Integration
+- [x] Wrap every playback path (live, films, series, radio) in a unified `Playable` object exposing URL, headers, live/VOD hints, MIME/extension, and optional seek windows for catch-up.
+- [x] Ensure PlayerShell/category previews/favorites/favorites/recent rails always resolve media via `PlayableResolver` so the PlayerAdapter receives fully qualified playlists instead of ad-hoc URLs.
+- [x] Xtream portals: build `/live|/movie|/series` URLs using stored credentials, infer container extensions (prefer HLS for live/radio), and pass configured UA/Referer headers into each `Playable`.
+- [x] Stalker/Ministra portals: run the MAC/token handshake once, call `create_link`/`get_link` per item, reuse session cookies/headers for playback, and report unsupported schemes (e.g. UDP/RTMP) gracefully.
+- [x] M3U/M3U8 playlists: parse `#EXTVLCOPT` header hints (User-Agent, Referer, Cookie, custom header pairs), persist them on channels/movies/episodes, and honor them when launching PlayerScreen.
+- [x] Playlist adapters honor `Playable.headers` and seek hints while the Player UI exposes an explicit “Exit player” affordance so users can return to the channel/category lists without relying solely on the Back stack.
+
 ## UI Structure & Components
 ### PlayerScreen
 - [x] Own PlayerController (facade over PlayerAdapter) and manage lifecycle.

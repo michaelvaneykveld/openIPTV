@@ -66,7 +66,7 @@ part 'tables/vod_search_fts.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 6;
+  static const int schemaVersionLatest = 7;
   static const int _largeImportThresholdBytes = 100 * 1024 * 1024;
   static const Duration _slowQueryThreshold = Duration(milliseconds: 120);
 
@@ -133,6 +133,9 @@ class OpenIptvDb extends _$OpenIptvDb {
           case 5:
             await _migrateFrom5To6();
             break;
+          case 6:
+            await _migrateFrom6To7();
+            break;
           default:
             break;
         }
@@ -184,6 +187,24 @@ class OpenIptvDb extends _$OpenIptvDb {
       tableName: 'channels',
       columnName: 'last_program_at',
       ddl: 'ALTER TABLE channels ADD COLUMN last_program_at TEXT;',
+    );
+  }
+
+  Future<void> _migrateFrom6To7() async {
+    await _addColumnIfMissing(
+      tableName: 'channels',
+      columnName: 'stream_headers_json',
+      ddl: 'ALTER TABLE channels ADD COLUMN stream_headers_json TEXT;',
+    );
+    await _addColumnIfMissing(
+      tableName: 'movies',
+      columnName: 'stream_headers_json',
+      ddl: 'ALTER TABLE movies ADD COLUMN stream_headers_json TEXT;',
+    );
+    await _addColumnIfMissing(
+      tableName: 'episodes',
+      columnName: 'stream_headers_json',
+      ddl: 'ALTER TABLE episodes ADD COLUMN stream_headers_json TEXT;',
     );
   }
 

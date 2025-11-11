@@ -19,6 +19,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb> with _$ChannelDaoMixin {
     bool isRadio = false,
     String? streamUrlTemplate,
     DateTime? seenAt,
+    String? streamHeadersJson,
   }) async {
     final companion = ChannelsCompanion.insert(
       providerId: providerId,
@@ -28,6 +29,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb> with _$ChannelDaoMixin {
       number: Value(number),
       isRadio: Value(isRadio),
       streamUrlTemplate: Value(streamUrlTemplate),
+      streamHeadersJson: Value(streamHeadersJson),
       lastSeenAt: Value(seenAt ?? DateTime.now().toUtc()),
     );
     final record = await into(channels).insertReturning(
@@ -39,6 +41,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb> with _$ChannelDaoMixin {
           number: Value(number),
           isRadio: Value(isRadio),
           streamUrlTemplate: Value(streamUrlTemplate),
+          streamHeadersJson: Value(streamHeadersJson),
           lastSeenAt: Value(seenAt ?? DateTime.now().toUtc()),
         ),
         target: [channels.providerId, channels.providerChannelKey],
@@ -124,7 +127,9 @@ ORDER BY (ch.number IS NULL), ch.number, ch.name;
       readsFrom: {channels, channelCategories},
     );
     final rows = await query.get();
-    return rows.map((row) => channels.map(row.data)).toList(growable: false);
+    return rows
+        .map((row) => channels.map(row.data))
+        .toList(growable: false);
   }
 
   Future<List<ChannelRecord>> fetchChannelPage({

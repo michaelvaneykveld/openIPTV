@@ -9,9 +9,11 @@ class Movies extends Table {
 
   TextColumn get providerVodKey => text()();
 
-  IntColumn get categoryId => integer()
-      .nullable()
-      .references(Categories, #id, onDelete: KeyAction.setNull)();
+  IntColumn get categoryId => integer().nullable().references(
+    Categories,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   TextColumn get title => text()();
 
@@ -25,10 +27,12 @@ class Movies extends Table {
 
   TextColumn get streamUrlTemplate => text().nullable()();
 
+  TextColumn get streamHeadersJson => text().nullable()();
+
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {providerId, providerVodKey},
-      ];
+    {providerId, providerVodKey},
+  ];
 }

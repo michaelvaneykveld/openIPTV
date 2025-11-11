@@ -30,6 +30,8 @@ import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/import_resume_store.dart';
 import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/providers/telemetry_service.dart';
+import 'package:openiptv/src/utils/m3u_header_utils.dart';
+import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 
@@ -376,7 +378,7 @@ class ProviderImportService {
       password: password,
       userAgent: userAgent == null || userAgent.isEmpty ? null : userAgent,
       allowSelfSignedTls: profile.record.allowSelfSignedTls,
-      extraHeaders: _decodeCustomHeaders(profile),
+      extraHeaders: decodeProfileCustomHeaders(profile),
     );
 
     final results = await Future.wait<List<Map<String, dynamic>>>([
@@ -439,8 +441,8 @@ class ProviderImportService {
                   profile.secrets['epgUrl'] ??
                   profile.record.configuration['lockedEpg'],
               displayName: profile.record.displayName,
-              playlistHeaders: _decodeCustomHeaders(profile),
-              defaultHeaders: _decodeCustomHeaders(profile),
+              playlistHeaders: decodeProfileCustomHeaders(profile),
+              defaultHeaders: decodeProfileCustomHeaders(profile),
               allowSelfSignedTls: profile.record.allowSelfSignedTls,
               defaultUserAgent: profile.record.configuration['userAgent'],
               followRedirects: profile.record.followRedirects,
@@ -685,7 +687,7 @@ class ProviderImportService {
       macAddress: mac,
       userAgent: profile.record.configuration['userAgent'],
       allowSelfSignedTls: profile.record.allowSelfSignedTls,
-      extraHeaders: _decodeCustomHeaders(profile),
+      extraHeaders: decodeProfileCustomHeaders(profile),
     );
     final parentalPin =
         profile.secrets['parentalPassword'] ??
@@ -2300,24 +2302,6 @@ class ProviderImportService {
     return body;
   }
 
-  Map<String, String> _decodeCustomHeaders(ResolvedProviderProfile profile) {
-    final encoded = profile.secrets['customHeaders'];
-    if (encoded == null || encoded.isEmpty) {
-      return const {};
-    }
-    try {
-      final decoded = jsonDecode(encoded);
-      if (decoded is Map) {
-        return decoded.map(
-          (key, value) => MapEntry(key.toString(), value.toString()),
-        );
-      }
-    } catch (_) {
-      // Ignore malformed payloads.
-    }
-    return const {};
-  }
-
   String _decodePlaylistBytes(Uint8List bytes, {String? preferredEncoding}) {
     // Attempt UTF-8 first; fall back to latin-1 for legacy playlists.
     try {
@@ -2447,7 +2431,7 @@ class ProviderImportService {
             macAddress: mac,
             userAgent: profile.record.configuration['userAgent'],
             allowSelfSignedTls: profile.record.allowSelfSignedTls,
-            extraHeaders: _decodeCustomHeaders(profile),
+            extraHeaders: decodeProfileCustomHeaders(profile),
           );
           await _ref
               .read(stalkerSessionProvider(config).future)
@@ -2506,8 +2490,9 @@ class ProviderImportService {
     for (final rawLine in lines) {
       final line = rawLine.trim();
       if (line.isEmpty) continue;
+      final upperLine = line.toUpperCase();
 
-      if (line.startsWith('#EXTINF')) {
+      if (upperLine.startsWith('#EXTINF')) {
         metadata = _M3uMetadata(
           name: _extractTitle(line),
           group: _extractAttribute(line, 'group-title') ?? metadata.group,
@@ -2521,11 +2506,19 @@ class ProviderImportService {
         continue;
       }
 
-      if (line.toUpperCase().startsWith('#EXTGRP')) {
+      if (upperLine.startsWith('#EXTGRP')) {
         final value = line.split(':').skip(1).join(':').trim();
         metadata = metadata.copyWith(
           group: value.isEmpty ? metadata.group : value,
         );
+        continue;
+      }
+
+      if (upperLine.startsWith('#EXTVLCOPT')) {
+        final header = parseVlcOptHeader(line);
+        if (header != null) {
+          metadata = metadata.addHeader(header.key, header.value);
+        }
         continue;
       }
 
@@ -2542,6 +2535,7 @@ class ProviderImportService {
           group: group,
           isRadio: metadata.isRadio,
           logoUrl: metadata.logo?.isEmpty ?? true ? null : metadata.logo,
+          headers: metadata.headers,
         ),
       );
       metadata = const _M3uMetadata();
@@ -2567,25 +2561,40 @@ class ProviderImportService {
 }
 
 class _M3uMetadata {
-  const _M3uMetadata({this.name, this.group, this.logo, this.isRadio = false});
+  const _M3uMetadata({
+    this.name,
+    this.group,
+    this.logo,
+    this.isRadio = false,
+    this.headers = const {},
+  });
 
   final String? name;
   final String? group;
   final String? logo;
   final bool isRadio;
+  final Map<String, String> headers;
 
   _M3uMetadata copyWith({
     String? name,
     String? group,
     String? logo,
     bool? isRadio,
+    Map<String, String>? headers,
   }) {
     return _M3uMetadata(
       name: name ?? this.name,
       group: group ?? this.group,
       logo: logo ?? this.logo,
       isRadio: isRadio ?? this.isRadio,
+      headers: headers ?? this.headers,
     );
+  }
+
+  _M3uMetadata addHeader(String key, String value) {
+    final next = Map<String, String>.from(headers);
+    next[key] = value;
+    return copyWith(headers: Map.unmodifiable(next));
   }
 }
 

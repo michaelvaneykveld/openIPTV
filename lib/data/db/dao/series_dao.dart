@@ -95,6 +95,7 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
     int? durationSec,
     String? streamUrlTemplate,
     DateTime? seenAt,
+    String? streamHeadersJson,
   }) async {
     final resolvedSeenAt = seenAt ?? DateTime.now().toUtc();
     final updated =
@@ -112,6 +113,7 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
                 overview: Value(overview),
                 durationSec: Value(durationSec),
                 streamUrlTemplate: Value(streamUrlTemplate),
+                streamHeadersJson: Value(streamHeadersJson),
                 lastSeenAt: Value(resolvedSeenAt),
               ),
             );
@@ -135,6 +137,7 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
         overview: Value(overview),
         durationSec: Value(durationSec),
         streamUrlTemplate: Value(streamUrlTemplate),
+        streamHeadersJson: Value(streamHeadersJson),
         lastSeenAt: Value(resolvedSeenAt),
       ),
     );
@@ -254,7 +257,9 @@ ORDER BY sr.title, ep.season_number, ep.episode_number;
       variables: [Variable<int>(categoryId)],
       readsFrom: {episodes, series},
     ).get();
-    return rows.map((row) => episodes.map(row.data)).toList(growable: false);
+    return rows
+        .map((row) => episodes.map(row.data))
+        .toList(growable: false);
   }
 
   SimpleSelectStatement<Series, SeriesRecord> _selectSeries(

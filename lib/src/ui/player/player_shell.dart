@@ -15,6 +15,7 @@ import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
+import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
@@ -30,17 +31,23 @@ class PlayerShell extends ConsumerStatefulWidget {
   ConsumerState<PlayerShell> createState() => _PlayerShellState();
 }
 
-class _PlayerShellState extends ConsumerState<PlayerShell> {
+class _PlayerShellState extends ConsumerState<PlayerShell>
+    with _PlayerPlaybackMixin<PlayerShell> {
   bool _showSummary = false;
   bool _importScheduled = false;
   bool _isRefreshing = false;
   ProviderImportEvent? _importEvent;
   StreamSubscription<ProviderImportEvent>? _importSubscription;
   bool _isCancellingImport = false;
+  late PlayableResolver _playableResolver;
+
+  @override
+  PlayableResolver get playableResolver => _playableResolver;
 
   @override
   void initState() {
     super.initState();
+    _playableResolver = PlayableResolver(widget.profile);
     _maybePrimeProviderImport();
     _subscribeToImportProgress();
   }
@@ -48,6 +55,9 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
   @override
   void didUpdateWidget(covariant PlayerShell oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile != widget.profile) {
+      _playableResolver = PlayableResolver(widget.profile);
+    }
     if (oldWidget.profile.providerDbId != widget.profile.providerDbId) {
       _importScheduled = false;
       _maybePrimeProviderImport();
@@ -346,13 +356,14 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         limit: 200,
       );
       final channels = page.items.map((entry) => entry.channel).toList();
+      final playlistEntries = await _resolveChannelSources(channels);
       if (!mounted) {
         return;
       }
-      final success = await _pushChannelPlayer(
+      final success = await _pushMediaPlaylist(
         context: context,
-        channels: channels,
-        isLive: true,
+        sources: playlistEntries.map((entry) => entry.source).toList(),
+        initialIndex: 0,
       );
       if (!success) {
         _showSnack('No playable channels yet. Try refreshing the import.');
@@ -364,15 +375,6 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         rootNavigator.pop();
       }
     }
-  }
-
-  void _showSnack(String message) {
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -788,22 +790,8 @@ class _FavoriteChannelChip extends ConsumerWidget {
   }
 
   Future<void> _launch(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final success = await _pushChannelPlayer(
-      context: context,
-      channels: [channel.channel],
-      isLive: !channel.channel.isRadio,
-      initialChannelId: channel.channel.id,
-    );
-    if (!success) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('No stream available for this channel.'),
-          ),
-        );
-    }
+    final state = context.findAncestorStateOfType<_PlayerShellState>();
+    await state?._launchSingleChannel(channel.channel);
   }
 }
 
@@ -862,22 +850,8 @@ class _RecentPlaybackTile extends ConsumerWidget {
     WidgetRef ref,
     ChannelRecord channel,
   ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final success = await _pushChannelPlayer(
-      context: context,
-      channels: [channel],
-      isLive: !channel.isRadio,
-      initialChannelId: channel.id,
-    );
-    if (!success) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('No stream available for this channel.'),
-          ),
-        );
-    }
+    final state = context.findAncestorStateOfType<_PlayerShellState>();
+    await state?._launchSingleChannel(channel);
   }
 }
 
@@ -901,13 +875,24 @@ class _CategoryPreviewList extends ConsumerStatefulWidget {
       _CategoryPreviewListState();
 }
 
-class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
+class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
+    with _PlayerPlaybackMixin<_CategoryPreviewList> {
   late final ScrollController _controller;
+  late PlayableResolver _playableResolver;
 
   @override
   void initState() {
     super.initState();
     _controller = ScrollController();
+    _playableResolver = PlayableResolver(widget.profile);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CategoryPreviewList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile != widget.profile) {
+      _playableResolver = PlayableResolver(widget.profile);
+    }
   }
 
   @override
@@ -915,6 +900,9 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
     _controller.dispose();
     super.dispose();
   }
+
+  @override
+  PlayableResolver get playableResolver => _playableResolver;
 
   @override
   Widget build(BuildContext context) {
@@ -1041,16 +1029,15 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   }) async {
     final repo = ref.read(channelRepositoryProvider);
     final channels = await repo.fetchChannelsForCategory(categoryId);
-    if (!mounted) {
+    final playlist = await _resolveChannelSources(channels);
+    if (!mounted || playlist.isEmpty) {
       return false;
     }
-    return _pushChannelPlayer(
+    final initialIndex = _initialIndexFor<int>(playlist, int.tryParse(item.id));
+    return _pushMediaPlaylist(
       context: context,
-      channels: channels,
-      isLive:
-          widget.bucket == ContentBucket.live ||
-          widget.bucket == ContentBucket.radio,
-      initialChannelId: int.tryParse(item.id),
+      sources: playlist.map((entry) => entry.source).toList(growable: false),
+      initialIndex: initialIndex,
     );
   }
 
@@ -1061,25 +1048,15 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   }) async {
     final vodRepo = ref.read(vodRepositoryProvider);
     final movies = await vodRepo.listMovies(providerId, categoryId: categoryId);
-    final playlist = movies
-        .map((movie) => (movie.id, _movieToMediaSource(movie)))
-        .where((entry) => entry.$2 != null)
-        .map((entry) => (entry.$1, entry.$2!))
-        .toList(growable: false);
+    final playlist = await _resolveMovieSources(movies);
     if (!mounted || playlist.isEmpty) {
       return false;
     }
     final tappedId = int.tryParse(item.id);
-    var initialIndex = 0;
-    if (tappedId != null) {
-      final idx = playlist.indexWhere((entry) => entry.$1 == tappedId);
-      if (idx >= 0) {
-        initialIndex = idx;
-      }
-    }
+    final initialIndex = _initialIndexFor<int>(playlist, tappedId);
     return _pushMediaPlaylist(
       context: context,
-      sources: playlist.map((entry) => entry.$2).toList(growable: false),
+      sources: playlist.map((entry) => entry.source).toList(growable: false),
       initialIndex: initialIndex,
     );
   }
@@ -1098,30 +1075,12 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
       for (final s in seriesList) s.id: s.title,
     };
     final episodes = await vodRepo.listEpisodesForCategory(categoryId);
-    final playlist = <({int seriesId, PlayerMediaSource source})>[];
-    for (final episode in episodes) {
-      final source = _episodeToMediaSource(
-        episode,
-        seriesTitles[episode.seriesId],
-      );
-      if (source == null) {
-        continue;
-      }
-      playlist.add((seriesId: episode.seriesId, source: source));
-    }
+    final playlist = await _resolveEpisodeSources(episodes, seriesTitles);
     if (!mounted || playlist.isEmpty) {
       return false;
     }
     final tappedSeriesId = int.tryParse(item.id);
-    var initialIndex = 0;
-    if (tappedSeriesId != null) {
-      final idx = playlist.indexWhere(
-        (entry) => entry.seriesId == tappedSeriesId,
-      );
-      if (idx >= 0) {
-        initialIndex = idx;
-      }
-    }
+    final initialIndex = _initialIndexFor<int>(playlist, tappedSeriesId);
     return _pushMediaPlaylist(
       context: context,
       sources: playlist.map((entry) => entry.source).toList(growable: false),
@@ -1130,48 +1089,155 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   }
 
   Future<bool> _playPreviewItemsDirect(CategoryPreviewItem tappedItem) async {
-    final isLiveBucket =
-        widget.bucket == ContentBucket.live ||
-        widget.bucket == ContentBucket.radio;
-    final playlist = widget.result.items
-        .map(
-          (preview) => (
-            preview: preview,
-            source:
-                _previewItemToMediaSource(preview, isLive: isLiveBucket),
-          ),
-        )
-        .where((entry) => entry.source != null)
-        .map((entry) => (preview: entry.preview, source: entry.source!))
-        .toList(growable: false);
+    final playlist = <({String id, PlayerMediaSource source})>[];
+    for (final preview in widget.result.items) {
+      final source = await _playableResolver.preview(preview, widget.bucket);
+      if (source == null) {
+        continue;
+      }
+      playlist.add((id: preview.id, source: source));
+    }
     if (playlist.isEmpty) {
       return false;
     }
-    var initialIndex = 0;
-    final tappedId = tappedItem.id;
-    final idx = playlist.indexWhere((entry) => entry.preview.id == tappedId);
-    if (idx >= 0) {
-      initialIndex = idx;
+    if (!mounted) {
+      return false;
     }
+    final initialIndex = _initialIndexFor<String>(playlist, tappedItem.id);
     return _pushMediaPlaylist(
       context: context,
       sources: playlist.map((entry) => entry.source).toList(growable: false),
       initialIndex: initialIndex,
     );
   }
+}
 
-  PlayerMediaSource? _previewItemToMediaSource(
-    CategoryPreviewItem preview, {
-    required bool isLive,
-  }) {
-    final uri = _parseStreamUri(preview.streamUrl);
-    if (uri == null) {
-      return null;
+mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
+    on ConsumerState<T> {
+  PlayableResolver get playableResolver;
+
+  Future<void> _launchSingleChannel(ChannelRecord channel) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final source = await playableResolver.channel(
+      channel,
+      isRadio: channel.isRadio,
+    );
+    if (!mounted) {
+      return;
     }
-    return PlayerMediaSource(uri: uri, title: preview.title, isLive: isLive);
+    if (source == null) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No stream available for this channel.'),
+          ),
+        );
+      return;
+    }
+    final success = await _pushMediaPlaylist(
+      context: context,
+      sources: [source],
+      initialIndex: 0,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (!success) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('No stream available for this channel.'),
+          ),
+        );
+    }
+  }
+
+  Future<List<({int? id, PlayerMediaSource source})>> _resolveChannelSources(
+    List<ChannelRecord> channels,
+  ) async {
+    final result = <({int? id, PlayerMediaSource source})>[];
+    for (final channel in channels) {
+      final source = await playableResolver.channel(
+        channel,
+        isRadio: channel.isRadio,
+      );
+      if (source == null) continue;
+      result.add((id: channel.id, source: source));
+    }
+    return result;
+  }
+
+  Future<List<({int? id, PlayerMediaSource source})>> _resolveMovieSources(
+    List<MovieRecord> movies,
+  ) async {
+    final result = <({int? id, PlayerMediaSource source})>[];
+    for (final movie in movies) {
+      final source = await playableResolver.movie(movie);
+      if (source == null) continue;
+      result.add((id: movie.id, source: source));
+    }
+    return result;
+  }
+
+  Future<List<({int? id, PlayerMediaSource source})>> _resolveEpisodeSources(
+    List<EpisodeRecord> episodes,
+    Map<int, String> seriesTitles,
+  ) async {
+    final result = <({int? id, PlayerMediaSource source})>[];
+    for (final episode in episodes) {
+      final source = await playableResolver.episode(
+        episode,
+        seriesTitle: seriesTitles[episode.seriesId],
+      );
+      if (source == null) continue;
+      result.add((id: episode.seriesId, source: source));
+    }
+    return result;
+  }
+
+  int _initialIndexFor<E>(
+    List<({E? id, PlayerMediaSource source})> entries,
+    E? targetId,
+  ) {
+    if (targetId == null) {
+      return 0;
+    }
+    final idx = entries.indexWhere((entry) => entry.id == targetId);
+    return idx >= 0 ? idx : 0;
+  }
+
+  Future<bool> _pushMediaPlaylist({
+    required BuildContext context,
+    required List<PlayerMediaSource> sources,
+    int initialIndex = 0,
+  }) async {
+    if (sources.isEmpty) {
+      return false;
+    }
+    final clampedIndex = math.max(
+      0,
+      math.min(initialIndex, sources.length - 1),
+    );
+    final adapter = PlaylistVideoPlayerAdapter(
+      sources: sources,
+      initialIndex: clampedIndex,
+    );
+    final controller = PlayerController(adapter: adapter);
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            PlayerScreen(controller: controller, ownsController: true),
+      ),
+    );
+    return true;
   }
 
   void _showSnack(String message) {
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
@@ -1315,132 +1381,4 @@ class _SyncingPlaceholder extends StatelessWidget {
       ),
     );
   }
-}
-
-Future<bool> _pushChannelPlayer({
-  required BuildContext context,
-  required List<ChannelRecord> channels,
-  required bool isLive,
-  int? initialChannelId,
-}) async {
-  final playlistEntries = channels
-      .map(
-        (channel) => (channel, _channelToMediaSource(channel, isLive: isLive)),
-      )
-      .where((entry) => entry.$2 != null)
-      .map((entry) => (entry.$1, entry.$2!))
-      .toList(growable: false);
-
-  if (playlistEntries.isEmpty) {
-    return false;
-  }
-
-  var initialIndex = 0;
-  if (initialChannelId != null) {
-    final matchIndex = playlistEntries.indexWhere(
-      (entry) => entry.$1.id == initialChannelId,
-    );
-    if (matchIndex >= 0) {
-      initialIndex = matchIndex;
-    }
-  }
-  return _pushMediaPlaylist(
-    context: context,
-    sources: playlistEntries.map((entry) => entry.$2).toList(growable: false),
-    initialIndex: initialIndex,
-  );
-}
-
-PlayerMediaSource? _channelToMediaSource(
-  ChannelRecord channel, {
-  required bool isLive,
-}) {
-  final uri = _parseStreamUri(channel.streamUrlTemplate);
-  if (uri == null) {
-    return null;
-  }
-  return PlayerMediaSource(uri: uri, title: channel.name, isLive: isLive);
-}
-
-PlayerMediaSource? _movieToMediaSource(MovieRecord movie) {
-  final uri = _parseStreamUri(movie.streamUrlTemplate);
-  if (uri == null) {
-    return null;
-  }
-  return PlayerMediaSource(uri: uri, title: movie.title, isLive: false);
-}
-
-PlayerMediaSource? _episodeToMediaSource(
-  EpisodeRecord episode,
-  String? seriesTitle,
-) {
-  final uri = _parseStreamUri(episode.streamUrlTemplate);
-  if (uri == null) {
-    return null;
-  }
-  final buffer = StringBuffer();
-  var hasContent = false;
-  if (seriesTitle != null && seriesTitle.isNotEmpty) {
-    buffer.write(seriesTitle);
-    buffer.write(' ');
-    hasContent = true;
-  }
-  final season = episode.seasonNumber;
-  final episodeNumber = episode.episodeNumber;
-  if (season != null &&
-      season > 0 &&
-      episodeNumber != null &&
-      episodeNumber > 0) {
-    buffer.write(
-      'S${season.toString().padLeft(2, '0')}E${episodeNumber.toString().padLeft(2, '0')}',
-    );
-    hasContent = true;
-  }
-  final title = episode.title?.trim();
-  if (title != null && title.isNotEmpty) {
-    if (hasContent) {
-      buffer.write(' - ');
-    }
-    buffer.write(title);
-    hasContent = true;
-  }
-  final resolvedTitle = hasContent
-      ? buffer.toString()
-      : (title ?? seriesTitle ?? 'Episode');
-  return PlayerMediaSource(uri: uri, title: resolvedTitle, isLive: false);
-}
-
-Future<bool> _pushMediaPlaylist({
-  required BuildContext context,
-  required List<PlayerMediaSource> sources,
-  int initialIndex = 0,
-}) async {
-  if (sources.isEmpty) {
-    return false;
-  }
-  initialIndex = math.max(0, math.min(initialIndex, sources.length - 1));
-  final adapter = PlaylistVideoPlayerAdapter(
-    sources: sources,
-    initialIndex: initialIndex,
-  );
-  final controller = PlayerController(adapter: adapter);
-  await Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) =>
-          PlayerScreen(controller: controller, ownsController: true),
-    ),
-  );
-  return true;
-}
-
-Uri? _parseStreamUri(String? rawUrl) {
-  final normalized = rawUrl?.trim();
-  if (normalized == null || normalized.isEmpty) {
-    return null;
-  }
-  final uri = Uri.tryParse(normalized);
-  if (uri == null || !uri.hasScheme) {
-    return null;
-  }
-  return uri;
 }

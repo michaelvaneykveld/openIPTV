@@ -19,6 +19,8 @@ class Channels extends Table {
 
   TextColumn get streamUrlTemplate => text().nullable()();
 
+  TextColumn get streamHeadersJson => text().nullable()();
+
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 
   DateTimeColumn get firstProgramAt => dateTime().nullable()();
@@ -27,7 +29,6 @@ class Channels extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {providerId, providerChannelKey}
-      ];
-
+    {providerId, providerChannelKey},
+  ];
 }

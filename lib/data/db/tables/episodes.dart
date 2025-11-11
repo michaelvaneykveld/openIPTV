@@ -24,10 +24,12 @@ class Episodes extends Table {
 
   TextColumn get streamUrlTemplate => text().nullable()();
 
+  TextColumn get streamHeadersJson => text().nullable()();
+
   DateTimeColumn get lastSeenAt => dateTime().nullable()();
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {seriesId, providerEpisodeKey},
-      ];
+    {seriesId, providerEpisodeKey},
+  ];
 }

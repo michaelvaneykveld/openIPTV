@@ -15,6 +15,7 @@ import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
+import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
@@ -23,6 +24,7 @@ import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 import 'package:openiptv/src/playback/windows_playback_policy.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
+import 'package:http/http.dart' as http;
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -1262,12 +1264,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       final support = classifyWindowsPlayable(source.playable);
       if (support == WindowsPlaybackSupport.okDirect) {
         accepted.add(source);
-        PlaybackLogger.videoInfo(
-          'windows-play-accepted',
-          uri: source.playable.url,
-          headers: source.playable.headers,
-          extra: {'support': support.name},
-        );
+        _logWindowsAcceptance(source.playable, support);
         continue;
       }
       if (!warned) {
@@ -1279,6 +1276,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
         uri: source.playable.url,
         headers: source.playable.headers,
         extra: {'support': support.name},
+        includeFullUrl: true,
       );
     }
     if (accepted.isEmpty) {
@@ -1290,6 +1288,41 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
   bool _isWindowsPlatform(BuildContext context) {
     final platform = Theme.of(context).platform;
     return platform == TargetPlatform.windows;
+  }
+
+  void _logWindowsAcceptance(
+    Playable playable,
+    WindowsPlaybackSupport support,
+  ) {
+    PlaybackLogger.videoInfo(
+      'windows-play-accepted',
+      uri: playable.url,
+      headers: playable.headers,
+      extra: {'support': support.name},
+      includeFullUrl: true,
+    );
+    unawaited(_probePlayable(playable));
+  }
+
+  Future<void> _probePlayable(Playable playable) async {
+    try {
+      final request = http.Request('HEAD', playable.url);
+      request.headers.addAll(playable.headers);
+      final response = await request.send().timeout(const Duration(seconds: 5));
+      PlaybackLogger.videoInfo(
+        'windows-head',
+        uri: playable.url,
+        headers: playable.headers,
+        includeFullUrl: true,
+        extra: {
+          'status': response.statusCode,
+          'type': response.headers['content-type'],
+          'acceptRanges': response.headers['accept-ranges'],
+        },
+      );
+    } catch (error) {
+      PlaybackLogger.videoError('windows-head', error: error);
+    }
   }
 }
 

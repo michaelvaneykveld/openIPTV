@@ -59,11 +59,13 @@ class PlaybackLogger {
     Uri? uri,
     Map<String, String>? headers,
     Map<String, Object?>? extra,
+    bool includeFullUrl = false,
   }) {
     if (!_enabled) return;
     final payload = <String, Object?>{
       'stage': stage,
       if (uri != null) 'stream': _summarizeUri(uri),
+      if (includeFullUrl && uri != null) 'url': redactSensitiveText(uri.toString()),
       if (headers != null && headers.isNotEmpty)
         'headers': headers.keys.toList(growable: false),
       if (extra != null) ...extra,

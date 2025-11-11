@@ -1495,6 +1495,7 @@ class ProviderImportService {
       enableResume: false,
       dialect: dialect,
       onPagingModeDetected: onPagingModeDetected,
+      categoryId: null,
     );
     if (seeds.isEmpty) {
       return const [];

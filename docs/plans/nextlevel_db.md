@@ -15,7 +15,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 
 ### 1) Category discovery: common pitfalls & fixes
 - [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3–5 global pages off-isolate, cache for ~24h).
-- [ ] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once.
+- [x] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once. -> `_importStalker` tracks `sawLockedCategory`, updates `StalkerPortalDialect.requiresParentalUnlock`, and the login/player UI reads it for prompts.
 
 ### 2) Authentication & headers
 - [ ] Wrap all Stalker calls in a client/decorator that injects the full handshake header/cookie tuple (Authorization bearer, MAC cookie, `stb_lang`, timezone, UA) on every request—not just handshake/discovery.

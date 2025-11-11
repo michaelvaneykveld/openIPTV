@@ -108,6 +108,7 @@ class OpenIptvDb extends _$OpenIptvDb {
       await _ensureChannelSearchIndex(rebuild: true);
       await _ensureVodSearchIndex(rebuild: true);
       await _ensureProviderIndexes();
+      await _ensureChannelTileIndexes();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       for (var version = from; version < to; version++) {
@@ -131,6 +132,7 @@ class OpenIptvDb extends _$OpenIptvDb {
             break;
         }
       }
+      await _ensureChannelTileIndexes();
     },
     beforeOpen: (OpeningDetails details) async {
       await _verifyIntegrity();
@@ -629,6 +631,17 @@ class OpenIptvDb extends _$OpenIptvDb {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_providers_legacy_profile_id '
       'ON providers(legacy_profile_id);',
+    );
+  }
+
+  Future<void> _ensureChannelTileIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_channels_provider_number_name '
+      'ON channels(provider_id, number, name, id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_channel_categories_category_channel '
+      'ON channel_categories(category_id, channel_id);',
     );
   }
 }

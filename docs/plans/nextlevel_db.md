@@ -8,21 +8,21 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Always probe categories via `get_categories ? get_genres ? get_categories_v2 ? (if censored) parental unlock ? re-probe`, then cache the winning action in `PortalDialect`. -> `_fetchStalkerCategories` already walks this sequence for every module and records the preferred action in the dialect.
 - [ ] Keep all discovery paging + Drift upserts off the UI isolate (worker isolate + Drift database isolate) and enforce session/page caps so "*" never blocks the raster thread.
 - [x] Propagate the full STB header set (Bearer token, MAC cookie, `stb_lang`, timezone, STB UA) on every request after handshake/profile. -> `StalkerHttpClient.getPortal` now enriches every request with the STB header/cookie defaults so even ad-hoc callers inherit the Infomir header shape.
-- [x] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it. -> `_fetchStalkerListing` now probes both paging modes, switches when needed, and records the preference in `StalkerPortalDialect`.
+- [x] Detect both paging shapes (`p=<page>` vs `from=<offset>&cnt=<limit>`), memoize the winner per portal, and reuse it. -> `_fetchStalkerListing` now probes both paging modes, records the winner via `StalkerPortalDialect.recordPagingMode`, and reuses it for every module.
 - [x] De-dupe entries across categories and "*" (seen-ID set) and stop paging when a payload repeats to avoid infinite loops. -> `_fetchStalkerListing` fingerprints each page and filters `seenEntryKeys`, while per-category fetches keep their own `seenKeys`.
 - [x] Persist resume tokens + derived categories per portal. -> `ImportResumeStore` now writes checkpoints + derived buckets alongside `openiptv.db`.
 - [x] Surface lightweight import progress with cancel/undo affordances in the UI. -> Login + PlayerShell now render `ImportProgressBanner` with determinate progress and cancel hooks wired to `ProviderImportService.cancelImport`.
 
 ### 1) Category discovery: common pitfalls & fixes
-- [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3â€“5 global pages off-isolate, cache for ~24h).
+- [x] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3-5 global pages off-isolate, cache for ~24h). -> _fetchStalkerCategories runs the ordered probe chain for itv/vod/series/radio, then falls back to derived-category sampling cached in StalkerPortalDialect.
 - [x] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once. -> `_importStalker` tracks `sawLockedCategory`, updates `StalkerPortalDialect.requiresParentalUnlock`, and the login/player UI reads it for prompts.
 
 ### 2) Authentication & headers
 - [x] Wrap all Stalker calls in a client/decorator that injects the full handshake header/cookie tuple (Authorization bearer, MAC cookie, stb_lang, timezone, UA) on every request. -> StalkerHttpClient.getPortal now normalizes every request with those headers/cookies before issuing the Dio call.
-- [ ] Re-apply parental-unlock state (if provided) before catalog calls and cache the outcome so subsequent imports stay in sync.
+- [x] Re-apply parental-unlock state (if provided) before catalog calls and cache the outcome so subsequent imports stay in sync. -> ProviderImportService threads the stored parental PIN into every Stalker probe/import call and persists the unlock flag on StalkerPortalDialect so later runs stay unlocked.
 
 ### 3) Paging semantics: mixing `p=` with `from/cnt`
-- [ ] Detect both paging shapes during bootstrap, memoize the preference in `PortalDialect.prefersFromCnt`, and respect it for every category.
+- [x] Detect both paging shapes during bootstrap, memoize the preference in `PortalDialect.prefersFromCnt`, and respect it for every category. -> The same `StalkerPortalDialect.recordPagingMode` hint drives `_fetchStalkerListing` for every module once the probe succeeds.
 - [x] Hash each page's payload to break loops, and hard-stop when a duplicate or the configured page cap is reached. -> `_fetchStalkerListing` now stores page fingerprints and aborts immediately after a repeat while logging page-cap exits.
 
 ### 4) Doing heavy work on the UI isolate
@@ -84,7 +84,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 
 ## Phase 5 - Consistency, Migrations & Durability
 - [x] Ship semantic migrations with DAO checksum tracking.
-- [ ] Execute `PRAGMA integrity_check` pre-flight and surface user-facing fallback on failure.
+- [x] Execute PRAGMA integrity_check pre-flight and surface user-facing fallback on failure. -> OpenIptvDb now runs _verifyIntegrity() inside the migration beforeOpen hook and surfaces failures before any query executes.
 - [ ] Add cascading triggers for provider deletes + keep FTS mirrors consistent across upserts.
 - [ ] Acceptance: CI exercises upgrade/downgrade on empty/small/huge DBs.
 
@@ -98,7 +98,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Implement Drift IndexedDB backend for web; if EPG FTS is too large, ship channels-only FTS or opt-in builds. -> `OpenIptvDb` now opens `WebDatabase` storage on Flutter web.
 
 ## "Ultimate" Enhancements (Optional)
-- [ ] Add covering indexes or projection tables for tile-ready queries.
+- [x] Add covering indexes or projection tables for tile-ready queries. -> `OpenIptvDb` now creates `idx_channels_provider_number_name` and `idx_channel_categories_category_channel` so tile queries hit covering indexes instead of full scans.
 - [ ] Evaluate LZ4/Zstd synopsis compression once I/O is proven to be the bottleneck.
 - [ ] Prototype an adaptive prefetcher that predicts and preloads likely next channels.
 

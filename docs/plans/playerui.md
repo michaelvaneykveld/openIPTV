@@ -28,6 +28,7 @@
 - [x] M3U/M3U8 playlists: parse `#EXTVLCOPT` header hints (User-Agent, Referer, Cookie, custom header pairs), persist them on channels/movies/episodes, and honor them when launching PlayerScreen.
 - [x] Playlist adapters honor `Playable.headers` and seek hints while the Player UI exposes an explicit “Exit player” affordance so users can return to the channel/category lists without relying solely on the Back stack.
 - [x] On Windows, classify each `Playable` (scheme, extension, headers) before launching Media Foundation so unsupported transports/headers/adaptive playlists are blocked with clear messaging and telemetry.
+- [x] Provide a Windows-specific fallback powered by `media_kit` so MPEG-TS / header-heavy streams continue to play when Media Foundation can’t handle them.
 
 ## UI Structure & Components
 ### PlayerScreen

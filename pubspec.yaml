@@ -65,6 +65,9 @@ dependencies:
   args: ^2.5.0
   video_player_win: ^3.2.1
   http: ^1.5.0
+  media_kit: ^1.1.8
+  media_kit_video: ^1.1.8
+  media_kit_libs_windows_video: ^1.0.11
 
 dev_dependencies:
   flutter_test:

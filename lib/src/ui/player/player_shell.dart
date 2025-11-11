@@ -21,6 +21,7 @@ import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
 import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
+import 'package:openiptv/src/player_ui/controller/media_kit_playlist_adapter.dart';
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 import 'package:openiptv/src/playback/windows_playback_policy.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
@@ -1220,18 +1221,23 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (sources.isEmpty) {
       return false;
     }
-    final platformSources = _applyPlatformPolicy(context, sources);
-    if (platformSources == null || platformSources.isEmpty) {
+    final plan = _applyPlatformPolicy(context, sources);
+    if (plan == null || plan.sources.isEmpty) {
       return false;
     }
     final clampedIndex = math.max(
       0,
-      math.min(initialIndex, platformSources.length - 1),
+      math.min(initialIndex, plan.sources.length - 1),
     );
-    final adapter = PlaylistVideoPlayerAdapter(
-      sources: platformSources,
-      initialIndex: clampedIndex,
-    );
+    final PlayerAdapter adapter = plan.useMediaKit
+        ? MediaKitPlaylistAdapter(
+            sources: plan.sources,
+            initialIndex: clampedIndex,
+          )
+        : PlaylistVideoPlayerAdapter(
+            sources: plan.sources,
+            initialIndex: clampedIndex,
+          );
     final controller = PlayerController(adapter: adapter);
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -1251,38 +1257,44 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  List<PlayerMediaSource>? _applyPlatformPolicy(
+  _PlatformPlaybackPlan? _applyPlatformPolicy(
     BuildContext context,
     List<PlayerMediaSource> sources,
   ) {
     if (!_isWindowsPlatform(context)) {
-      return sources;
+      return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
-    final accepted = <PlayerMediaSource>[];
     var warned = false;
+    var useMediaKit = false;
     for (final source in sources) {
       final support = classifyWindowsPlayable(source.playable);
-      if (support == WindowsPlaybackSupport.okDirect) {
-        accepted.add(source);
+      if (support != WindowsPlaybackSupport.okDirect) {
+        useMediaKit = true;
+        if (!warned) {
+          _showSnack(windowsSupportMessage(support));
+          warned = true;
+        }
+        PlaybackLogger.videoInfo(
+          'windows-play-blocked',
+          uri: source.playable.url,
+          headers: source.playable.headers,
+          extra: {'support': support.name},
+          includeFullUrl: true,
+        );
+      } else {
         _logWindowsAcceptance(source.playable, support);
-        continue;
       }
-      if (!warned) {
-        _showSnack(windowsSupportMessage(support));
-        warned = true;
-      }
+    }
+    if (useMediaKit) {
       PlaybackLogger.videoInfo(
-        'windows-play-blocked',
-        uri: source.playable.url,
-        headers: source.playable.headers,
-        extra: {'support': support.name},
-        includeFullUrl: true,
+        'windows-mediakit-fallback',
+        extra: {'count': sources.length},
       );
     }
-    if (accepted.isEmpty) {
-      return null;
-    }
-    return accepted;
+    return _PlatformPlaybackPlan(
+      sources: sources,
+      useMediaKit: useMediaKit,
+    );
   }
 
   bool _isWindowsPlatform(BuildContext context) {
@@ -1324,6 +1336,16 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       PlaybackLogger.videoError('windows-head', error: error);
     }
   }
+}
+
+class _PlatformPlaybackPlan {
+  const _PlatformPlaybackPlan({
+    required this.sources,
+    required this.useMediaKit,
+  });
+
+  final List<PlayerMediaSource> sources;
+  final bool useMediaKit;
 }
 
 class _ArtworkAvatar extends ConsumerWidget {

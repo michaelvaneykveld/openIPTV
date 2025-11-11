@@ -7,62 +7,62 @@
 
 ## Scope Guardrails
 ### Must Ship Now
-- [ ] Provide a fullscreen video surface with an auto-hiding transport bar (OSD).[2]
-- [ ] Support Play/Pause, +/-10s or +/-30s seek, and Next/Previous for live channel zap.
-- [ ] Ship Audio and Subtitle pickers as modal sheets.
-- [ ] Show a read-only quality/bitrate indicator in the OSD.
-- [ ] Surface buffering spinner plus error toast with Retry.
-- [ ] Guarantee D-pad and keyboard navigation (Enter/Back/Arrows) parity.[1]
-- [ ] Keep the screen awake during playback on Android/tvOS.[3]
+- [x] Provide a fullscreen video surface with an auto-hiding transport bar (OSD).[2]
+- [x] Support Play/Pause, +/-10s or +/-30s seek, and Next/Previous for live channel zap.
+- [x] Ship Audio and Subtitle pickers as modal sheets.
+- [x] Show a read-only quality/bitrate indicator in the OSD.
+- [x] Surface buffering spinner plus error toast with Retry.
+- [x] Guarantee D-pad and keyboard navigation (Enter/Back/Arrows) parity.[1]
+- [x] Keep the screen awake during playback on Android/tvOS.[3]
 
 ### Explicitly Deferred (Phase-2+)
 - [ ] Confirm PiP, trick-mode previews, DVR/timeshift timelines, ad markers, watch-next rails, chroma key, and advanced stats overlays remain out of Phase-1 scope.
 
 ## UI Structure & Components
 ### PlayerScreen
-- [ ] Own PlayerController (facade over PlayerAdapter) and manage lifecycle.
-- [ ] Host VideoSurface plus OverlayOSD, handling safe areas and keepScreenOn hooks.
+- [x] Own PlayerController (facade over PlayerAdapter) and manage lifecycle.
+- [x] Host VideoSurface plus OverlayOSD, handling safe areas and keepScreenOn hooks.
 
 ### VideoSurface
-- [ ] Render video using the platform texture/view exposed by PlayerAdapter without unnecessary rebuilds.
+- [x] Render video using the platform texture/view exposed by PlayerAdapter without unnecessary rebuilds.
 
 ### OverlayOSD
-- [ ] Provide transport row (Play/Pause, Rewind/Forward, Live zap left/right) with deterministic focus order.
-- [ ] Render progress/seek bar showing time for VOD/Series and a LIVE pill when appropriate.
-- [ ] Show right-aligned info cluster (current time, bitrate label, CC/Audio state).
-- [ ] Offer secondary buttons (Audio, Subtitles, Quality) that open modal pickers.
-- [ ] Auto-hide after inactivity and reappear instantly on any user input.
+- [x] Provide transport row (Play/Pause, Rewind/Forward, Live zap left/right) with deterministic focus order.
+- [x] Render progress/seek bar showing time for VOD/Series and a LIVE pill when appropriate.
+- [x] Show right-aligned info cluster (current time, bitrate label, CC/Audio state).
+- [x] Offer secondary buttons (Audio, Subtitles, Quality) that open modal pickers.
+- [x] Auto-hide after inactivity and reappear instantly on any user input.
 
 ### ModalSheet: TrackPicker
-- [ ] List audio tracks with language/channels/codec metadata and highlight current selection.
-- [ ] List subtitle tracks (defaulting to Off) and handle empty lists gracefully.
+- [x] List audio tracks with language/channels/codec metadata and highlight current selection.
+- [x] List subtitle tracks (defaulting to Off) and handle empty lists gracefully.
 
 ### Toast/ErrorBubble
-- [ ] Display non-blocking network/DRM/manifest/decoder errors along with Retry control.
+- [x] Display non-blocking network/DRM/manifest/decoder errors along with Retry control.
 
 ### Focus Styling
-- [ ] Apply clear focus indicators (scale/halo) that meet Android TV focus guidance.[4]
+- [x] Apply clear focus indicators (scale/halo) that meet Android TV focus guidance.[4]
 
 ## Input Model
-- [ ] Map OK/Enter/Space to toggle Play/Pause.
-- [ ] Map Left/Right to seek +/-10s (VOD/Series) or zap previous/next (Live).
-- [ ] Map Up to show the OSD (or open Audio sheet when OSD already visible).
-- [ ] Map Down to show the OSD (or open Subtitles sheet when OSD already visible).
-- [ ] Map Back/Escape to close sheet, then OSD, then exit player in order.
+- [x] Map OK/Enter/Space to toggle Play/Pause.
+- [x] Map Left/Right to seek +/-10s (VOD/Series) or zap previous/next (Live).
+- [x] Map Up to show the OSD (or open Audio sheet when OSD already visible).
+- [x] Map Down to show the OSD (or open Subtitles sheet when OSD already visible).
+- [x] Map Back/Escape to close sheet, then OSD, then exit player in order.
 - [ ] Prepare long-press Left/Right hook for accelerated seek (Phase-1.5).
-- [ ] Ensure every control is reachable through predictable D-pad focus chains.[1]
+- [x] Ensure every control is reachable through predictable D-pad focus chains.[1]
 
 ## State Machine
-- [ ] Implement IDLE -> LOADING -> PLAYING/PAUSED states with ERROR branch.
-- [ ] Show spinner and disable seek while LOADING.
-- [ ] Auto-hide OSD while PLAYING or PAUSED after N seconds of inactivity.
-- [ ] Keep session context so Retry from ERROR resumes the last media.
+- [x] Implement IDLE -> LOADING -> PLAYING/PAUSED states with ERROR branch.
+- [x] Show spinner and disable seek while LOADING.
+- [x] Auto-hide OSD while PLAYING or PAUSED after N seconds of inactivity.
+- [x] Keep session context so Retry from ERROR resumes the last media.
 - [ ] Emit adapter events (`onBuffering`, `onPlay`, `onPause`, `onEnded`, `onError`, `onTracksChanged`, `onBitrateChanged`, `onLiveEdge`) into the UI.
 
 ## Data Contract (UI <-> PlayerAdapter)
-- [ ] Expose read fields: `isLive`, `position`, `duration?`, `buffered`, `bitrateKbps?`, `tracks{audio[],text[]}`, `selectedAudio`, `selectedText`.
-- [ ] Provide commands: `play`, `pause`, `seekTo`, `selectAudio`, `selectText`, `zapNext`, `zapPrev`.
-- [ ] Stream events: `onStateChanged`, `onError`, `onTracksChanged`, `onBitrateChanged`.
+- [x] Expose read fields: `isLive`, `position`, `duration?`, `buffered`, `bitrateKbps?`, `tracks{audio[],text[]}`, `selectedAudio`, `selectedText`.
+- [x] Provide commands: `play`, `pause`, `seekTo`, `selectAudio`, `selectText`, `zapNext`, `zapPrev`.
+- [x] Stream events: `onStateChanged`, `onError`, `onTracksChanged`, `onBitrateChanged`.
 
 ## First-Run UX & Defaults
 - [ ] Make first OK/Enter show the transport bar; second tap toggles Play/Pause.[2]
@@ -96,16 +96,16 @@
 - [ ] Keep Android devices awake during playback sessions.[3]
 
 ## Folder & Code Skeleton
-- [ ] Create `lib/player/ui/player_screen.dart` to wire controller + OSD.
-- [ ] Create `lib/player/ui/video_surface.dart` for the platform texture/view.
-- [ ] Create `lib/player/ui/overlay_osd.dart` for transport, progress, and badges.
-- [ ] Create `lib/player/ui/track_picker_sheet.dart` for modal audio/subtitle selection.
-- [ ] Create `lib/player/ui/error_toast.dart` for transient messaging.
-- [ ] Create `lib/player/ui/focus_styles.dart` for reusable focus indicators.
-- [ ] Create `lib/player/controller/player_controller.dart` wrapping PlayerAdapter streams.
-- [ ] Create `lib/player/controller/player_state.dart` for enums/data blob.
-- [ ] Create `lib/player/intent/remote_actions.dart` for remote/key intents.
-- [ ] Create `lib/player/theming/player_theme.dart` for sizes, paddings, focus ring tokens.
+- [x] Create `lib/player/ui/player_screen.dart` to wire controller + OSD.
+- [x] Create `lib/player/ui/video_surface.dart` for the platform texture/view.
+- [x] Create `lib/player/ui/overlay_osd.dart` for transport, progress, and badges.
+- [x] Create `lib/player/ui/track_picker_sheet.dart` for modal audio/subtitle selection.
+- [x] Create `lib/player/ui/error_toast.dart` for transient messaging.
+- [x] Create `lib/player/ui/focus_styles.dart` for reusable focus indicators.
+- [x] Create `lib/player/controller/player_controller.dart` wrapping PlayerAdapter streams.
+- [x] Create `lib/player/controller/player_state.dart` for enums/data blob.
+- [x] Create `lib/player/intent/remote_actions.dart` for remote/key intents.
+- [x] Create `lib/player/theming/player_theme.dart` for sizes, paddings, focus ring tokens.
 
 ## Phase-2+ Hooks to Reserve
 - [ ] Leave slots in the OSD layout (transport/center/right/bottom) so ad markers, chapter markers, watch-next rails, and info panels can drop in later.[6]
@@ -114,12 +114,12 @@
 - [ ] Keep gesture/long-press/trick-play thumbnail hooks ready for accelerated navigation improvements.
 
 ## Day-1 Build Order
-- [ ] Create PlayerState + PlayerController backed by a mock adapter.
-- [ ] Implement PlayerScreen with placeholder VideoSurface and functional OverlayOSD (auto-hide enabled).
-- [ ] Wire remote/keyboard intents through RemoteActions into the controller for Play/Pause/Seek/Zap.
-- [ ] Build TrackPickerSheet and bind to controller `tracks` and selection commands.
-- [ ] Add ErrorToast plus error-code mapping layer.
-- [ ] Implement keepScreenOn hook for Android/tvOS.
+- [x] Create PlayerState + PlayerController backed by a mock adapter.
+- [x] Implement PlayerScreen with placeholder VideoSurface and functional OverlayOSD (auto-hide enabled).
+- [x] Wire remote/keyboard intents through RemoteActions into the controller for Play/Pause/Seek/Zap.
+- [x] Build TrackPickerSheet and bind to controller `tracks` and selection commands.
+- [x] Add ErrorToast plus error-code mapping layer.
+- [x] Implement keepScreenOn hook for Android/tvOS.
 - [ ] Validate focus flow on TV hardware: tab through controls and ensure Back unwinds layers cleanly.[1]
 
 [1]: https://developer.android.com/training/tv/get-started/navigation?utm_source=chatgpt.com

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:openiptv/src/player_ui/controller/player_state.dart';
 import 'package:openiptv/src/player_ui/theming/player_theme.dart';
+import 'package:openiptv/src/player_ui/ui/focus_styles.dart';
 
 class PlayerOverlayOSD extends StatelessWidget {
   const PlayerOverlayOSD({
@@ -22,8 +23,8 @@ class PlayerOverlayOSD extends StatelessWidget {
   final VoidCallback onSeekBackward;
   final VoidCallback onZapNext;
   final VoidCallback onZapPrevious;
-  final VoidCallback onShowAudioSheet;
-  final VoidCallback onShowSubtitlesSheet;
+  final VoidCallback? onShowAudioSheet;
+  final VoidCallback? onShowSubtitlesSheet;
 
   @override
   Widget build(BuildContext context) {
@@ -58,46 +59,49 @@ class PlayerOverlayOSD extends StatelessWidget {
 
   Widget _buildTransportRow(ThemeData theme) {
     final iconColor = theme.colorScheme.onSurface;
+    final hasAudioTracks = state.audioTracks.isNotEmpty;
+    final hasSubtitleTracks = state.textTracks.isNotEmpty;
     return Wrap(
       spacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        IconButton(
+        _PlayerControlButton(
           tooltip: state.isPlaying ? 'Pause' : 'Play',
-          iconSize: 36,
+          icon: state.isPlaying
+              ? Icons.pause_rounded
+              : Icons.play_arrow_rounded,
+          color: iconColor,
           onPressed: onTogglePlayPause,
-          icon: Icon(
-            state.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: iconColor,
-          ),
         ),
-        IconButton(
+        _PlayerControlButton(
           tooltip: state.isLive ? 'Previous channel' : 'Rewind 10s',
-          icon: Icon(
-            state.isLive
-                ? Icons.skip_previous_rounded
-                : Icons.replay_10_rounded,
-            color: iconColor,
-          ),
+          icon: state.isLive
+              ? Icons.skip_previous_rounded
+              : Icons.replay_10_rounded,
+          color: iconColor,
           onPressed: state.isLive ? onZapPrevious : onSeekBackward,
         ),
-        IconButton(
+        _PlayerControlButton(
           tooltip: state.isLive ? 'Next channel' : 'Forward 30s',
-          icon: Icon(
-            state.isLive ? Icons.skip_next_rounded : Icons.forward_30_rounded,
-            color: iconColor,
-          ),
+          icon: state.isLive
+              ? Icons.skip_next_rounded
+              : Icons.forward_30_rounded,
+          color: iconColor,
           onPressed: state.isLive ? onZapNext : onSeekForward,
         ),
-        IconButton(
-          tooltip: 'Audio tracks',
-          onPressed: onShowAudioSheet,
-          icon: Icon(Icons.multitrack_audio_outlined, color: iconColor),
+        _PlayerControlButton(
+          tooltip: hasAudioTracks
+              ? 'Audio tracks'
+              : 'No audio tracks available',
+          icon: Icons.multitrack_audio_outlined,
+          color: iconColor,
+          onPressed: hasAudioTracks ? onShowAudioSheet : null,
         ),
-        IconButton(
-          tooltip: 'Subtitles',
-          onPressed: onShowSubtitlesSheet,
-          icon: Icon(Icons.closed_caption_outlined, color: iconColor),
+        _PlayerControlButton(
+          tooltip: hasSubtitleTracks ? 'Subtitles' : 'No subtitles available',
+          icon: Icons.closed_caption_outlined,
+          color: iconColor,
+          onPressed: hasSubtitleTracks ? onShowSubtitlesSheet : null,
         ),
       ],
     );
@@ -188,5 +192,57 @@ class PlayerOverlayOSD extends StatelessWidget {
       return '$hours:$minutes:$seconds';
     }
     return '$minutes:$seconds';
+  }
+}
+
+class _PlayerControlButton extends StatefulWidget {
+  const _PlayerControlButton({
+    required this.tooltip,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final Color color;
+  final VoidCallback? onPressed;
+
+  @override
+  State<_PlayerControlButton> createState() => _PlayerControlButtonState();
+}
+
+class _PlayerControlButtonState extends State<_PlayerControlButton> {
+  bool _isFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final playerTheme = PlayerTheme.of(context);
+    final iconColor = widget.onPressed == null
+        ? Theme.of(context).disabledColor
+        : widget.color;
+    return FocusableActionDetector(
+      onShowFocusHighlight: (value) {
+        if (_isFocused != value) {
+          setState(() => _isFocused = value);
+        }
+      },
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 120),
+        scale: _isFocused ? playerTheme.focusScale : 1,
+        child: DecoratedBox(
+          decoration: buildPlayerFocusDecoration(context, focused: _isFocused),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: IconButton(
+              tooltip: widget.tooltip,
+              iconSize: 36,
+              onPressed: widget.onPressed,
+              icon: Icon(widget.icon, color: iconColor),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

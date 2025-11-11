@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:openiptv/src/player_ui/controller/mock_player_adapter.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
@@ -44,6 +45,8 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen> {
   late final FocusNode _focusNode;
+  bool _wakelockEnabled = false;
+  bool _isSheetOpen = false;
 
   @override
   void initState() {
@@ -59,6 +62,9 @@ class _PlayerScreenState extends State<PlayerScreen> {
   @override
   void dispose() {
     _focusNode.dispose();
+    if (_wakelockEnabled) {
+      WakelockPlus.disable();
+    }
     if (widget.ownsController) {
       widget.controller.dispose();
     }
@@ -82,6 +88,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
         child: ValueListenableBuilder<PlayerViewState>(
           valueListenable: widget.controller.state,
           builder: (context, state, _) {
+            _syncKeepScreenOn(state);
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () {
@@ -110,13 +117,23 @@ class _PlayerScreenState extends State<PlayerScreen> {
   Widget? _buildVideoChild(BuildContext context) {
     final adapter = widget.controller.adapter;
     if (adapter is PlayerVideoSurfaceProvider) {
-      final surfaceProvider = adapter as PlayerVideoSurfaceProvider;
-      return surfaceProvider.buildVideoSurface(context);
+      return (adapter as PlayerVideoSurfaceProvider).buildVideoSurface(context);
     }
     return null;
   }
 
+  void _syncKeepScreenOn(PlayerViewState state) {
+    final shouldEnable = state.isKeepScreenOnEnabled;
+    if (_wakelockEnabled == shouldEnable) {
+      return;
+    }
+    _wakelockEnabled = shouldEnable;
+    WakelockPlus.toggle(enable: shouldEnable);
+  }
+
   Widget _buildOverlay(PlayerViewState state) {
+    final hasAudioTracks = state.audioTracks.isNotEmpty;
+    final hasSubtitleTracks = state.textTracks.isNotEmpty;
     return IgnorePointer(
       ignoring: !state.isOverlayVisible,
       child: AnimatedOpacity(
@@ -133,9 +150,12 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 widget.controller.seekRelative(const Duration(seconds: -10)),
             onZapNext: widget.controller.zapNext,
             onZapPrevious: widget.controller.zapPrevious,
-            onShowAudioSheet: () => _showTrackPicker(context, showAudio: true),
-            onShowSubtitlesSheet: () =>
-                _showTrackPicker(context, showAudio: false),
+            onShowAudioSheet: hasAudioTracks
+                ? () => _showTrackPicker(context, showAudio: true)
+                : null,
+            onShowSubtitlesSheet: hasSubtitleTracks
+                ? () => _showTrackPicker(context, showAudio: false)
+                : null,
           ),
         ),
       ),
@@ -162,27 +182,64 @@ class _PlayerScreenState extends State<PlayerScreen> {
     BuildContext context, {
     required bool showAudio,
   }) async {
+    if (_isSheetOpen) {
+      return;
+    }
+    _isSheetOpen = true;
     final state = widget.controller.state.value;
     widget.controller.showOverlay();
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.black87,
-      isScrollControlled: true,
-      builder: (context) => PlayerTrackPickerSheet(
-        audioTracks: state.audioTracks,
-        textTracks: state.textTracks,
-        selectedAudio: state.selectedAudio,
-        selectedText: state.selectedText,
-        onAudioSelected: (track) {
-          Navigator.of(context).pop();
-          widget.controller.selectAudio(track);
-        },
-        onTextSelected: (track) {
-          Navigator.of(context).pop();
-          widget.controller.selectText(track);
-        },
-      ),
-    );
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.black87,
+        isScrollControlled: true,
+        builder: (sheetContext) => PlayerTrackPickerSheet(
+          audioTracks: state.audioTracks,
+          textTracks: state.textTracks,
+          selectedAudio: state.selectedAudio,
+          selectedText: state.selectedText,
+          onAudioSelected: (track) {
+            Navigator.of(sheetContext).pop();
+            widget.controller.selectAudio(track);
+          },
+          onTextSelected: (track) {
+            Navigator.of(sheetContext).pop();
+            widget.controller.selectText(track);
+          },
+        ),
+      );
+    } finally {
+      _isSheetOpen = false;
+      widget.controller.showOverlay();
+    }
+  }
+
+  void _handleSheetIntent(bool showAudio) {
+    final state = widget.controller.state.value;
+    final hasTracks = showAudio
+        ? state.audioTracks.isNotEmpty
+        : state.textTracks.isNotEmpty;
+    if (!state.isOverlayVisible) {
+      widget.controller.showOverlay();
+      return;
+    }
+    if (!hasTracks) {
+      widget.controller.reportUserInteraction();
+      return;
+    }
+    _showTrackPicker(context, showAudio: showAudio);
+  }
+
+  void _handleBackIntent() {
+    if (_isSheetOpen) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    if (widget.controller.state.value.isOverlayVisible) {
+      widget.controller.hideOverlay();
+      return;
+    }
+    Navigator.of(context).maybePop();
   }
 
   bool _handleKeyEvent(KeyEvent event) {
@@ -207,13 +264,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
         widget.controller.zapPrevious();
         break;
       case PlayerRemoteIntent.showAudioSheet:
-        _showTrackPicker(context, showAudio: true);
+        _handleSheetIntent(true);
         break;
       case PlayerRemoteIntent.showSubtitlesSheet:
-        _showTrackPicker(context, showAudio: false);
+        _handleSheetIntent(false);
         break;
       case PlayerRemoteIntent.closeOverlay:
-        widget.controller.hideOverlay();
+        _handleBackIntent();
         break;
       case PlayerRemoteIntent.exitPlayer:
         Navigator.of(context).maybePop();

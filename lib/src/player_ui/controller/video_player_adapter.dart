@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
 import 'package:openiptv/src/player_ui/controller/player_state.dart';
+import 'package:openiptv/src/utils/playback_logger.dart';
 
 /// Adapter contract for backends that can provide their own platform surface.
 abstract class PlayerVideoSurfaceProvider {
@@ -60,6 +61,7 @@ class VideoPlayerAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
 
   Future<void>? _initializing;
   bool _isDisposed = false;
+  String? _lastControllerError;
 
   @override
   Stream<PlayerSnapshot> get snapshotStream => _snapshotController.stream;
@@ -141,6 +143,16 @@ class VideoPlayerAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       return;
     }
     final value = _controller.value;
+    if (value.hasError && value.errorDescription != null) {
+      final description = value.errorDescription!;
+      if (_lastControllerError != description) {
+        _lastControllerError = description;
+        PlaybackLogger.videoError(
+          'controller',
+          description: description,
+        );
+      }
+    }
     final bufferedPosition = value.buffered.isEmpty
         ? Duration.zero
         : value.buffered.last.end;
@@ -213,6 +225,7 @@ class PlaylistVideoPlayerAdapter
   bool _isDisposed = false;
   final Map<int, PlayerTrack?> _selectedAudio = {};
   final Map<int, PlayerTrack?> _selectedText = {};
+  String? _lastControllerError;
 
   PlayerMediaSource get _currentSource => _sources[_currentIndex];
 
@@ -318,7 +331,10 @@ class PlaylistVideoPlayerAdapter
     final source = _currentSource;
     _controller?.removeListener(_handleControllerUpdate);
     await _controller?.dispose();
-    _controller = VideoPlayerController.networkUrl(source.uri);
+    _controller = VideoPlayerController.networkUrl(
+      source.playable.url,
+      httpHeaders: Map<String, String>.from(source.playable.headers),
+    );
     _controller!.addListener(_handleControllerUpdate);
     _snapshot = _buildSnapshotForSource(
       source: source,
@@ -330,11 +346,16 @@ class PlaylistVideoPlayerAdapter
       if (_isDisposed) {
         return;
       }
+      final seekStart = source.playable.seekStart;
+      if (seekStart != null) {
+        await _controller!.seekTo(seekStart);
+      }
       if (autoPlay) {
         await _controller!.play();
       }
       _handleControllerUpdate(); // ensure fresh snapshot with duration/position
     } catch (error) {
+      PlaybackLogger.videoError('initialize', error: error);
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
         error: PlayerError(code: 'LOAD_FAILED', message: '$error'),
@@ -352,10 +373,10 @@ class PlaylistVideoPlayerAdapter
     final textTrack = _selectedText[_currentIndex] ?? source.defaultTextTrack();
     return PlayerSnapshot(
       phase: phase,
-      isLive: source.isLive,
+      isLive: source.playable.isLive,
       position: Duration.zero,
       buffered: Duration.zero,
-      duration: source.isLive ? null : Duration.zero,
+      duration: source.playable.isLive ? null : Duration.zero,
       bitrateKbps: source.bitrateKbps,
       audioTracks: source.audioTracks,
       textTracks: source.textTracks,
@@ -363,7 +384,7 @@ class PlaylistVideoPlayerAdapter
       selectedText: textTrack,
       error: null,
       isBuffering: true,
-      mediaTitle: source.title,
+      mediaTitle: source.title ?? source.playable.url.toString(),
     );
   }
 
@@ -373,14 +394,31 @@ class PlaylistVideoPlayerAdapter
       return;
     }
     final value = controller.value;
+    if (value.hasError && value.errorDescription != null) {
+      final description = value.errorDescription!;
+      if (_lastControllerError != description) {
+        _lastControllerError = description;
+        PlaybackLogger.videoError(
+          'controller',
+          description: description,
+        );
+      }
+    }
     final bufferedPosition = value.buffered.isEmpty
         ? Duration.zero
         : value.buffered.last.end;
+    if (value.hasError && value.errorDescription != null) {
+      final description = value.errorDescription!;
+      if (_lastControllerError != description) {
+        _lastControllerError = description;
+        PlaybackLogger.videoError('controller', description: description);
+      }
+    }
     _snapshot = _snapshot.copyWith(
       phase: _derivePhase(value),
       position: value.position,
       buffered: bufferedPosition,
-      duration: _currentSource.isLive ? null : value.duration,
+      duration: _currentSource.playable.isLive ? null : value.duration,
       isBuffering: value.isBuffering,
     );
     _emitSnapshot();

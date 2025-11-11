@@ -12,6 +12,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
 import 'package:openiptv/src/utils/header_json_codec.dart';
+import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 
@@ -203,6 +204,7 @@ class PlayableResolver {
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
+      PlaybackLogger.playableDrop('unsupported-scheme', uri: uri);
       return null;
     }
     final normalizedHeaders = headers == null
@@ -265,15 +267,27 @@ class PlayableResolver {
     required bool isLive,
     Map<String, String>? headerHints,
   }) async {
+    final module = _stalkerModuleForBucket(kind);
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
     if (config == null) {
+      PlaybackLogger.stalker(
+        'missing-config',
+        portal: profile.lockedBase,
+        module: module,
+        command: command,
+      );
       return null;
     }
     final session = await _loadStalkerSession();
     if (session == null) {
+      PlaybackLogger.stalker(
+        'session-unavailable',
+        portal: config.baseUri,
+        module: module,
+        command: command,
+      );
       return null;
     }
-    final module = _stalkerModuleForBucket(kind);
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',
@@ -282,24 +296,68 @@ class PlayableResolver {
       'cmd': command,
       'JsHttpRequest': '1-xml',
     };
-    final response = await _stalkerHttpClient.getPortal(
-      config,
-      queryParameters: queryParameters,
-      headers: session.buildAuthenticatedHeaders(),
-    );
-    final resolvedLink = _extractStalkerLink(response.body);
-    if (resolvedLink == null || resolvedLink.isEmpty) {
-      return null;
+    final sessionHeaders = session.buildAuthenticatedHeaders();
+    try {
+      final response = await _stalkerHttpClient.getPortal(
+        config,
+        queryParameters: queryParameters,
+        headers: sessionHeaders,
+      );
+      final resolvedLink = _extractStalkerLink(response.body);
+      if (resolvedLink == null || resolvedLink.isEmpty) {
+        PlaybackLogger.stalker(
+          'link-missing',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+        return null;
+      }
+      final uri = _parseDirectUri(resolvedLink);
+      if (uri == null) {
+        PlaybackLogger.stalker(
+          'link-parse-failed',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+        return null;
+      }
+      final playbackHeaders = _mergeHeaders(
+        headerHints,
+        overrides: {
+          for (final entry in sessionHeaders.entries)
+            if (!_headerBlacklist.contains(entry.key)) entry.key: entry.value,
+        },
+      );
+      final playable = _playableFromUri(
+        uri,
+        isLive: isLive,
+        headers: playbackHeaders,
+      );
+      if (playable == null) {
+        PlaybackLogger.playableDrop('stalker-unhandled', uri: uri);
+        return null;
+      }
+      PlaybackLogger.stalker(
+        'resolved',
+        portal: config.baseUri,
+        module: module,
+        command: command,
+        resolvedUri: uri,
+        headers: playbackHeaders,
+      );
+      return playable;
+    } catch (error) {
+      PlaybackLogger.stalker(
+        'create-link-error',
+        portal: config.baseUri,
+        module: module,
+        command: command,
+        error: error,
+      );
+      rethrow;
     }
-    final uri = _parseDirectUri(resolvedLink);
-    if (uri == null) {
-      return null;
-    }
-    final playbackHeaders = _mergeHeaders(
-      headerHints,
-      overrides: session.buildAuthenticatedHeaders(),
-    );
-    return _playableFromUri(uri, isLive: isLive, headers: playbackHeaders);
   }
 
   Uri _xtreamStreamBase() {
@@ -423,6 +481,13 @@ class PlayableResolver {
     }
     return Map.unmodifiable(merged!);
   }
+
+  static const Set<String> _headerBlacklist = {
+    'cookie',
+    'Cookie',
+    'authorization',
+    'Authorization',
+  };
 
   Uri? _parseDirectUri(String? candidate) {
     if (candidate == null) return null;

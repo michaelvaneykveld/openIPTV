@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart';
-
 import 'package:openiptv/src/utils/url_redaction.dart';
 
 import 'slow_query_log_writer.dart' as slow_log;
@@ -241,35 +239,16 @@ class SlowQueryLogger {
   static final SlowQueryLogger instance = SlowQueryLogger._();
 
   Future<void> record(SlowQueryEvent event) async {
-    if (kIsWeb) {
-      if (kDebugMode) {
-        debugPrint(_formatConsoleLine(event));
-      }
-      return;
-    }
-
     try {
       await slow_log.writeSlowQueryLine(jsonEncode(event.toJson()));
-      if (kDebugMode) {
-        debugPrint(_formatConsoleLine(event));
-      }
     } catch (error) {
-      if (kDebugMode) {
-        debugPrint('SlowQueryLogger failed: $error');
-      }
+      // swallow logging failures silently in production builds
+      assert(() {
+        // keep signal during development
+        // ignore: avoid_print
+        print('SlowQueryLogger failed: $error');
+        return true;
+      }());
     }
-  }
-
-  String _formatConsoleLine(SlowQueryEvent event) {
-    final buffer = StringBuffer()
-      ..write('[SlowSQL] ')
-      ..write('${event.duration.inMilliseconds}ms ')
-      ..write(event.operation)
-      ..write(' rows=${event.rowsRead ?? event.rowsAffected ?? '-'} ')
-      ..write(redactSensitiveText(event.sql));
-    if (event.error != null) {
-      buffer.write(' error=${event.error}');
-    }
-    return buffer.toString();
   }
 }

@@ -63,13 +63,13 @@ const Set<String> _adaptiveExtensions = {'m3u8', 'mpd'};
 const Set<String> _likelyCodecExtensions = {'ts', 'mkv', 'hevc', '265', 'ac3'};
 
 String? _resolveExtension(Playable playable) {
-  if (playable.containerExtension != null &&
-      playable.containerExtension!.isNotEmpty) {
-    return playable.containerExtension;
-  }
   final queryExt = playable.url.queryParameters['extension'];
   if (queryExt != null && queryExt.trim().isNotEmpty) {
     return queryExt.trim().toLowerCase();
+  }
+  if (playable.containerExtension != null &&
+      playable.containerExtension!.isNotEmpty) {
+    return playable.containerExtension;
   }
   final path = playable.url.pathSegments;
   if (path.isNotEmpty) {

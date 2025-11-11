@@ -71,7 +71,11 @@ class ImportContext {
 
   static final Map<int, _AsyncMutex> _providerLocks = {};
 
-  Future<T> run<T>(ImportAction<T> action) async {
+  Future<T> run<T>(
+    ImportAction<T> action, {
+    bool optimizeForLargeImport = false,
+    int? estimatedWriteBytes,
+  }) async {
     final start = DateTime.now();
     final txn = ImportTxn(
       db,
@@ -83,7 +87,13 @@ class ImportContext {
       summaryDao,
       epgDao,
     );
-    final result = await db.transaction(() => action(txn));
+    Future<T> runner() => db.transaction(() => action(txn));
+    final result = optimizeForLargeImport
+        ? await db.runWithLargeImportMode(
+            runner,
+            estimatedWriteBytes: estimatedWriteBytes,
+          )
+        : await runner();
     final duration = DateTime.now().difference(start);
     if (result is ImportMetrics) {
       result.duration = duration;
@@ -98,6 +108,8 @@ class ImportContext {
     int? providerId,
     String? importType,
     ImportMetricsSelector<T>? metricsSelector,
+    bool optimizeForLargeImport = false,
+    int? estimatedWriteBytes,
   }) async {
     final startUtc = DateTime.now().toUtc();
     var attempt = 0;
@@ -107,7 +119,11 @@ class ImportContext {
       try {
         final result = await _executeWithLock(
           providerId: providerId,
-          runAction: () => run(action),
+          runAction: () => run(
+            action,
+            optimizeForLargeImport: optimizeForLargeImport,
+            estimatedWriteBytes: estimatedWriteBytes,
+          ),
         );
         await _maybeLogImport(
           providerId: providerId,
@@ -141,10 +157,7 @@ class ImportContext {
     if (providerId == null) {
       return runAction();
     }
-    final mutex = _providerLocks.putIfAbsent(
-      providerId,
-      () => _AsyncMutex(),
-    );
+    final mutex = _providerLocks.putIfAbsent(providerId, () => _AsyncMutex());
     return mutex.synchronized(runAction);
   }
 
@@ -158,8 +171,7 @@ class ImportContext {
   }) async {
     if (providerId == null || importType == null) return;
     try {
-      final provider =
-          await providerDao.findById(providerId);
+      final provider = await providerDao.findById(providerId);
       if (provider == null) return;
 
       ImportMetrics? metrics;

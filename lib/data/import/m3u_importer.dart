@@ -60,11 +60,13 @@ class M3uImporter {
   M3uImporter(this.context);
 
   final ImportContext context;
+  static const int _rowEstimateBytes = 640;
 
   Future<ImportMetrics> importEntries({
     required int providerId,
     required Stream<M3uEntry> entries,
-  }) {
+  }) async {
+    final estimatedBytes = await _estimateWriteBytes(providerId: providerId);
     return context.runWithRetry(
       (txn) async {
         final metrics = ImportMetrics();
@@ -162,7 +164,23 @@ class M3uImporter {
       providerId: providerId,
       importType: 'm3u.catalog',
       metricsSelector: (result) => result,
+      optimizeForLargeImport: true,
+      estimatedWriteBytes: estimatedBytes,
     );
+  }
+
+  Future<int?> _estimateWriteBytes({required int providerId}) async {
+    try {
+      final totals = await context.summaryDao.mapForProvider(providerId);
+      final totalItems = totals.values.fold<int>(
+        0,
+        (previous, value) => previous + value,
+      );
+      if (totalItems <= 0) return null;
+      return totalItems * _rowEstimateBytes;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

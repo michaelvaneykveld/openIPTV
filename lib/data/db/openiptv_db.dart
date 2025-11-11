@@ -14,8 +14,10 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqlcipher;
 
 import 'database_flags.dart';
 import 'database_key_store.dart';
+import 'slow_query_interceptor.dart';
 import 'web_query_executor_stub.dart'
-    if (dart.library.js) 'web_query_executor_web.dart' as web_db;
+    if (dart.library.js) 'web_query_executor_web.dart'
+    as web_db;
 
 part 'openiptv_db.g.dart';
 
@@ -65,6 +67,8 @@ part 'tables/vod_search_fts.dart';
 )
 class OpenIptvDb extends _$OpenIptvDb {
   static const int schemaVersionLatest = 6;
+  static const int _largeImportThresholdBytes = 100 * 1024 * 1024;
+  static const Duration _slowQueryThreshold = Duration(milliseconds: 120);
 
   OpenIptvDb._(this._overrideSchemaVersion, super.executor);
 
@@ -81,8 +85,7 @@ class OpenIptvDb extends _$OpenIptvDb {
   factory OpenIptvDb.forTesting(
     QueryExecutor executor, {
     int? schemaVersionOverride,
-  }) =>
-      OpenIptvDb._(schemaVersionOverride, executor);
+  }) => OpenIptvDb._(schemaVersionOverride, executor);
 
   /// Resolves the on-disk location for the primary database file.
   static Future<File> resolveDatabaseFile() async {
@@ -99,47 +102,46 @@ class OpenIptvDb extends _$OpenIptvDb {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
-          await _ensureEpgSearchIndex(rebuild: true);
-          await _ensureChannelSearchIndex(rebuild: true);
-          await _ensureVodSearchIndex(rebuild: true);
-          await _ensureProviderIndexes();
-        },
-        onUpgrade: (Migrator m, int from, int to) async {
-          for (var version = from; version < to; version++) {
-            switch (version) {
-              case 1:
-                await _migrateFrom1To2(m);
-                break;
-              case 2:
-                await _migrateFrom2To3();
-                break;
-              case 3:
-                await _migrateFrom3To4();
-                break;
-              case 4:
-                await _migrateFrom4To5();
-                break;
-              case 5:
-                await _migrateFrom5To6();
-                break;
-              default:
-                break;
-            }
-          }
-        },
-        beforeOpen: (OpeningDetails details) async {
-          if (!details.wasCreated) {
-            await _verifyIntegrity();
-          }
-          // Enforce fundamentals every time the database is opened.
-          await customStatement('PRAGMA foreign_keys = ON;');
-          await customStatement('PRAGMA synchronous = NORMAL;');
-          await customStatement('PRAGMA journal_mode = WAL;');
-          await customStatement('PRAGMA temp_store = MEMORY;');
-        },
-      );
+    onCreate: (Migrator m) async {
+      await m.createAll();
+      await _ensureEpgSearchIndex(rebuild: true);
+      await _ensureChannelSearchIndex(rebuild: true);
+      await _ensureVodSearchIndex(rebuild: true);
+      await _ensureProviderIndexes();
+    },
+    onUpgrade: (Migrator m, int from, int to) async {
+      for (var version = from; version < to; version++) {
+        switch (version) {
+          case 1:
+            await _migrateFrom1To2(m);
+            break;
+          case 2:
+            await _migrateFrom2To3();
+            break;
+          case 3:
+            await _migrateFrom3To4();
+            break;
+          case 4:
+            await _migrateFrom4To5();
+            break;
+          case 5:
+            await _migrateFrom5To6();
+            break;
+          default:
+            break;
+        }
+      }
+    },
+    beforeOpen: (OpeningDetails details) async {
+      await _verifyIntegrity();
+      // Enforce fundamentals every time the database is opened.
+      await customStatement('PRAGMA foreign_keys = ON;');
+      await customStatement('PRAGMA synchronous = NORMAL;');
+      await customStatement('PRAGMA journal_mode = WAL;');
+      await customStatement('PRAGMA temp_store = MEMORY;');
+      await _applyDeviceClassPragmas();
+    },
+  );
 
   Future<void> _migrateFrom1To2(Migrator m) async {
     await _createIfMissing(m, maintenanceLog);
@@ -196,9 +198,7 @@ class OpenIptvDb extends _$OpenIptvDb {
     required String columnName,
     required String ddl,
   }) async {
-    final info = await customSelect(
-      'PRAGMA table_info($tableName);',
-    ).get();
+    final info = await customSelect('PRAGMA table_info($tableName);').get();
     final exists = info.any(
       (row) => row.data['name']?.toString() == columnName,
     );
@@ -213,6 +213,50 @@ class OpenIptvDb extends _$OpenIptvDb {
     final status = rows.first.data.values.first?.toString() ?? 'unknown';
     if (status.toLowerCase() != 'ok') {
       throw DatabaseIntegrityException(status);
+    }
+  }
+
+  Future<void> _applyDeviceClassPragmas() async {
+    if (kIsWeb) return;
+    final isMobile = Platform.isAndroid || Platform.isIOS;
+    final busyTimeoutMs = isMobile ? 3000 : 5000;
+    final cachePages = isMobile ? -4096 : -12288;
+    await customStatement('PRAGMA busy_timeout = $busyTimeoutMs;');
+    await customStatement('PRAGMA cache_size = $cachePages;');
+  }
+
+  Future<String?> _readJournalMode() async {
+    final rows = await customSelect('PRAGMA journal_mode;').get();
+    if (rows.isEmpty) return null;
+    return rows.first.data.values.first?.toString();
+  }
+
+  Future<String?> _setJournalMode(String mode) async {
+    final rows = await customSelect('PRAGMA journal_mode = $mode;').get();
+    if (rows.isEmpty) return null;
+    return rows.first.data.values.first?.toString();
+  }
+
+  Future<T> runWithLargeImportMode<T>(
+    Future<T> Function() action, {
+    int? estimatedWriteBytes,
+  }) async {
+    if (kIsWeb) return action();
+    final hint = estimatedWriteBytes ?? _largeImportThresholdBytes;
+    if (hint < _largeImportThresholdBytes) {
+      return action();
+    }
+    final previousMode = await _readJournalMode();
+    if (previousMode == null || previousMode.toLowerCase() != 'wal') {
+      return action();
+    }
+    await customStatement('PRAGMA wal_checkpoint(TRUNCATE);');
+    await _setJournalMode('TRUNCATE');
+    try {
+      return await action();
+    } finally {
+      await _setJournalMode('WAL');
+      await customStatement('PRAGMA synchronous = NORMAL;');
     }
   }
 
@@ -424,8 +468,12 @@ class OpenIptvDb extends _$OpenIptvDb {
     await customStatement('DROP TRIGGER IF EXISTS channels_ai_search;');
     await customStatement('DROP TRIGGER IF EXISTS channels_ad_search;');
     await customStatement('DROP TRIGGER IF EXISTS channels_au_search;');
-    await customStatement('DROP TRIGGER IF EXISTS channel_categories_ai_search;');
-    await customStatement('DROP TRIGGER IF EXISTS channel_categories_ad_search;');
+    await customStatement(
+      'DROP TRIGGER IF EXISTS channel_categories_ai_search;',
+    );
+    await customStatement(
+      'DROP TRIGGER IF EXISTS channel_categories_ad_search;',
+    );
     await customStatement('DROP TABLE IF EXISTS channel_search_fts;');
   }
 
@@ -594,11 +642,26 @@ class DatabaseIntegrityException implements Exception {
   String toString() => 'DatabaseIntegrityException($result)';
 }
 
+QueryExecutor _wrapExecutor(
+  QueryExecutor executor, {
+  required bool enableSlowLogging,
+}) {
+  if (!enableSlowLogging) {
+    return executor;
+  }
+  return executor.interceptWith(
+    SlowQueryInterceptor(threshold: OpenIptvDb._slowQueryThreshold),
+  );
+}
+
 QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
   if (kIsWeb) {
-    return web_db.createWebQueryExecutor();
+    return _wrapExecutor(
+      web_db.createWebQueryExecutor(),
+      enableSlowLogging: false,
+    );
   }
-  return LazyDatabase(() async {
+  final executor = LazyDatabase(() async {
     final directory = await _resolveStorageDirectory();
     final dbPath = p.join(directory.path, 'openiptv.db');
 
@@ -610,17 +673,11 @@ QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
       }
       final store = keyStore ?? SecureDatabaseKeyStore();
       final key = await store.obtainOrCreateKey();
-      return SqlCipherQueryExecutor(
-        path: dbPath,
-        password: key,
-      );
+      return SqlCipherQueryExecutor(path: dbPath, password: key);
     }
 
     if (_useNativeDatabase()) {
-      return NativeDatabase(
-        File(dbPath),
-        logStatements: false,
-      );
+      return NativeDatabase(File(dbPath), logStatements: false);
     }
 
     return SqfliteQueryExecutor(
@@ -629,18 +686,18 @@ QueryExecutor _openConnection({DatabaseKeyStore? keyStore}) {
       logStatements: false,
     );
   });
+  return _wrapExecutor(executor, enableSlowLogging: true);
 }
 
 QueryExecutor _openInMemory() {
-  if (_useNativeDatabase()) {
-    return NativeDatabase.memory(logStatements: false);
-  }
-  // Sqflite memory database uses the special path ":memory:".
-  return SqfliteQueryExecutor.inDatabaseFolder(
-    path: 'openiptv_test.sqlite',
-    singleInstance: false,
-    logStatements: false,
-  );
+  final executor = _useNativeDatabase()
+      ? NativeDatabase.memory(logStatements: false)
+      : SqfliteQueryExecutor.inDatabaseFolder(
+          path: 'openiptv_test.sqlite',
+          singleInstance: false,
+          logStatements: false,
+        );
+  return _wrapExecutor(executor, enableSlowLogging: false);
 }
 
 Future<Directory> _resolveStorageDirectory() async {
@@ -666,13 +723,13 @@ class SqlCipherQueryExecutor extends DelegatedDatabase {
     bool singleInstance = true,
     bool? logStatements,
   }) : super(
-          _SqlCipherDelegate(
-            path: path,
-            password: password,
-            singleInstance: singleInstance,
-          ),
-          logStatements: logStatements,
-        );
+         _SqlCipherDelegate(
+           path: path,
+           password: password,
+           singleInstance: singleInstance,
+         ),
+         logStatements: logStatements,
+       );
 
   @override
   bool get isSequential => true;
@@ -704,8 +761,9 @@ class _SqlCipherDelegate extends DatabaseDelegate {
   bool get isOpen => _isOpen;
 
   @override
-  late final DbVersionDelegate versionDelegate =
-      _SqlCipherVersionDelegate(() => _database);
+  late final DbVersionDelegate versionDelegate = _SqlCipherVersionDelegate(
+    () => _database,
+  );
 
   @override
   TransactionDelegate get transactionDelegate => const NoTransactionDelegate();
@@ -733,10 +791,7 @@ class _SqlCipherDelegate extends DatabaseDelegate {
   Future<void> runBatched(BatchedStatements statements) async {
     final batch = _database.batch();
     for (final stmt in statements.arguments) {
-      batch.execute(
-        statements.statements[stmt.statementIndex],
-        stmt.arguments,
-      );
+      batch.execute(statements.statements[stmt.statementIndex], stmt.arguments);
     }
     await batch.apply(noResult: true);
   }
@@ -776,8 +831,6 @@ class _SqlCipherVersionDelegate extends DynamicVersionDelegate {
 
   @override
   Future<void> setSchemaVersion(int version) async {
-    await _databaseProvider()
-        .rawUpdate('PRAGMA user_version = $version;');
+    await _databaseProvider().rawUpdate('PRAGMA user_version = $version;');
   }
 }
-

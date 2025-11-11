@@ -1,4 +1,4 @@
-# Next-Level Database TODOs
+﻿# Next-Level Database TODOs
 
 Use this backlog to track the "ultimate" database roadmap. Check items that already ship in `main`; leave the rest for future work.
 
@@ -14,7 +14,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Surface lightweight import progress with cancel/undo affordances in the UI. -> Login + PlayerShell now render `ImportProgressBanner` with determinate progress and cancel hooks wired to `ProviderImportService.cancelImport`.
 
 ### 1) Category discovery: common pitfalls & fixes
-- [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3–5 global pages off-isolate, cache for ~24h).
+- [ ] Implement the probe chain for every content type, including radio, and fall back to derived categories (sample first 3â€“5 global pages off-isolate, cache for ~24h).
 - [x] Add a parental-unlock hook that runs when the portal flags censored content; persist the flag in `PortalDialect` so the UI can prompt the user once. -> `_importStalker` tracks `sawLockedCategory`, updates `StalkerPortalDialect.requiresParentalUnlock`, and the login/player UI reads it for prompts.
 
 ### 2) Authentication & headers
@@ -34,7 +34,7 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [x] Retry transient errors with jitter before assuming a category is empty, and respect adult/parental preferences when counting. -> `_retryWithJitter` now wraps Stalker portal calls with randomized delays before failing.
 
 ### 6) Missing safety rails
-- [x] Enforce hard caps: global "*" = 30 pages, per-category = 200 pages, plus 200�600?ms jitter/backoff between requests. Log when a cap triggers. -> `_fetchStalkerListing` enforces `_stalkerMaxGlobalPages`/`_stalkerMaxCategoryPages`, applies randomized delays, and logs resume/cap exits.
+- [x] Enforce hard caps: global "*" = 30 pages, per-category = 200 pages, plus 200–600?ms jitter/backoff between requests. Log when a cap triggers. -> `_fetchStalkerListing` enforces `_stalkerMaxGlobalPages`/`_stalkerMaxCategoryPages`, applies randomized delays, and logs resume/cap exits.
 - [x] Emit diagnostics per run (category action used, paging shape, portal totals vs ingested totals) so regressions surface quickly. -> `_logCategoryStrategy` and `_logStalkerRunSummary` now print the winning probe, counts, and adult state once per run.
 - [x] Resume checkpoints already land in `ImportResumeStore`; extend diagnostics so stale checkpoints expire with the same TTL as derived categories.
 
@@ -89,9 +89,9 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Acceptance: CI exercises upgrade/downgrade on empty/small/huge DBs.
 
 ## Phase 6 - Query Tuning & Telemetry
-- [ ] Log slow-query metrics (duration, rows read/returned) to build a heatmap dashboard.
+- [x] Log slow-query metrics (duration, rows read/returned) to build a heatmap dashboard. -> `SlowQueryInterceptor` now wraps every Drift executor, emitting sanitized slow-query samples (duration, rows, args) to `slow_queries.jsonl`.
 - [ ] Review `EXPLAIN QUERY PLAN` for hot queries to ensure index-only scans.
-- [ ] Tune PRAGMAs per device class (busy_timeout, cache_size) and temporarily disable WAL for >100MB imports when needed.
+- [x] Tune PRAGMAs per device class (busy_timeout, cache_size) and temporarily disable WAL for >100MB imports when needed. -> `OpenIptvDb` applies mobile/desktop-specific `busy_timeout`/`cache_size` PRAGMAs at open and `runWithLargeImportMode` temporarily flips WAL off when importers hint at 100MB+ payloads.
 
 ## Phase 7 - Cross-Platform Specifics
 - [x] Keep Android/iOS/macOS/Windows/Linux on sqlite3/FFI with identical schema + DAOs.
@@ -111,4 +111,5 @@ Use this backlog to track the "ultimate" database roadmap. Check items that alre
 - [ ] Hot caches: recents + mini-EPG prewarm with key-set pagination.
 - [x] Migrations: integrity checks + downgrade coverage.
 - [x] Performance harness: scripted 10k/100k imports plus scroll/search benchmarks in CI.
+
 

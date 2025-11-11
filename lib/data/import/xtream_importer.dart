@@ -43,6 +43,7 @@ class XtreamImporter {
   XtreamImporter(this.context);
 
   final ImportContext context;
+  static const int _rowEstimateBytes = 640;
 
   Future<ImportMetrics> importAll({
     required int providerId,
@@ -53,7 +54,13 @@ class XtreamImporter {
     required List<Map<String, dynamic>> vodCategories,
     required List<Map<String, dynamic>> seriesCategories,
     Map<String, List<Map<String, dynamic>>> seriesEpisodes = const {},
-  }) {
+  }) async {
+    final estimatedBytes = _estimatePayloadBytes(
+      live: live,
+      vod: vod,
+      series: series,
+      seriesEpisodes: seriesEpisodes,
+    );
     return context.runWithRetry(
       (txn) async {
         final metrics = ImportMetrics();
@@ -204,6 +211,8 @@ class XtreamImporter {
       providerId: providerId,
       importType: 'xtream.catalog',
       metricsSelector: (result) => result,
+      optimizeForLargeImport: true,
+      estimatedWriteBytes: estimatedBytes,
     );
   }
 
@@ -631,6 +640,21 @@ class XtreamImporter {
       return seconds;
     }
     return int.tryParse(text);
+  }
+
+  int _estimatePayloadBytes({
+    required List<Map<String, dynamic>> live,
+    required List<Map<String, dynamic>> vod,
+    required List<Map<String, dynamic>> series,
+    required Map<String, List<Map<String, dynamic>>> seriesEpisodes,
+  }) {
+    final episodeCount = seriesEpisodes.values.fold<int>(
+      0,
+      (sum, items) => sum + items.length,
+    );
+    final total = live.length + vod.length + series.length + episodeCount;
+    if (total <= 0) return 0;
+    return total * _rowEstimateBytes;
   }
 }
 

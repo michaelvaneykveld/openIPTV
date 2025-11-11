@@ -32,6 +32,7 @@ class StalkerImporter {
   StalkerImporter(this.context);
 
   final ImportContext context;
+  static const int _rowEstimateBytes = 640;
 
   Future<ImportMetrics> importCatalog({
     required int providerId,
@@ -47,7 +48,13 @@ class StalkerImporter {
     int? vodSummaryOverride,
     int? seriesSummaryOverride,
     int? radioSummaryOverride,
-  }) {
+  }) async {
+    final estimatedBytes = _estimatePayloadBytes(
+      liveCount: liveItems.length,
+      vodCount: vodItems.length,
+      seriesCount: seriesItems.length,
+      radioCount: radioItems.length,
+    );
     return context.runWithRetry(
       (txn) async {
         final metrics = ImportMetrics();
@@ -164,6 +171,8 @@ class StalkerImporter {
       providerId: providerId,
       importType: 'stalker.catalog',
       metricsSelector: (result) => result,
+      optimizeForLargeImport: true,
+      estimatedWriteBytes: estimatedBytes,
     );
   }
 
@@ -406,5 +415,16 @@ class StalkerImporter {
       return total;
     }
     return int.tryParse(text);
+  }
+
+  int _estimatePayloadBytes({
+    required int liveCount,
+    required int vodCount,
+    required int seriesCount,
+    required int radioCount,
+  }) {
+    final total = liveCount + vodCount + seriesCount + radioCount;
+    if (total <= 0) return 0;
+    return total * _rowEstimateBytes;
   }
 }

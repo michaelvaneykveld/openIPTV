@@ -2178,24 +2178,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         const SizedBox(width: 12),
 
         Flexible(
-          child: CheckboxListTile(
-            key: saveToggleKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CheckboxListTile(
+                key: saveToggleKey,
 
-            value: saveForLater,
+                value: saveForLater,
 
-            onChanged: isBusy
-                ? null
-                : (value) {
-                    if (value != null) {
-                      onSaveToggle(value);
-                    }
-                  },
+                onChanged: isBusy
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          onSaveToggle(value);
+                        }
+                      },
 
-            contentPadding: EdgeInsets.zero,
+                contentPadding: EdgeInsets.zero,
 
-            controlAffinity: ListTileControlAffinity.leading,
+                controlAffinity: ListTileControlAffinity.leading,
 
-            title: const Text('Save this portal for later'),
+                title: const Text('Save this portal for later'),
+              ),
+              if (saveForLater)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: isBusy
+                        ? null
+                        : () => unawaited(_handleSaveDraft()),
+                    icon: const Icon(Icons.bookmark_add_outlined),
+                    label: const Text('Save draft now'),
+                  ),
+                ),
+            ],
           ),
         ),
       ],

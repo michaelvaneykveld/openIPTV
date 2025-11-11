@@ -19,19 +19,20 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
     DateTime? seenAt,
   }) async {
     final resolvedSeenAt = seenAt ?? DateTime.now().toUtc();
-    final updated = await (update(series)
-          ..where((tbl) => tbl.providerId.equals(providerId))
-          ..where((tbl) => tbl.providerSeriesKey.equals(providerSeriesKey)))
-        .write(
-      SeriesCompanion(
-        categoryId: Value(categoryId),
-        title: Value(title),
-        posterUrl: Value(posterUrl),
-        year: Value(year),
-        overview: Value(overview),
-        lastSeenAt: Value(resolvedSeenAt),
-      ),
-    );
+    final updated =
+        await (update(series)
+              ..where((tbl) => tbl.providerId.equals(providerId))
+              ..where((tbl) => tbl.providerSeriesKey.equals(providerSeriesKey)))
+            .write(
+              SeriesCompanion(
+                categoryId: Value(categoryId),
+                title: Value(title),
+                posterUrl: Value(posterUrl),
+                year: Value(year),
+                overview: Value(overview),
+                lastSeenAt: Value(resolvedSeenAt),
+              ),
+            );
 
     if (updated > 0) {
       final existing = await findSeries(
@@ -60,14 +61,11 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
     required int seasonNumber,
     String? name,
   }) async {
-    final updated = await (update(seasons)
-          ..where((tbl) => tbl.seriesId.equals(seriesId))
-          ..where((tbl) => tbl.seasonNumber.equals(seasonNumber)))
-        .write(
-      SeasonsCompanion(
-        name: Value(name),
-      ),
-    );
+    final updated =
+        await (update(seasons)
+              ..where((tbl) => tbl.seriesId.equals(seriesId))
+              ..where((tbl) => tbl.seasonNumber.equals(seasonNumber)))
+            .write(SeasonsCompanion(name: Value(name)));
 
     if (updated > 0) {
       final existing = await findSeason(
@@ -99,21 +97,24 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
     DateTime? seenAt,
   }) async {
     final resolvedSeenAt = seenAt ?? DateTime.now().toUtc();
-    final updated = await (update(episodes)
-          ..where((tbl) => tbl.seriesId.equals(seriesId))
-          ..where((tbl) => tbl.providerEpisodeKey.equals(providerEpisodeKey)))
-        .write(
-      EpisodesCompanion(
-        seasonId: Value(seasonId),
-        seasonNumber: Value(seasonNumber),
-        episodeNumber: Value(episodeNumber),
-        title: Value(title),
-        overview: Value(overview),
-        durationSec: Value(durationSec),
-        streamUrlTemplate: Value(streamUrlTemplate),
-        lastSeenAt: Value(resolvedSeenAt),
-      ),
-    );
+    final updated =
+        await (update(episodes)
+              ..where((tbl) => tbl.seriesId.equals(seriesId))
+              ..where(
+                (tbl) => tbl.providerEpisodeKey.equals(providerEpisodeKey),
+              ))
+            .write(
+              EpisodesCompanion(
+                seasonId: Value(seasonId),
+                seasonNumber: Value(seasonNumber),
+                episodeNumber: Value(episodeNumber),
+                title: Value(title),
+                overview: Value(overview),
+                durationSec: Value(durationSec),
+                streamUrlTemplate: Value(streamUrlTemplate),
+                lastSeenAt: Value(resolvedSeenAt),
+              ),
+            );
 
     if (updated > 0) {
       final existing = await findEpisode(
@@ -173,12 +174,16 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
   }
 
   Future<void> deleteHierarchyForSeries(int seriesId) async {
-    await (delete(episodes)..where((tbl) => tbl.seriesId.equals(seriesId))).go();
+    await (delete(
+      episodes,
+    )..where((tbl) => tbl.seriesId.equals(seriesId))).go();
     await (delete(seasons)..where((tbl) => tbl.seriesId.equals(seriesId))).go();
   }
 
   Future<void> markSeriesForDeletion(int providerId) {
-    return (update(series)..where((tbl) => tbl.providerId.equals(providerId))).write(
+    return (update(
+      series,
+    )..where((tbl) => tbl.providerId.equals(providerId))).write(
       SeriesCompanion(
         lastSeenAt: Value(DateTime.fromMillisecondsSinceEpoch(0)),
       ),
@@ -195,37 +200,31 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
         .go();
   }
 
-  Stream<List<SeriesRecord>> watchSeries(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Stream<List<SeriesRecord>> watchSeries(int providerId, {int? categoryId}) {
     return _selectSeries(providerId, categoryId: categoryId).watch();
   }
 
-  Future<List<SeriesRecord>> listSeries(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Future<List<SeriesRecord>> listSeries(int providerId, {int? categoryId}) {
     return _selectSeries(providerId, categoryId: categoryId).get();
   }
 
   Stream<List<SeasonRecord>> watchSeasons(int seriesId) {
-    final query =
-        select(seasons)..where((tbl) => tbl.seriesId.equals(seriesId));
+    final query = select(seasons)
+      ..where((tbl) => tbl.seriesId.equals(seriesId));
     query.orderBy([(tbl) => OrderingTerm(expression: tbl.seasonNumber)]);
     return query.watch();
   }
 
   Future<List<SeasonRecord>> listSeasons(int seriesId) {
-    final query =
-        select(seasons)..where((tbl) => tbl.seriesId.equals(seriesId));
+    final query = select(seasons)
+      ..where((tbl) => tbl.seriesId.equals(seriesId));
     query.orderBy([(tbl) => OrderingTerm(expression: tbl.seasonNumber)]);
     return query.get();
   }
 
   Stream<List<EpisodeRecord>> watchEpisodes(int seasonId) {
-    final query =
-        select(episodes)..where((tbl) => tbl.seasonId.equals(seasonId));
+    final query = select(episodes)
+      ..where((tbl) => tbl.seasonId.equals(seasonId));
     query.orderBy([
       (tbl) => OrderingTerm(expression: tbl.seasonNumber),
       (tbl) => OrderingTerm(expression: tbl.episodeNumber),
@@ -234,8 +233,8 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
   }
 
   Future<List<EpisodeRecord>> listEpisodes(int seasonId) {
-    final query =
-        select(episodes)..where((tbl) => tbl.seasonId.equals(seasonId));
+    final query = select(episodes)
+      ..where((tbl) => tbl.seasonId.equals(seasonId));
     query.orderBy([
       (tbl) => OrderingTerm(expression: tbl.seasonNumber),
       (tbl) => OrderingTerm(expression: tbl.episodeNumber),
@@ -243,12 +242,27 @@ class SeriesDao extends DatabaseAccessor<OpenIptvDb> with _$SeriesDaoMixin {
     return query.get();
   }
 
+  Future<List<EpisodeRecord>> listEpisodesForCategory(int categoryId) async {
+    final rows = await customSelect(
+      '''
+SELECT ep.*
+FROM episodes ep
+JOIN series sr ON sr.id = ep.series_id
+WHERE sr.category_id = ?
+ORDER BY sr.title, ep.season_number, ep.episode_number;
+''',
+      variables: [Variable<int>(categoryId)],
+      readsFrom: {episodes, series},
+    ).get();
+    return rows.map(episodes.map).toList(growable: false);
+  }
+
   SimpleSelectStatement<Series, SeriesRecord> _selectSeries(
     int providerId, {
     int? categoryId,
   }) {
-    final query =
-        select(series)..where((tbl) => tbl.providerId.equals(providerId));
+    final query = select(series)
+      ..where((tbl) => tbl.providerId.equals(providerId));
     if (categoryId != null) {
       query.where((tbl) => tbl.categoryId.equals(categoryId));
     }

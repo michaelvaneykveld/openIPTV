@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/repositories/channel_repository.dart';
+import 'package:openiptv/data/repositories/vod_repository.dart';
 import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
@@ -920,11 +921,6 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   }
 
   Future<void> _handlePlay(CategoryPreviewItem item) async {
-    if (widget.bucket != ContentBucket.live &&
-        widget.bucket != ContentBucket.radio) {
-      _showSnack('Playback for this content type is not available yet.');
-      return;
-    }
     final providerId = widget.profile.providerDbId;
     if (providerId == null) {
       _showSnack('Sync this provider locally to enable playback.');
@@ -935,6 +931,39 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
       _showSnack('Unable to determine category id for playback.');
       return;
     }
+    await _withLoadingOverlay(() async {
+      bool success = false;
+      switch (widget.bucket) {
+        case ContentBucket.live:
+        case ContentBucket.radio:
+          success = await _playChannels(
+            providerId: providerId,
+            categoryId: categoryId,
+            item: item,
+          );
+          break;
+        case ContentBucket.films:
+          success = await _playMovies(
+            providerId: providerId,
+            categoryId: categoryId,
+            item: item,
+          );
+          break;
+        case ContentBucket.series:
+          success = await _playSeries(
+            providerId: providerId,
+            categoryId: categoryId,
+            item: item,
+          );
+          break;
+      }
+      if (!success) {
+        _showSnack('No playable streams in this category yet.');
+      }
+    });
+  }
+
+  Future<void> _withLoadingOverlay(Future<void> Function() action) async {
     final rootNavigator = Navigator.of(context, rootNavigator: true);
     var dialogVisible = true;
     unawaited(
@@ -945,22 +974,7 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
       ).whenComplete(() => dialogVisible = false),
     );
     try {
-      final repo = ref.read(channelRepositoryProvider);
-      final channels = await repo.fetchChannelsForCategory(categoryId);
-      if (!mounted) {
-        return;
-      }
-      final success = await _pushChannelPlayer(
-        context: context,
-        channels: channels,
-        isLive:
-            widget.bucket == ContentBucket.live ||
-            widget.bucket == ContentBucket.radio,
-        initialChannelId: int.tryParse(item.id),
-      );
-      if (!success) {
-        _showSnack('No playable streams in this category yet.');
-      }
+      await action();
     } catch (error) {
       _showSnack('Unable to load category: $error');
     } finally {
@@ -968,6 +982,101 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
         rootNavigator.pop();
       }
     }
+  }
+
+  Future<bool> _playChannels({
+    required int providerId,
+    required int categoryId,
+    required CategoryPreviewItem item,
+  }) async {
+    final repo = ref.read(channelRepositoryProvider);
+    final channels = await repo.fetchChannelsForCategory(categoryId);
+    if (!mounted) {
+      return false;
+    }
+    return _pushChannelPlayer(
+      context: context,
+      channels: channels,
+      isLive:
+          widget.bucket == ContentBucket.live ||
+          widget.bucket == ContentBucket.radio,
+      initialChannelId: int.tryParse(item.id),
+    );
+  }
+
+  Future<bool> _playMovies({
+    required int providerId,
+    required int categoryId,
+    required CategoryPreviewItem item,
+  }) async {
+    final vodRepo = ref.read(vodRepositoryProvider);
+    final movies = await vodRepo.listMovies(providerId, categoryId: categoryId);
+    final playlist = movies
+        .map((movie) => (movie.id, _movieToMediaSource(movie)))
+        .where((entry) => entry.$2 != null)
+        .map((entry) => (entry.$1, entry.$2!))
+        .toList(growable: false);
+    if (!mounted || playlist.isEmpty) {
+      return false;
+    }
+    final tappedId = int.tryParse(item.id);
+    var initialIndex = 0;
+    if (tappedId != null) {
+      final idx = playlist.indexWhere((entry) => entry.$1 == tappedId);
+      if (idx >= 0) {
+        initialIndex = idx;
+      }
+    }
+    return _pushMediaPlaylist(
+      context: context,
+      sources: playlist.map((entry) => entry.$2).toList(growable: false),
+      initialIndex: initialIndex,
+    );
+  }
+
+  Future<bool> _playSeries({
+    required int providerId,
+    required int categoryId,
+    required CategoryPreviewItem item,
+  }) async {
+    final vodRepo = ref.read(vodRepositoryProvider);
+    final seriesList = await vodRepo.listSeries(
+      providerId,
+      categoryId: categoryId,
+    );
+    final seriesTitles = <int, String>{
+      for (final s in seriesList) s.id: s.title,
+    };
+    final episodes = await vodRepo.listEpisodesForCategory(categoryId);
+    final playlist = <({int seriesId, PlayerMediaSource source})>[];
+    for (final episode in episodes) {
+      final source = _episodeToMediaSource(
+        episode,
+        seriesTitles[episode.seriesId],
+      );
+      if (source == null) {
+        continue;
+      }
+      playlist.add((seriesId: episode.seriesId, source: source));
+    }
+    if (!mounted || playlist.isEmpty) {
+      return false;
+    }
+    final tappedSeriesId = int.tryParse(item.id);
+    var initialIndex = 0;
+    if (tappedSeriesId != null) {
+      final idx = playlist.indexWhere(
+        (entry) => entry.seriesId == tappedSeriesId,
+      );
+      if (idx >= 0) {
+        initialIndex = idx;
+      }
+    }
+    return _pushMediaPlaylist(
+      context: context,
+      sources: playlist.map((entry) => entry.source).toList(growable: false),
+      initialIndex: initialIndex,
+    );
   }
 
   void _showSnack(String message) {
@@ -1143,13 +1252,83 @@ Future<bool> _pushChannelPlayer({
       initialIndex = matchIndex;
     }
   }
-  initialIndex = math.max(
-    0,
-    math.min(initialIndex, playlistEntries.length - 1),
-  );
-
-  final adapter = PlaylistVideoPlayerAdapter(
+  return _pushMediaPlaylist(
+    context: context,
     sources: playlistEntries.map((entry) => entry.$2).toList(growable: false),
+    initialIndex: initialIndex,
+  );
+}
+
+PlayerMediaSource? _channelToMediaSource(
+  ChannelRecord channel, {
+  required bool isLive,
+}) {
+  final uri = _parseStreamUri(channel.streamUrlTemplate);
+  if (uri == null) {
+    return null;
+  }
+  return PlayerMediaSource(uri: uri, title: channel.name, isLive: isLive);
+}
+
+PlayerMediaSource? _movieToMediaSource(MovieRecord movie) {
+  final uri = _parseStreamUri(movie.streamUrlTemplate);
+  if (uri == null) {
+    return null;
+  }
+  return PlayerMediaSource(uri: uri, title: movie.title, isLive: false);
+}
+
+PlayerMediaSource? _episodeToMediaSource(
+  EpisodeRecord episode,
+  String? seriesTitle,
+) {
+  final uri = _parseStreamUri(episode.streamUrlTemplate);
+  if (uri == null) {
+    return null;
+  }
+  final buffer = StringBuffer();
+  var hasContent = false;
+  if (seriesTitle != null && seriesTitle.isNotEmpty) {
+    buffer.write(seriesTitle);
+    buffer.write(' ');
+    hasContent = true;
+  }
+  final season = episode.seasonNumber;
+  final episodeNumber = episode.episodeNumber;
+  if (season != null &&
+      season > 0 &&
+      episodeNumber != null &&
+      episodeNumber > 0) {
+    buffer.write(
+      'S${season.toString().padLeft(2, '0')}E${episodeNumber.toString().padLeft(2, '0')}',
+    );
+    hasContent = true;
+  }
+  final title = episode.title?.trim();
+  if (title != null && title.isNotEmpty) {
+    if (hasContent) {
+      buffer.write(' - ');
+    }
+    buffer.write(title);
+    hasContent = true;
+  }
+  final resolvedTitle = hasContent
+      ? buffer.toString()
+      : (title ?? seriesTitle ?? 'Episode');
+  return PlayerMediaSource(uri: uri, title: resolvedTitle, isLive: false);
+}
+
+Future<bool> _pushMediaPlaylist({
+  required BuildContext context,
+  required List<PlayerMediaSource> sources,
+  int initialIndex = 0,
+}) async {
+  if (sources.isEmpty) {
+    return false;
+  }
+  initialIndex = math.max(0, math.min(initialIndex, sources.length - 1));
+  final adapter = PlaylistVideoPlayerAdapter(
+    sources: sources,
     initialIndex: initialIndex,
   );
   final controller = PlayerController(adapter: adapter);
@@ -1162,17 +1341,14 @@ Future<bool> _pushChannelPlayer({
   return true;
 }
 
-PlayerMediaSource? _channelToMediaSource(
-  ChannelRecord channel, {
-  required bool isLive,
-}) {
-  final rawUrl = channel.streamUrlTemplate?.trim();
-  if (rawUrl == null || rawUrl.isEmpty) {
+Uri? _parseStreamUri(String? rawUrl) {
+  final normalized = rawUrl?.trim();
+  if (normalized == null || normalized.isEmpty) {
     return null;
   }
-  final uri = Uri.tryParse(rawUrl);
+  final uri = Uri.tryParse(normalized);
   if (uri == null || !uri.hasScheme) {
     return null;
   }
-  return PlayerMediaSource(uri: uri, title: channel.name, isLive: isLive);
+  return uri;
 }

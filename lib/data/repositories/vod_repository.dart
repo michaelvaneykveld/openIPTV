@@ -21,39 +21,24 @@ final vodRepositoryProvider = r.Provider<VodRepository>(
 );
 
 class VodRepository {
-  VodRepository({
-    required this.movieDao,
-    required this.seriesDao,
-  });
+  VodRepository({required this.movieDao, required this.seriesDao});
 
   final MovieDao movieDao;
   final SeriesDao seriesDao;
 
-  Stream<List<MovieRecord>> watchMovies(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Stream<List<MovieRecord>> watchMovies(int providerId, {int? categoryId}) {
     return movieDao.watchMovies(providerId, categoryId: categoryId);
   }
 
-  Future<List<MovieRecord>> listMovies(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Future<List<MovieRecord>> listMovies(int providerId, {int? categoryId}) {
     return movieDao.listMovies(providerId, categoryId: categoryId);
   }
 
-  Stream<List<SeriesRecord>> watchSeries(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Stream<List<SeriesRecord>> watchSeries(int providerId, {int? categoryId}) {
     return seriesDao.watchSeries(providerId, categoryId: categoryId);
   }
 
-  Future<List<SeriesRecord>> listSeries(
-    int providerId, {
-    int? categoryId,
-  }) {
+  Future<List<SeriesRecord>> listSeries(int providerId, {int? categoryId}) {
     return seriesDao.listSeries(providerId, categoryId: categoryId);
   }
 
@@ -71,5 +56,9 @@ class VodRepository {
 
   Future<List<EpisodeRecord>> listEpisodes(int seasonId) {
     return seriesDao.listEpisodes(seasonId);
+  }
+
+  Future<List<EpisodeRecord>> listEpisodesForCategory(int categoryId) {
+    return seriesDao.listEpisodesForCategory(categoryId);
   }
 }

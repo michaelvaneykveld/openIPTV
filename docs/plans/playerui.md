@@ -1,7 +1,7 @@
 # Player UI Phase-1 Checklist
 
 ## North Star Outcomes
-- [ ] Deliver Live, VOD, and Radio playback with core transport controls, track selection, and clear error feedback.
+- [x] Deliver Live, VOD, and Radio playback with core transport controls, track selection, and clear error feedback.
 - [ ] Keep the UI isolate responsive so D-pad/remote navigation never stutters on TV hardware.[1]
 - [ ] Maintain a composable Player UI shell that talks to PlayerAdapter/PlayerController through a tiny contract so backend swaps require no UI changes.
 - [x] PlayerShell launches PlayerScreen with provider playlists (categories and library actions now feed real channel streams).

@@ -7,8 +7,7 @@ import '../openiptv_db.dart';
 part 'channel_dao.g.dart';
 
 @DriftAccessor(tables: [Channels, ChannelCategories])
-class ChannelDao extends DatabaseAccessor<OpenIptvDb>
-    with _$ChannelDaoMixin {
+class ChannelDao extends DatabaseAccessor<OpenIptvDb> with _$ChannelDaoMixin {
   ChannelDao(super.db);
 
   Future<int> upsertChannel({
@@ -49,7 +48,9 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<void> markAllAsCandidateForDelete(int providerId) {
-    return (update(channels)..where((tbl) => tbl.providerId.equals(providerId))).write(
+    return (update(
+      channels,
+    )..where((tbl) => tbl.providerId.equals(providerId))).write(
       ChannelsCompanion(
         lastSeenAt: Value(DateTime.fromMillisecondsSinceEpoch(0)),
       ),
@@ -66,9 +67,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     return query.go();
   }
 
-  Future<int> purgeAllStaleChannels({
-    required DateTime olderThan,
-  }) {
+  Future<int> purgeAllStaleChannels({required DateTime olderThan}) {
     final query = delete(channels)
       ..where((tbl) => tbl.lastSeenAt.isNotNull())
       ..where((tbl) => tbl.lastSeenAt.isSmallerThanValue(olderThan));
@@ -97,8 +96,8 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Stream<List<ChannelRecord>> watchChannelsForProvider(int providerId) {
-    final query =
-        select(channels)..where((tbl) => tbl.providerId.equals(providerId));
+    final query = select(channels)
+      ..where((tbl) => tbl.providerId.equals(providerId));
     query.orderBy([
       (tbl) => OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
       (tbl) => OrderingTerm(expression: tbl.name),
@@ -107,9 +106,25 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<List<ChannelRecord>> findByProvider(int providerId) {
-    final query =
-        select(channels)..where((tbl) => tbl.providerId.equals(providerId));
+    final query = select(channels)
+      ..where((tbl) => tbl.providerId.equals(providerId));
     return query.get();
+  }
+
+  Future<List<ChannelRecord>> fetchChannelsForCategory(int categoryId) async {
+    final query = customSelect(
+      '''
+SELECT ch.*
+FROM channel_categories cc
+JOIN channels ch ON ch.id = cc.channel_id
+WHERE cc.category_id = ?
+ORDER BY (ch.number IS NULL), ch.number, ch.name;
+''',
+      variables: [Variable<int>(categoryId)],
+      readsFrom: {channels, channelCategories},
+    );
+    final rows = await query.get();
+    return rows.map(channels.map).toList(growable: false);
   }
 
   Future<List<ChannelRecord>> fetchChannelPage({
@@ -123,8 +138,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
       query.where((tbl) => tbl.id.isBiggerThanValue(afterId));
     }
     query.orderBy([
-      (tbl) =>
-          OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
+      (tbl) => OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
       (tbl) => OrderingTerm(expression: tbl.name),
       (tbl) => OrderingTerm(expression: tbl.id),
     ]);
@@ -171,9 +185,7 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
       ..where((tbl) => tbl.providerId.equals(providerId))
       ..where((tbl) => tbl.providerChannelKey.isIn(distinctKeys.toList()));
     final rows = await query.get();
-    return {
-      for (final row in rows) row.providerChannelKey: row.id,
-    };
+    return {for (final row in rows) row.providerChannelKey: row.id};
   }
 
   Future<void> mergeProgramWindow({
@@ -184,9 +196,9 @@ class ChannelDao extends DatabaseAccessor<OpenIptvDb>
     if (firstProgramAt == null && lastProgramAt == null) {
       return;
     }
-    final row =
-        await (select(channels)..where((tbl) => tbl.id.equals(channelId)))
-            .getSingleOrNull();
+    final row = await (select(
+      channels,
+    )..where((tbl) => tbl.id.equals(channelId))).getSingleOrNull();
 
     DateTime? nextFirst = row?.firstProgramAt;
     if (firstProgramAt != null) {

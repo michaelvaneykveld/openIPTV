@@ -4,6 +4,7 @@
 - [ ] Deliver Live, VOD, and Radio playback with core transport controls, track selection, and clear error feedback.
 - [ ] Keep the UI isolate responsive so D-pad/remote navigation never stutters on TV hardware.[1]
 - [ ] Maintain a composable Player UI shell that talks to PlayerAdapter/PlayerController through a tiny contract so backend swaps require no UI changes.
+- [x] PlayerShell launches PlayerScreen with provider playlists (categories and library actions now feed real channel streams).
 
 ## Scope Guardrails
 ### Must Ship Now
@@ -68,7 +69,7 @@
 - [ ] Make first OK/Enter show the transport bar; second tap toggles Play/Pause.[2]
 - [ ] Default to best audio track (respecting preferred language) and Subtitles Off unless user prefs say otherwise.
 - [ ] For Live playback, replace time slider with LIVE badge and disable seek affordances when timeshift is unavailable.
-- [ ] Disable or grey out Audio/Subtitles buttons when track lists are empty, showing tooltips like "No subtitles available."
+- [x] Disable or grey out Audio/Subtitles buttons when track lists are empty, showing tooltips like "No subtitles available."
 
 ## Performance Budget
 - [ ] Keep OSD show/hide animation under 16 ms (one 60 fps frame).
@@ -77,10 +78,10 @@
 - [ ] Ensure keepScreenOn (or platform equivalent) stays active during playback.[3]
 
 ## Accessibility & TV Specifics
-- [ ] Provide visible, non-color-only focus indicators and scaling on focused controls.[4]
+- [x] Provide visible, non-color-only focus indicators and scaling on focused controls.[4]
 - [x] Use large tap/focus targets (72-96 px) to respect 10-foot UX guidance.[5]
 - [ ] Maintain consistent Back behavior (sheet -> OSD -> exit).
-- [ ] Keep a Caption/Subtitles button visible whenever captions are available per Apple HIG.[2]
+- [x] Keep a Caption/Subtitles button visible whenever captions are available per Apple HIG.[2]
 
 ## Error Model
 - [ ] Map adapter error codes to human-friendly strings plus short identifiers (e.g., NET_TIMEOUT, DRM_DENIED).

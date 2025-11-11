@@ -51,15 +51,11 @@ class ChannelRepository {
       limit: limit,
       afterId: afterChannelId,
     );
-    final flags = await userFlagDao.fetchForChannels(
-      rows.map((c) => c.id),
-    );
+    final flags = await userFlagDao.fetchForChannels(rows.map((c) => c.id));
     final items = rows
         .map(
-          (channel) => ChannelWithFlags(
-            channel: channel,
-            flags: flags[channel.id],
-          ),
+          (channel) =>
+              ChannelWithFlags(channel: channel, flags: flags[channel.id]),
         )
         .toList(growable: false);
     var hasMore = false;
@@ -76,59 +72,51 @@ class ChannelRepository {
         nextCursor = lastId;
       }
     }
-    return ChannelPage(
-      items: items,
-      nextCursor: nextCursor,
-      hasMore: hasMore,
-    );
+    return ChannelPage(items: items, nextCursor: nextCursor, hasMore: hasMore);
   }
 
   Stream<List<ChannelWithFlags>> watchChannelsWithFlags(int providerId) {
     final channels = channelDao.channels;
     final flags = userFlagDao.userFlags;
 
-    final query = channelDao
-        .select(channels)
+    final query = channelDao.select(channels)
       ..where((tbl) => tbl.providerId.equals(providerId))
       ..orderBy([
-        (tbl) =>
-            OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
+        (tbl) => OrderingTerm(expression: tbl.number, mode: OrderingMode.asc),
         (tbl) => OrderingTerm(expression: tbl.name),
       ]);
 
     final joined = query.join([
-      leftOuterJoin(
-        flags,
-        flags.channelId.equalsExp(channels.id),
-      ),
+      leftOuterJoin(flags, flags.channelId.equalsExp(channels.id)),
     ]);
 
     return joined.watch().map(
-          (rows) => rows
-              .map(
-                (row) => ChannelWithFlags(
-                  channel: row.readTable(channels),
-                  flags: row.readTableOrNull(flags),
-                ),
-              )
-              .toList(),
-        );
+      (rows) => rows
+          .map(
+            (row) => ChannelWithFlags(
+              channel: row.readTable(channels),
+              flags: row.readTableOrNull(flags),
+            ),
+          )
+          .toList(),
+    );
   }
 
   Stream<List<ChannelWithFlags>> watchFavoriteChannels(int providerId) =>
-      watchChannelsWithFlags(providerId).map(
-        (channels) =>
-            channels.where((entry) => entry.isFavorite).toList(),
-      );
+      watchChannelsWithFlags(
+        providerId,
+      ).map((channels) => channels.where((entry) => entry.isFavorite).toList());
 
   Future<List<ChannelRecord>> listChannels(int providerId) =>
       channelDao.findByProvider(providerId);
 
+  Future<List<ChannelRecord>> fetchChannelsForCategory(int categoryId) =>
+      channelDao.fetchChannelsForCategory(categoryId);
+
   Stream<List<CategoryRecord>> watchCategories(
     int providerId, {
     CategoryKind? kind,
-  }) =>
-      categoryDao.watchForProvider(providerId, kind: kind);
+  }) => categoryDao.watchForProvider(providerId, kind: kind);
 
   Future<int> upsertCategory({
     required int providerId,
@@ -136,14 +124,13 @@ class ChannelRepository {
     required String providerKey,
     required String name,
     int? position,
-  }) =>
-      categoryDao.upsertCategory(
-        providerId: providerId,
-        kind: kind,
-        providerKey: providerKey,
-        name: name,
-        position: position,
-      );
+  }) => categoryDao.upsertCategory(
+    providerId: providerId,
+    kind: kind,
+    providerKey: providerKey,
+    name: name,
+    position: position,
+  );
 
   Future<int> upsertChannel({
     required int providerId,
@@ -154,35 +141,32 @@ class ChannelRepository {
     bool isRadio = false,
     String? streamUrlTemplate,
     DateTime? seenAt,
-  }) =>
-      channelDao.upsertChannel(
-        providerId: providerId,
-        providerKey: providerKey,
-        name: name,
-        logoUrl: logoUrl,
-        number: number,
-        isRadio: isRadio,
-        streamUrlTemplate: streamUrlTemplate,
-        seenAt: seenAt,
-      );
+  }) => channelDao.upsertChannel(
+    providerId: providerId,
+    providerKey: providerKey,
+    name: name,
+    logoUrl: logoUrl,
+    number: number,
+    isRadio: isRadio,
+    streamUrlTemplate: streamUrlTemplate,
+    seenAt: seenAt,
+  );
 
   Future<void> linkChannelToCategory({
     required int channelId,
     required int categoryId,
-  }) =>
-      channelDao.linkChannelToCategory(
-        channelId: channelId,
-        categoryId: categoryId,
-      );
+  }) => channelDao.linkChannelToCategory(
+    channelId: channelId,
+    categoryId: categoryId,
+  );
 
   Future<int> purgeStaleChannels({
     required int providerId,
     required DateTime olderThan,
-  }) =>
-      channelDao.purgeStaleChannels(
-        providerId: providerId,
-        olderThan: olderThan,
-      );
+  }) => channelDao.purgeStaleChannels(
+    providerId: providerId,
+    olderThan: olderThan,
+  );
 
   Future<void> markAllForDeletion(int providerId) =>
       channelDao.markAllAsCandidateForDelete(providerId);
@@ -193,24 +177,20 @@ class ChannelRepository {
     bool isFavorite = false,
     bool isHidden = false,
     bool isPinned = false,
-  }) =>
-      userFlagDao.setFlags(
-        providerId: providerId,
-        channelId: channelId,
-        isFavorite: isFavorite,
-        isHidden: isHidden,
-        isPinned: isPinned,
-      );
+  }) => userFlagDao.setFlags(
+    providerId: providerId,
+    channelId: channelId,
+    isFavorite: isFavorite,
+    isHidden: isHidden,
+    isPinned: isPinned,
+  );
 
   Stream<UserFlagRecord?> watchFlagForChannel(int channelId) =>
       userFlagDao.watchForChannel(channelId);
 }
 
 class ChannelWithFlags {
-  ChannelWithFlags({
-    required this.channel,
-    required this.flags,
-  });
+  ChannelWithFlags({required this.channel, required this.flags});
 
   final ChannelRecord channel;
   final UserFlagRecord? flags;
@@ -221,11 +201,7 @@ class ChannelWithFlags {
 }
 
 class ChannelPage {
-  ChannelPage({
-    required this.items,
-    this.nextCursor,
-    this.hasMore = false,
-  });
+  ChannelPage({required this.items, this.nextCursor, this.hasMore = false});
 
   final List<ChannelWithFlags> items;
   final int? nextCursor;

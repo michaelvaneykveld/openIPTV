@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/data/repositories/channel_repository.dart';
 import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_fetchers.dart';
@@ -13,6 +15,9 @@ import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
+import 'package:openiptv/src/player_ui/controller/player_controller.dart';
+import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
+import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 
 class PlayerShell extends ConsumerStatefulWidget {
@@ -67,13 +72,9 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
         title: Text(widget.profile.record.displayName),
         actions: [
           IconButton(
-            tooltip: 'Open new player preview',
+            tooltip: 'Play channels',
             icon: const Icon(Icons.smart_display_outlined),
-            onPressed: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => PlayerScreen.sample()));
-            },
+            onPressed: _openProviderPlayer,
           ),
           IconButton(
             tooltip: _showSummary ? 'Hide summary' : 'Show summary',
@@ -321,6 +322,57 @@ class _PlayerShellState extends ConsumerState<PlayerShell> {
       }
     }
   }
+
+  Future<void> _openProviderPlayer() async {
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null) {
+      _showSnack('Sync this provider locally to enable playback.');
+      return;
+    }
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    var dialogVisible = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      ).whenComplete(() => dialogVisible = false),
+    );
+    try {
+      final repo = ref.read(channelRepositoryProvider);
+      final page = await repo.fetchChannelPage(
+        providerId: providerId,
+        limit: 200,
+      );
+      final channels = page.items.map((entry) => entry.channel).toList();
+      if (!mounted) {
+        return;
+      }
+      final success = await _pushChannelPlayer(
+        context: context,
+        channels: channels,
+        isLive: true,
+      );
+      if (!success) {
+        _showSnack('No playable channels yet. Try refreshing the import.');
+      }
+    } catch (error) {
+      _showSnack('Unable to load channels: $error');
+    } finally {
+      if (dialogVisible && rootNavigator.canPop()) {
+        rootNavigator.pop();
+      }
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 }
 
 class _SummaryView extends StatelessWidget {
@@ -554,7 +606,13 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
               setState(() => _resolvedCount = resolved);
             });
           }
-          return _CategoryPreviewList(result: result, icon: widget.icon);
+          return _CategoryPreviewList(
+            profile: widget.profile,
+            bucket: widget.bucket,
+            category: widget.category,
+            result: result,
+            icon: widget.icon,
+          );
         },
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 16),
@@ -775,17 +833,27 @@ class _RecentPlaybackTile extends ConsumerWidget {
   }
 }
 
-class _CategoryPreviewList extends StatefulWidget {
-  const _CategoryPreviewList({required this.result, required this.icon});
+class _CategoryPreviewList extends ConsumerStatefulWidget {
+  const _CategoryPreviewList({
+    required this.profile,
+    required this.bucket,
+    required this.category,
+    required this.result,
+    required this.icon,
+  });
 
+  final ResolvedProviderProfile profile;
+  final ContentBucket bucket;
+  final CategoryEntry category;
   final CategoryPreviewResult result;
   final IconData icon;
 
   @override
-  State<_CategoryPreviewList> createState() => _CategoryPreviewListState();
+  ConsumerState<_CategoryPreviewList> createState() =>
+      _CategoryPreviewListState();
 }
 
-class _CategoryPreviewListState extends State<_CategoryPreviewList> {
+class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList> {
   late final ScrollController _controller;
 
   @override
@@ -837,11 +905,75 @@ class _CategoryPreviewListState extends State<_CategoryPreviewList> {
               ),
               title: Text(item.title),
               subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
+              trailing: widget.profile.providerDbId != null
+                  ? const Icon(Icons.play_arrow_rounded)
+                  : null,
+              enabled: widget.profile.providerDbId != null,
+              onTap: widget.profile.providerDbId == null
+                  ? null
+                  : () => _handlePlay(item),
             );
           },
         ),
       ),
     );
+  }
+
+  Future<void> _handlePlay(CategoryPreviewItem item) async {
+    if (widget.bucket != ContentBucket.live &&
+        widget.bucket != ContentBucket.radio) {
+      _showSnack('Playback for this content type is not available yet.');
+      return;
+    }
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null) {
+      _showSnack('Sync this provider locally to enable playback.');
+      return;
+    }
+    final categoryId = int.tryParse(widget.category.id);
+    if (categoryId == null) {
+      _showSnack('Unable to determine category id for playback.');
+      return;
+    }
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    var dialogVisible = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      ).whenComplete(() => dialogVisible = false),
+    );
+    try {
+      final repo = ref.read(channelRepositoryProvider);
+      final channels = await repo.fetchChannelsForCategory(categoryId);
+      if (!mounted) {
+        return;
+      }
+      final success = await _pushChannelPlayer(
+        context: context,
+        channels: channels,
+        isLive:
+            widget.bucket == ContentBucket.live ||
+            widget.bucket == ContentBucket.radio,
+        initialChannelId: int.tryParse(item.id),
+      );
+      if (!success) {
+        _showSnack('No playable streams in this category yet.');
+      }
+    } catch (error) {
+      _showSnack('Unable to load category: $error');
+    } finally {
+      if (dialogVisible && rootNavigator.canPop()) {
+        rootNavigator.pop();
+      }
+    }
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -982,4 +1114,65 @@ class _SyncingPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<bool> _pushChannelPlayer({
+  required BuildContext context,
+  required List<ChannelRecord> channels,
+  required bool isLive,
+  int? initialChannelId,
+}) async {
+  final playlistEntries = channels
+      .map(
+        (channel) => (channel, _channelToMediaSource(channel, isLive: isLive)),
+      )
+      .where((entry) => entry.$2 != null)
+      .map((entry) => (entry.$1, entry.$2!))
+      .toList(growable: false);
+
+  if (playlistEntries.isEmpty) {
+    return false;
+  }
+
+  var initialIndex = 0;
+  if (initialChannelId != null) {
+    final matchIndex = playlistEntries.indexWhere(
+      (entry) => entry.$1.id == initialChannelId,
+    );
+    if (matchIndex >= 0) {
+      initialIndex = matchIndex;
+    }
+  }
+  initialIndex = math.max(
+    0,
+    math.min(initialIndex, playlistEntries.length - 1),
+  );
+
+  final adapter = PlaylistVideoPlayerAdapter(
+    sources: playlistEntries.map((entry) => entry.$2).toList(growable: false),
+    initialIndex: initialIndex,
+  );
+  final controller = PlayerController(adapter: adapter);
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) =>
+          PlayerScreen(controller: controller, ownsController: true),
+    ),
+  );
+  return true;
+}
+
+PlayerMediaSource? _channelToMediaSource(
+  ChannelRecord channel, {
+  required bool isLive,
+}) {
+  final rawUrl = channel.streamUrlTemplate?.trim();
+  if (rawUrl == null || rawUrl.isEmpty) {
+    return null;
+  }
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null || !uri.hasScheme) {
+    return null;
+  }
+  return PlayerMediaSource(uri: uri, title: channel.name, isLive: isLive);
 }

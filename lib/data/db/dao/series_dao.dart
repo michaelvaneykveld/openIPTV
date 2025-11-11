@@ -254,7 +254,9 @@ ORDER BY sr.title, ep.season_number, ep.episode_number;
       variables: [Variable<int>(categoryId)],
       readsFrom: {episodes, series},
     ).get();
-    return rows.map(episodes.map).toList(growable: false);
+    return rows
+        .map((row) => episodes.map(row.data))
+        .toList(growable: false);
   }
 
   SimpleSelectStatement<Series, SeriesRecord> _selectSeries(

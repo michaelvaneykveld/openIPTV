@@ -15,6 +15,7 @@
 - [x] Surface buffering spinner plus error toast with Retry.
 - [x] Guarantee D-pad and keyboard navigation (Enter/Back/Arrows) parity.[1]
 - [x] Keep the screen awake during playback on Android/tvOS.[3]
+- [x] Route PlayerShell (play button & category previews) into PlayerScreen with real provider playlists for Live, Films, and Series.
 
 ### Explicitly Deferred (Phase-2+)
 - [ ] Confirm PiP, trick-mode previews, DVR/timeshift timelines, ad markers, watch-next rails, chroma key, and advanced stats overlays remain out of Phase-1 scope.

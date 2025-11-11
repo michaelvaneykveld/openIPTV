@@ -124,7 +124,9 @@ ORDER BY (ch.number IS NULL), ch.number, ch.name;
       readsFrom: {channels, channelCategories},
     );
     final rows = await query.get();
-    return rows.map(channels.map).toList(growable: false);
+    return rows
+        .map((row) => channels.map(row.data))
+        .toList(growable: false);
   }
 
   Future<List<ChannelRecord>> fetchChannelPage({

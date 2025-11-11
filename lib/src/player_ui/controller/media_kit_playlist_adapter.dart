@@ -17,9 +17,9 @@ class MediaKitPlaylistAdapter
     required List<PlayerMediaSource> sources,
     int initialIndex = 0,
     bool autoPlay = true,
-  })  : _sources = sources,
-        _autoPlay = autoPlay,
-        _snapshotController = StreamController<PlayerSnapshot>.broadcast() {
+  }) : _sources = sources,
+       _autoPlay = autoPlay,
+       _snapshotController = StreamController<PlayerSnapshot>.broadcast() {
     MediaKit.ensureInitialized();
     _player = Player();
     _videoController = VideoController(_player);
@@ -57,7 +57,29 @@ class MediaKitPlaylistAdapter
 
   @override
   Widget buildVideoSurface(BuildContext context) {
-    return Video(controller: _videoController);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fallbackSize = MediaQuery.sizeOf(context);
+        final width = constraints.hasBoundedWidth && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : fallbackSize.width;
+        final height = constraints.hasBoundedHeight && constraints.maxHeight > 0
+            ? constraints.maxHeight
+            : fallbackSize.height;
+        return SizedBox(
+          width: width,
+          height: height,
+          child: FittedBox(
+            fit: BoxFit.cover,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: Video(controller: _videoController),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -163,10 +185,7 @@ class MediaKitPlaylistAdapter
     _errorSub = _player.stream.error.listen((value) {
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
-        error: PlayerError(
-          code: 'MEDIAKIT_ERROR',
-          message: value.toString(),
-        ),
+        error: PlayerError(code: 'MEDIAKIT_ERROR', message: value.toString()),
       );
       _emitSnapshot();
     });

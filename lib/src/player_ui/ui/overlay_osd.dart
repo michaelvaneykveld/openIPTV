@@ -36,18 +36,20 @@ class PlayerOverlayOSD extends StatelessWidget {
       ignoring: false,
       child: Container(
         width: double.infinity,
-        padding: playerTheme.overlayPadding,
+        height: double.infinity,
+        padding: playerTheme.overlayPadding.copyWith(top: 32),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.center,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [Colors.black87, Colors.black54, Colors.transparent],
           ),
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildHeaderRow(theme),
+            const Spacer(),
             if (state.mediaTitle != null && state.mediaTitle!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -117,21 +119,14 @@ class PlayerOverlayOSD extends StatelessWidget {
           color: iconColor,
           onPressed: hasSubtitleTracks ? onShowSubtitlesSheet : null,
         ),
-        if (onExitPlayer != null)
-          _PlayerControlButton(
-            tooltip: 'Exit player',
-            icon: Icons.close_fullscreen_rounded,
-            color: iconColor,
-            onPressed: onExitPlayer,
-          ),
       ],
     );
   }
 
   Widget _buildProgress(ThemeData theme) {
-    if (state.isLive || !state.hasDuration) {
+    if (state.isLive) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: theme.colorScheme.error,
           borderRadius: BorderRadius.circular(999),
@@ -140,9 +135,13 @@ class PlayerOverlayOSD extends StatelessWidget {
           'LIVE',
           style: theme.textTheme.labelLarge?.copyWith(
             color: theme.colorScheme.onError,
+            fontWeight: FontWeight.bold,
           ),
         ),
       );
+    }
+    if (!state.hasDuration) {
+      return const SizedBox.shrink();
     }
     final duration = state.duration ?? Duration.zero;
     final maxValue = duration.inMilliseconds.toDouble();
@@ -186,6 +185,22 @@ class PlayerOverlayOSD extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildHeaderRow(ThemeData theme) {
+    if (onExitPlayer == null) {
+      return const SizedBox.shrink();
+    }
+    return Align(
+      alignment: Alignment.topRight,
+      child: IconButton(
+        tooltip: 'Back to channel list',
+        icon: const Icon(Icons.logout_rounded),
+        color: theme.colorScheme.onSurface,
+        iconSize: 32,
+        onPressed: onExitPlayer,
+      ),
     );
   }
 

@@ -49,6 +49,9 @@ class _PlayerShellState extends ConsumerState<PlayerShell>
   PlayableResolver get playableResolver => _playableResolver;
 
   @override
+  ResolvedProviderProfile get playbackProfile => widget.profile;
+
+  @override
   void initState() {
     super.initState();
     _playableResolver = PlayableResolver(widget.profile);
@@ -909,6 +912,9 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
   PlayableResolver get playableResolver => _playableResolver;
 
   @override
+  ResolvedProviderProfile get playbackProfile => widget.profile;
+
+  @override
   Widget build(BuildContext context) {
     final items = widget.result.items;
     if (items.isEmpty) {
@@ -945,13 +951,8 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
               ),
               title: Text(item.title),
               subtitle: item.subtitle != null ? Text(item.subtitle!) : null,
-              trailing: widget.profile.providerDbId != null
-                  ? const Icon(Icons.play_arrow_rounded)
-                  : null,
-              enabled: widget.profile.providerDbId != null,
-              onTap: widget.profile.providerDbId == null
-                  ? null
-                  : () => _handlePlay(item),
+              trailing: const Icon(Icons.play_arrow_rounded),
+              onTap: () => _handlePlay(item),
             );
           },
         ),
@@ -1118,6 +1119,7 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
 
 mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     on ConsumerState<T> {
+  ResolvedProviderProfile get playbackProfile;
   PlayableResolver get playableResolver;
 
   Future<void> _launchSingleChannel(ChannelRecord channel) async {
@@ -1220,7 +1222,11 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (sources.isEmpty) {
       return false;
     }
-    final plan = _applyPlatformPolicy(context, sources);
+    final plan = _applyPlatformPolicy(
+      context,
+      sources,
+      playbackProfile.kind,
+    );
     if (plan == null || plan.sources.isEmpty) {
       return false;
     }
@@ -1259,13 +1265,17 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
   _PlatformPlaybackPlan? _applyPlatformPolicy(
     BuildContext context,
     List<PlayerMediaSource> sources,
+    ProviderKind providerKind,
   ) {
     if (!_isWindowsPlatform(context)) {
       return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
+    final normalizedSources = providerKind == ProviderKind.xtream
+        ? _preferXtreamHlsSources(sources)
+        : sources;
     var warned = false;
     var useMediaKit = false;
-    for (final source in sources) {
+    for (final source in normalizedSources) {
       final support = classifyWindowsPlayable(source.playable);
       if (support != WindowsPlaybackSupport.okDirect) {
         useMediaKit = true;
@@ -1291,7 +1301,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       );
     }
     return _PlatformPlaybackPlan(
-      sources: sources,
+      sources: normalizedSources,
       useMediaKit: useMediaKit,
     );
   }
@@ -1313,6 +1323,66 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       includeFullUrl: true,
     );
   }
+
+  List<PlayerMediaSource> _preferXtreamHlsSources(
+    List<PlayerMediaSource> sources,
+  ) {
+    var mutated = false;
+    final adjusted = <PlayerMediaSource>[];
+    for (final source in sources) {
+      final updated = _convertXtreamSourceToHls(source);
+      if (!identical(updated, source)) {
+        mutated = true;
+      }
+      adjusted.add(updated);
+    }
+    return mutated ? adjusted : sources;
+  }
+
+  PlayerMediaSource _convertXtreamSourceToHls(PlayerMediaSource source) {
+    final playable = source.playable;
+    if (!playable.isLive) {
+      return source;
+    }
+    final ext = playable.containerExtension?.toLowerCase();
+    final needsConversion = ext == null
+        ? _xtreamTsPattern.hasMatch(playable.url.toString())
+        : ext == 'ts';
+    if (!needsConversion) {
+      return source;
+    }
+    final rawUrl = playable.url.toString();
+    if (!_xtreamTsPattern.hasMatch(rawUrl)) {
+      return source;
+    }
+    final convertedUrl = rawUrl.replaceFirst(_xtreamTsPattern, '.m3u8');
+    final parsed = Uri.tryParse(convertedUrl);
+    if (parsed == null || !parsed.hasScheme) {
+      return source;
+    }
+    PlaybackLogger.videoInfo(
+      'windows-xtream-hls',
+      uri: parsed,
+      extra: {'converted': true},
+    );
+    final updatedPlayable = playable.copyWith(
+      url: parsed,
+      containerExtension: 'm3u8',
+      mimeHint: 'application/vnd.apple.mpegurl',
+    );
+    return PlayerMediaSource(
+      playable: updatedPlayable,
+      title: source.title,
+      bitrateKbps: source.bitrateKbps,
+      audioTracks: source.audioTracks,
+      textTracks: source.textTracks,
+      defaultAudioTrackId: source.defaultAudioTrackId,
+      defaultTextTrackId: source.defaultTextTrackId,
+    );
+  }
+
+  static final RegExp _xtreamTsPattern =
+      RegExp(r'\.ts(?=$|[?&#])', caseSensitive: false);
 }
 
 class _PlatformPlaybackPlan {

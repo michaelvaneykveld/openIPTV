@@ -1233,7 +1233,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
             initialIndex: clampedIndex,
           );
     final controller = PlayerController(adapter: adapter);
-    await Navigator.of(context).push(
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             PlayerScreen(controller: controller, ownsController: true),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
@@ -250,19 +251,24 @@ class MediaKitPlaylistAdapter
     Object error,
   ) async {
     final client = _probeClient ??= http.Client();
-    final request = http.Request('HEAD', uri)
+    final request = http.Request('GET', uri)
       ..followRedirects = false
       ..headers.addAll(headers);
     request.headers.putIfAbsent('Range', () => 'bytes=0-2047');
     try {
       final response =
           await client.send(request).timeout(const Duration(seconds: 8));
-      await response.stream.drain();
+      final sample = await _readSample(response.stream, 2048);
       PlaybackLogger.videoInfo(
         'media-kit-http-probe',
         uri: uri,
         extra: {
           'code': response.statusCode,
+          'contentType': response.headers['content-type'] ?? 'unknown',
+          'bytes': sample.length,
+          'payload': base64Encode(
+            sample.length > 256 ? sample.sublist(0, 256) : sample,
+          ),
           'error': error.toString(),
         },
       );
@@ -273,5 +279,25 @@ class MediaKitPlaylistAdapter
         error: probeError,
       );
     }
+  }
+
+  Future<List<int>> _readSample(
+    Stream<List<int>> stream,
+    int maxBytes,
+  ) async {
+    final buffer = <int>[];
+    await for (final chunk in stream) {
+      final remaining = maxBytes - buffer.length;
+      if (remaining <= 0) {
+        break;
+      }
+      if (chunk.length <= remaining) {
+        buffer.addAll(chunk);
+      } else {
+        buffer.addAll(chunk.take(remaining));
+        break;
+      }
+    }
+    return buffer;
   }
 }

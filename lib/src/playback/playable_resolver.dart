@@ -993,10 +993,13 @@ class PlayableResolver {
         effectiveHeaders,
         normalizedUri,
       );
+      final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
+        effectiveHeaders,
+      );
       var playable = _playableFromUri(
         normalizedUri,
         isLive: isLive,
-        headers: effectiveHeaders,
+        headers: sanitizedHeaders,
       );
       final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
       if (playable != null &&
@@ -1021,7 +1024,7 @@ class PlayableResolver {
         module: module,
         command: command,
         resolvedUri: normalizedUri,
-        headers: effectiveHeaders,
+        headers: sanitizedHeaders,
       );
       return playable;
     } catch (error) {
@@ -1047,10 +1050,11 @@ class PlayableResolver {
     if (fallbackUri == null) {
       return null;
     }
+    final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(headers);
     final playable = _playableFromUri(
       fallbackUri,
       isLive: isLive,
-      headers: headers,
+      headers: sanitizedHeaders,
     );
     if (playable == null) {
       PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
@@ -1062,7 +1066,7 @@ class PlayableResolver {
       module: module,
       command: command,
       resolvedUri: fallbackUri,
-      headers: headers,
+      headers: sanitizedHeaders,
     );
     return playable;
   }
@@ -1290,13 +1294,17 @@ class PlayableResolver {
     final qp = Map<String, String>.from(uri.queryParameters);
     qp['stream'] = fallbackStream;
     var patched = uri.replace(queryParameters: qp);
-    final playToken = _extractPlayToken(fallbackUri) ??
-        _extractPlayTokenUriString(fallbackCommand);
+    final patchedQp = Map<String, String>.from(patched.queryParameters);
+    final playToken =
+        _extractPlayToken(fallbackUri) ?? _extractPlayTokenUriString(fallbackCommand);
     if (playToken != null && playToken.isNotEmpty) {
-      final patchedQp = Map<String, String>.from(patched.queryParameters);
       patchedQp.putIfAbsent('play_token', () => playToken);
-      patched = patched.replace(queryParameters: patchedQp);
     }
+    final sn2 = patchedQp['sn2'];
+    if (sn2 != null && sn2.trim().isEmpty) {
+      patchedQp.remove('sn2');
+    }
+    patched = patched.replace(queryParameters: patchedQp);
     PlaybackLogger.stalker(
       'patched-stream-id',
       portal: portal,
@@ -1501,3 +1509,12 @@ class _XtreamServerContext {
     return httpPort ?? httpsPort ?? 80;
   }
 }
+  Map<String, String> _sanitizeStalkerPlaybackHeaders(
+    Map<String, String> headers,
+  ) {
+    final sanitized = Map<String, String>.from(headers);
+    sanitized.removeWhere(
+      (key, _) => key.toLowerCase() == 'authorization',
+    );
+    return sanitized;
+  }

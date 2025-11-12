@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -43,6 +44,7 @@ class MediaKitPlaylistAdapter
   StreamSubscription<bool>? _playingSub;
   StreamSubscription<bool>? _bufferingSub;
   StreamSubscription<Object>? _errorSub;
+  http.Client? _probeClient;
 
   Duration _position = Duration.zero;
   Duration? _duration;
@@ -117,6 +119,7 @@ class MediaKitPlaylistAdapter
     await _playingSub?.cancel();
     await _bufferingSub?.cancel();
     await _errorSub?.cancel();
+    _probeClient?.close();
     await _player.dispose();
     await _snapshotController.close();
   }
@@ -142,6 +145,7 @@ class MediaKitPlaylistAdapter
       );
       _emitSnapshot();
       PlaybackLogger.videoError('media-kit-load', error: error);
+      _probePlaybackFailure(source, error);
     }
   }
 
@@ -163,11 +167,14 @@ class MediaKitPlaylistAdapter
       _emitSnapshot();
     });
     _errorSub = _player.stream.error.listen((value) {
+      final failingSource = _currentSource;
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
         error: PlayerError(code: 'MEDIAKIT_ERROR', message: value.toString()),
       );
       _emitSnapshot();
+      PlaybackLogger.videoError('media-kit-error', error: value);
+      _probePlaybackFailure(failingSource, value);
     });
   }
 
@@ -222,5 +229,49 @@ class MediaKitPlaylistAdapter
       return PlayerPhase.paused;
     }
     return PlayerPhase.idle;
+  }
+
+  void _probePlaybackFailure(
+    PlayerMediaSource source,
+    Object error,
+  ) {
+    final uri = source.playable.url;
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme != 'http' && scheme != 'https') {
+      return;
+    }
+    final headers = source.playable.headers;
+    unawaited(_logHttpProbe(uri, headers, error));
+  }
+
+  Future<void> _logHttpProbe(
+    Uri uri,
+    Map<String, String> headers,
+    Object error,
+  ) async {
+    final client = _probeClient ??= http.Client();
+    final request = http.Request('HEAD', uri)
+      ..followRedirects = false
+      ..headers.addAll(headers);
+    request.headers.putIfAbsent('Range', () => 'bytes=0-2047');
+    try {
+      final response =
+          await client.send(request).timeout(const Duration(seconds: 8));
+      await response.stream.drain();
+      PlaybackLogger.videoInfo(
+        'media-kit-http-probe',
+        uri: uri,
+        extra: {
+          'code': response.statusCode,
+          'error': error.toString(),
+        },
+      );
+    } catch (probeError) {
+      PlaybackLogger.videoError(
+        'media-kit-http-probe-error',
+        description: uri.toString(),
+        error: probeError,
+      );
+    }
   }
 }

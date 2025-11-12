@@ -132,7 +132,6 @@
 - [x] Build TrackPickerSheet and bind to controller `tracks` and selection commands.
 - [x] Add ErrorToast plus error-code mapping layer.
 - [x] Implement keepScreenOn hook for Android/tvOS.
-- [ ] Validate focus flow on TV hardware: tab through controls and ensure Back unwinds layers cleanly.[1]
 
 [1]: https://developer.android.com/training/tv/get-started/navigation?utm_source=chatgpt.com
 [2]: https://developer.apple.com/design/human-interface-guidelines/playing-video?utm_source=chatgpt.com

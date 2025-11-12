@@ -826,6 +826,20 @@ class PlayableResolver {
     return trimmed.replaceAll(RegExp(r'/+$'), '');
   }
 
+  String _summarizeResponseBody(
+    dynamic body, {
+    int maxLength = 200,
+  }) {
+    if (body == null) {
+      return '';
+    }
+    final text = body is String ? body : jsonEncode(body);
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return '${text.substring(0, maxLength)}…';
+  }
+
   Future<Playable?> _buildStalkerPlayable({
     required String command,
     required ContentBucket kind,
@@ -854,21 +868,13 @@ class PlayableResolver {
       return null;
     }
     final sessionHeaders = session.buildAuthenticatedHeaders();
-    final directUri = _parseDirectUri(command);
-    if (directUri != null) {
-      final directHeaders = _mergeHeaders(
+    final playbackHeaders = Map<String, String>.from(
+      _mergeHeaders(
         headerHints,
         overrides: sessionHeaders,
-      );
-      final playable = _playableFromUri(
-        directUri,
-        isLive: isLive,
-        headers: directHeaders,
-      );
-      if (playable != null) {
-        return playable;
-      }
-    }
+      ),
+    );
+    final directUri = _parseDirectUri(command);
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',
@@ -877,13 +883,86 @@ class PlayableResolver {
       'cmd': command,
       'JsHttpRequest': '1-xml',
     };
+    final portalPlayable = await _resolveStalkerLinkViaPortal(
+      config: config,
+      module: module,
+      command: command,
+      queryParameters: queryParameters,
+      sessionHeaders: sessionHeaders,
+      playbackHeaders: playbackHeaders,
+      fallbackUri: directUri,
+      isLive: isLive,
+    );
+    if (portalPlayable != null) {
+      return portalPlayable;
+    }
+    return _buildDirectStalkerPlayable(
+      fallbackUri: directUri,
+      config: config,
+      module: module,
+      command: command,
+      headers: playbackHeaders,
+      isLive: isLive,
+    );
+  }
+
+  Uri _xtreamStreamBase(_XtreamServerContext context) {
+    final base = Uri(
+      scheme: context.scheme,
+      host: context.host,
+      port: context.portForScheme(),
+      path: '/',
+    );
+    return ensureTrailingSlash(base);
+  }
+
+  void _logStalkerCreateLinkResponse({
+    required StalkerPortalConfiguration config,
+    required String module,
+    required String command,
+    required PortalResponseEnvelope response,
+  }) {
+    final bodyPreview = _summarizeResponseBody(response.body);
+    PlaybackLogger.videoInfo(
+      'stalker-create-link',
+      extra: {
+        'portal': config.baseUri.host,
+        'module': module,
+        'status': response.statusCode,
+        'body': bodyPreview,
+        'cmd': command,
+      },
+    );
+  }
+
+  Future<Playable?> _resolveStalkerLinkViaPortal({
+    required StalkerPortalConfiguration config,
+    required String module,
+    required String command,
+    required Map<String, dynamic> queryParameters,
+    required Map<String, String> sessionHeaders,
+    required Map<String, String> playbackHeaders,
+    Uri? fallbackUri,
+    required bool isLive,
+  }) async {
     try {
       final response = await _stalkerHttpClient.getPortal(
         config,
         queryParameters: queryParameters,
         headers: sessionHeaders,
       );
-      final resolvedLink = _extractStalkerLink(response.body);
+      var effectiveHeaders = _mergePlaybackCookies(
+        playbackHeaders,
+        response.cookies,
+      );
+      _logStalkerCreateLinkResponse(
+        config: config,
+        module: module,
+        command: command,
+        response: response,
+      );
+      final resolvedLink =
+          _sanitizeStalkerResolvedLink(_extractStalkerLink(response.body));
       if (resolvedLink == null || resolvedLink.isEmpty) {
         PlaybackLogger.stalker(
           'link-missing',
@@ -903,16 +982,23 @@ class PlayableResolver {
         );
         return null;
       }
-      final playbackHeaders = _mergeHeaders(
-        headerHints,
-        overrides: sessionHeaders,
+      final normalizedUri = _normalizeStalkerResolvedUri(
+        uri,
+        module: module,
+        portal: config.baseUri,
+        fallbackUri: fallbackUri,
+        fallbackCommand: command,
+      );
+      effectiveHeaders = _ensureQueryTokenCookies(
+        effectiveHeaders,
+        normalizedUri,
       );
       var playable = _playableFromUri(
-        uri,
+        normalizedUri,
         isLive: isLive,
-        headers: playbackHeaders,
+        headers: effectiveHeaders,
       );
-      final inferredExtension = _stalkerExtensionFromUri(uri);
+      final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
       if (playable != null &&
           inferredExtension != null &&
           inferredExtension.isNotEmpty &&
@@ -923,7 +1009,10 @@ class PlayableResolver {
         );
       }
       if (playable == null) {
-        PlaybackLogger.playableDrop('stalker-unhandled', uri: uri);
+        PlaybackLogger.playableDrop(
+          'stalker-unhandled',
+          uri: normalizedUri,
+        );
         return null;
       }
       PlaybackLogger.stalker(
@@ -931,8 +1020,8 @@ class PlayableResolver {
         portal: config.baseUri,
         module: module,
         command: command,
-        resolvedUri: uri,
-        headers: playbackHeaders,
+        resolvedUri: normalizedUri,
+        headers: effectiveHeaders,
       );
       return playable;
     } catch (error) {
@@ -943,18 +1032,39 @@ class PlayableResolver {
         command: command,
         error: error,
       );
-      rethrow;
+      return null;
     }
   }
 
-  Uri _xtreamStreamBase(_XtreamServerContext context) {
-    final base = Uri(
-      scheme: context.scheme,
-      host: context.host,
-      port: context.portForScheme(),
-      path: '/',
+  Playable? _buildDirectStalkerPlayable({
+    required Uri? fallbackUri,
+    required StalkerPortalConfiguration config,
+    required String module,
+    required String command,
+    required Map<String, String> headers,
+    required bool isLive,
+  }) {
+    if (fallbackUri == null) {
+      return null;
+    }
+    final playable = _playableFromUri(
+      fallbackUri,
+      isLive: isLive,
+      headers: headers,
     );
-    return ensureTrailingSlash(base);
+    if (playable == null) {
+      PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
+      return null;
+    }
+    PlaybackLogger.stalker(
+      'direct-fallback',
+      portal: config.baseUri,
+      module: module,
+      command: command,
+      resolvedUri: fallbackUri,
+      headers: headers,
+    );
+    return playable;
   }
 
   StalkerPortalConfiguration? _buildStalkerConfiguration() {
@@ -1060,9 +1170,195 @@ class PlayableResolver {
     append(overrides);
 
     if (merged == null || merged!.isEmpty) {
-      return const {};
+      return <String, String>{};
     }
-    return Map.unmodifiable(merged!);
+    return Map<String, String>.from(merged!);
+  }
+
+  Map<String, String> _mergePlaybackCookies(
+    Map<String, String> playbackHeaders,
+    List<String> cookies,
+  ) {
+    if (cookies.isEmpty) return playbackHeaders;
+    final parsed = _parseCookieHeader(playbackHeaders['Cookie']);
+    var updated = false;
+
+    void apply(String rawCookie) {
+      final trimmed = rawCookie.trim();
+      if (trimmed.isEmpty) return;
+      final eq = trimmed.indexOf('=');
+      if (eq == -1) return;
+      final name = trimmed.substring(0, eq).trim();
+      final value = trimmed.substring(eq + 1).trim();
+      if (name.isEmpty) return;
+      final existing = parsed[name];
+      if (existing == value) {
+        return;
+      }
+      parsed[name] = value;
+      updated = true;
+    }
+
+    for (final cookie in cookies) {
+      final pair = cookie.split(';').first;
+      apply(pair);
+    }
+
+    if (!updated) {
+      return playbackHeaders;
+    }
+    final merged = Map<String, String>.from(playbackHeaders);
+    merged['Cookie'] = parsed.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join('; ');
+    return merged;
+  }
+
+  Map<String, String> _parseCookieHeader(String? header) {
+    final map = <String, String>{};
+    if (header == null || header.trim().isEmpty) {
+      return map;
+    }
+    final pieces = header.split(';');
+    for (final piece in pieces) {
+      final trimmed = piece.trim();
+      if (trimmed.isEmpty) continue;
+      final eq = trimmed.indexOf('=');
+      if (eq == -1) continue;
+      final name = trimmed.substring(0, eq).trim();
+      final value = trimmed.substring(eq + 1).trim();
+      if (name.isEmpty) continue;
+      map[name] = value;
+    }
+    return map;
+  }
+
+  Map<String, String> _ensureQueryTokenCookies(
+    Map<String, String> playbackHeaders,
+    Uri uri,
+  ) {
+    final entries = <String, String>{};
+    void capture(String key) {
+      final value = uri.queryParameters[key];
+      if (value != null && value.isNotEmpty) {
+        entries[key] = value;
+      }
+    }
+
+    capture('play_token');
+    capture('token');
+
+    if (entries.isEmpty) {
+      return playbackHeaders;
+    }
+
+    final existing = _parseCookieHeader(playbackHeaders['Cookie']);
+    var updated = false;
+    entries.forEach((key, value) {
+      if (existing[key] == value) {
+        return;
+      }
+      existing[key] = value;
+      updated = true;
+    });
+    if (!updated) {
+      return playbackHeaders;
+    }
+    final merged = Map<String, String>.from(playbackHeaders);
+    merged['Cookie'] = existing.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join('; ');
+    return merged;
+  }
+
+  Uri _normalizeStalkerResolvedUri(
+    Uri uri, {
+    required Uri portal,
+    required String module,
+    required String fallbackCommand,
+    Uri? fallbackUri,
+  }) {
+    final streamParam = uri.queryParameters['stream'];
+    if (streamParam != null && streamParam.trim().isNotEmpty) {
+      return uri;
+    }
+    final fallbackStream =
+        _extractStreamIdFromUri(fallbackUri) ?? _extractStreamId(fallbackCommand);
+    if (fallbackStream == null || fallbackStream.isEmpty) {
+      return uri;
+    }
+    final qp = Map<String, String>.from(uri.queryParameters);
+    qp['stream'] = fallbackStream;
+    var patched = uri.replace(queryParameters: qp);
+    final playToken = _extractPlayToken(fallbackUri) ??
+        _extractPlayTokenUriString(fallbackCommand);
+    if (playToken != null && playToken.isNotEmpty) {
+      final patchedQp = Map<String, String>.from(patched.queryParameters);
+      patchedQp.putIfAbsent('play_token', () => playToken);
+      patched = patched.replace(queryParameters: patchedQp);
+    }
+    PlaybackLogger.stalker(
+      'patched-stream-id',
+      portal: portal,
+      module: module,
+      resolvedUri: patched,
+    );
+    return patched;
+  }
+
+  String? _extractStreamIdFromUri(Uri? uri) {
+    if (uri == null) return null;
+    final value = uri.queryParameters['stream'];
+    if (value != null && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
+  String? _extractStreamId(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final match = RegExp(r'stream=([0-9]+)', caseSensitive: false).firstMatch(source);
+    if (match != null && match.groupCount >= 1) {
+      return match.group(1);
+    }
+    return null;
+  }
+
+  String? _extractPlayToken(Uri? uri) {
+    if (uri == null) return null;
+    final value = uri.queryParameters['play_token'];
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+    return null;
+  }
+
+  String? _extractPlayTokenUriString(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final match =
+        RegExp(r'play_token=([A-Za-z0-9]+)', caseSensitive: false).firstMatch(source);
+    if (match != null && match.groupCount >= 1) {
+      return match.group(1);
+    }
+    return null;
+  }
+
+  String? _sanitizeStalkerResolvedLink(String? link) {
+    if (link == null) return null;
+    var trimmed = link.trim();
+    if (trimmed.isEmpty) return null;
+    final lower = trimmed.toLowerCase();
+    if (lower.startsWith('ffmpeg ')) {
+      final urlMatch = _urlPattern.firstMatch(trimmed);
+      if (urlMatch != null) {
+        return urlMatch.group(0);
+      }
+      final space = trimmed.indexOf(' ');
+      if (space != -1 && space + 1 < trimmed.length) {
+        trimmed = trimmed.substring(space + 1).trim();
+      }
+    }
+    return trimmed.isEmpty ? null : trimmed;
   }
 
   Uri? _parseDirectUri(String? candidate) {

@@ -37,6 +37,10 @@ class PlayableResolver {
   StalkerSession? _stalkerSession;
   Future<StalkerSession>? _stalkerSessionFuture;
   http.Client? _xtreamProbeClient;
+  _XtreamCandidate? _xtreamLivePattern;
+  Future<_XtreamCandidate?>? _xtreamLivePatternFuture;
+  bool _xtreamHeadAllowed = true;
+  bool _xtreamRangeAllowed = true;
 
   static const Duration _xtreamProbeTimeout = Duration(seconds: 6);
 
@@ -225,8 +229,6 @@ class PlayableResolver {
     );
   }
 
-  _XtreamCandidate? _xtreamLivePattern;
-
   Future<Playable?> _buildXtreamPlayable({
     required String providerKey,
     required ContentBucket kind,
@@ -248,16 +250,27 @@ class PlayableResolver {
     final base = _xtreamStreamBase();
     final escapedUsername = Uri.encodeComponent(username);
     final escapedPassword = Uri.encodeComponent(password);
+    final slugPrefix = 'live/$escapedUsername/$escapedPassword';
     final userAgent = (_config['userAgent'] ?? '').trim();
-    final headers = _mergeHeaders(
+    var headers = _mergeHeaders(
       headerHints,
       overrides:
           userAgent.isEmpty ? null : <String, String>{'User-Agent': userAgent},
     );
+    headers = _applyXtreamHeaderDefaults(
+      headers,
+      base,
+      username,
+      password,
+    );
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
-        slugPrefix: 'live/$escapedUsername/$escapedPassword',
+        slugPrefix: slugPrefix,
+        username: username,
+        password: password,
+        escapedUsername: escapedUsername,
+        escapedPassword: escapedPassword,
         providerKey: providerKey,
         headers: headers,
         templateExtension: templateExtension,
@@ -265,6 +278,7 @@ class PlayableResolver {
       if (livePlayable != null) {
         return livePlayable;
       }
+      return null;
     }
     final segment = switch (kind) {
       ContentBucket.live || ContentBucket.radio => 'live',
@@ -306,67 +320,221 @@ class PlayableResolver {
   Future<Playable?> _buildXtreamLivePlayable({
     required Uri base,
     required String slugPrefix,
+    required String username,
+    required String password,
+    required String escapedUsername,
+    required String escapedPassword,
+    required String providerKey,
+    required Map<String, String> headers,
+    String? templateExtension,
+  }) async {
+    final normalizedTemplate = templateExtension?.toLowerCase();
+    final cachedPattern = _xtreamLivePattern;
+    if (cachedPattern != null &&
+        (normalizedTemplate == null ||
+            cachedPattern.extension == normalizedTemplate)) {
+      return _playableFromPattern(
+        base: base,
+        candidate: cachedPattern,
+        providerKey: providerKey,
+        headers: headers,
+      );
+    }
+    final candidate = await _ensureXtreamLivePattern(
+      base: base,
+      slugPrefix: slugPrefix,
+      username: username,
+      password: password,
+      escapedUsername: escapedUsername,
+      escapedPassword: escapedPassword,
+      providerKey: providerKey,
+      headers: headers,
+      templateExtension: normalizedTemplate,
+    );
+    if (candidate == null) {
+      return null;
+    }
+    return _playableFromPattern(
+      base: base,
+      candidate: candidate,
+      providerKey: providerKey,
+      headers: headers,
+    );
+  }
+
+  Future<_XtreamCandidate?> _ensureXtreamLivePattern({
+    required Uri base,
+    required String slugPrefix,
+    required String username,
+    required String password,
+    required String escapedUsername,
+    required String escapedPassword,
+    required String providerKey,
+    required Map<String, String> headers,
+    String? templateExtension,
+  }) async {
+    final cached = _xtreamLivePattern;
+    if (cached != null &&
+        (templateExtension == null ||
+            cached.extension == templateExtension)) {
+      return cached;
+    }
+    final pending = _xtreamLivePatternFuture;
+    if (pending != null) {
+      final candidate = await pending;
+      if (candidate != null &&
+          (templateExtension == null ||
+              candidate.extension == templateExtension)) {
+        return candidate;
+      }
+    }
+    final future = _probeXtreamLivePattern(
+      base: base,
+      slugPrefix: slugPrefix,
+      username: username,
+      password: password,
+      escapedUsername: escapedUsername,
+      escapedPassword: escapedPassword,
+      providerKey: providerKey,
+      headers: headers,
+      templateExtension: templateExtension,
+    );
+    _xtreamLivePatternFuture = future;
+    try {
+      final candidate = await future;
+      if (candidate != null && _xtreamLivePattern == null) {
+        _xtreamLivePattern = candidate;
+      }
+      return candidate;
+    } finally {
+      if (identical(_xtreamLivePatternFuture, future)) {
+        _xtreamLivePatternFuture = null;
+      }
+    }
+  }
+
+  Future<_XtreamCandidate?> _probeXtreamLivePattern({
+    required Uri base,
+    required String slugPrefix,
+    required String username,
+    required String password,
+    required String escapedUsername,
+    required String escapedPassword,
     required String providerKey,
     required Map<String, String> headers,
     String? templateExtension,
   }) async {
     final candidates = _xtreamLiveCandidates(
       slugPrefix: slugPrefix,
-      providerKey: providerKey,
+      escapedUsername: escapedUsername,
+      escapedPassword: escapedPassword,
       templateExtension: templateExtension,
     );
-    if (_xtreamLivePattern != null) {
-      candidates.sort((a, b) {
-        if (identical(a, _xtreamLivePattern)) return -1;
-        if (identical(b, _xtreamLivePattern)) return 1;
-        if (a.pathTemplate == _xtreamLivePattern!.pathTemplate) return -1;
-        if (b.pathTemplate == _xtreamLivePattern!.pathTemplate) return 1;
-        return 0;
-      });
-    }
     for (final candidate in candidates) {
       final uri = candidate.resolve(base, providerKey);
-      final probe = await _probeXtreamCandidate(uri, headers);
+      PlaybackLogger.videoInfo(
+        'xtream-live-probe-start',
+        uri: uri,
+        extra: {'template': candidate.pathTemplate},
+      );
+      final probe = await _probeXtreamCandidate(
+        uri,
+        headers,
+        username: username,
+        password: password,
+      );
       if (probe == null) {
         continue;
       }
       final ext = _determineXtreamExtension(probe, candidate);
-      final mime = probe.contentType?.isNotEmpty == true
-          ? probe.contentType
-          : guessMimeFromUri(probe.uri) ?? _mimeFromExtension(ext);
-      _xtreamLivePattern ??= candidate;
-      return Playable(
-        url: probe.uri,
-        isLive: true,
-        headers: probe.playbackHeaders,
-        containerExtension: ext,
-        mimeHint: mime,
+      PlaybackLogger.videoInfo(
+        'xtream-live-probe-success',
+        uri: probe.uri,
+        extra: {'ext': ext, 'template': candidate.pathTemplate},
+      );
+      return _candidateFromProbe(
+        original: candidate,
+        probe: probe,
+        providerKey: providerKey,
+        extension: ext,
       );
     }
+    PlaybackLogger.videoError(
+      'xtream-live-probe-failed',
+      description: 'Unable to resolve live stream variants',
+    );
     return null;
+  }
+
+  Playable _playableFromPattern({
+    required Uri base,
+    required _XtreamCandidate candidate,
+    required String providerKey,
+    required Map<String, String> headers,
+  }) {
+    final uri = candidate.resolve(base, providerKey);
+    final ext = (candidate.extension?.isNotEmpty ?? false)
+        ? candidate.extension!
+        : guessExtensionFromUri(uri);
+    final mime = guessMimeFromUri(uri) ?? _mimeFromExtension(ext) ?? '';
+    return Playable(
+      url: uri,
+      isLive: true,
+      headers: headers,
+      containerExtension: ext,
+      mimeHint: mime.isEmpty ? null : mime,
+    );
   }
 
   List<_XtreamCandidate> _xtreamLiveCandidates({
     required String slugPrefix,
-    required String providerKey,
+    required String escapedUsername,
+    required String escapedPassword,
     String? templateExtension,
   }) {
-    const placeholder = _XtreamCandidate.placeholder;
+    final slug = '$slugPrefix/${_XtreamCandidate.placeholder}';
+    final bareSlug =
+        '$escapedUsername/$escapedPassword/${_XtreamCandidate.placeholder}';
+    final hlsSlug = 'hls/$escapedUsername/$escapedPassword/${_XtreamCandidate.placeholder}';
+    final getBase =
+        'get.php?username=$escapedUsername&password=$escapedPassword';
     final raw = <_XtreamCandidate>[
+      _XtreamCandidate(pathTemplate: '$slug.m3u8', extension: 'm3u8'),
       _XtreamCandidate(
-        pathTemplate: '$slugPrefix/$placeholder.m3u8',
+        pathTemplate: '$slug/index.m3u8',
+        extension: 'm3u8',
+      ),
+      _XtreamCandidate(pathTemplate: '$slug.ts', extension: 'ts'),
+      _XtreamCandidate(pathTemplate: slug, extension: 'ts'),
+      _XtreamCandidate(pathTemplate: '$hlsSlug.m3u8', extension: 'm3u8'),
+      _XtreamCandidate(
+        pathTemplate: '$hlsSlug/index.m3u8',
         extension: 'm3u8',
       ),
       _XtreamCandidate(
-        pathTemplate: '$slugPrefix/$placeholder/index.m3u8',
+        pathTemplate:
+            '$getBase&type=m3u8&stream=${_XtreamCandidate.placeholder}&extension=m3u8',
         extension: 'm3u8',
       ),
       _XtreamCandidate(
-        pathTemplate: '$slugPrefix/$placeholder.ts',
+        pathTemplate:
+            '$getBase&type=ts&stream=${_XtreamCandidate.placeholder}&extension=ts',
         extension: 'ts',
       ),
       _XtreamCandidate(
-        pathTemplate: '$slugPrefix/$placeholder',
+        pathTemplate: '$bareSlug.m3u8',
+        extension: 'm3u8',
+      ),
+      _XtreamCandidate(
+        pathTemplate: '$bareSlug/index.m3u8',
+        extension: 'm3u8',
+      ),
+      _XtreamCandidate(
+        pathTemplate: '$bareSlug.ts',
+        extension: 'ts',
+      ),
+      _XtreamCandidate(
+        pathTemplate: bareSlug,
         extension: 'ts',
       ),
     ];
@@ -384,37 +552,185 @@ class PlayableResolver {
 
   Future<_XtreamProbeResult?> _probeXtreamCandidate(
     Uri uri,
-    Map<String, String> playbackHeaders,
-  ) async {
-    try {
-      final headResult = await _sendXtreamProbeRequest(
-        uri,
+    Map<String, String> playbackHeaders, {
+    required String username,
+    required String password,
+  }) async {
+    var currentUri = uri;
+    var queryCredentialsAttempted = false;
+    var httpsUpgradeAttempted = false;
+    final visited = <String>{};
+
+    while (visited.add(currentUri.toString())) {
+      final headResult = await _attemptXtreamHeadProbe(
+        currentUri,
         playbackHeaders,
-        method: 'HEAD',
       );
       if (headResult != null) {
         return headResult;
       }
-    } catch (_) {
-      // Swallow and fall back to GET probe.
+
+      final getAttempt = await _attemptXtreamGetProbe(
+        currentUri,
+        playbackHeaders,
+      );
+      if (getAttempt.result != null) {
+        return getAttempt.result;
+      }
+
+      final status = getAttempt.statusCode;
+      if (!queryCredentialsAttempted &&
+          !_uriHasCredentials(currentUri) &&
+          status != null &&
+          (status == 401 || status == 403)) {
+        final withCredentials = _uriWithCredentials(
+          currentUri,
+          username,
+          password,
+        );
+        if (withCredentials != null) {
+          queryCredentialsAttempted = true;
+          currentUri = withCredentials;
+          continue;
+        }
+      }
+
+      final shouldUpgradeScheme =
+          !httpsUpgradeAttempted &&
+          currentUri.scheme == 'http' &&
+          (status == null ||
+              status == 401 ||
+              status == 403 ||
+              status == 404 ||
+              status == 503);
+      if (shouldUpgradeScheme) {
+        final upgraded = _upgradeToHttps(currentUri);
+        if (upgraded != null) {
+          httpsUpgradeAttempted = true;
+          currentUri = upgraded;
+          continue;
+        }
+      }
+
+      break;
     }
-    try {
-      final getHeaders = playbackHeaders.isEmpty
+
+    return null;
+  }
+
+  Future<_XtreamProbeResult?> _attemptXtreamHeadProbe(
+    Uri uri,
+    Map<String, String> playbackHeaders,
+  ) async {
+    if (!_xtreamHeadAllowed) {
+      return null;
+    }
+    final attempt = await _sendXtreamProbeRequest(
+      uri,
+      playbackHeaders,
+      method: 'HEAD',
+      playbackHeaders: playbackHeaders,
+    );
+    if (attempt.result != null) {
+      return attempt.result;
+    }
+    if (attempt.statusCode == 405) {
+      _xtreamHeadAllowed = false;
+    }
+    return null;
+  }
+
+  Future<_XtreamProbeAttempt> _attemptXtreamGetProbe(
+    Uri uri,
+    Map<String, String> playbackHeaders,
+  ) async {
+    final headers = playbackHeaders.isEmpty
+        ? <String, String>{}
+        : Map<String, String>.from(playbackHeaders);
+    final useRange = _xtreamRangeAllowed;
+    if (useRange) {
+      headers.putIfAbsent('Range', () => 'bytes=0-2047');
+    }
+    final attempt = await _sendXtreamProbeRequest(
+      uri,
+      headers,
+      method: 'GET',
+      playbackHeaders: playbackHeaders,
+    );
+    if (attempt.result != null) {
+      return attempt;
+    }
+    final hadRange = headers.containsKey('Range');
+    if (useRange &&
+        hadRange &&
+        _shouldRetryGetWithoutRange(attempt.statusCode)) {
+      _xtreamRangeAllowed = false;
+      final retryHeaders = playbackHeaders.isEmpty
           ? <String, String>{}
           : Map<String, String>.from(playbackHeaders);
-      getHeaders.putIfAbsent('Range', () => 'bytes=0-2047');
       return await _sendXtreamProbeRequest(
         uri,
-        getHeaders,
+        retryHeaders,
         method: 'GET',
         playbackHeaders: playbackHeaders,
       );
-    } catch (_) {
-      return null;
     }
+    return attempt;
   }
 
-  Future<_XtreamProbeResult?> _sendXtreamProbeRequest(
+  bool _shouldRetryGetWithoutRange(int? statusCode) {
+    if (statusCode == null) {
+      return false;
+    }
+    return statusCode == 400 ||
+        statusCode == 403 ||
+        statusCode == 406 ||
+        statusCode == 416;
+  }
+
+  bool _uriHasCredentials(Uri uri) {
+    if (!uri.hasQuery) {
+      return false;
+    }
+    final lower = uri.queryParameters.map(
+      (key, value) => MapEntry(key.toLowerCase(), value),
+    );
+    return lower.containsKey('username') && lower.containsKey('password');
+  }
+
+  Uri? _uriWithCredentials(
+    Uri uri,
+    String username,
+    String password,
+  ) {
+    final params = Map<String, String>.from(uri.queryParameters);
+    var mutated = false;
+    if (!params.keys.any((key) => key.toLowerCase() == 'username')) {
+      params['username'] = username;
+      mutated = true;
+    }
+    if (!params.keys.any((key) => key.toLowerCase() == 'password')) {
+      params['password'] = password;
+      mutated = true;
+    }
+    if (!mutated) {
+      return null;
+    }
+    return uri.replace(queryParameters: params);
+  }
+
+  Uri? _upgradeToHttps(Uri uri) {
+    if (uri.scheme != 'http') {
+      return null;
+    }
+    final normalizedPort = uri.hasPort && uri.port != 80 ? uri.port : 443;
+    return uri.replace(
+      scheme: 'https',
+      port: normalizedPort,
+    );
+  }
+
+  Future<_XtreamProbeAttempt> _sendXtreamProbeRequest(
     Uri uri,
     Map<String, String> requestHeaders, {
     required String method,
@@ -429,19 +745,112 @@ class PlayableResolver {
       final response =
           await client.send(request).timeout(_xtreamProbeTimeout);
       await response.stream.drain();
+      final resolvedUri = response.request?.url ?? uri;
       if (response.statusCode >= 200 && response.statusCode < 400) {
-        final resolvedUri = response.request?.url ?? uri;
         final contentType = response.headers['content-type'];
-        return _XtreamProbeResult(
-          uri: resolvedUri,
-          contentType: contentType,
-          playbackHeaders: playbackHeaders ?? Map.unmodifiable(requestHeaders),
+        if (!_isLikelyPlayableContentType(contentType)) {
+          PlaybackLogger.videoInfo(
+            'xtream-live-probe-content-reject',
+            uri: resolvedUri,
+            extra: {'contentType': contentType ?? '', 'method': method},
+          );
+          return _XtreamProbeAttempt.failure(
+            statusCode: response.statusCode,
+            uri: resolvedUri,
+          );
+        }
+        return _XtreamProbeAttempt.success(
+          _XtreamProbeResult(
+            uri: resolvedUri,
+            contentType: contentType,
+            playbackHeaders:
+                playbackHeaders ?? Map.unmodifiable(requestHeaders),
+          ),
         );
       }
-    } catch (_) {
+      PlaybackLogger.videoInfo(
+        'xtream-live-probe-http',
+        uri: resolvedUri,
+        extra: {'code': response.statusCode, 'method': method},
+      );
+      return _XtreamProbeAttempt.failure(
+        statusCode: response.statusCode,
+        uri: resolvedUri,
+      );
+    } catch (error) {
+      PlaybackLogger.videoError(
+        'xtream-live-probe-error',
+        description: '$method ${uri.toString()}',
+        error: error,
+      );
+      return const _XtreamProbeAttempt.failure(
+        statusCode: null,
+        uri: null,
+      );
+    }
+  }
+
+  _XtreamCandidate _candidateFromProbe({
+    required _XtreamCandidate original,
+    required _XtreamProbeResult probe,
+    required String providerKey,
+    required String extension,
+  }) {
+    final template =
+        _buildTemplateFromProbe(probe.uri, providerKey) ?? original.pathTemplate;
+    final baseOverride =
+        _deriveBaseOverride(probe.uri, providerKey, template) ?? original.baseOverride;
+    return _XtreamCandidate(
+      pathTemplate: template,
+      extension: extension,
+      baseOverride: baseOverride,
+    );
+  }
+
+  String? _buildTemplateFromProbe(Uri uri, String providerKey) {
+    final normalizedPath =
+        uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    final buffer = StringBuffer(normalizedPath);
+    if (uri.hasQuery) {
+      buffer
+        ..write('?')
+        ..write(uri.query);
+    }
+    final replaced =
+        buffer.toString().replaceAll(providerKey, _XtreamCandidate.placeholder);
+    if (!replaced.contains(_XtreamCandidate.placeholder)) {
       return null;
     }
-    return null;
+    return replaced;
+  }
+
+  Uri? _deriveBaseOverride(
+    Uri uri,
+    String providerKey,
+    String template,
+  ) {
+    final normalizedPath =
+        uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    final realized = template.replaceAll(
+      _XtreamCandidate.placeholder,
+      providerKey,
+    );
+    final realizedPath = realized.split('?').first;
+    if (!normalizedPath.endsWith(realizedPath)) {
+      return null;
+    }
+    final baseLength = normalizedPath.length - realizedPath.length;
+    final baseSegment =
+        baseLength <= 0 ? '' : normalizedPath.substring(0, baseLength);
+    final prefixed =
+        baseSegment.isEmpty ? '/' : baseSegment.startsWith('/') ? baseSegment : '/$baseSegment';
+    final normalizedBase =
+        prefixed.endsWith('/') ? prefixed : '$prefixed/';
+    return uri.replace(
+      path: normalizedBase,
+      query: '',
+      fragment: '',
+    );
   }
 
   String _determineXtreamExtension(
@@ -460,6 +869,20 @@ class PlayableResolver {
       return guessed;
     }
     return 'ts';
+  }
+
+  bool _isLikelyPlayableContentType(String? contentType) {
+    if (contentType == null || contentType.isEmpty) {
+      return true;
+    }
+    final lowered = contentType.toLowerCase();
+    if (lowered.contains('json')) {
+      return false;
+    }
+    if (lowered.contains('html')) {
+      return false;
+    }
+    return true;
   }
 
   String? _extensionFromContentType(String? contentType) {
@@ -483,6 +906,32 @@ class PlayableResolver {
       return IOClient(ioClient);
     }
     return http.Client();
+  }
+
+  Map<String, String> _applyXtreamHeaderDefaults(
+    Map<String, String> headers,
+    Uri base,
+    String username,
+    String password,
+  ) {
+    final normalized = Map<String, String>.from(headers);
+    final hasAuthHeader = normalized.keys.any(
+      (key) => key.toLowerCase() == 'authorization',
+    );
+    if (!hasAuthHeader) {
+      final creds = base64Encode(utf8.encode('$username:$password'));
+      normalized['Authorization'] = 'Basic $creds';
+    }
+    final hasReferer = normalized.keys.any(
+      (key) => key.toLowerCase() == 'referer',
+    );
+    if (!hasReferer) {
+      final origin =
+          base.hasPort ? '${base.scheme}://${base.host}:${base.port}/' : '${base.scheme}://${base.host}/';
+      normalized['Referer'] = origin;
+    }
+    normalized.putIfAbsent('Accept', () => '*/*');
+    return Map.unmodifiable(normalized);
   }
 
   Future<Playable?> _buildStalkerPlayable({
@@ -829,17 +1278,37 @@ class _XtreamCandidate {
   const _XtreamCandidate({
     required this.pathTemplate,
     required this.extension,
+    this.baseOverride,
   });
 
   static const placeholder = '{stream_id}';
 
   final String pathTemplate;
   final String? extension;
+  final Uri? baseOverride;
 
   Uri resolve(Uri base, String providerKey) {
+    final resolvedBase = baseOverride ?? base;
     final path = pathTemplate.replaceAll(placeholder, providerKey);
-    return base.resolve(path);
+    return resolvedBase.resolve(path);
   }
+}
+
+class _XtreamProbeAttempt {
+  const _XtreamProbeAttempt.success(this.result)
+      : statusCode = null,
+        uri = null;
+
+  const _XtreamProbeAttempt.failure({
+    required this.statusCode,
+    required this.uri,
+  }) : result = null;
+
+  final _XtreamProbeResult? result;
+  final int? statusCode;
+  final Uri? uri;
+
+  bool get isSuccess => result != null;
 }
 
 class _XtreamProbeResult {

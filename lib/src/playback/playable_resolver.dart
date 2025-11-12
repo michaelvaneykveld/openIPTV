@@ -39,6 +39,8 @@ class PlayableResolver {
   http.Client? _xtreamProbeClient;
   _XtreamCandidate? _xtreamLivePattern;
   Future<_XtreamCandidate?>? _xtreamLivePatternFuture;
+  _XtreamServerContext? _xtreamServerContext;
+  Future<_XtreamServerContext?>? _xtreamServerContextFuture;
 
   static const Duration _xtreamProbeTimeout = Duration(seconds: 10);
 
@@ -245,7 +247,18 @@ class PlayableResolver {
       return null;
     }
 
-    final base = _xtreamStreamBase();
+    final serverContext = await _ensureXtreamServerContext(
+      username: username,
+      password: password,
+    );
+    if (serverContext == null) {
+      PlaybackLogger.videoError(
+        'xtream-server-info-missing',
+        description: 'Xtream server_info unavailable',
+      );
+      return null;
+    }
+    final base = _xtreamStreamBase(serverContext);
     final escapedUsername = Uri.encodeComponent(username);
     final escapedPassword = Uri.encodeComponent(password);
     final slugPrefix = 'live/$escapedUsername/$escapedPassword';
@@ -336,6 +349,111 @@ class PlayableResolver {
       providerKey: providerKey,
       headers: headers,
     );
+  }
+
+  Future<_XtreamServerContext?> _ensureXtreamServerContext({
+    required String username,
+    required String password,
+  }) async {
+    final cached = _xtreamServerContext;
+    if (cached != null) {
+      return cached;
+    }
+    final pending = _xtreamServerContextFuture;
+    if (pending != null) {
+      return pending;
+    }
+    final future = _fetchXtreamServerContext(
+      username: username,
+      password: password,
+    );
+    _xtreamServerContextFuture = future;
+    try {
+      final context = await future;
+      if (context != null && _xtreamServerContext == null) {
+        _xtreamServerContext = context;
+      }
+      return context;
+    } finally {
+      if (identical(_xtreamServerContextFuture, future)) {
+        _xtreamServerContextFuture = null;
+      }
+    }
+  }
+
+  Future<_XtreamServerContext?> _fetchXtreamServerContext({
+    required String username,
+    required String password,
+  }) async {
+    final client = _xtreamProbeClient ??= _createXtreamProbeClient();
+    final discoveryBase = ensureTrailingSlash(
+      stripKnownFiles(
+        profile.lockedBase,
+        knownFiles: const {
+          'player_api.php',
+          'get.php',
+          'xmltv.php',
+          'portal.php',
+          'index.php',
+        },
+      ),
+    );
+    final playerUri = discoveryBase.resolve('player_api.php').replace(
+      queryParameters: {
+        'username': username,
+        'password': password,
+      },
+    );
+    final request = http.Request('GET', playerUri)
+      ..followRedirects = true
+      ..maxRedirects = 5
+      ..headers.addAll(_profileHeaders);
+    request.headers.putIfAbsent('Accept', () => 'application/json');
+    try {
+      final response =
+          await client.send(request).timeout(_xtreamProbeTimeout);
+      final body = await response.stream.bytesToString();
+      if (response.statusCode >= 400) {
+        PlaybackLogger.videoInfo(
+          'xtream-server-info-http',
+          uri: playerUri,
+          extra: {'code': response.statusCode},
+        );
+        return null;
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        return null;
+      }
+      final serverInfo = decoded['server_info'];
+      if (serverInfo is! Map) {
+        return null;
+      }
+      final rawScheme = serverInfo['server_protocol']?.toString();
+      final scheme =
+          _normalizeXtreamScheme(rawScheme) ?? discoveryBase.scheme;
+      final host = _normalizeServerHost(
+        serverInfo['url']?.toString(),
+        discoveryBase.host,
+      );
+      final httpPort = _parsePortValue(serverInfo['port']);
+      final httpsPort = _parsePortValue(
+        serverInfo['https_port'] ?? serverInfo['httpsPort'],
+      );
+      return _XtreamServerContext(
+        scheme: scheme,
+        host: host,
+        httpPort: httpPort,
+        httpsPort: httpsPort,
+      );
+    } catch (error) {
+      PlaybackLogger.videoError(
+        'xtream-server-info-error',
+        description: 'Failed to load server_info',
+        error: error,
+      );
+      return null;
+    }
   }
 
   Future<_XtreamCandidate?> _ensureXtreamLivePattern({
@@ -648,91 +766,6 @@ class PlayableResolver {
     return Map.unmodifiable(normalized);
   }
 
-  Map<String, dynamic>? _decodeStoredServerInfo() {
-    final raw = _readProviderValue(const [
-      'server_info',
-      'serverInfo',
-      'xtreamServerInfo',
-    ]);
-    if (raw == null || raw.isEmpty) {
-      return null;
-    }
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      }
-    } catch (_) {
-      // Ignore malformed payloads and fall back to the locked base.
-    }
-    return null;
-  }
-
-  String? _readProviderValue(Iterable<String> keys) {
-    for (final key in keys) {
-      final fromConfig = _lookupCaseInsensitive(_config, key);
-      final fromHints =
-          fromConfig == null ? _lookupCaseInsensitive(_hints, key) : null;
-      final fromSecrets = (fromConfig ?? fromHints) == null
-          ? _lookupCaseInsensitive(_secrets, key)
-          : null;
-      final value = fromConfig ?? fromHints ?? fromSecrets;
-      if (value != null && value.trim().isNotEmpty) {
-        return value.trim();
-      }
-    }
-    return null;
-  }
-
-  int? _readProviderInt(Iterable<String> keys) {
-    final raw = _readProviderValue(keys);
-    if (raw == null) {
-      return null;
-    }
-    return int.tryParse(raw);
-  }
-
-  String? _lookupCaseInsensitive(Map<String, String> source, String key) {
-    final normalized = key.toLowerCase();
-    for (final entry in source.entries) {
-      if (entry.key.toLowerCase() == normalized) {
-        return entry.value;
-      }
-    }
-    return null;
-  }
-
-  String? _serverInfoString(
-    Map<String, dynamic>? info,
-    List<String> keys,
-  ) {
-    if (info == null) {
-      return null;
-    }
-    for (final key in keys) {
-      final value = info[key];
-      if (value == null) {
-        continue;
-      }
-      final asString = value.toString().trim();
-      if (asString.isNotEmpty) {
-        return asString;
-      }
-    }
-    return null;
-  }
-
-  int? _serverInfoInt(
-    Map<String, dynamic>? info,
-    List<String> keys,
-  ) {
-    final raw = _serverInfoString(info, keys);
-    if (raw == null) {
-      return null;
-    }
-    return int.tryParse(raw);
-  }
-
   String? _normalizeXtreamScheme(String? value) {
     if (value == null) {
       return null;
@@ -744,7 +777,21 @@ class PlayableResolver {
     return null;
   }
 
-  String _normalizeServerHost(String? value, String fallback) {
+  int? _parsePortValue(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is int) {
+      return value > 0 ? value : null;
+    }
+    final parsed = int.tryParse(value.toString());
+    if (parsed == null || parsed <= 0) {
+      return null;
+    }
+    return parsed;
+  }
+
+ String _normalizeServerHost(String? value, String fallback) {
     if (value == null || value.trim().isEmpty) {
       return fallback;
     }
@@ -756,26 +803,6 @@ class PlayableResolver {
       }
     }
     return trimmed.replaceAll(RegExp(r'/+$'), '');
-  }
-
-  int _defaultPortForScheme(String scheme) {
-    return scheme == 'https' ? 443 : 80;
-  }
-
-  int _resolveXtreamPort(
-    String scheme,
-    int? httpPort,
-    int? httpsPort,
-    Uri fallback,
-  ) {
-    if (scheme == 'https') {
-      return httpsPort ??
-          (fallback.scheme == 'https' && fallback.hasPort ? fallback.port : null) ??
-          _defaultPortForScheme(scheme);
-    }
-    return httpPort ??
-        (fallback.scheme == 'http' && fallback.hasPort ? fallback.port : null) ??
-        _defaultPortForScheme(scheme);
   }
 
   Future<Playable?> _buildStalkerPlayable({
@@ -887,52 +914,11 @@ class PlayableResolver {
     }
   }
 
-  Uri _xtreamStreamBase() {
-    final stripped = stripKnownFiles(
-      profile.record.lockedBase,
-      knownFiles: const {
-        'player_api.php',
-        'get.php',
-        'xmltv.php',
-        'portal.php',
-        'index.php',
-      },
-    );
-    final fallback = ensureTrailingSlash(stripped);
-    final serverInfo = _decodeStoredServerInfo();
-    final rawScheme = _readProviderValue(const [
-          'server_protocol',
-          'serverProtocol',
-          'scheme',
-        ]) ??
-        _serverInfoString(serverInfo, const ['server_protocol', 'serverProtocol']);
-    final scheme = _normalizeXtreamScheme(rawScheme) ?? fallback.scheme;
-    final rawHost = _readProviderValue(const [
-          'server_url',
-          'serverUrl',
-          'server_host',
-          'serverHost',
-          'url',
-          'host',
-        ]) ??
-        _serverInfoString(serverInfo, const ['url', 'host']);
-    final host = _normalizeServerHost(rawHost, fallback.host);
-    final httpPort =
-        _readProviderInt(const ['server_port', 'serverPort', 'port']) ??
-            _serverInfoInt(serverInfo, const ['port']);
-    final httpsPort =
-        _readProviderInt(const ['server_https_port', 'serverHttpsPort', 'https_port', 'httpsPort']) ??
-            _serverInfoInt(serverInfo, const ['https_port', 'httpsPort']);
-    final resolvedPort = _resolveXtreamPort(
-      scheme,
-      httpPort,
-      httpsPort,
-      fallback,
-    );
+  Uri _xtreamStreamBase(_XtreamServerContext context) {
     final base = Uri(
-      scheme: scheme,
-      host: host,
-      port: resolvedPort,
+      scheme: context.scheme,
+      host: context.host,
+      port: context.portForScheme(),
       path: '/',
     );
     return ensureTrailingSlash(base);
@@ -1185,4 +1171,25 @@ class _XtreamProbeResult {
   final Uri uri;
   final String? contentType;
   final Map<String, String> playbackHeaders;
+}
+
+class _XtreamServerContext {
+  const _XtreamServerContext({
+    required this.scheme,
+    required this.host,
+    this.httpPort,
+    this.httpsPort,
+  });
+
+  final String scheme;
+  final String host;
+  final int? httpPort;
+  final int? httpsPort;
+
+  int portForScheme() {
+    if (scheme == 'https') {
+      return httpsPort ?? httpPort ?? 443;
+    }
+    return httpPort ?? httpsPort ?? 80;
+  }
 }

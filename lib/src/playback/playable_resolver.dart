@@ -144,16 +144,19 @@ class PlayableResolver {
     String? previewUrl,
     Map<String, String>? headerHints,
   }) async {
-    final directUri =
-        _parseDirectUri(streamTemplate) ?? _parseDirectUri(previewUrl);
-    if (directUri != null) {
-      final directPlayable = _playableFromUri(
-        directUri,
-        isLive: isLive,
-        headers: _mergeHeaders(headerHints),
-      );
-      if (directPlayable != null) {
-        return directPlayable;
+    final isStalkerProvider = profile.record.kind == ProviderKind.stalker;
+    if (!isStalkerProvider) {
+      final directUri =
+          _parseDirectUri(streamTemplate) ?? _parseDirectUri(previewUrl);
+      if (directUri != null) {
+        final directPlayable = _playableFromUri(
+          directUri,
+          isLive: isLive,
+          headers: _mergeHeaders(headerHints),
+        );
+        if (directPlayable != null) {
+          return directPlayable;
+        }
       }
     }
     switch (profile.record.kind) {
@@ -172,17 +175,6 @@ class PlayableResolver {
         final cmd = streamTemplate ?? previewUrl;
         if (cmd == null || cmd.isEmpty) {
           return null;
-        }
-        final uri = _parseStalkerCommand(cmd);
-        if (uri != null) {
-          final playable = _playableFromUri(
-            uri,
-            isLive: isLive,
-            headers: _mergeHeaders(headerHints),
-          );
-          if (playable != null) {
-            return playable;
-          }
         }
         return _buildStalkerPlayable(
           command: cmd,
@@ -861,6 +853,22 @@ class PlayableResolver {
       );
       return null;
     }
+    final sessionHeaders = session.buildAuthenticatedHeaders();
+    final directUri = _parseDirectUri(command);
+    if (directUri != null) {
+      final directHeaders = _mergeHeaders(
+        headerHints,
+        overrides: sessionHeaders,
+      );
+      final playable = _playableFromUri(
+        directUri,
+        isLive: isLive,
+        headers: directHeaders,
+      );
+      if (playable != null) {
+        return playable;
+      }
+    }
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',
@@ -869,7 +877,6 @@ class PlayableResolver {
       'cmd': command,
       'JsHttpRequest': '1-xml',
     };
-    final sessionHeaders = session.buildAuthenticatedHeaders();
     try {
       final response = await _stalkerHttpClient.getPortal(
         config,
@@ -1069,20 +1076,6 @@ class PlayableResolver {
     final match = _urlPattern.firstMatch(trimmed);
     if (match != null) {
       return Uri.tryParse(match.group(0)!);
-    }
-    return null;
-  }
-
-  Uri? _parseStalkerCommand(String command) {
-    final trimmed = command.trim();
-    final uri = _parseDirectUri(trimmed);
-    if (uri != null) return uri;
-    final parts = trimmed.split(' ');
-    for (final part in parts) {
-      final candidate = _parseDirectUri(part);
-      if (candidate != null) {
-        return candidate;
-      }
     }
     return null;
   }

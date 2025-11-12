@@ -1262,7 +1262,13 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     var useMediaKit = false;
     for (final source in sources) {
       final support = classifyWindowsPlayable(source.playable);
-      if (support != WindowsPlaybackSupport.okDirect) {
+      final requiresFallback = switch (support) {
+        WindowsPlaybackSupport.okDirect ||
+        WindowsPlaybackSupport.likelyCodecIssue =>
+          false,
+        _ => true,
+      };
+      if (requiresFallback) {
         useMediaKit = true;
         if (!warned) {
           _showSnack(windowsSupportMessage(support));

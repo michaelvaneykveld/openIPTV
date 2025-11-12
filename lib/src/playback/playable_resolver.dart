@@ -1133,9 +1133,17 @@ class PlayableResolver {
     final payload = _decodePortalPayload(body);
     final js = payload['js'];
     if (js is Map) {
+      final id = js['id'];
       final cmd = js['cmd'] ?? js['url'] ?? js['stream_url'];
-      if (cmd is String && cmd.trim().isNotEmpty) {
-        return cmd.trim();
+      final idValue =
+          id is String && id.trim().isNotEmpty ? id : null;
+      final cmdValue =
+          cmd is String && cmd.trim().isNotEmpty ? cmd.trim() : null;
+      if (idValue != null) {
+        return idValue;
+      }
+      if (cmdValue != null) {
+        return cmdValue;
       }
     }
     final directCmd = payload['cmd'] ?? payload['url'];

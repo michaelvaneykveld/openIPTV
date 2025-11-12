@@ -252,10 +252,16 @@ class PlayableResolver {
     final escapedPassword = Uri.encodeComponent(password);
     final path = '$segment/$escapedUsername/$escapedPassword/$providerKey.$ext';
     final url = base.resolve(path);
+    final userAgent = (_config['userAgent'] ?? '').trim();
+    final headers = _mergeHeaders(
+      headerHints,
+      overrides:
+          userAgent.isEmpty ? null : <String, String>{'User-Agent': userAgent},
+    );
     return Playable(
       url: url,
       isLive: isLive,
-      headers: _mergeHeaders(headerHints),
+      headers: headers,
       containerExtension: ext,
       mimeHint: guessMimeFromUri(url),
     );

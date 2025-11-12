@@ -1255,21 +1255,14 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     BuildContext context,
     List<PlayerMediaSource> sources,
   ) {
-    final isWindows = _isWindowsPlatform(context);
-    if (!isWindows) {
+    if (!_isWindowsPlatform(context)) {
       return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
     var warned = false;
     var useMediaKit = false;
     for (final source in sources) {
       final support = classifyWindowsPlayable(source.playable);
-      final requiresFallback = switch (support) {
-        WindowsPlaybackSupport.okDirect ||
-        WindowsPlaybackSupport.likelyCodecIssue =>
-          false,
-        _ => true,
-      };
-      if (requiresFallback) {
+      if (support != WindowsPlaybackSupport.okDirect) {
         useMediaKit = true;
         if (!warned) {
           _showSnack(windowsSupportMessage(support));

@@ -40,7 +40,7 @@ class PlayableResolver {
   _XtreamCandidate? _xtreamLivePattern;
   Future<_XtreamCandidate?>? _xtreamLivePatternFuture;
 
-  static const Duration _xtreamProbeTimeout = Duration(seconds: 6);
+  static const Duration _xtreamProbeTimeout = Duration(seconds: 10);
 
   Map<String, String> get _secrets => profile.secrets;
   Map<String, String> get _config => profile.record.configuration;
@@ -468,15 +468,6 @@ class PlayableResolver {
     Uri uri,
     Map<String, String> playbackHeaders,
   ) async {
-    final headResult = await _sendXtreamProbeRequest(
-      uri,
-      playbackHeaders,
-      method: 'HEAD',
-      playbackHeaders: playbackHeaders,
-    );
-    if (headResult != null) {
-      return headResult;
-    }
     final headers = playbackHeaders.isEmpty
         ? <String, String>{}
         : Map<String, String>.from(playbackHeaders);

@@ -263,7 +263,12 @@ class PlayableResolver {
     final escapedPassword = Uri.encodeComponent(password);
     final slugPrefix = 'live/$escapedUsername/$escapedPassword';
     var headers = _mergeHeaders(headerHints);
-    headers = _applyXtreamHeaderDefaults(headers, base);
+    headers = _applyXtreamHeaderDefaults(
+      headers,
+      base,
+      username,
+      password,
+    );
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
@@ -408,7 +413,12 @@ class PlayableResolver {
       ..followRedirects = true
       ..maxRedirects = 5;
     final apiHeaders = Map<String, String>.from(
-      _applyXtreamHeaderDefaults(_profileHeaders, discoveryBase),
+      _applyXtreamHeaderDefaults(
+        _profileHeaders,
+        discoveryBase,
+        username,
+        password,
+      ),
     );
     apiHeaders['Accept'] = 'application/json';
     request.headers.addAll(apiHeaders);
@@ -772,12 +782,16 @@ class PlayableResolver {
   Map<String, String> _applyXtreamHeaderDefaults(
     Map<String, String> headers,
     Uri base,
+    String username,
+    String password,
   ) {
     final normalized = Map<String, String>.from(headers);
     normalized['User-Agent'] = 'VLC/3.0.20';
     normalized['Referer'] = '${base.scheme}://${base.host}/';
     normalized['Host'] = base.host;
     normalized.putIfAbsent('Accept', () => '*/*');
+    final creds = base64Encode(utf8.encode('$username:$password'));
+    normalized['Authorization'] = 'Basic $creds';
     return Map.unmodifiable(normalized);
   }
 

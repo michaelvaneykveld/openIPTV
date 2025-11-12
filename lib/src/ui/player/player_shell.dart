@@ -1260,9 +1260,17 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
     var warned = false;
+    var useMediaKit = false;
     for (final source in sources) {
       final support = classifyWindowsPlayable(source.playable);
-      if (support != WindowsPlaybackSupport.okDirect) {
+      final requiresFallback = switch (support) {
+        WindowsPlaybackSupport.okDirect ||
+        WindowsPlaybackSupport.likelyCodecIssue =>
+          false,
+        _ => true,
+      };
+      if (requiresFallback) {
+        useMediaKit = true;
         if (!warned) {
           _showSnack(windowsSupportMessage(support));
           warned = true;
@@ -1278,11 +1286,13 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
         _logWindowsAcceptance(source.playable, support);
       }
     }
-    PlaybackLogger.videoInfo(
-      'windows-mediakit-fallback',
-      extra: {'count': sources.length},
-    );
-    return _PlatformPlaybackPlan(sources: sources, useMediaKit: true);
+    if (useMediaKit) {
+      PlaybackLogger.videoInfo(
+        'windows-mediakit-fallback',
+        extra: {'count': sources.length},
+      );
+    }
+    return _PlatformPlaybackPlan(sources: sources, useMediaKit: useMediaKit);
   }
 
   bool _isWindowsPlatform(BuildContext context) {

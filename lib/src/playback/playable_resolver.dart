@@ -406,9 +406,12 @@ class PlayableResolver {
     );
     final request = http.Request('GET', playerUri)
       ..followRedirects = true
-      ..maxRedirects = 5
-      ..headers.addAll(_profileHeaders);
-    request.headers.putIfAbsent('Accept', () => 'application/json');
+      ..maxRedirects = 5;
+    final apiHeaders = Map<String, String>.from(
+      _applyXtreamHeaderDefaults(_profileHeaders, discoveryBase),
+    );
+    apiHeaders['Accept'] = 'application/json';
+    request.headers.addAll(apiHeaders);
     try {
       final response =
           await client.send(request).timeout(_xtreamProbeTimeout);
@@ -566,9 +569,16 @@ class PlayableResolver {
     String? templateExtension,
   }) {
     final slug = '$slugPrefix/${_XtreamCandidate.placeholder}';
+    final barePrefix =
+        slugPrefix.startsWith('live/') ? slugPrefix.substring(5) : slugPrefix;
+    final bareSlug = '$barePrefix/${_XtreamCandidate.placeholder}';
     final raw = <_XtreamCandidate>[
       _XtreamCandidate(pathTemplate: '$slug.m3u8', extension: 'm3u8'),
       _XtreamCandidate(pathTemplate: '$slug.ts', extension: 'ts'),
+      if (barePrefix.isNotEmpty && barePrefix != slugPrefix) ...[
+        _XtreamCandidate(pathTemplate: '$bareSlug.m3u8', extension: 'm3u8'),
+        _XtreamCandidate(pathTemplate: '$bareSlug.ts', extension: 'ts'),
+      ],
     ];
     if (templateExtension == null || templateExtension.isEmpty) {
       return raw;
@@ -625,6 +635,11 @@ class PlayableResolver {
           playbackHeaders: playbackHeaders ?? Map.unmodifiable(requestHeaders),
         );
       }
+      PlaybackLogger.videoInfo(
+        'xtream-live-probe-http',
+        uri: resolvedUri,
+        extra: {'code': response.statusCode, 'method': method},
+      );
     } catch (error) {
       PlaybackLogger.videoError(
         'xtream-live-probe-error',

@@ -898,10 +898,7 @@ class PlayableResolver {
       }
       final playbackHeaders = _mergeHeaders(
         headerHints,
-        overrides: {
-          for (final entry in sessionHeaders.entries)
-            if (!_headerBlacklist.contains(entry.key)) entry.key: entry.value,
-        },
+        overrides: sessionHeaders,
       );
       var playable = _playableFromUri(
         uri,
@@ -1060,13 +1057,6 @@ class PlayableResolver {
     }
     return Map.unmodifiable(merged!);
   }
-
-  static const Set<String> _headerBlacklist = {
-    'cookie',
-    'Cookie',
-    'authorization',
-    'Authorization',
-  };
 
   Uri? _parseDirectUri(String? candidate) {
     if (candidate == null) return null;

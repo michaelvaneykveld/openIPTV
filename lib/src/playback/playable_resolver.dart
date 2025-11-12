@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
@@ -33,6 +36,9 @@ class PlayableResolver {
   StalkerPortalConfiguration? _stalkerConfig;
   StalkerSession? _stalkerSession;
   Future<StalkerSession>? _stalkerSessionFuture;
+  http.Client? _xtreamProbeClient;
+
+  static const Duration _xtreamProbeTimeout = Duration(seconds: 6);
 
   Map<String, String> get _secrets => profile.secrets;
   Map<String, String> get _config => profile.record.configuration;
@@ -219,13 +225,15 @@ class PlayableResolver {
     );
   }
 
-  Playable? _buildXtreamPlayable({
+  _XtreamCandidate? _xtreamLivePattern;
+
+  Future<Playable?> _buildXtreamPlayable({
     required String providerKey,
     required ContentBucket kind,
     required bool isLive,
     String? templateExtension,
     Map<String, String>? headerHints,
-  }) {
+  }) async {
     final username = _readCredential(const [
       'username',
       'user',
@@ -238,6 +246,26 @@ class PlayableResolver {
     }
 
     final base = _xtreamStreamBase();
+    final escapedUsername = Uri.encodeComponent(username);
+    final escapedPassword = Uri.encodeComponent(password);
+    final userAgent = (_config['userAgent'] ?? '').trim();
+    final headers = _mergeHeaders(
+      headerHints,
+      overrides:
+          userAgent.isEmpty ? null : <String, String>{'User-Agent': userAgent},
+    );
+    if (kind == ContentBucket.live || kind == ContentBucket.radio) {
+      final livePlayable = await _buildXtreamLivePlayable(
+        base: base,
+        slugPrefix: 'live/$escapedUsername/$escapedPassword',
+        providerKey: providerKey,
+        headers: headers,
+        templateExtension: templateExtension,
+      );
+      if (livePlayable != null) {
+        return livePlayable;
+      }
+    }
     final segment = switch (kind) {
       ContentBucket.live || ContentBucket.radio => 'live',
       ContentBucket.films => 'movie',
@@ -245,19 +273,9 @@ class PlayableResolver {
     };
     final ext =
         templateExtension ??
-        (kind == ContentBucket.live || kind == ContentBucket.radio
-            ? 'm3u8'
-            : 'mp4');
-    final escapedUsername = Uri.encodeComponent(username);
-    final escapedPassword = Uri.encodeComponent(password);
+        _resolveXtreamExtension(kind: kind, isLive: isLive);
     final path = '$segment/$escapedUsername/$escapedPassword/$providerKey.$ext';
     final url = base.resolve(path);
-    final userAgent = (_config['userAgent'] ?? '').trim();
-    final headers = _mergeHeaders(
-      headerHints,
-      overrides:
-          userAgent.isEmpty ? null : <String, String>{'User-Agent': userAgent},
-    );
     return Playable(
       url: url,
       isLive: isLive,
@@ -265,6 +283,206 @@ class PlayableResolver {
       containerExtension: ext,
       mimeHint: guessMimeFromUri(url),
     );
+  }
+
+  String _resolveXtreamExtension({
+    required ContentBucket kind,
+    required bool isLive,
+  }) {
+    final preferred = (_config['outputFormat'] ?? '').trim().toLowerCase();
+    if (preferred.isNotEmpty) {
+      return preferred;
+    }
+    switch (kind) {
+      case ContentBucket.live:
+      case ContentBucket.radio:
+        return isLive ? 'ts' : 'mp3';
+      case ContentBucket.films:
+      case ContentBucket.series:
+        return 'mp4';
+    }
+  }
+
+  Future<Playable?> _buildXtreamLivePlayable({
+    required Uri base,
+    required String slugPrefix,
+    required String providerKey,
+    required Map<String, String> headers,
+    String? templateExtension,
+  }) async {
+    final candidates = _xtreamLiveCandidates(
+      slugPrefix: slugPrefix,
+      providerKey: providerKey,
+      templateExtension: templateExtension,
+    );
+    if (_xtreamLivePattern != null) {
+      candidates.sort((a, b) {
+        if (identical(a, _xtreamLivePattern)) return -1;
+        if (identical(b, _xtreamLivePattern)) return 1;
+        if (a.pathTemplate == _xtreamLivePattern!.pathTemplate) return -1;
+        if (b.pathTemplate == _xtreamLivePattern!.pathTemplate) return 1;
+        return 0;
+      });
+    }
+    for (final candidate in candidates) {
+      final uri = candidate.resolve(base, providerKey);
+      final probe = await _probeXtreamCandidate(uri, headers);
+      if (probe == null) {
+        continue;
+      }
+      final ext = _determineXtreamExtension(probe, candidate);
+      final mime = probe.contentType?.isNotEmpty == true
+          ? probe.contentType
+          : guessMimeFromUri(probe.uri) ?? _mimeFromExtension(ext);
+      _xtreamLivePattern ??= candidate;
+      return Playable(
+        url: probe.uri,
+        isLive: true,
+        headers: probe.playbackHeaders,
+        containerExtension: ext,
+        mimeHint: mime,
+      );
+    }
+    return null;
+  }
+
+  List<_XtreamCandidate> _xtreamLiveCandidates({
+    required String slugPrefix,
+    required String providerKey,
+    String? templateExtension,
+  }) {
+    const placeholder = _XtreamCandidate.placeholder;
+    final raw = <_XtreamCandidate>[
+      _XtreamCandidate(
+        pathTemplate: '$slugPrefix/$placeholder.m3u8',
+        extension: 'm3u8',
+      ),
+      _XtreamCandidate(
+        pathTemplate: '$slugPrefix/$placeholder/index.m3u8',
+        extension: 'm3u8',
+      ),
+      _XtreamCandidate(
+        pathTemplate: '$slugPrefix/$placeholder.ts',
+        extension: 'ts',
+      ),
+      _XtreamCandidate(
+        pathTemplate: '$slugPrefix/$placeholder',
+        extension: 'ts',
+      ),
+    ];
+    if (templateExtension == null || templateExtension.isEmpty) {
+      return raw;
+    }
+    final normalized = templateExtension.toLowerCase();
+    raw.sort((a, b) {
+      final aScore = a.extension == normalized ? 0 : 1;
+      final bScore = b.extension == normalized ? 0 : 1;
+      return aScore.compareTo(bScore);
+    });
+    return raw;
+  }
+
+  Future<_XtreamProbeResult?> _probeXtreamCandidate(
+    Uri uri,
+    Map<String, String> playbackHeaders,
+  ) async {
+    try {
+      final headResult = await _sendXtreamProbeRequest(
+        uri,
+        playbackHeaders,
+        method: 'HEAD',
+      );
+      if (headResult != null) {
+        return headResult;
+      }
+    } catch (_) {
+      // Swallow and fall back to GET probe.
+    }
+    try {
+      final getHeaders = playbackHeaders.isEmpty
+          ? <String, String>{}
+          : Map<String, String>.from(playbackHeaders);
+      getHeaders.putIfAbsent('Range', () => 'bytes=0-2047');
+      return await _sendXtreamProbeRequest(
+        uri,
+        getHeaders,
+        method: 'GET',
+        playbackHeaders: playbackHeaders,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<_XtreamProbeResult?> _sendXtreamProbeRequest(
+    Uri uri,
+    Map<String, String> requestHeaders, {
+    required String method,
+    Map<String, String>? playbackHeaders,
+  }) async {
+    final client = _xtreamProbeClient ??= _createXtreamProbeClient();
+    final request = http.Request(method, uri)
+      ..followRedirects = true
+      ..maxRedirects = 5
+      ..headers.addAll(requestHeaders);
+    try {
+      final response =
+          await client.send(request).timeout(_xtreamProbeTimeout);
+      await response.stream.drain();
+      if (response.statusCode >= 200 && response.statusCode < 400) {
+        final resolvedUri = response.request?.url ?? uri;
+        final contentType = response.headers['content-type'];
+        return _XtreamProbeResult(
+          uri: resolvedUri,
+          contentType: contentType,
+          playbackHeaders: playbackHeaders ?? Map.unmodifiable(requestHeaders),
+        );
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  String _determineXtreamExtension(
+    _XtreamProbeResult probe,
+    _XtreamCandidate candidate,
+  ) {
+    if (candidate.extension != null && candidate.extension!.isNotEmpty) {
+      return candidate.extension!;
+    }
+    final fromContentType = _extensionFromContentType(probe.contentType);
+    if (fromContentType != null) {
+      return fromContentType;
+    }
+    final guessed = guessExtensionFromUri(probe.uri);
+    if (guessed.isNotEmpty && guessed != 'unknown') {
+      return guessed;
+    }
+    return 'ts';
+  }
+
+  String? _extensionFromContentType(String? contentType) {
+    if (contentType == null) {
+      return null;
+    }
+    final normalized = contentType.toLowerCase();
+    if (normalized.contains('mpegurl')) {
+      return 'm3u8';
+    }
+    if (normalized.contains('mp2t')) {
+      return 'ts';
+    }
+    return null;
+  }
+
+  http.Client _createXtreamProbeClient() {
+    if (profile.record.allowSelfSignedTls) {
+      final ioClient = HttpClient()
+        ..badCertificateCallback = (cert, host, port) => true;
+      return IOClient(ioClient);
+    }
+    return http.Client();
   }
 
   Future<Playable?> _buildStalkerPlayable({
@@ -567,7 +785,6 @@ class PlayableResolver {
     }
     return null;
   }
-
   static final RegExp _urlPattern = RegExp(
     r'((https?|rtmp|udp)://[^\s]+)',
     caseSensitive: false,
@@ -606,4 +823,33 @@ class PlayableResolver {
         return null;
     }
   }
+}
+
+class _XtreamCandidate {
+  const _XtreamCandidate({
+    required this.pathTemplate,
+    required this.extension,
+  });
+
+  static const placeholder = '{stream_id}';
+
+  final String pathTemplate;
+  final String? extension;
+
+  Uri resolve(Uri base, String providerKey) {
+    final path = pathTemplate.replaceAll(placeholder, providerKey);
+    return base.resolve(path);
+  }
+}
+
+class _XtreamProbeResult {
+  _XtreamProbeResult({
+    required this.uri,
+    required this.contentType,
+    required this.playbackHeaders,
+  });
+
+  final Uri uri;
+  final String? contentType;
+  final Map<String, String> playbackHeaders;
 }

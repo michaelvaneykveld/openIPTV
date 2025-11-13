@@ -19,6 +19,8 @@ import 'package:openiptv/src/playback/ffmpeg_restreamer.dart';
 import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
+import 'package:openiptv/src/player_ui/controller/lazy_media_kit_adapter.dart';
+import 'package:openiptv/src/player_ui/controller/lazy_playback_models.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
 import 'package:openiptv/src/player_ui/controller/video_player_adapter.dart';
@@ -360,16 +362,32 @@ class _PlayerShellState extends ConsumerState<PlayerShell>
         providerId: providerId,
         limit: 200,
       );
-      final channels = page.items.map((entry) => entry.channel).toList();
-      final playlistEntries = await _resolveChannelSources(channels);
       if (!mounted) {
         return;
       }
-      final success = await _pushMediaPlaylist(
-        context: context,
-        sources: playlistEntries.map((entry) => entry.source).toList(),
-        initialIndex: 0,
-      );
+      final channels = page.items.map((entry) => entry.channel).toList();
+      bool success = false;
+      if (_shouldUseLazyPlayback(context)) {
+        final lazyEntries = _buildLazyChannelEntries(channels);
+        if (!mounted) {
+          return;
+        }
+        success = await _pushLazyPlaylist(
+          context: context,
+          entries: lazyEntries,
+          initialIndex: 0,
+        );
+      } else {
+        final playlistEntries = await _resolveChannelSources(channels);
+        if (!mounted) {
+          return;
+        }
+        success = await _pushMediaPlaylist(
+          context: context,
+          sources: playlistEntries.map((entry) => entry.source).toList(),
+          initialIndex: 0,
+        );
+      }
       if (!success) {
         _showSnack('No playable channels yet. Try refreshing the import.');
       }
@@ -1029,6 +1047,28 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
   }) async {
     final repo = ref.read(channelRepositoryProvider);
     final channels = await repo.fetchChannelsForCategory(categoryId);
+    if (!mounted) {
+      return false;
+    }
+    if (channels.isEmpty) {
+      return false;
+    }
+    if (_shouldUseLazyPlayback(context)) {
+      final lazyEntries = _buildLazyChannelEntries(channels);
+      if (!mounted) {
+        return false;
+      }
+      final initialIndex = _initialIndexForRecords<ChannelRecord>(
+        channels,
+        int.tryParse(item.id),
+        (channel) => channel.id,
+      );
+      return _pushLazyPlaylist(
+        context: context,
+        entries: lazyEntries,
+        initialIndex: initialIndex,
+      );
+    }
     final playlist = await _resolveChannelSources(channels);
     if (!mounted || playlist.isEmpty) {
       return false;
@@ -1048,6 +1088,29 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
   }) async {
     final vodRepo = ref.read(vodRepositoryProvider);
     final movies = await vodRepo.listMovies(providerId, categoryId: categoryId);
+    if (!mounted) {
+      return false;
+    }
+    if (movies.isEmpty) {
+      return false;
+    }
+    if (_shouldUseLazyPlayback(context)) {
+      final lazyEntries = _buildLazyMovieEntries(movies);
+      if (!mounted) {
+        return false;
+      }
+      final tappedId = int.tryParse(item.id);
+      final initialIndex = _initialIndexForRecords<MovieRecord>(
+        movies,
+        tappedId,
+        (movie) => movie.id,
+      );
+      return _pushLazyPlaylist(
+        context: context,
+        entries: lazyEntries,
+        initialIndex: initialIndex,
+      );
+    }
     final playlist = await _resolveMovieSources(movies);
     if (!mounted || playlist.isEmpty) {
       return false;
@@ -1071,10 +1134,36 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
       providerId,
       categoryId: categoryId,
     );
+    if (!mounted) {
+      return false;
+    }
     final seriesTitles = <int, String>{
       for (final s in seriesList) s.id: s.title,
     };
     final episodes = await vodRepo.listEpisodesForCategory(categoryId);
+    if (!mounted) {
+      return false;
+    }
+    if (episodes.isEmpty) {
+      return false;
+    }
+    if (_shouldUseLazyPlayback(context)) {
+      final lazyEntries = _buildLazyEpisodeEntries(episodes, seriesTitles);
+      if (!mounted) {
+        return false;
+      }
+      final tappedSeriesId = int.tryParse(item.id);
+      final initialIndex = _initialIndexForRecords<EpisodeRecord>(
+        episodes,
+        tappedSeriesId,
+        (episode) => episode.seriesId,
+      );
+      return _pushLazyPlaylist(
+        context: context,
+        entries: lazyEntries,
+        initialIndex: initialIndex,
+      );
+    }
     final playlist = await _resolveEpisodeSources(episodes, seriesTitles);
     if (!mounted || playlist.isEmpty) {
       return false;
@@ -1116,30 +1205,49 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     on ConsumerState<T> {
   PlayableResolver get playableResolver;
 
+  bool _windowsWarningShown = false;
+  static const ResolveConfig _resolveConfig = ResolveConfig(
+    neighborRadius: 1,
+    minGap: Duration(milliseconds: 650),
+  );
+
   Future<void> _launchSingleChannel(ChannelRecord channel) async {
     final messenger = ScaffoldMessenger.of(context);
-    final source = await playableResolver.channel(
-      channel,
-      isRadio: channel.isRadio,
-    );
-    if (!mounted) {
-      return;
+    bool success = false;
+    if (_shouldUseLazyPlayback(context)) {
+      final lazyEntries = _buildLazyChannelEntries([channel]);
+      if (!mounted) {
+        return;
+      }
+      success = await _pushLazyPlaylist(
+        context: context,
+        entries: lazyEntries,
+        initialIndex: 0,
+      );
+    } else {
+      final source = await playableResolver.channel(
+        channel,
+        isRadio: channel.isRadio,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (source == null) {
+        messenger
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('No stream available for this channel.'),
+            ),
+          );
+        return;
+      }
+      success = await _pushMediaPlaylist(
+        context: context,
+        sources: [source],
+        initialIndex: 0,
+      );
     }
-    if (source == null) {
-      messenger
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('No stream available for this channel.'),
-          ),
-        );
-      return;
-    }
-    final success = await _pushMediaPlaylist(
-      context: context,
-      sources: [source],
-      initialIndex: 0,
-    );
     if (!mounted) {
       return;
     }
@@ -1197,6 +1305,68 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     return result;
   }
 
+  List<LazyPlaybackEntry> _buildLazyChannelEntries(
+    List<ChannelRecord> channels,
+  ) {
+    return channels
+        .map(
+          (channel) => LazyPlaybackEntry(
+            id: channel.id,
+            factory: () async {
+              final source = await playableResolver.channel(
+                channel,
+                isRadio: channel.isRadio,
+              );
+              if (source == null) {
+                return null;
+              }
+              return _applyPlatformPolicyToSource(source);
+            },
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<LazyPlaybackEntry> _buildLazyMovieEntries(List<MovieRecord> movies) {
+    return movies
+        .map(
+          (movie) => LazyPlaybackEntry(
+            id: movie.id,
+            factory: () async {
+              final source = await playableResolver.movie(movie);
+              if (source == null) {
+                return null;
+              }
+              return _applyPlatformPolicyToSource(source);
+            },
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<LazyPlaybackEntry> _buildLazyEpisodeEntries(
+    List<EpisodeRecord> episodes,
+    Map<int, String> seriesTitles,
+  ) {
+    return episodes
+        .map(
+          (episode) => LazyPlaybackEntry(
+            id: episode.seriesId,
+            factory: () async {
+              final source = await playableResolver.episode(
+                episode,
+                seriesTitle: seriesTitles[episode.seriesId],
+              );
+              if (source == null) {
+                return null;
+              }
+              return _applyPlatformPolicyToSource(source);
+            },
+          ),
+        )
+        .toList(growable: false);
+  }
+
   int _initialIndexFor<E>(
     List<({E? id, PlayerMediaSource source})> entries,
     E? targetId,
@@ -1205,6 +1375,18 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       return 0;
     }
     final idx = entries.indexWhere((entry) => entry.id == targetId);
+    return idx >= 0 ? idx : 0;
+  }
+
+  int _initialIndexForRecords<R>(
+    List<R> items,
+    int? targetId,
+    int? Function(R item) selector,
+  ) {
+    if (targetId == null || items.isEmpty) {
+      return 0;
+    }
+    final idx = items.indexWhere((item) => selector(item) == targetId);
     return idx >= 0 ? idx : 0;
   }
 
@@ -1251,6 +1433,47 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     }
   }
 
+  Future<bool> _pushLazyPlaylist({
+    required BuildContext context,
+    required List<LazyPlaybackEntry> entries,
+    int initialIndex = 0,
+  }) async {
+    if (entries.isEmpty) {
+      return false;
+    }
+    if (!context.mounted) {
+      return false;
+    }
+    final clampedIndex = math.max(
+      0,
+      math.min(initialIndex, entries.length - 1),
+    );
+    final adapter = LazyMediaKitAdapter(
+      entries: entries,
+      scheduler: ResolveScheduler(minGap: _resolveConfig.minGap),
+      config: _resolveConfig,
+      initialIndex: clampedIndex,
+    );
+    final controller = PlayerController(adapter: adapter);
+    if (_isWindowsPlatform(context)) {
+      PlaybackLogger.videoInfo(
+        'windows-mediakit-fallback',
+        extra: {'count': entries.length, 'mode': 'lazy'},
+      );
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            PlayerScreen(controller: controller, ownsController: true),
+      ),
+    );
+    return true;
+  }
+
+  bool _shouldUseLazyPlayback(BuildContext context) {
+    return _isWindowsPlatform(context);
+  }
+
   void _showSnack(String message) {
     if (!mounted) {
       return;
@@ -1267,65 +1490,78 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (!_isWindowsPlatform(context)) {
       return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
-    var warned = false;
-    var useMediaKit = false;
     final adjustedSources = <PlayerMediaSource>[];
-    final restreamHandles = <RestreamHandle>[];
+    final disposers = <Future<void> Function()>[];
+    var useMediaKit = false;
     for (final source in sources) {
-      final support = classifyWindowsPlayable(source.playable);
-      final warnOnly = support == WindowsPlaybackSupport.likelyCodecIssue;
-      final requiresFallback = support != WindowsPlaybackSupport.okDirect;
-      if (requiresFallback) {
-        useMediaKit = true;
-        if (!warned) {
-          _showSnack(windowsSupportMessage(support));
-          warned = true;
-        }
-        PlaybackLogger.videoInfo(
-          'windows-play-blocked',
-          uri: source.playable.url,
-          headers: source.playable.headers,
-          extra: {'support': support.name},
-          includeFullUrl: true,
-        );
-      } else {
-        _logWindowsAcceptance(source.playable, support);
+      final resolved = await _applyPlatformPolicyToSource(source);
+      adjustedSources.add(resolved.source);
+      if (resolved.dispose != null) {
+        disposers.add(resolved.dispose!);
       }
-      if (warnOnly) {
-        PlaybackLogger.videoInfo(
-          'windows-play-warning',
-          uri: source.playable.url,
-          headers: source.playable.headers,
-          extra: {'support': support.name},
-          includeFullUrl: true,
-        );
-      }
-      if (requiresFallback) {
-        final handle = await FfmpegRestreamer.instance.restream(source);
-        if (handle != null) {
-          restreamHandles.add(handle);
-          adjustedSources.add(handle.source);
-        } else {
-          adjustedSources.add(source);
-        }
-      } else {
-        adjustedSources.add(source);
-      }
+      useMediaKit = useMediaKit || resolved.useMediaKit;
     }
     if (useMediaKit) {
       PlaybackLogger.videoInfo(
         'windows-mediakit-fallback',
-        extra: {'count': sources.length},
+        extra: {'count': sources.length, 'mode': 'eager'},
       );
     }
     return _PlatformPlaybackPlan(
       sources: adjustedSources,
       useMediaKit: useMediaKit,
       onDispose: () async {
-        for (final handle in restreamHandles) {
-          await handle.dispose();
+        for (final dispose in disposers) {
+          await dispose();
         }
       },
+    );
+  }
+
+  Future<ResolvedPlayback> _applyPlatformPolicyToSource(
+    PlayerMediaSource source,
+  ) async {
+    if (!_isWindowsPlatform(context)) {
+      return ResolvedPlayback(source: source, useMediaKit: false);
+    }
+    final support = classifyWindowsPlayable(source.playable);
+    final warnOnly = support == WindowsPlaybackSupport.likelyCodecIssue;
+    final requiresFallback = support != WindowsPlaybackSupport.okDirect;
+    var adjustedSource = source;
+    Future<void> Function()? disposer;
+    if (requiresFallback) {
+      if (!_windowsWarningShown && mounted) {
+        _showSnack(windowsSupportMessage(support));
+        _windowsWarningShown = true;
+      }
+      PlaybackLogger.videoInfo(
+        'windows-play-blocked',
+        uri: source.playable.url,
+        headers: source.playable.headers,
+        extra: {'support': support.name},
+        includeFullUrl: true,
+      );
+      final handle = await FfmpegRestreamer.instance.restream(source);
+      if (handle != null) {
+        adjustedSource = handle.source;
+        disposer = handle.dispose;
+      }
+    } else {
+      _logWindowsAcceptance(source.playable, support);
+    }
+    if (warnOnly) {
+      PlaybackLogger.videoInfo(
+        'windows-play-warning',
+        uri: source.playable.url,
+        headers: source.playable.headers,
+        extra: {'support': support.name},
+        includeFullUrl: true,
+      );
+    }
+    return ResolvedPlayback(
+      source: adjustedSource,
+      dispose: disposer,
+      useMediaKit: requiresFallback,
     );
   }
 
@@ -1346,7 +1582,6 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       includeFullUrl: true,
     );
   }
-
 }
 
 class _PlatformPlaybackPlan {

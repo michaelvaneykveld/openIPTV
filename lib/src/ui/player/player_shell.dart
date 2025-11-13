@@ -15,6 +15,7 @@ import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
+import 'package:openiptv/src/playback/ffmpeg_restreamer.dart';
 import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
@@ -1215,8 +1216,12 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (sources.isEmpty) {
       return false;
     }
-    final plan = _applyPlatformPolicy(context, sources);
+    final plan = await _applyPlatformPolicy(context, sources);
     if (plan == null || plan.sources.isEmpty) {
+      return false;
+    }
+    if (!context.mounted) {
+      await plan.dispose();
       return false;
     }
     final clampedIndex = math.max(
@@ -1233,13 +1238,17 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
             initialIndex: clampedIndex,
           );
     final controller = PlayerController(adapter: adapter);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            PlayerScreen(controller: controller, ownsController: true),
-      ),
-    );
-    return true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              PlayerScreen(controller: controller, ownsController: true),
+        ),
+      );
+      return true;
+    } finally {
+      await plan.dispose();
+    }
   }
 
   void _showSnack(String message) {
@@ -1251,23 +1260,21 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  _PlatformPlaybackPlan? _applyPlatformPolicy(
+  Future<_PlatformPlaybackPlan?> _applyPlatformPolicy(
     BuildContext context,
     List<PlayerMediaSource> sources,
-  ) {
+  ) async {
     if (!_isWindowsPlatform(context)) {
       return _PlatformPlaybackPlan(sources: sources, useMediaKit: false);
     }
     var warned = false;
     var useMediaKit = false;
+    final adjustedSources = <PlayerMediaSource>[];
+    final restreamHandles = <RestreamHandle>[];
     for (final source in sources) {
       final support = classifyWindowsPlayable(source.playable);
-      final requiresFallback = switch (support) {
-        WindowsPlaybackSupport.okDirect ||
-        WindowsPlaybackSupport.likelyCodecIssue =>
-          false,
-        _ => true,
-      };
+      final warnOnly = support == WindowsPlaybackSupport.likelyCodecIssue;
+      final requiresFallback = support != WindowsPlaybackSupport.okDirect;
       if (requiresFallback) {
         useMediaKit = true;
         if (!warned) {
@@ -1284,6 +1291,26 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       } else {
         _logWindowsAcceptance(source.playable, support);
       }
+      if (warnOnly) {
+        PlaybackLogger.videoInfo(
+          'windows-play-warning',
+          uri: source.playable.url,
+          headers: source.playable.headers,
+          extra: {'support': support.name},
+          includeFullUrl: true,
+        );
+      }
+      if (requiresFallback) {
+        final handle = await FfmpegRestreamer.instance.restream(source);
+        if (handle != null) {
+          restreamHandles.add(handle);
+          adjustedSources.add(handle.source);
+        } else {
+          adjustedSources.add(source);
+        }
+      } else {
+        adjustedSources.add(source);
+      }
     }
     if (useMediaKit) {
       PlaybackLogger.videoInfo(
@@ -1291,7 +1318,15 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
         extra: {'count': sources.length},
       );
     }
-    return _PlatformPlaybackPlan(sources: sources, useMediaKit: useMediaKit);
+    return _PlatformPlaybackPlan(
+      sources: adjustedSources,
+      useMediaKit: useMediaKit,
+      onDispose: () async {
+        for (final handle in restreamHandles) {
+          await handle.dispose();
+        }
+      },
+    );
   }
 
   bool _isWindowsPlatform(BuildContext context) {
@@ -1318,10 +1353,18 @@ class _PlatformPlaybackPlan {
   const _PlatformPlaybackPlan({
     required this.sources,
     required this.useMediaKit,
+    this.onDispose,
   });
 
   final List<PlayerMediaSource> sources;
   final bool useMediaKit;
+  final Future<void> Function()? onDispose;
+
+  Future<void> dispose() async {
+    if (onDispose != null) {
+      await onDispose!.call();
+    }
+  }
 }
 
 class _ArtworkAvatar extends ConsumerWidget {

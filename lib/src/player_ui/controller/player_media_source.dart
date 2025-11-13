@@ -1,11 +1,11 @@
+import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/player_ui/controller/player_state.dart';
 
 /// Describes a playable media item with optional track metadata.
 class PlayerMediaSource {
   const PlayerMediaSource({
-    required this.uri,
+    required this.playable,
     this.title,
-    this.isLive = false,
     this.bitrateKbps,
     this.audioTracks = const [],
     this.textTracks = const [],
@@ -13,14 +13,16 @@ class PlayerMediaSource {
     this.defaultTextTrackId,
   });
 
-  final Uri uri;
+  final Playable playable;
   final String? title;
-  final bool isLive;
   final int? bitrateKbps;
   final List<PlayerTrack> audioTracks;
   final List<PlayerTrack> textTracks;
   final String? defaultAudioTrackId;
   final String? defaultTextTrackId;
+
+  Uri get uri => playable.url;
+  bool get isLive => playable.isLive;
 
   PlayerTrack? defaultAudioTrack() {
     if (audioTracks.isEmpty) {

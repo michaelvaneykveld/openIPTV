@@ -203,6 +203,7 @@ class PlayableResolver {
     Uri uri, {
     required bool isLive,
     Map<String, String>? headers,
+    String? ffmpegCommand,
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -218,6 +219,7 @@ class PlayableResolver {
       headers: normalizedHeaders,
       containerExtension: guessExtensionFromUri(uri),
       mimeHint: guessMimeFromUri(uri),
+      ffmpegCommand: ffmpegCommand,
     );
   }
 

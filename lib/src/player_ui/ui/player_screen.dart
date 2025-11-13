@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/player_ui/controller/mock_player_adapter.dart';
 import 'package:openiptv/src/player_ui/controller/player_controller.dart';
 import 'package:openiptv/src/player_ui/controller/player_media_source.dart';
@@ -29,8 +30,11 @@ class PlayerScreen extends StatefulWidget {
   factory PlayerScreen.sample({Key? key}) {
     final sources = [
       PlayerMediaSource(
-        uri: Uri.parse(
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        playable: Playable(
+          url: Uri.parse(
+            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+          ),
+          isLive: false,
         ),
         title: 'Big Buck Bunny',
         bitrateKbps: 5200,
@@ -56,8 +60,11 @@ class PlayerScreen extends StatefulWidget {
         ],
       ),
       PlayerMediaSource(
-        uri: Uri.parse(
-          'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+        playable: Playable(
+          url: Uri.parse(
+            'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4',
+          ),
+          isLive: false,
         ),
         title: 'Sintel',
         bitrateKbps: 3800,

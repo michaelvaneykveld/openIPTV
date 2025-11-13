@@ -22,6 +22,7 @@ class Playable {
     this.drm,
     this.seekStart,
     this.durationHint,
+    this.ffmpegCommand,
   });
 
   final Uri url;
@@ -32,6 +33,7 @@ class Playable {
   final DrmHint? drm;
   final Duration? seekStart;
   final Duration? durationHint;
+  final String? ffmpegCommand;
 
   Playable copyWith({
     Uri? url,
@@ -42,6 +44,7 @@ class Playable {
     DrmHint? drm,
     Duration? seekStart,
     Duration? durationHint,
+    String? ffmpegCommand,
   }) {
     return Playable(
       url: url ?? this.url,
@@ -52,6 +55,7 @@ class Playable {
       drm: drm ?? this.drm,
       seekStart: seekStart ?? this.seekStart,
       durationHint: durationHint ?? this.durationHint,
+      ffmpegCommand: ffmpegCommand ?? this.ffmpegCommand,
     );
   }
 }

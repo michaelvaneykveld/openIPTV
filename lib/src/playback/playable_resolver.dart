@@ -257,12 +257,7 @@ class PlayableResolver {
     final escapedPassword = Uri.encodeComponent(password);
     final slugPrefix = 'live/$escapedUsername/$escapedPassword';
     var headers = _mergeHeaders(headerHints);
-    headers = _applyXtreamHeaderDefaults(
-      headers,
-      base,
-      username,
-      password,
-    );
+    headers = _applyXtreamHeaderDefaults(headers, base, username, password);
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
@@ -397,12 +392,9 @@ class PlayableResolver {
         },
       ),
     );
-    final playerUri = discoveryBase.resolve('player_api.php').replace(
-      queryParameters: {
-        'username': username,
-        'password': password,
-      },
-    );
+    final playerUri = discoveryBase
+        .resolve('player_api.php')
+        .replace(queryParameters: {'username': username, 'password': password});
     final request = http.Request('GET', playerUri)
       ..followRedirects = true
       ..maxRedirects = 5;
@@ -417,8 +409,7 @@ class PlayableResolver {
     apiHeaders['Accept'] = 'application/json';
     request.headers.addAll(apiHeaders);
     try {
-      final response =
-          await client.send(request).timeout(_xtreamProbeTimeout);
+      final response = await client.send(request).timeout(_xtreamProbeTimeout);
       final body = await response.stream.bytesToString();
       if (response.statusCode >= 400) {
         PlaybackLogger.videoInfo(
@@ -437,8 +428,7 @@ class PlayableResolver {
         return null;
       }
       final rawScheme = serverInfo['server_protocol']?.toString();
-      final scheme =
-          _normalizeXtreamScheme(rawScheme) ?? discoveryBase.scheme;
+      final scheme = _normalizeXtreamScheme(rawScheme) ?? discoveryBase.scheme;
       final host = _normalizeServerHost(
         serverInfo['url']?.toString(),
         discoveryBase.host,
@@ -472,8 +462,7 @@ class PlayableResolver {
   }) async {
     final cached = _xtreamLivePattern;
     if (cached != null &&
-        (templateExtension == null ||
-            cached.extension == templateExtension)) {
+        (templateExtension == null || cached.extension == templateExtension)) {
       return cached;
     }
     final pending = _xtreamLivePatternFuture;
@@ -573,8 +562,9 @@ class PlayableResolver {
     String? templateExtension,
   }) {
     final slug = '$slugPrefix/${_XtreamCandidate.placeholder}';
-    final barePrefix =
-        slugPrefix.startsWith('live/') ? slugPrefix.substring(5) : slugPrefix;
+    final barePrefix = slugPrefix.startsWith('live/')
+        ? slugPrefix.substring(5)
+        : slugPrefix;
     final bareSlug = '$barePrefix/${_XtreamCandidate.placeholder}';
     final raw = <_XtreamCandidate>[
       _XtreamCandidate(pathTemplate: '$slug.m3u8', extension: 'm3u8'),
@@ -624,8 +614,7 @@ class PlayableResolver {
       ..maxRedirects = 5
       ..headers.addAll(requestHeaders);
     try {
-      final response =
-          await client.send(request).timeout(_xtreamProbeTimeout);
+      final response = await client.send(request).timeout(_xtreamProbeTimeout);
       await response.stream.drain();
       final resolvedUri = response.request?.url ?? uri;
       if (response.statusCode >= 200 && response.statusCode < 400) {
@@ -662,9 +651,11 @@ class PlayableResolver {
     required String extension,
   }) {
     final template =
-        _buildTemplateFromProbe(probe.uri, providerKey) ?? original.pathTemplate;
+        _buildTemplateFromProbe(probe.uri, providerKey) ??
+        original.pathTemplate;
     final baseOverride =
-        _deriveBaseOverride(probe.uri, providerKey, template) ?? original.baseOverride;
+        _deriveBaseOverride(probe.uri, providerKey, template) ??
+        original.baseOverride;
     return _XtreamCandidate(
       pathTemplate: template,
       extension: extension,
@@ -673,29 +664,29 @@ class PlayableResolver {
   }
 
   String? _buildTemplateFromProbe(Uri uri, String providerKey) {
-    final normalizedPath =
-        uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+    final normalizedPath = uri.path.startsWith('/')
+        ? uri.path.substring(1)
+        : uri.path;
     final buffer = StringBuffer(normalizedPath);
     if (uri.hasQuery) {
       buffer
         ..write('?')
         ..write(uri.query);
     }
-    final replaced =
-        buffer.toString().replaceAll(providerKey, _XtreamCandidate.placeholder);
+    final replaced = buffer.toString().replaceAll(
+      providerKey,
+      _XtreamCandidate.placeholder,
+    );
     if (!replaced.contains(_XtreamCandidate.placeholder)) {
       return null;
     }
     return replaced;
   }
 
-  Uri? _deriveBaseOverride(
-    Uri uri,
-    String providerKey,
-    String template,
-  ) {
-    final normalizedPath =
-        uri.path.startsWith('/') ? uri.path.substring(1) : uri.path;
+  Uri? _deriveBaseOverride(Uri uri, String providerKey, String template) {
+    final normalizedPath = uri.path.startsWith('/')
+        ? uri.path.substring(1)
+        : uri.path;
     final realized = template.replaceAll(
       _XtreamCandidate.placeholder,
       providerKey,
@@ -705,17 +696,16 @@ class PlayableResolver {
       return null;
     }
     final baseLength = normalizedPath.length - realizedPath.length;
-    final baseSegment =
-        baseLength <= 0 ? '' : normalizedPath.substring(0, baseLength);
-    final prefixed =
-        baseSegment.isEmpty ? '/' : baseSegment.startsWith('/') ? baseSegment : '/$baseSegment';
-    final normalizedBase =
-        prefixed.endsWith('/') ? prefixed : '$prefixed/';
-    return uri.replace(
-      path: normalizedBase,
-      query: '',
-      fragment: '',
-    );
+    final baseSegment = baseLength <= 0
+        ? ''
+        : normalizedPath.substring(0, baseLength);
+    final prefixed = baseSegment.isEmpty
+        ? '/'
+        : baseSegment.startsWith('/')
+        ? baseSegment
+        : '/$baseSegment';
+    final normalizedBase = prefixed.endsWith('/') ? prefixed : '$prefixed/';
+    return uri.replace(path: normalizedBase, query: '', fragment: '');
   }
 
   String _determineXtreamExtension(
@@ -814,7 +804,7 @@ class PlayableResolver {
     return parsed;
   }
 
- String _normalizeServerHost(String? value, String fallback) {
+  String _normalizeServerHost(String? value, String fallback) {
     if (value == null || value.trim().isEmpty) {
       return fallback;
     }
@@ -828,10 +818,7 @@ class PlayableResolver {
     return trimmed.replaceAll(RegExp(r'/+$'), '');
   }
 
-  String _summarizeResponseBody(
-    dynamic body, {
-    int maxLength = 200,
-  }) {
+  String _summarizeResponseBody(dynamic body, {int maxLength = 200}) {
     if (body == null) {
       return '';
     }
@@ -871,10 +858,7 @@ class PlayableResolver {
     }
     final sessionHeaders = session.buildAuthenticatedHeaders();
     final playbackHeaders = Map<String, String>.from(
-      _mergeHeaders(
-        headerHints,
-        overrides: sessionHeaders,
-      ),
+      _mergeHeaders(headerHints, overrides: sessionHeaders),
     );
     final directUri = _parseDirectUri(command);
     final queryParameters = <String, dynamic>{
@@ -963,8 +947,9 @@ class PlayableResolver {
         command: command,
         response: response,
       );
-      final resolvedLink =
-          _sanitizeStalkerResolvedLink(_extractStalkerLink(response.body));
+      final resolvedLink = _sanitizeStalkerResolvedLink(
+        _extractStalkerLink(response.body),
+      );
       if (resolvedLink == null || resolvedLink.isEmpty) {
         PlaybackLogger.stalker(
           'link-missing',
@@ -1014,10 +999,7 @@ class PlayableResolver {
         );
       }
       if (playable == null) {
-        PlaybackLogger.playableDrop(
-          'stalker-unhandled',
-          uri: normalizedUri,
-        );
+        PlaybackLogger.playableDrop('stalker-unhandled', uri: normalizedUri);
         return null;
       }
       PlaybackLogger.stalker(
@@ -1137,10 +1119,10 @@ class PlayableResolver {
     if (js is Map) {
       final id = js['id'];
       final cmd = js['cmd'] ?? js['url'] ?? js['stream_url'];
-      final idValue =
-          id is String && id.trim().isNotEmpty ? id : null;
-      final cmdValue =
-          cmd is String && cmd.trim().isNotEmpty ? cmd.trim() : null;
+      final idValue = id is String && id.trim().isNotEmpty ? id : null;
+      final cmdValue = cmd is String && cmd.trim().isNotEmpty
+          ? cmd.trim()
+          : null;
       if (idValue != null) {
         return idValue;
       }
@@ -1297,7 +1279,8 @@ class PlayableResolver {
       return uri;
     }
     final fallbackStream =
-        _extractStreamIdFromUri(fallbackUri) ?? _extractStreamId(fallbackCommand);
+        _extractStreamIdFromUri(fallbackUri) ??
+        _extractStreamId(fallbackCommand);
     if (fallbackStream == null || fallbackStream.isEmpty) {
       return uri;
     }
@@ -1306,7 +1289,8 @@ class PlayableResolver {
     var patched = uri.replace(queryParameters: qp);
     final patchedQp = Map<String, String>.from(patched.queryParameters);
     final playToken =
-        _extractPlayToken(fallbackUri) ?? _extractPlayTokenUriString(fallbackCommand);
+        _extractPlayToken(fallbackUri) ??
+        _extractPlayTokenUriString(fallbackCommand);
     if (playToken != null && playToken.isNotEmpty) {
       patchedQp.putIfAbsent('play_token', () => playToken);
     }
@@ -1335,7 +1319,10 @@ class PlayableResolver {
 
   String? _extractStreamId(String? source) {
     if (source == null || source.isEmpty) return null;
-    final match = RegExp(r'stream=([0-9]+)', caseSensitive: false).firstMatch(source);
+    final match = RegExp(
+      r'stream=([0-9]+)',
+      caseSensitive: false,
+    ).firstMatch(source);
     if (match != null && match.groupCount >= 1) {
       return match.group(1);
     }
@@ -1353,8 +1340,10 @@ class PlayableResolver {
 
   String? _extractPlayTokenUriString(String? source) {
     if (source == null || source.isEmpty) return null;
-    final match =
-        RegExp(r'play_token=([A-Za-z0-9]+)', caseSensitive: false).firstMatch(source);
+    final match = RegExp(
+      r'play_token=([A-Za-z0-9]+)',
+      caseSensitive: false,
+    ).firstMatch(source);
     if (match != null && match.groupCount >= 1) {
       return match.group(1);
     }
@@ -1427,6 +1416,7 @@ class PlayableResolver {
     }
     return null;
   }
+
   static final RegExp _urlPattern = RegExp(
     r'((https?|rtmp|udp)://[^\s]+)',
     caseSensitive: false,
@@ -1519,12 +1509,11 @@ class _XtreamServerContext {
     return httpPort ?? httpsPort ?? 80;
   }
 }
-  Map<String, String> _sanitizeStalkerPlaybackHeaders(
-    Map<String, String> headers,
-  ) {
-    final sanitized = Map<String, String>.from(headers);
-    sanitized.removeWhere(
-      (key, _) => key.toLowerCase() == 'authorization',
-    );
-    return sanitized;
-  }
+
+Map<String, String> _sanitizeStalkerPlaybackHeaders(
+  Map<String, String> headers,
+) {
+  // Per stalkerworksnow.md: Never strip Cookie, Authorization, or X-User-Agent
+  // All portal session headers must reach ffmpeg/media_kit for Windows playback
+  return Map<String, String>.from(headers);
+}

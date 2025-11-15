@@ -8,7 +8,8 @@ import 'package:openiptv/src/utils/url_redaction.dart';
 class PlaybackLogger {
   const PlaybackLogger._();
 
-  static bool get _enabled => kDebugMode;
+  static bool get _enabled =>
+      true; // Always enabled for debugging playback issues
 
   static void stalker(
     String stage, {
@@ -65,7 +66,8 @@ class PlaybackLogger {
     final payload = <String, Object?>{
       'stage': stage,
       if (uri != null) 'stream': _summarizeUri(uri),
-      if (includeFullUrl && uri != null) 'url': redactSensitiveText(uri.toString()),
+      if (includeFullUrl && uri != null)
+        'url': redactSensitiveText(uri.toString()),
       if (headers != null && headers.isNotEmpty)
         'headers': headers.keys.toList(growable: false),
       if (extra != null) ...extra,
@@ -87,5 +89,64 @@ class PlaybackLogger {
   static String _truncate(String value, {int max = 96}) {
     if (value.length <= max) return value;
     return '${value.substring(0, max - 3)}...';
+  }
+
+  /// Log media opening attempts with full details
+  static void mediaOpen(
+    String url, {
+    Map<String, String>? headers,
+    String? contentType,
+    String? title,
+    bool isLive = false,
+  }) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'action': 'open',
+      'url': redactSensitiveText(_truncate(url, max: 200)),
+      'isLive': isLive,
+      if (title != null) 'title': title,
+      if (headers != null && headers.isNotEmpty)
+        'headers': headers.keys.toList(growable: false),
+      if (contentType != null) 'contentType': contentType,
+    };
+    debugPrint('[Playback][Media] ${jsonEncode(payload)}');
+  }
+
+  /// Log successful playback start
+  static void playbackStarted(String url, {String? title}) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'action': 'started',
+      'url': redactSensitiveText(_truncate(url, max: 150)),
+      if (title != null) 'title': title,
+    };
+    debugPrint('[Playback][Success] ${jsonEncode(payload)}');
+  }
+
+  /// Log playback state changes
+  static void playbackState(String state, {Map<String, Object?>? extra}) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'state': state,
+      if (extra != null) ...extra,
+    };
+    debugPrint('[Playback][State] ${jsonEncode(payload)}');
+  }
+
+  /// Log resolver activity
+  static void resolverActivity(
+    String activity, {
+    String? bucket,
+    String? providerKind,
+    Map<String, Object?>? extra,
+  }) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'activity': activity,
+      if (bucket != null) 'bucket': bucket,
+      if (providerKind != null) 'provider': providerKind,
+      if (extra != null) ...extra,
+    };
+    debugPrint('[Playback][Resolver] ${jsonEncode(payload)}');
   }
 }

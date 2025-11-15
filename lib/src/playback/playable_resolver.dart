@@ -52,6 +52,16 @@ class PlayableResolver {
     ChannelRecord channel, {
     bool isRadio = false,
   }) async {
+    PlaybackLogger.resolverActivity(
+      'channel-start',
+      bucket: isRadio ? 'radio' : 'live',
+      providerKind: profile.record.kind.name,
+      extra: {
+        'channelName': channel.name,
+        'template': _truncate(channel.streamUrlTemplate ?? 'null'),
+      },
+    );
+
     final headers = decodeHeadersJson(channel.streamHeadersJson);
     final playable = await _buildPlayable(
       kind: isRadio ? ContentBucket.radio : ContentBucket.live,
@@ -62,12 +72,49 @@ class PlayableResolver {
       headerHints: headers,
     );
     if (playable == null) {
+      PlaybackLogger.resolverActivity(
+        'channel-failed',
+        bucket: isRadio ? 'radio' : 'live',
+        extra: {'channelName': channel.name},
+      );
       return null;
     }
+    PlaybackLogger.resolverActivity(
+      'channel-resolved',
+      bucket: isRadio ? 'radio' : 'live',
+      extra: {
+        'channelName': channel.name,
+        'url': _summarizeUrl(playable.url.toString()),
+      },
+    );
     return PlayerMediaSource(playable: playable, title: channel.name);
   }
 
+  String _truncate(String value, {int max = 100}) {
+    if (value.length <= max) return value;
+    return '${value.substring(0, max - 3)}...';
+  }
+
+  String _summarizeUrl(String url) {
+    if (url.length <= 100) return url;
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      return '${uri.scheme}://${uri.host}${uri.path.length > 30 ? uri.path.substring(0, 30) + '...' : uri.path}';
+    }
+    return _truncate(url);
+  }
+
   Future<PlayerMediaSource?> movie(MovieRecord movie) async {
+    PlaybackLogger.resolverActivity(
+      'movie-start',
+      bucket: 'films',
+      providerKind: profile.record.kind.name,
+      extra: {
+        'title': movie.title,
+        'template': _truncate(movie.streamUrlTemplate ?? 'null'),
+      },
+    );
+
     final headers = decodeHeadersJson(movie.streamHeadersJson);
     final playable = await _buildPlayable(
       kind: ContentBucket.films,
@@ -77,8 +124,21 @@ class PlayableResolver {
       headerHints: headers,
     );
     if (playable == null) {
+      PlaybackLogger.resolverActivity(
+        'movie-failed',
+        bucket: 'films',
+        extra: {'title': movie.title},
+      );
       return null;
     }
+    PlaybackLogger.resolverActivity(
+      'movie-resolved',
+      bucket: 'films',
+      extra: {
+        'title': movie.title,
+        'url': _summarizeUrl(playable.url.toString()),
+      },
+    );
     return PlayerMediaSource(playable: playable, title: movie.title);
   }
 
@@ -86,6 +146,17 @@ class PlayableResolver {
     EpisodeRecord episode, {
     String? seriesTitle,
   }) async {
+    PlaybackLogger.resolverActivity(
+      'episode-start',
+      bucket: 'series',
+      providerKind: profile.record.kind.name,
+      extra: {
+        'series': seriesTitle ?? 'unknown',
+        'episode': episode.title ?? 'unknown',
+        'template': _truncate(episode.streamUrlTemplate ?? 'null'),
+      },
+    );
+    
     final headers = decodeHeadersJson(episode.streamHeadersJson);
     final playable = await _buildPlayable(
       kind: ContentBucket.series,
@@ -95,6 +166,14 @@ class PlayableResolver {
       headerHints: headers,
     );
     if (playable == null) {
+      PlaybackLogger.resolverActivity(
+        'episode-failed',
+        bucket: 'series',
+        extra: {
+          'series': seriesTitle ?? 'unknown',
+          'episode': episode.title ?? 'unknown',
+        },
+      );
       return null;
     }
     final buffer = StringBuffer();
@@ -115,6 +194,15 @@ class PlayableResolver {
     final resolvedTitle = buffer.isEmpty
         ? (episode.title ?? seriesTitle ?? 'Episode')
         : buffer.toString();
+    
+    PlaybackLogger.resolverActivity(
+      'episode-resolved',
+      bucket: 'series',
+      extra: {
+        'title': resolvedTitle,
+        'url': _summarizeUrl(playable.url.toString()),
+      },
+    );
     return PlayerMediaSource(playable: playable, title: resolvedTitle);
   }
 
@@ -144,11 +232,27 @@ class PlayableResolver {
     String? previewUrl,
     Map<String, String>? headerHints,
   }) async {
+    PlaybackLogger.videoInfo(
+      'build-playable',
+      extra: {
+        'provider': profile.record.kind.name,
+        'bucket': kind.name,
+        'isLive': isLive,
+        'hasTemplate': streamTemplate != null,
+        'hasProviderKey': providerKey != null,
+      },
+    );
+    
     final isStalkerProvider = profile.record.kind == ProviderKind.stalker;
     if (!isStalkerProvider) {
       final directUri =
           _parseDirectUri(streamTemplate) ?? _parseDirectUri(previewUrl);
       if (directUri != null) {
+        PlaybackLogger.videoInfo(
+          'direct-uri-found',
+          uri: directUri,
+          extra: {'provider': profile.record.kind.name},
+        );
         final directPlayable = _playableFromUri(
           directUri,
           isLive: isLive,
@@ -162,8 +266,16 @@ class PlayableResolver {
     switch (profile.record.kind) {
       case ProviderKind.xtream:
         if (providerKey == null || providerKey.isEmpty) {
+          PlaybackLogger.videoError(
+            'xtream-no-provider-key',
+            description: 'Missing provider key for Xtream',
+          );
           return null;
         }
+        PlaybackLogger.videoInfo(
+          'xtream-build-start',
+          extra: {'bucket': kind.name, 'providerKey': providerKey},
+        );
         return _buildXtreamPlayable(
           providerKey: providerKey,
           kind: kind,
@@ -174,8 +286,19 @@ class PlayableResolver {
       case ProviderKind.stalker:
         final cmd = streamTemplate ?? previewUrl;
         if (cmd == null || cmd.isEmpty) {
+          PlaybackLogger.videoError(
+            'stalker-no-command',
+            description: 'Missing command for Stalker',
+          );
           return null;
         }
+        PlaybackLogger.videoInfo(
+          'stalker-build-start',
+          extra: {
+            'bucket': kind.name,
+            'cmd': _truncate(cmd, max: 150),
+          },
+        );
         return _buildStalkerPlayable(
           command: cmd,
           kind: kind,
@@ -184,13 +307,25 @@ class PlayableResolver {
         );
       case ProviderKind.m3u:
         if (streamTemplate == null && previewUrl == null) {
+          PlaybackLogger.videoError(
+            'm3u-no-url',
+            description: 'Missing URL for M3U',
+          );
           return null;
         }
         final uri =
             _parseDirectUri(streamTemplate) ?? _parseDirectUri(previewUrl);
         if (uri == null) {
+          PlaybackLogger.videoError(
+            'm3u-parse-failed',
+            description: 'Failed to parse M3U URL',
+          );
           return null;
         }
+        PlaybackLogger.videoInfo(
+          'm3u-build-start',
+          uri: uri,
+        );
         return _playableFromUri(
           uri,
           isLive: isLive,
@@ -869,7 +1004,8 @@ class PlayableResolver {
       'cmd': command,
       'JsHttpRequest': '1-xml',
     };
-    final portalPlayable = await _resolveStalkerLinkViaPortal(
+
+    final result = await _resolveStalkerLinkViaPortalWithFallback(
       config: config,
       module: module,
       command: command,
@@ -879,49 +1015,11 @@ class PlayableResolver {
       fallbackUri: directUri,
       isLive: isLive,
     );
-    if (portalPlayable != null) {
-      return portalPlayable;
-    }
-    return _buildDirectStalkerPlayable(
-      fallbackUri: directUri,
-      config: config,
-      module: module,
-      command: command,
-      headers: playbackHeaders,
-      isLive: isLive,
-    );
+
+    return result;
   }
 
-  Uri _xtreamStreamBase(_XtreamServerContext context) {
-    final base = Uri(
-      scheme: context.scheme,
-      host: context.host,
-      port: context.portForScheme(),
-      path: '/',
-    );
-    return ensureTrailingSlash(base);
-  }
-
-  void _logStalkerCreateLinkResponse({
-    required StalkerPortalConfiguration config,
-    required String module,
-    required String command,
-    required PortalResponseEnvelope response,
-  }) {
-    final bodyPreview = _summarizeResponseBody(response.body);
-    PlaybackLogger.videoInfo(
-      'stalker-create-link',
-      extra: {
-        'portal': config.baseUri.host,
-        'module': module,
-        'status': response.statusCode,
-        'body': bodyPreview,
-        'cmd': command,
-      },
-    );
-  }
-
-  Future<Playable?> _resolveStalkerLinkViaPortal({
+  Future<Playable?> _resolveStalkerLinkViaPortalWithFallback({
     required StalkerPortalConfiguration config,
     required String module,
     required String command,
@@ -957,7 +1055,14 @@ class PlayableResolver {
           module: module,
           command: command,
         );
-        return null;
+        return _buildDirectStalkerPlayable(
+          fallbackUri: fallbackUri,
+          config: config,
+          module: module,
+          command: command,
+          headers: playbackHeaders,
+          isLive: isLive,
+        );
       }
       final uri = _parseDirectUri(resolvedLink);
       if (uri == null) {
@@ -967,8 +1072,50 @@ class PlayableResolver {
           module: module,
           command: command,
         );
-        return null;
+        return _buildDirectStalkerPlayable(
+          fallbackUri: fallbackUri,
+          config: config,
+          module: module,
+          command: command,
+          headers: playbackHeaders,
+          isLive: isLive,
+        );
       }
+
+      // Check if portal returned unusable URL (empty stream with play_token)
+      final streamParam = uri.queryParameters['stream'];
+      final freshPlayToken = uri.queryParameters['play_token'];
+      final hasEmptyStream = streamParam == null || streamParam.trim().isEmpty;
+
+      if (hasEmptyStream &&
+          freshPlayToken != null &&
+          freshPlayToken.isNotEmpty) {
+        // Portal's create_link is broken - use original cmd with fresh play_token
+        PlaybackLogger.stalker(
+          'create-link-unusable-using-fresh-token',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+
+        if (fallbackUri != null) {
+          // Replace old play_token in fallback URI with fresh one from portal
+          final qp = Map<String, String>.from(fallbackUri.queryParameters);
+          qp['play_token'] = freshPlayToken;
+          final freshUri = fallbackUri.replace(queryParameters: qp);
+
+          return _buildDirectStalkerPlayable(
+            fallbackUri: freshUri,
+            config: config,
+            module: module,
+            command: command,
+            headers: playbackHeaders,
+            isLive: isLive,
+          );
+        }
+      }
+
+      // Portal link looks usable, proceed normally
       final normalizedUri = _normalizeStalkerResolvedUri(
         uri,
         module: module,
@@ -1000,7 +1147,14 @@ class PlayableResolver {
       }
       if (playable == null) {
         PlaybackLogger.playableDrop('stalker-unhandled', uri: normalizedUri);
-        return null;
+        return _buildDirectStalkerPlayable(
+          fallbackUri: fallbackUri,
+          config: config,
+          module: module,
+          command: command,
+          headers: playbackHeaders,
+          isLive: isLive,
+        );
       }
       PlaybackLogger.stalker(
         'resolved',
@@ -1019,8 +1173,44 @@ class PlayableResolver {
         command: command,
         error: error,
       );
-      return null;
+      return _buildDirectStalkerPlayable(
+        fallbackUri: fallbackUri,
+        config: config,
+        module: module,
+        command: command,
+        headers: playbackHeaders,
+        isLive: isLive,
+      );
     }
+  }
+
+  Uri _xtreamStreamBase(_XtreamServerContext context) {
+    final base = Uri(
+      scheme: context.scheme,
+      host: context.host,
+      port: context.portForScheme(),
+      path: '/',
+    );
+    return ensureTrailingSlash(base);
+  }
+
+  void _logStalkerCreateLinkResponse({
+    required StalkerPortalConfiguration config,
+    required String module,
+    required String command,
+    required PortalResponseEnvelope response,
+  }) {
+    final bodyPreview = _summarizeResponseBody(response.body);
+    PlaybackLogger.videoInfo(
+      'stalker-create-link',
+      extra: {
+        'portal': config.baseUri.host,
+        'module': module,
+        'status': response.statusCode,
+        'body': bodyPreview,
+        'cmd': command,
+      },
+    );
   }
 
   Playable? _buildDirectStalkerPlayable({

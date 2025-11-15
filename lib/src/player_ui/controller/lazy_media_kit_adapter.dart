@@ -135,33 +135,58 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
 
   Future<void> _loadCurrent({bool highPriority = false}) async {
     try {
+      PlaybackLogger.playbackState(
+        'resolving',
+        extra: {'index': _currentIndex},
+      );
+
       final playback = await _ensureResolved(
         _currentIndex,
         highPriority: highPriority,
       );
       if (playback == null) {
+        PlaybackLogger.videoError(
+          'resolve-failed',
+          description: 'No playable stream available',
+        );
         throw StateError('No playable stream available.');
       }
-      await _player.open(
-        Media(
-          playback.source.playable.url.toString(),
-          httpHeaders: playback.source.playable.headers,
-        ),
-        play: _autoPlay,
+
+      final url = playback.source.playable.url.toString();
+      final headers = playback.source.playable.headers;
+
+      PlaybackLogger.mediaOpen(
+        url,
+        headers: headers,
+        title: playback.source.title,
+        isLive: playback.source.playable.isLive,
       );
+
+      await _player.open(Media(url, httpHeaders: headers), play: _autoPlay);
+
+      PlaybackLogger.playbackStarted(url, title: playback.source.title);
+
       final seekStart = playback.source.playable.seekStart;
       if (seekStart != null) {
         await _player.seek(seekStart);
+        PlaybackLogger.playbackState(
+          'seeked',
+          extra: {'position': seekStart.toString()},
+        );
       }
       _prefetchNeighbors();
       _evictOutsideHalo();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      PlaybackLogger.videoError(
+        'media-kit-load',
+        description: '$error\n$stackTrace',
+        error: error,
+      );
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
         error: PlayerError(code: 'MEDIAKIT_LOAD', message: '$error'),
       );
       _emitSnapshot();
-      PlaybackLogger.videoError('media-kit-load', error: error);
     }
   }
 
@@ -239,23 +264,26 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     });
     _durationSub = _player.stream.duration.listen((value) {
       _duration = value;
+      PlaybackLogger.playbackState('duration-update', extra: {'duration': value?.toString() ?? 'null'});
       _emitSnapshot();
     });
     _playingSub = _player.stream.playing.listen((value) {
       _isPlaying = value;
+      PlaybackLogger.playbackState(value ? 'playing' : 'paused');
       _emitSnapshot();
     });
     _bufferingSub = _player.stream.buffering.listen((value) {
       _isBuffering = value;
+      PlaybackLogger.playbackState(value ? 'buffering' : 'buffer-ready');
       _emitSnapshot();
     });
     _errorSub = _player.stream.error.listen((value) {
+      PlaybackLogger.videoError('media-kit-error', description: value.toString(), error: value);
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
         error: PlayerError(code: 'MEDIAKIT_ERROR', message: value.toString()),
       );
       _emitSnapshot();
-      PlaybackLogger.videoError('media-kit-error', error: value);
     });
   }
 

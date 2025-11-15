@@ -48,6 +48,7 @@ class StalkerImporter {
     int? vodSummaryOverride,
     int? seriesSummaryOverride,
     int? radioSummaryOverride,
+    StalkerSeriesDetailFetcher? seriesDetailFetcher,
   }) async {
     final estimatedBytes = _estimatePayloadBytes(
       liveCount: liveItems.length,
@@ -121,6 +122,7 @@ class StalkerImporter {
           items: seriesItems,
           categoryIndex: seriesCatMap,
           metrics: metrics,
+          seriesDetailFetcher: seriesDetailFetcher,
         );
         metrics.channelsUpserted += liveCount + radioCount;
 
@@ -304,6 +306,7 @@ class StalkerImporter {
     required List<Map<String, dynamic>> items,
     required Map<String, int> categoryIndex,
     required ImportMetrics metrics,
+    StalkerSeriesDetailFetcher? seriesDetailFetcher,
   }) async {
     if (items.isEmpty) {
       return 0;
@@ -320,7 +323,7 @@ class StalkerImporter {
         CategoryKind.series,
         categoryIndex,
       );
-      await txn.series.upsertSeries(
+      final seriesId = await txn.series.upsertSeries(
         providerId: providerId,
         providerSeriesKey: key,
         title: title,
@@ -332,10 +335,124 @@ class StalkerImporter {
         ),
         seenAt: seenAt,
       );
+      
+      // Import seasons and episodes if series data contains them
+      var detailsImported = await _upsertSeriesSeasons(
+        txn,
+        seriesId: seriesId,
+        seriesItem: item,
+        seenAt: seenAt,
+      );
+
+      // If no seasons found in item and fetcher provided, fetch details
+      if (!detailsImported && seriesDetailFetcher != null) {
+        final details = await seriesDetailFetcher.fetchSeriesDetails(key);
+        if (details != null) {
+          await _upsertSeriesSeasons(
+            txn,
+            seriesId: seriesId,
+            seriesItem: details,
+            seenAt: seenAt,
+          );
+        }
+      }
+      
       metrics.seriesUpserted += 1;
       count += 1;
     }
     return count;
+  }
+
+  Future<bool> _upsertSeriesSeasons(
+    ImportTxn txn, {
+    required int seriesId,
+    required Map<String, dynamic> seriesItem,
+    required DateTime seenAt,
+  }) async {
+    // Stalker series can have seasons in 'seasons' array or directly in item
+    final seasonsData = seriesItem['seasons'];
+    if (seasonsData is! List || seasonsData.isEmpty) {
+      return false;
+    }
+
+    for (final seasonItem in seasonsData) {
+      if (seasonItem is! Map<String, dynamic>) continue;
+      
+      final seasonNum = _parseInt(
+        seasonItem['season_number'] ?? seasonItem['season'] ?? seasonItem['id'],
+      );
+      if (seasonNum == null) continue;
+
+      final seasonName = _coerceString(
+        seasonItem['name'] ?? seasonItem['title'] ?? 'Season $seasonNum',
+      );
+
+      final seasonId = await txn.series.upsertSeason(
+        seriesId: seriesId,
+        seasonNumber: seasonNum,
+        name: seasonName,
+      );
+
+      // Import episodes for this season
+      await _upsertSeasonEpisodes(
+        txn,
+        seriesId: seriesId,
+        seasonId: seasonId,
+        seasonNumber: seasonNum,
+        seasonItem: seasonItem,
+        seenAt: seenAt,
+      );
+    }
+    return true;
+  }
+
+  Future<void> _upsertSeasonEpisodes(
+    ImportTxn txn, {
+    required int seriesId,
+    required int seasonId,
+    required int seasonNumber,
+    required Map<String, dynamic> seasonItem,
+    required DateTime seenAt,
+  }) async {
+    final episodesData = seasonItem['episodes'] ?? seasonItem['series'];
+    if (episodesData is! List || episodesData.isEmpty) {
+      return;
+    }
+
+    for (final episodeItem in episodesData) {
+      if (episodeItem is! Map<String, dynamic>) continue;
+
+      final episodeKey = _coerceString(
+        episodeItem['id'] ?? episodeItem['cmd'] ?? episodeItem['episode_id'],
+      );
+      if (episodeKey == null || episodeKey.isEmpty) continue;
+
+      final episodeNum = _parseInt(
+        episodeItem['episode_number'] ?? 
+        episodeItem['episode'] ?? 
+        episodeItem['series'],
+      );
+      final title = _coerceString(
+        episodeItem['name'] ?? 
+        episodeItem['title'] ?? 
+        'Episode $episodeNum',
+      );
+
+      await txn.series.upsertEpisode(
+        seriesId: seriesId,
+        seasonId: seasonId,
+        providerEpisodeKey: episodeKey,
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNum,
+        title: title,
+        overview: _coerceString(
+          episodeItem['description'] ?? episodeItem['plot'],
+        ),
+        durationSec: _parseDurationSeconds(episodeItem['time_to_play']),
+        streamUrlTemplate: _coerceString(episodeItem['cmd']),
+        seenAt: seenAt,
+      );
+    }
   }
 
   int? _resolveCategoryId(
@@ -427,4 +544,9 @@ class StalkerImporter {
     if (total <= 0) return 0;
     return total * _rowEstimateBytes;
   }
+}
+
+/// Interface for fetching detailed series information from Stalker portal
+abstract class StalkerSeriesDetailFetcher {
+  Future<Map<String, dynamic>?> fetchSeriesDetails(String seriesId);
 }

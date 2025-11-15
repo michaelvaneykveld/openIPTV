@@ -1129,51 +1129,88 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     required int categoryId,
     required CategoryPreviewItem item,
   }) async {
+    final tappedSeriesId = int.tryParse(item.id);
+    if (tappedSeriesId == null) {
+      _showSnack('Unable to load series details.');
+      return false;
+    }
+
     final vodRepo = ref.read(vodRepositoryProvider);
-    final seriesList = await vodRepo.listSeries(
-      providerId,
-      categoryId: categoryId,
+    final seasons = await vodRepo.listSeasons(tappedSeriesId);
+    if (!mounted) {
+      return false;
+    }
+
+    if (seasons.isEmpty) {
+      _showSnack('No seasons available for this series yet.');
+      return false;
+    }
+
+    // Show season picker dialog
+    final selectedSeason = await showDialog<SeasonRecord>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Select Season - ${item.title}'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: seasons.length,
+            itemBuilder: (context, index) {
+              final season = seasons[index];
+              return ListTile(
+                title: Text(season.name ?? 'Season ${season.seasonNumber}'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).pop(season),
+              );
+            },
+          ),
+        ),
+      ),
     );
+
+    if (selectedSeason == null || !mounted) {
+      return false;
+    }
+
+    // Load episodes for selected season
+    final episodes = await vodRepo.listEpisodes(selectedSeason.id);
     if (!mounted) {
       return false;
     }
-    final seriesTitles = <int, String>{
-      for (final s in seriesList) s.id: s.title,
-    };
-    final episodes = await vodRepo.listEpisodesForCategory(categoryId);
-    if (!mounted) {
-      return false;
-    }
+
     if (episodes.isEmpty) {
+      _showSnack('No episodes available for this season yet.');
       return false;
     }
+
+    // Play episodes
     if (_shouldUseLazyPlayback(context)) {
-      final lazyEntries = _buildLazyEpisodeEntries(episodes, seriesTitles);
+      final lazyEntries = _buildLazyEpisodeEntries(episodes, {
+        tappedSeriesId: item.title,
+      });
       if (!mounted) {
         return false;
       }
-      final tappedSeriesId = int.tryParse(item.id);
-      final initialIndex = _initialIndexForRecords<EpisodeRecord>(
-        episodes,
-        tappedSeriesId,
-        (episode) => episode.seriesId,
-      );
       return _pushLazyPlaylist(
         context: context,
         entries: lazyEntries,
-        initialIndex: initialIndex,
+        initialIndex: 0,
       );
     }
-    final playlist = await _resolveEpisodeSources(episodes, seriesTitles);
+
+    final playlist = await _resolveEpisodeSources(episodes, {
+      tappedSeriesId: item.title,
+    });
     if (!mounted || playlist.isEmpty) {
+      _showSnack('No playable episodes in this season.');
       return false;
     }
-    final tappedSeriesId = int.tryParse(item.id);
-    final initialIndex = _initialIndexFor<int>(playlist, tappedSeriesId);
+
     return _pushMediaPlaylist(
       context: context,
       sources: playlist.map((entry) => entry.source).toList(growable: false),
-      initialIndex: initialIndex,
+      initialIndex: 0,
     );
   }
 

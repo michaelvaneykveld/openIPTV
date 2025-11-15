@@ -138,39 +138,42 @@ class _PlayerScreenState extends State<PlayerScreen> {
     final playerTheme = PlayerThemeData(
       autoHideDelay: widget.controller.overlayAutoHideDelay,
     );
-    return PlayerTheme(
-      data: playerTheme,
-      child: Focus(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: (FocusNode node, KeyEvent event) {
-          final handled = _handleKeyEvent(event);
-          return handled ? KeyEventResult.handled : KeyEventResult.ignored;
-        },
-        child: ValueListenableBuilder<PlayerViewState>(
-          valueListenable: widget.controller.state,
-          builder: (context, state, _) {
-            _syncKeepScreenOn(state);
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                widget.controller.reportUserInteraction();
-                widget.controller.showOverlay();
-              },
-              onPanDown: (_) => widget.controller.reportUserInteraction(),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  PlayerVideoSurface(
-                    state: state,
-                    videoChild: _buildVideoChild(context),
-                  ),
-                  _buildOverlay(state),
-                  _buildErrorToast(state),
-                ],
-              ),
-            );
+    return Material(
+      color: Colors.black,
+      child: PlayerTheme(
+        data: playerTheme,
+        child: Focus(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: (FocusNode node, KeyEvent event) {
+            final handled = _handleKeyEvent(event);
+            return handled ? KeyEventResult.handled : KeyEventResult.ignored;
           },
+          child: ValueListenableBuilder<PlayerViewState>(
+            valueListenable: widget.controller.state,
+            builder: (context, state, _) {
+              _syncKeepScreenOn(state);
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  widget.controller.reportUserInteraction();
+                  widget.controller.showOverlay();
+                },
+                onPanDown: (_) => widget.controller.reportUserInteraction(),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    PlayerVideoSurface(
+                      state: state,
+                      videoChild: _buildVideoChild(context),
+                    ),
+                    _buildOverlay(state),
+                    _buildErrorToast(state),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -212,6 +215,7 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 widget.controller.seekRelative(const Duration(seconds: -10)),
             onZapNext: widget.controller.zapNext,
             onZapPrevious: widget.controller.zapPrevious,
+            onSeekTo: (position) => widget.controller.seekTo(position),
             onShowAudioSheet: hasAudioTracks
                 ? () => _showTrackPicker(context, showAudio: true)
                 : null,

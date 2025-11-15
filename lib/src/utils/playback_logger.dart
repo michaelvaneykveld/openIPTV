@@ -149,4 +149,17 @@ class PlaybackLogger {
     };
     debugPrint('[Playback][Resolver] ${jsonEncode(payload)}');
   }
+
+  /// Log user actions and interactions
+  static void userAction(
+    String action, {
+    Map<String, Object?>? extra,
+  }) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'action': action,
+      if (extra != null) ...extra,
+    };
+    debugPrint('[Playback][UserAction] ${jsonEncode(payload)}');
+  }
 }

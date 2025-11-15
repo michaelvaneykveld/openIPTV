@@ -48,6 +48,17 @@ class PlayableResolver {
   Map<String, String> get _config => profile.record.configuration;
   Map<String, String> get _hints => profile.record.hints;
 
+  /// Public accessor for Stalker session (for series/VOD hierarchy)
+  StalkerSession? get stalkerSession => _stalkerSession;
+
+  /// Public accessor for Stalker configuration (for series/VOD hierarchy)
+  StalkerPortalConfiguration? get stalkerConfiguration => _stalkerConfig;
+
+  /// Ensures a Stalker session is available, initializing if needed
+  Future<void> ensureStalkerSession() async {
+    await _loadStalkerSession();
+  }
+
   Future<PlayerMediaSource?> channel(
     ChannelRecord channel, {
     bool isRadio = false,
@@ -99,7 +110,7 @@ class PlayableResolver {
     if (url.length <= 100) return url;
     final uri = Uri.tryParse(url);
     if (uri != null) {
-      return '${uri.scheme}://${uri.host}${uri.path.length > 30 ? uri.path.substring(0, 30) + '...' : uri.path}';
+      return '${uri.scheme}://${uri.host}${uri.path.length > 30 ? '${uri.path.substring(0, 30)}...' : uri.path}';
     }
     return _truncate(url);
   }
@@ -116,12 +127,16 @@ class PlayableResolver {
     );
 
     final headers = decodeHeadersJson(movie.streamHeadersJson);
+    final durationHint = movie.durationSec != null
+        ? Duration(seconds: movie.durationSec!)
+        : null;
     final playable = await _buildPlayable(
       kind: ContentBucket.films,
       streamTemplate: movie.streamUrlTemplate,
       providerKey: movie.providerVodKey,
       isLive: false,
       headerHints: headers,
+      durationHint: durationHint,
     );
     if (playable == null) {
       PlaybackLogger.resolverActivity(
@@ -156,7 +171,7 @@ class PlayableResolver {
         'template': _truncate(episode.streamUrlTemplate ?? 'null'),
       },
     );
-    
+
     final headers = decodeHeadersJson(episode.streamHeadersJson);
     final playable = await _buildPlayable(
       kind: ContentBucket.series,
@@ -194,7 +209,7 @@ class PlayableResolver {
     final resolvedTitle = buffer.isEmpty
         ? (episode.title ?? seriesTitle ?? 'Episode')
         : buffer.toString();
-    
+
     PlaybackLogger.resolverActivity(
       'episode-resolved',
       bucket: 'series',
@@ -231,6 +246,7 @@ class PlayableResolver {
     String? providerKey,
     String? previewUrl,
     Map<String, String>? headerHints,
+    Duration? durationHint,
   }) async {
     PlaybackLogger.videoInfo(
       'build-playable',
@@ -242,7 +258,7 @@ class PlayableResolver {
         'hasProviderKey': providerKey != null,
       },
     );
-    
+
     final isStalkerProvider = profile.record.kind == ProviderKind.stalker;
     if (!isStalkerProvider) {
       final directUri =
@@ -294,16 +310,14 @@ class PlayableResolver {
         }
         PlaybackLogger.videoInfo(
           'stalker-build-start',
-          extra: {
-            'bucket': kind.name,
-            'cmd': _truncate(cmd, max: 150),
-          },
+          extra: {'bucket': kind.name, 'cmd': _truncate(cmd, max: 150)},
         );
         return _buildStalkerPlayable(
           command: cmd,
           kind: kind,
           isLive: isLive,
           headerHints: headerHints,
+          durationHint: durationHint,
         );
       case ProviderKind.m3u:
         if (streamTemplate == null && previewUrl == null) {
@@ -322,10 +336,7 @@ class PlayableResolver {
           );
           return null;
         }
-        PlaybackLogger.videoInfo(
-          'm3u-build-start',
-          uri: uri,
-        );
+        PlaybackLogger.videoInfo('m3u-build-start', uri: uri);
         return _playableFromUri(
           uri,
           isLive: isLive,
@@ -339,6 +350,7 @@ class PlayableResolver {
     required bool isLive,
     Map<String, String>? headers,
     String? ffmpegCommand,
+    Duration? durationHint,
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -355,6 +367,7 @@ class PlayableResolver {
       containerExtension: guessExtensionFromUri(uri),
       mimeHint: guessMimeFromUri(uri),
       ffmpegCommand: ffmpegCommand,
+      durationHint: durationHint,
     );
   }
 
@@ -969,8 +982,25 @@ class PlayableResolver {
     required ContentBucket kind,
     required bool isLive,
     Map<String, String>? headerHints,
+    Duration? durationHint,
   }) async {
-    final module = _stalkerModuleForBucket(kind);
+    var module = _stalkerModuleForBucket(kind);
+
+    // For series episodes with ID format like "8412:3:2" (series:season:episode),
+    // use 'vod' module instead of 'series' since create_link doesn't support series
+    if (module == 'series' && command.contains(':')) {
+      final parts = command.split(':');
+      if (parts.length >= 3) {
+        PlaybackLogger.stalker(
+          'series-episode-detected-using-vod-module',
+          portal: profile.lockedBase,
+          module: module,
+          command: command,
+        );
+        module = 'vod';
+      }
+    }
+
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
     if (config == null) {
       PlaybackLogger.stalker(
@@ -1014,6 +1044,7 @@ class PlayableResolver {
       playbackHeaders: playbackHeaders,
       fallbackUri: directUri,
       isLive: isLive,
+      durationHint: durationHint,
     );
 
     return result;
@@ -1028,6 +1059,7 @@ class PlayableResolver {
     required Map<String, String> playbackHeaders,
     Uri? fallbackUri,
     required bool isLive,
+    Duration? durationHint,
   }) async {
     try {
       final response = await _stalkerHttpClient.getPortal(
@@ -1048,6 +1080,14 @@ class PlayableResolver {
       final resolvedLink = _sanitizeStalkerResolvedLink(
         _extractStalkerLink(response.body),
       );
+      PlaybackLogger.videoInfo(
+        'stalker-resolved-link',
+        extra: {
+          'module': module,
+          'resolvedLink': resolvedLink ?? 'null',
+          'resolvedLinkLength': resolvedLink?.length ?? 0,
+        },
+      );
       if (resolvedLink == null || resolvedLink.isEmpty) {
         PlaybackLogger.stalker(
           'link-missing',
@@ -1065,6 +1105,16 @@ class PlayableResolver {
         );
       }
       final uri = _parseDirectUri(resolvedLink);
+      PlaybackLogger.videoInfo(
+        'stalker-parse-uri-result',
+        extra: {
+          'module': module,
+          'uriIsNull': uri == null,
+          'resolvedLinkPrefix': resolvedLink.length > 50
+              ? resolvedLink.substring(0, 50)
+              : resolvedLink,
+        },
+      );
       if (uri == null) {
         PlaybackLogger.stalker(
           'link-parse-failed',
@@ -1134,6 +1184,7 @@ class PlayableResolver {
         normalizedUri,
         isLive: isLive,
         headers: sanitizedHeaders,
+        durationHint: durationHint,
       );
       final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
       if (playable != null &&
@@ -1307,17 +1358,18 @@ class PlayableResolver {
     final payload = _decodePortalPayload(body);
     final js = payload['js'];
     if (js is Map) {
-      final id = js['id'];
       final cmd = js['cmd'] ?? js['url'] ?? js['stream_url'];
-      final idValue = id is String && id.trim().isNotEmpty ? id : null;
+      final id = js['id'];
       final cmdValue = cmd is String && cmd.trim().isNotEmpty
           ? cmd.trim()
           : null;
-      if (idValue != null) {
-        return idValue;
-      }
+      final idValue = id is String && id.trim().isNotEmpty ? id : null;
+      // Prioritize cmd over id for proper stream URL
       if (cmdValue != null) {
         return cmdValue;
+      }
+      if (idValue != null) {
+        return idValue;
       }
     }
     final directCmd = payload['cmd'] ?? payload['url'];
@@ -1592,11 +1644,32 @@ class PlayableResolver {
 
   String? _inferExtension(String? template) {
     if (template == null) return null;
+
+    // Check if template is just an extension (e.g., ".mkv" or "mkv")
+    // This happens with Xtream episodes where we store container_extension
+    final trimmed = template.trim();
+    if (trimmed.startsWith('.')) {
+      final ext = trimmed.substring(1).toLowerCase();
+      if (ext.isNotEmpty && ext.length <= 5) return ext;
+    }
+    if (!trimmed.contains('/') &&
+        !trimmed.contains('://') &&
+        trimmed.length <= 5) {
+      // Likely just an extension without the dot
+      final ext = trimmed.toLowerCase();
+      if (RegExp(r'^[a-z0-9]+$').hasMatch(ext)) {
+        return ext;
+      }
+    }
+
+    // Try parsing as URI to extract extension
     final parsed = _parseDirectUri(template);
     if (parsed != null) {
       final ext = guessExtensionFromUri(parsed);
       if (ext.isNotEmpty) return ext;
     }
+
+    // Fall back to simple dot extraction
     final dot = template.lastIndexOf('.');
     if (dot != -1) {
       final candidate = template.substring(dot + 1).split('?').first.trim();

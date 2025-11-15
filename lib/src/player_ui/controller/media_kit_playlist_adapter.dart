@@ -23,7 +23,13 @@ class MediaKitPlaylistAdapter
        _autoPlay = autoPlay,
        _snapshotController = StreamController<PlayerSnapshot>.broadcast() {
     MediaKit.ensureInitialized();
-    _player = Player();
+    _player = Player(
+      configuration: PlayerConfiguration(
+        title: 'OpenIPTV',
+        libass: true,
+        protocolWhitelist: const ['file', 'http', 'https', 'tcp', 'udp', 'rtp', 'rtsp'],
+      ),
+    );
     _videoController = VideoController(_player);
     _currentIndex = initialIndex.clamp(0, sources.length - 1);
     _snapshot = _initialSnapshot();
@@ -61,7 +67,11 @@ class MediaKitPlaylistAdapter
   @override
   Widget buildVideoSurface(BuildContext context) {
     return SizedBox.expand(
-      child: Video(controller: _videoController, fit: BoxFit.cover),
+      child: Video(
+        controller: _videoController,
+        fit: BoxFit.cover,
+        controls: NoVideoControls,
+      ),
     );
   }
 
@@ -204,12 +214,16 @@ class MediaKitPlaylistAdapter
     }
     final source = _currentSource;
     final phase = _resolvePhase();
+    // Use durationHint from source if available, otherwise use stream duration
+    final effectiveDuration = source.playable.isLive
+        ? null
+        : (source.playable.durationHint ?? _duration);
     _snapshot = _snapshot.copyWith(
       phase: phase,
       isLive: source.playable.isLive,
       position: _position,
       buffered: _position,
-      duration: source.playable.isLive ? null : _duration,
+      duration: effectiveDuration,
       isBuffering: _isBuffering,
       mediaTitle: source.title ?? source.playable.url.toString(),
     );

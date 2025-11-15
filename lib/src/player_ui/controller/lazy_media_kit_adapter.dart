@@ -29,7 +29,13 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
          (_) => _LazyEntryState(),
        ) {
     MediaKit.ensureInitialized();
-    _player = Player();
+    _player = Player(
+      configuration: PlayerConfiguration(
+        title: 'OpenIPTV',
+        libass: true,
+        protocolWhitelist: const ['file', 'http', 'https', 'tcp', 'udp', 'rtp', 'rtsp'],
+      ),
+    );
     _videoController = VideoController(_player);
     _currentIndex = initialIndex.clamp(0, entries.length - 1);
     _snapshot = _initialSnapshot();
@@ -70,7 +76,11 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
   @override
   Widget buildVideoSurface(BuildContext context) {
     return SizedBox.expand(
-      child: Video(controller: _videoController, fit: BoxFit.cover),
+      child: Video(
+        controller: _videoController,
+        fit: BoxFit.cover,
+        controls: NoVideoControls,
+      ),
     );
   }
 
@@ -264,7 +274,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     });
     _durationSub = _player.stream.duration.listen((value) {
       _duration = value;
-      PlaybackLogger.playbackState('duration-update', extra: {'duration': value?.toString() ?? 'null'});
+      PlaybackLogger.playbackState('duration-update', extra: {'duration': value.toString()});
       _emitSnapshot();
     });
     _playingSub = _player.stream.playing.listen((value) {
@@ -306,12 +316,16 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     }
     final resolved = _currentSource;
     final phase = _resolvePhase();
+    // Use durationHint from source if available, otherwise use stream duration
+    final effectiveDuration = resolved?.playable.isLive == true
+        ? null
+        : (resolved?.playable.durationHint ?? _duration);
     _snapshot = _snapshot.copyWith(
       phase: phase,
       isLive: resolved?.playable.isLive ?? true,
       position: _position,
       buffered: _position,
-      duration: resolved?.playable.isLive == true ? null : _duration,
+      duration: effectiveDuration,
       isBuffering: _isBuffering,
       mediaTitle: resolved?.title ?? _snapshot.mediaTitle,
     );

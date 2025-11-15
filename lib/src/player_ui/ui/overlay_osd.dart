@@ -15,6 +15,7 @@ class PlayerOverlayOSD extends StatelessWidget {
     required this.onZapPrevious,
     required this.onShowAudioSheet,
     required this.onShowSubtitlesSheet,
+    this.onSeekTo,
     this.onExitPlayer,
   });
 
@@ -26,6 +27,7 @@ class PlayerOverlayOSD extends StatelessWidget {
   final VoidCallback onZapPrevious;
   final VoidCallback? onShowAudioSheet;
   final VoidCallback? onShowSubtitlesSheet;
+  final void Function(Duration position)? onSeekTo;
   final VoidCallback? onExitPlayer;
 
   @override
@@ -164,7 +166,12 @@ class PlayerOverlayOSD extends StatelessWidget {
             min: 0,
             max: maxValue,
             value: sliderValue,
-            onChanged: (_) {},
+            onChanged: onSeekTo != null
+                ? (value) {
+                    final position = Duration(milliseconds: value.toInt());
+                    onSeekTo?.call(position);
+                  }
+                : null,
           ),
         ),
         Row(

@@ -12,6 +12,8 @@ import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_vod_service.dart';
+
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
@@ -28,6 +30,48 @@ import 'package:openiptv/src/player_ui/controller/media_kit_playlist_adapter.dar
 import 'package:openiptv/src/player_ui/ui/player_screen.dart';
 import 'package:openiptv/src/playback/windows_playback_policy.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
+
+// Helper class to hold season data for UI display
+class _UiSeasonData {
+  _UiSeasonData({
+    required this.id,
+    required this.seriesId,
+    required this.seasonNumber,
+    required this.name,
+    this.stalkerSeasonId,
+  });
+
+  factory _UiSeasonData.fromDb(SeasonRecord record) {
+    return _UiSeasonData(
+      id: record.id,
+      seriesId: record.seriesId,
+      seasonNumber: record.seasonNumber,
+      name: record.name ?? 'Season ${record.seasonNumber}',
+    );
+  }
+
+  factory _UiSeasonData.fromStalker(
+    StalkerSeason stalker,
+    int seriesId,
+    int index,
+  ) {
+    return _UiSeasonData(
+      id: index,
+      seriesId: seriesId,
+      seasonNumber: stalker.seasonNumber ?? index + 1,
+      name: stalker.name,
+      stalkerSeasonId: stalker.id,
+    );
+  }
+
+  final int id;
+  final int seriesId;
+  final int seasonNumber;
+  final String name;
+  final String? stalkerSeasonId; // Set for Stalker providers
+
+  bool get isStalker => stalkerSeasonId != null;
+}
 
 class PlayerShell extends ConsumerStatefulWidget {
   const PlayerShell({super.key, required this.profile});
@@ -937,6 +981,10 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
       );
     }
 
+    if (widget.bucket == ContentBucket.series) {
+      return _buildSeriesHierarchy(items);
+    }
+
     final baseHeight = items.length * 60.0;
     final height = baseHeight.clamp(120.0, 360.0);
 
@@ -973,7 +1021,45 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     );
   }
 
+  Widget _buildSeriesHierarchy(List<CategoryPreviewItem> items) {
+    final baseHeight = items.length * 60.0;
+    final height = baseHeight.clamp(120.0, 480.0);
+
+    return SizedBox(
+      height: height,
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: true,
+        child: ListView.separated(
+          controller: _controller,
+          primary: false,
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
+          itemCount: items.length,
+          separatorBuilder: (context, _) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _ExpandableSeriesItem(
+              series: item,
+              icon: widget.icon,
+              profile: widget.profile,
+              playableResolver: playableResolver,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _handlePlay(CategoryPreviewItem item) async {
+    PlaybackLogger.userAction(
+      'category-item-clicked',
+      extra: {
+        'bucket': widget.bucket.name,
+        'itemId': item.id,
+        'itemTitle': item.title,
+      },
+    );
     final providerId = widget.profile.providerDbId;
     if (providerId == null) {
       final success = await _playPreviewItemsDirect(item);
@@ -984,6 +1070,10 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     }
     final categoryId = int.tryParse(widget.category.id);
     if (categoryId == null) {
+      PlaybackLogger.userAction(
+        'invalid-category-id',
+        extra: {'categoryIdStr': widget.category.id},
+      );
       _showSnack('Unable to determine category id for playback.');
       return;
     }
@@ -999,6 +1089,14 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
           );
           break;
         case ContentBucket.films:
+          PlaybackLogger.userAction(
+            'starting-movie-playback',
+            extra: {
+              'providerId': providerId,
+              'categoryId': categoryId,
+              'itemId': item.id,
+            },
+          );
           success = await _playMovies(
             providerId: providerId,
             categoryId: categoryId,
@@ -1014,6 +1112,10 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
           break;
       }
       if (!success) {
+        PlaybackLogger.userAction(
+          'playback-failed',
+          extra: {'bucket': widget.bucket.name, 'itemId': item.id},
+        );
         _showSnack('No playable streams in this category yet.');
       }
     });
@@ -1031,7 +1133,12 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     );
     try {
       await action();
-    } catch (error) {
+    } catch (error, _) {
+      PlaybackLogger.videoError(
+        'playback-exception',
+        description: 'Exception during playback: $error',
+        error: error,
+      );
       _showSnack('Unable to load category: $error');
     } finally {
       if (dialogVisible && rootNavigator.canPop()) {
@@ -1086,13 +1193,26 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     required int categoryId,
     required CategoryPreviewItem item,
   }) async {
+    PlaybackLogger.userAction(
+      'fetch-movies-for-category',
+      extra: {'providerId': providerId, 'categoryId': categoryId},
+    );
     final vodRepo = ref.read(vodRepositoryProvider);
     final movies = await vodRepo.listMovies(providerId, categoryId: categoryId);
+    PlaybackLogger.userAction(
+      'movies-fetched',
+      extra: {'count': movies.length, 'categoryId': categoryId},
+    );
     if (!mounted) {
       return false;
     }
     if (movies.isEmpty) {
-      return false;
+      PlaybackLogger.userAction(
+        'no-movies-in-category',
+        extra: {'categoryId': categoryId, 'fallingBackToPreview': true},
+      );
+      // Fall back to playing preview items directly when database is empty
+      return _playPreviewItemsDirect(item);
     }
     if (_shouldUseLazyPlayback(context)) {
       final lazyEntries = _buildLazyMovieEntries(movies);
@@ -1105,6 +1225,14 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
         tappedId,
         (movie) => movie.id,
       );
+      PlaybackLogger.userAction(
+        'launching-lazy-movie-playlist',
+        extra: {
+          'movieCount': movies.length,
+          'initialIndex': initialIndex,
+          'tappedId': tappedId,
+        },
+      );
       return _pushLazyPlaylist(
         context: context,
         entries: lazyEntries,
@@ -1113,6 +1241,10 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
     }
     final playlist = await _resolveMovieSources(movies);
     if (!mounted || playlist.isEmpty) {
+      PlaybackLogger.userAction(
+        'no-resolvable-movies',
+        extra: {'totalMovies': movies.length, 'resolved': playlist.length},
+      );
       return false;
     }
     final tappedId = int.tryParse(item.id);
@@ -1370,10 +1502,27 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
           (movie) => LazyPlaybackEntry(
             id: movie.id,
             factory: () async {
+              PlaybackLogger.videoInfo(
+                'resolving-lazy-movie',
+                extra: {
+                  'movieId': movie.id,
+                  'title': movie.title,
+                  'hasStreamTemplate': movie.streamUrlTemplate != null,
+                  'hasProviderKey': movie.providerVodKey.isNotEmpty,
+                },
+              );
               final source = await playableResolver.movie(movie);
               if (source == null) {
+                PlaybackLogger.videoError(
+                  'movie-resolution-failed',
+                  description: 'Failed to resolve movie: ${movie.title}',
+                );
                 return null;
               }
+              PlaybackLogger.videoInfo(
+                'movie-resolved-successfully',
+                extra: {'movieId': movie.id, 'title': movie.title},
+              );
               return _applyPlatformPolicyToSource(source);
             },
           ),
@@ -1775,5 +1924,574 @@ class _SyncingPlaceholder extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ExpandableSeriesItem extends ConsumerStatefulWidget {
+  const _ExpandableSeriesItem({
+    required this.series,
+    required this.icon,
+    required this.profile,
+    required this.playableResolver,
+  });
+
+  final CategoryPreviewItem series;
+  final IconData icon;
+  final ResolvedProviderProfile profile;
+  final PlayableResolver playableResolver;
+
+  @override
+  ConsumerState<_ExpandableSeriesItem> createState() =>
+      _ExpandableSeriesItemState();
+}
+
+class _ExpandableSeriesItemState extends ConsumerState<_ExpandableSeriesItem> {
+  bool _expanded = false;
+  List<_UiSeasonData>? _seasons;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: _ArtworkAvatar(
+            url: widget.series.artUri ?? '',
+            fallbackIcon: widget.icon,
+            size: 40,
+          ),
+          title: Text(widget.series.title),
+          subtitle: widget.series.subtitle != null
+              ? Text(widget.series.subtitle!)
+              : null,
+          trailing: Icon(_expanded ? Icons.expand_more : Icons.chevron_right),
+          onTap: _toggleExpansion,
+        ),
+        if (_expanded) ...[
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            )
+          else if (_seasons != null && _seasons!.isNotEmpty)
+            ..._seasons!.map(
+              (season) => _ExpandableSeasonItem(
+                season: season,
+                seriesTitle: widget.series.title,
+                profile: widget.profile,
+                playableResolver: widget.playableResolver,
+              ),
+            )
+          else if (_seasons != null && _seasons!.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              child: Text(
+                'No seasons available',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _toggleExpansion() async {
+    if (_expanded) {
+      setState(() => _expanded = false);
+      return;
+    }
+
+    setState(() {
+      _expanded = true;
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      PlaybackLogger.userAction(
+        'series-expand',
+        extra: {
+          'seriesId': widget.series.id,
+          'seriesTitle': widget.series.title,
+          'providerId': widget.profile.providerDbId,
+        },
+      );
+
+      // Extract numeric series ID (handle formats like "8412" or "8412:8412")
+      String idStr = widget.series.id;
+      if (idStr.contains(':')) {
+        idStr = idStr.split(':').first;
+      }
+
+      final seriesId = int.tryParse(idStr);
+      if (seriesId == null) {
+        PlaybackLogger.videoError(
+          'series-invalid-id',
+          description: 'Series ID is not numeric: ${widget.series.id}',
+          error:
+              'ID: ${widget.series.id}, Extracted: $idStr, Type: ${widget.series.id.runtimeType}',
+        );
+        throw Exception('Invalid series ID: "${widget.series.id}"');
+      }
+
+      PlaybackLogger.videoInfo(
+        'series-fetch-seasons',
+        extra: {
+          'seriesId': seriesId,
+          'providerId': widget.profile.providerDbId,
+        },
+      );
+
+      List<_UiSeasonData> seasons;
+
+      // For Stalker providers, fetch seasons from the API
+      if (widget.profile.kind == ProviderKind.stalker) {
+        final stalkerSeasons = await _fetchStalkerSeasons(seriesId);
+        seasons = stalkerSeasons
+            .asMap()
+            .entries
+            .map(
+              (entry) =>
+                  _UiSeasonData.fromStalker(entry.value, seriesId, entry.key),
+            )
+            .toList();
+      } else {
+        // For other providers, use the database
+        final vodRepo = ref.read(vodRepositoryProvider);
+        final dbSeasons = await vodRepo.listSeasons(seriesId);
+        seasons = dbSeasons.map((s) => _UiSeasonData.fromDb(s)).toList();
+      }
+
+      if (!mounted) return;
+
+      PlaybackLogger.videoInfo(
+        'series-seasons-loaded',
+        extra: {'seriesId': seriesId, 'seasonCount': seasons.length},
+      );
+
+      setState(() {
+        _seasons = seasons;
+        _loading = false;
+      });
+    } catch (e) {
+      PlaybackLogger.videoError(
+        'series-load-failed',
+        description: 'Failed to load seasons for ${widget.series.title}',
+        error: '$e',
+      );
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load seasons: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<List<StalkerSeason>> _fetchStalkerSeasons(int seriesId) async {
+    // Use the playable resolver which already has session management
+    final resolver = widget.playableResolver;
+
+    // Ensure we have a Stalker session
+    await resolver.ensureStalkerSession();
+
+    final session = resolver.stalkerSession;
+    if (session == null) {
+      throw Exception('Failed to establish Stalker session');
+    }
+
+    final config = resolver.stalkerConfiguration;
+    if (config == null) {
+      throw Exception('No Stalker configuration available');
+    }
+
+    final vodService = StalkerVodService(
+      configuration: config,
+      session: session,
+    );
+
+    return vodService.getSeasons(seriesId);
+  }
+}
+
+class _ExpandableSeasonItem extends ConsumerStatefulWidget {
+  const _ExpandableSeasonItem({
+    required this.season,
+    required this.seriesTitle,
+    required this.profile,
+    required this.playableResolver,
+  });
+
+  final _UiSeasonData season;
+  final String seriesTitle;
+  final ResolvedProviderProfile profile;
+  final PlayableResolver playableResolver;
+
+  @override
+  ConsumerState<_ExpandableSeasonItem> createState() =>
+      _ExpandableSeasonItemState();
+}
+
+// Helper class to hold episode data for UI display
+class _UiEpisodeData {
+  _UiEpisodeData({
+    required this.id,
+    required this.title,
+    this.episodeNumber,
+    this.overview,
+    this.durationSec,
+    this.stalkerCmd,
+    this.isStalkerSource = false,
+  });
+
+  factory _UiEpisodeData.fromDb(EpisodeRecord record) {
+    return _UiEpisodeData(
+      id: record.id.toString(),
+      title: record.title ?? 'Episode ${record.episodeNumber}',
+      episodeNumber: record.episodeNumber,
+      overview: record.overview,
+      durationSec: record.durationSec,
+      isStalkerSource: false,
+    );
+  }
+
+  factory _UiEpisodeData.fromStalker(StalkerEpisode stalker, int index) {
+    return _UiEpisodeData(
+      id: stalker.id,
+      title: stalker.name,
+      episodeNumber: stalker.episodeNumber ?? index + 1,
+      durationSec: stalker.duration,
+      stalkerCmd: stalker.cmd,
+      isStalkerSource: true,
+    );
+  }
+
+  final String id;
+  final String title;
+  final int? episodeNumber;
+  final String? overview;
+  final int? durationSec;
+  final String? stalkerCmd;
+  final bool isStalkerSource;
+
+  bool get isStalker => isStalkerSource;
+}
+
+class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
+    with _PlayerPlaybackMixin<_ExpandableSeasonItem> {
+  bool _expanded = false;
+  List<_UiEpisodeData>? _episodes;
+  bool _loading = false;
+  String? _error;
+
+  @override
+  PlayableResolver get playableResolver => widget.playableResolver;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final seasonName = widget.season.name;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.only(left: 32),
+          title: Text(seasonName),
+          trailing: Icon(_expanded ? Icons.expand_more : Icons.chevron_right),
+          onTap: _toggleExpansion,
+        ),
+        if (_expanded) ...[
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12, horizontal: 48),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            )
+          else if (_error != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 48),
+              child: Text(
+                _error!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            )
+          else if (_episodes != null && _episodes!.isNotEmpty)
+            ..._episodes!.map(
+              (episode) => _EpisodeItem(
+                episode: episode,
+                onTap: () => _handleEpisodePlay(episode),
+              ),
+            )
+          else if (_episodes != null && _episodes!.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 48),
+              child: Text(
+                'No episodes available',
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _toggleExpansion() async {
+    if (_expanded) {
+      setState(() => _expanded = false);
+      return;
+    }
+
+    setState(() {
+      _expanded = true;
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      PlaybackLogger.videoInfo(
+        'season-fetch-episodes',
+        extra: {
+          'seasonId': widget.season.id,
+          'seasonNumber': widget.season.seasonNumber,
+          'seriesTitle': widget.seriesTitle,
+        },
+      );
+
+      List<_UiEpisodeData> episodes;
+
+      // For Stalker providers, fetch episodes from the API
+      if (widget.season.isStalker && widget.season.stalkerSeasonId != null) {
+        final stalkerEpisodes = await _fetchStalkerEpisodes(
+          widget.season.seriesId,
+          widget.season.stalkerSeasonId!,
+        );
+        episodes = stalkerEpisodes
+            .asMap()
+            .entries
+            .map((entry) => _UiEpisodeData.fromStalker(entry.value, entry.key))
+            .toList();
+      } else {
+        // For other providers, use the database
+        final vodRepo = ref.read(vodRepositoryProvider);
+        final dbEpisodes = await vodRepo.listEpisodes(widget.season.id);
+        episodes = dbEpisodes.map((e) => _UiEpisodeData.fromDb(e)).toList();
+      }
+
+      if (!mounted) return;
+
+      PlaybackLogger.videoInfo(
+        'season-episodes-loaded',
+        extra: {'seasonId': widget.season.id, 'episodeCount': episodes.length},
+      );
+
+      setState(() {
+        _episodes = episodes;
+        _loading = false;
+      });
+    } catch (e) {
+      PlaybackLogger.videoError(
+        'season-load-failed',
+        description:
+            'Failed to load episodes for season ${widget.season.seasonNumber}',
+        error: '$e',
+      );
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load episodes: $e';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<List<StalkerEpisode>> _fetchStalkerEpisodes(
+    int seriesId,
+    String seasonId,
+  ) async {
+    // Use the playable resolver which already has session management
+    final resolver = widget.playableResolver;
+
+    // Ensure we have a Stalker session
+    await resolver.ensureStalkerSession();
+
+    final session = resolver.stalkerSession;
+    if (session == null) {
+      throw Exception('Failed to establish Stalker session');
+    }
+
+    final config = resolver.stalkerConfiguration;
+    if (config == null) {
+      throw Exception('No Stalker configuration available');
+    }
+
+    final vodService = StalkerVodService(
+      configuration: config,
+      session: session,
+    );
+
+    return vodService.getEpisodes(seriesId, seasonId);
+  }
+
+  Future<void> _handleEpisodePlay(_UiEpisodeData episode) async {
+    PlaybackLogger.userAction(
+      'episode-clicked',
+      extra: {'episodeId': episode.id, 'title': episode.title},
+    );
+
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    var dialogVisible = true;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      ).whenComplete(() => dialogVisible = false),
+    );
+
+    try {
+      PlayerMediaSource? source;
+
+      // For Stalker episodes, use either the cmd or the episode id
+      if (episode.isStalker || episode.stalkerCmd != null) {
+        // For Stalker, use cmd if available, otherwise use the episode id
+        final command = episode.stalkerCmd ?? episode.id;
+
+        // Create a temporary preview item to match the existing pattern
+        final previewItem = CategoryPreviewItem(
+          id: episode.id,
+          title: episode.title,
+          subtitle:
+              episode.overview ?? 'Episode ${episode.episodeNumber ?? ""}',
+          artUri: null,
+          streamUrl: command,
+          headers: null,
+        );
+
+        source = await widget.playableResolver.preview(
+          previewItem,
+          ContentBucket.series,
+        );
+
+        if (source != null) {
+          source = PlayerMediaSource(
+            playable: source.playable,
+            title: '${widget.seriesTitle} - ${episode.title}',
+          );
+        }
+      } else {
+        // For database episodes, would need the database record
+        // This would require updating the UI data class or fetching the full record
+        _showSnack('Database episode playback not yet implemented');
+        return;
+      }
+
+      if (!mounted) return;
+
+      if (source == null) {
+        _showSnack('No stream available for this episode.');
+        return;
+      }
+
+      final success = await _pushMediaPlaylist(
+        context: context,
+        sources: [source],
+        initialIndex: 0,
+      );
+
+      if (!success && mounted) {
+        _showSnack('Failed to play episode.');
+      }
+    } catch (e) {
+      PlaybackLogger.videoError(
+        'episode-play-failed',
+        description: 'Failed to play episode: $e',
+        error: e,
+      );
+      if (mounted) {
+        _showSnack('Error playing episode: $e');
+      }
+    } finally {
+      if (dialogVisible && rootNavigator.canPop()) {
+        rootNavigator.pop();
+      }
+    }
+  }
+
+  @override
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _EpisodeItem extends StatelessWidget {
+  const _EpisodeItem({required this.episode, required this.onTap});
+
+  final _UiEpisodeData episode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final episodeNum = episode.episodeNumber;
+    final title = episode.title;
+    final subtitle = _buildSubtitle();
+
+    return ListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.only(left: 64),
+      title: Text(
+        episodeNum != null
+            ? 'E${episodeNum.toString().padLeft(2, '0')} - $title'
+            : title,
+        style: theme.textTheme.bodyMedium,
+      ),
+      subtitle: subtitle != null ? Text(subtitle) : null,
+      trailing: const Icon(Icons.play_arrow_rounded, size: 20),
+      onTap: onTap,
+    );
+  }
+
+  String? _buildSubtitle() {
+    final duration = episode.durationSec;
+    if (duration == null || duration <= 0) {
+      return null;
+    }
+    final hours = duration ~/ 3600;
+    final minutes = (duration % 3600) ~/ 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
   }
 }

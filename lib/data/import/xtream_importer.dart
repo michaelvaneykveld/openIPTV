@@ -365,6 +365,12 @@ class XtreamImporter {
           metrics.seasonsUpserted += 1;
         }
 
+        // For Xtream episodes, store the container_extension from the API
+        // This is crucial for building correct playback URLs
+        final containerExt = _coerceString(
+          rawEpisode['container_extension'] ?? rawEpisode['extension'],
+        );
+
         await txn.series.upsertEpisode(
           seriesId: seriesRecord.id,
           seasonId: seasonId,
@@ -378,11 +384,13 @@ class XtreamImporter {
                 rawEpisode['overview'],
           ),
           durationSec: _parseDurationSeconds(rawEpisode['duration']),
-          streamUrlTemplate: _coerceString(
-            rawEpisode['stream_url'] ??
-                rawEpisode['direct_source'] ??
-                rawEpisode['url'],
-          ),
+          streamUrlTemplate: containerExt != null && containerExt.isNotEmpty
+              ? '.$containerExt'
+              : _coerceString(
+                  rawEpisode['stream_url'] ??
+                      rawEpisode['direct_source'] ??
+                      rawEpisode['url'],
+                ),
           seenAt: seenAt,
         );
         metrics.episodesUpserted += 1;

@@ -2418,10 +2418,15 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
           episode.seriesId != null &&
           episode.seasonNumber != null &&
           episode.episodeNumber != null) {
-        // Construct JSON command like: {"type":"series","series_id":8417,"season":3,"episode":1}
-        // For Stalker series episodes, the VOD module expects "series:EPISODE_ID" format
-        // Episode ID is in format "8412:3:1" (seriesId:season:episode)
-        final command = 'series:${episode.id}'; // e.g., "series:8412:3:1"
+        // Construct JSON command like: {"type":"series","series_id":8412,"season_num":3,"episode":1}
+        // This matches what Stalker VOD API expects for episode playback
+        final cmdJson = {
+          'type': 'series',
+          'series_id': episode.seriesId!,
+          'season_num': episode.seasonNumber!,
+          'episode': episode.episodeNumber!,
+        };
+        final command = jsonEncode(cmdJson);
 
         PlaybackLogger.userAction(
           'episode-constructed-command',

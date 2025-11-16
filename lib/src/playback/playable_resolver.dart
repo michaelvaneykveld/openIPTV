@@ -988,9 +988,10 @@ class PlayableResolver {
   }) async {
     var module = _stalkerModuleForBucket(kind);
 
-    // For series episodes with format "series:8412:3:1", use 'vod' module
-    // Stalker VOD module handles series episodes with cmd=series:EPISODE_ID
-    if (module == 'series' && command.startsWith('series:')) {
+    // For series episodes with JSON command format or series:ID format, use 'vod' module
+    // Stalker VOD module handles series episodes
+    if (module == 'series' &&
+        (command.startsWith('{') || command.startsWith('series:'))) {
       PlaybackLogger.stalker(
         'series-episode-detected-using-vod-module',
         portal: profile.lockedBase,

@@ -1028,30 +1028,6 @@ class PlayableResolver {
       _mergeHeaders(headerHints, overrides: sessionHeaders),
     );
     final directUri = _parseDirectUri(command);
-
-    // For live TV (itv/radio modules), skip create_link and use template directly
-    // The template tokens are long-lived, while create_link returns short-lived tokens
-    if (module == 'itv' || module == 'radio') {
-      if (directUri != null) {
-        final rawUrl = _extractRawUrlFromCommand(command);
-        PlaybackLogger.stalker(
-          'live-using-template',
-          portal: config.baseUri,
-          module: module,
-          command: command,
-        );
-        return _buildDirectStalkerPlayable(
-          fallbackUri: directUri,
-          config: config,
-          module: module,
-          command: command,
-          headers: playbackHeaders,
-          isLive: isLive,
-          rawUrl: rawUrl,
-        );
-      }
-    }
-
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',
@@ -1179,23 +1155,41 @@ class PlayableResolver {
         if (fallbackUri != null) {
           // Extract raw URL from command to preserve unencoded MAC address
           final rawFallbackUrl = _extractRawUrlFromCommand(command);
-          final freshRawUrl = rawFallbackUrl != null
-              ? _replacePlayToken(rawFallbackUrl, freshPlayToken)
-              : null;
+          String? freshRawUrl;
 
-          if (freshRawUrl != null) {
+          // For live TV (itv/radio), remove play_token entirely - use session token only
+          // Play tokens expire too quickly; session token in Cookie is sufficient
+          if (module == 'itv' || module == 'radio') {
+            freshRawUrl = rawFallbackUrl != null
+                ? _removePlayToken(rawFallbackUrl)
+                : null;
+            PlaybackLogger.videoInfo(
+              'stalker-live-no-play-token',
+              extra: {
+                'module': module,
+                'original': rawFallbackUrl?.substring(0, 120) ?? 'null',
+                'noToken': freshRawUrl?.substring(0, 120) ?? 'null',
+              },
+            );
+          } else {
+            // For VOD/series, use fresh play_token from create_link
+            freshRawUrl = rawFallbackUrl != null
+                ? _replacePlayToken(rawFallbackUrl, freshPlayToken)
+                : null;
             PlaybackLogger.videoInfo(
               'stalker-fresh-token-url',
               extra: {
                 'original': rawFallbackUrl!.length > 120
                     ? '${rawFallbackUrl.substring(0, 120)}...'
                     : rawFallbackUrl,
-                'fresh': freshRawUrl.length > 120
+                'fresh': freshRawUrl!.length > 120
                     ? '${freshRawUrl.substring(0, 120)}...'
                     : freshRawUrl,
               },
             );
+          }
 
+          if (freshRawUrl != null) {
             return _buildDirectStalkerPlayable(
               fallbackUri: fallbackUri,
               config: config,
@@ -1773,6 +1767,11 @@ class PlayableResolver {
   String? _extractRawUrlFromCommand(String command) {
     final match = _urlPattern.firstMatch(command);
     return match?.group(0);
+  }
+
+  /// Remove play_token from URL string
+  String _removePlayToken(String url) {
+    return url.replaceAll(RegExp(r'[?&]play_token=[^&\s]*'), '');
   }
 
   /// Replace play_token in URL string without re-encoding other parameters

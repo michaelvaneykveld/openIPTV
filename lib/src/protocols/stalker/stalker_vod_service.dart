@@ -80,9 +80,11 @@ class StalkerVodService {
     final response = await _httpClient.getPortal(
       _configuration,
       queryParameters: {
-        'type': 'vod',
-        'action': 'get_episodes',
-        'season_id': seasonId,
+        'type': 'series',
+        'action': 'get_ordered_list',
+        'movie_id': seriesId.toString(),
+        'season_id': '0',
+        'episode_id': '0',
         'JsHttpRequest': '1-xml',
         'token': _session.token,
         'mac': _configuration.macAddress.toLowerCase(),
@@ -98,19 +100,39 @@ class StalkerVodService {
     }
 
     final data = _decodePortalResponse(response.body);
+    print('[Stalker VOD] Decoded episodes data: $data');
 
-    // Get episodes from the 'episodes' array in the response
-    final episodesData = data['episodes'];
-    print('[Stalker VOD] Episodes data: $episodesData');
+    // The response structure has seasons in data array, find the matching season
+    final seasonsData = data['data'];
+    print(
+      '[Stalker VOD] Looking for season $seasonId in ${seasonsData is List ? seasonsData.length : 0} seasons',
+    );
 
-    if (episodesData is List && episodesData.isNotEmpty) {
-      final episodes = episodesData
-          .map((item) => _parseEpisodeFromItem(item, seriesId, seasonId))
-          .whereType<StalkerEpisode>()
-          .toList();
+    if (seasonsData is List) {
+      // Find the matching season by ID
+      for (final season in seasonsData) {
+        print(
+          '[Stalker VOD] Checking season: ${season is Map ? season['id'] : 'not a map'}',
+        );
+        if (season is Map && season['id']?.toString() == seasonId) {
+          print('[Stalker VOD] Found matching season $seasonId');
+          print('[Stalker VOD] Full season data: $season');
+          // Get episodes from the 'series' array in this season
+          final episodesData = season['series'];
+          print('[Stalker VOD] Episodes data from season: $episodesData');
 
-      print('[Stalker VOD] Parsed ${episodes.length} episodes');
-      return episodes;
+          if (episodesData is List && episodesData.isNotEmpty) {
+            final episodes = episodesData
+                .map((item) => _parseEpisodeFromItem(item, seriesId, seasonId))
+                .whereType<StalkerEpisode>()
+                .toList();
+
+            print('[Stalker VOD] Parsed ${episodes.length} episodes');
+            return episodes;
+          }
+          break;
+        }
+      }
     }
 
     print('[Stalker VOD] No episodes found in response');

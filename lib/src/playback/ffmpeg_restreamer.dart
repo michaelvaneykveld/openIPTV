@@ -234,7 +234,7 @@ class _FfmpegRestreamSession {
       '-reconnect_delay_max',
       '2',
       '-i',
-      original.playable.url.toString(),
+      original.playable.rawUrl ?? original.playable.url.toString(),
       '-c',
       'copy',
       '-f',

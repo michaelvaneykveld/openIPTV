@@ -351,6 +351,7 @@ class PlayableResolver {
     Map<String, String>? headers,
     String? ffmpegCommand,
     Duration? durationHint,
+    String? rawUrl,
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -368,6 +369,7 @@ class PlayableResolver {
       mimeHint: guessMimeFromUri(uri),
       ffmpegCommand: ffmpegCommand,
       durationHint: durationHint,
+      rawUrl: rawUrl,
     );
   }
 
@@ -1152,6 +1154,17 @@ class PlayableResolver {
         isLive: isLive,
         headers: sanitizedHeaders,
         durationHint: durationHint,
+        rawUrl: resolvedLink,
+      );
+      PlaybackLogger.videoInfo(
+        'stalker-rawurl-set',
+        extra: {
+          'hasRawUrl': playable?.rawUrl != null,
+          'rawUrlPrefix': playable?.rawUrl != null && playable!.rawUrl!.length > 80
+              ? '${playable.rawUrl!.substring(0, 80)}...'
+              : playable?.rawUrl ?? 'null',
+          'urlString': playable?.url.toString().substring(0, 80) ?? 'null',
+        },
       );
       final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
       if (playable != null &&

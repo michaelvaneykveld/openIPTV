@@ -23,6 +23,7 @@ class Playable {
     this.seekStart,
     this.durationHint,
     this.ffmpegCommand,
+    this.rawUrl,
   });
 
   final Uri url;
@@ -34,6 +35,11 @@ class Playable {
   final Duration? seekStart;
   final Duration? durationHint;
   final String? ffmpegCommand;
+  
+  /// Raw URL string from source (e.g., Stalker create_link response).
+  /// Used to preserve unencoded characters like colons in MAC addresses.
+  /// If present, ffmpeg should use this instead of url.toString().
+  final String? rawUrl;
 
   Playable copyWith({
     Uri? url,
@@ -45,6 +51,7 @@ class Playable {
     Duration? seekStart,
     Duration? durationHint,
     String? ffmpegCommand,
+    String? rawUrl,
   }) {
     return Playable(
       url: url ?? this.url,
@@ -56,6 +63,7 @@ class Playable {
       seekStart: seekStart ?? this.seekStart,
       durationHint: durationHint ?? this.durationHint,
       ffmpegCommand: ffmpegCommand ?? this.ffmpegCommand,
+      rawUrl: rawUrl ?? this.rawUrl,
     );
   }
 }

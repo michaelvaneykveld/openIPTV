@@ -1134,12 +1134,14 @@ class PlayableResolver {
         );
       }
 
-      // Check if portal returned unusable URL (empty stream with play_token)
+      // Check if portal returned unusable URL (empty/invalid stream with play_token)
       final streamParam = uri.queryParameters['stream'];
       final freshPlayToken = uri.queryParameters['play_token'];
-      final hasEmptyStream = streamParam == null || streamParam.trim().isEmpty;
+      final trimmedStream = streamParam?.trim() ?? '';
+      final hasInvalidStream =
+          trimmedStream.isEmpty || trimmedStream == '.' || trimmedStream == '-';
 
-      if (hasEmptyStream &&
+      if (hasInvalidStream &&
           freshPlayToken != null &&
           freshPlayToken.isNotEmpty) {
         // Portal's create_link is broken - use original cmd with fresh play_token

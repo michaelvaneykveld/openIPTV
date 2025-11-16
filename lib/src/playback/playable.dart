@@ -35,7 +35,7 @@ class Playable {
   final Duration? seekStart;
   final Duration? durationHint;
   final String? ffmpegCommand;
-  
+
   /// Raw URL string from source (e.g., Stalker create_link response).
   /// Used to preserve unencoded characters like colons in MAC addresses.
   /// If present, ffmpeg should use this instead of url.toString().

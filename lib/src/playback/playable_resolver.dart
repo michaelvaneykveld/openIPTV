@@ -1149,18 +1149,21 @@ class PlayableResolver {
       final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
         effectiveHeaders,
       );
+      // Build rawUrl from normalized URI to preserve unencoded MAC addresses
+      final patchedRawUrl = _buildRawUrlFromUri(normalizedUri);
       var playable = _playableFromUri(
         normalizedUri,
         isLive: isLive,
         headers: sanitizedHeaders,
         durationHint: durationHint,
-        rawUrl: resolvedLink,
+        rawUrl: patchedRawUrl,
       );
       PlaybackLogger.videoInfo(
         'stalker-rawurl-set',
         extra: {
           'hasRawUrl': playable?.rawUrl != null,
-          'rawUrlPrefix': playable?.rawUrl != null && playable!.rawUrl!.length > 80
+          'rawUrlPrefix':
+              playable?.rawUrl != null && playable!.rawUrl!.length > 80
               ? '${playable.rawUrl!.substring(0, 80)}...'
               : playable?.rawUrl ?? 'null',
           'urlString': playable?.url.toString().substring(0, 80) ?? 'null',
@@ -1682,6 +1685,38 @@ class PlayableResolver {
       }
     }
     return null;
+  }
+
+  /// Build URL string from Uri without encoding query parameters.
+  /// This preserves literal colons in MAC addresses which Stalker requires.
+  String _buildRawUrlFromUri(Uri uri) {
+    final buffer = StringBuffer();
+    buffer.write(uri.scheme);
+    buffer.write('://');
+    buffer.write(uri.host);
+    if (uri.hasPort && 
+        !((uri.scheme == 'http' && uri.port == 80) || 
+          (uri.scheme == 'https' && uri.port == 443))) {
+      buffer.write(':');
+      buffer.write(uri.port);
+    }
+    buffer.write(uri.path);
+    if (uri.hasQuery) {
+      buffer.write('?');
+      var first = true;
+      uri.queryParameters.forEach((key, value) {
+        if (!first) buffer.write('&');
+        first = false;
+        buffer.write(key);
+        buffer.write('=');
+        buffer.write(value); // Write value without encoding
+      });
+    }
+    if (uri.hasFragment) {
+      buffer.write('#');
+      buffer.write(uri.fragment);
+    }
+    return buffer.toString();
   }
 
   String? _mimeFromExtension(String extension) {

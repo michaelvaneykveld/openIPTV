@@ -1200,14 +1200,14 @@ class PlayableResolver {
       final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
         effectiveHeaders,
       );
-      // Use resolvedLink (server's string) as rawUrl to preserve :80 port
-      // The string from server has the exact format needed
+      // Build rawUrl from normalizedUri (which has patched stream ID)
+      // This preserves :80 port and unencoded MAC address
       var playable = _playableFromUri(
         normalizedUri,
         isLive: isLive,
         headers: sanitizedHeaders,
         durationHint: durationHint,
-        rawUrl: resolvedLink,
+        rawUrl: _buildRawUrlFromUri(normalizedUri),
       );
       PlaybackLogger.videoInfo(
         'stalker-rawurl-set',
@@ -1555,15 +1555,81 @@ class PlayableResolver {
     required String fallbackCommand,
     Uri? fallbackUri,
   }) {
-    // Use server response as-is - DO NOT patch anything
-    // The working version from a210324 didn't modify the server's response
+    // Restore working commit a210324 logic: patch empty stream parameter
+    final streamParam = uri.queryParameters['stream'];
+    if (streamParam != null && streamParam.trim().isNotEmpty) {
+      return uri;
+    }
+    final fallbackStream =
+        _extractStreamIdFromUri(fallbackUri) ??
+        _extractStreamId(fallbackCommand);
+    if (fallbackStream == null || fallbackStream.isEmpty) {
+      return uri;
+    }
+    final qp = Map<String, String>.from(uri.queryParameters);
+    qp['stream'] = fallbackStream;
+    var patched = uri.replace(queryParameters: qp);
+    final patchedQp = Map<String, String>.from(patched.queryParameters);
+    final playToken =
+        _extractPlayToken(fallbackUri) ??
+        _extractPlayTokenUriString(fallbackCommand);
+    if (playToken != null && playToken.isNotEmpty) {
+      patchedQp.putIfAbsent('play_token', () => playToken);
+    }
+    final sn2 = patchedQp['sn2'];
+    if (sn2 != null && sn2.trim().isEmpty) {
+      patchedQp.remove('sn2');
+    }
+    patched = patched.replace(queryParameters: patchedQp);
     PlaybackLogger.stalker(
-      'using-server-response-verbatim',
+      'patched-stream-param',
       portal: portal,
       module: module,
-      resolvedUri: uri,
+      resolvedUri: patched,
     );
-    return uri;
+    return patched;
+  }
+
+  String? _extractStreamIdFromUri(Uri? uri) {
+    if (uri == null) return null;
+    final value = uri.queryParameters['stream'];
+    if (value != null && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
+  String? _extractStreamId(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final match = RegExp(
+      r'stream=([0-9]+)',
+      caseSensitive: false,
+    ).firstMatch(source);
+    if (match != null && match.groupCount >= 1) {
+      return match.group(1);
+    }
+    return null;
+  }
+
+  String? _extractPlayToken(Uri? uri) {
+    if (uri == null) return null;
+    final value = uri.queryParameters['play_token'];
+    if (value != null && value.isNotEmpty) {
+      return value;
+    }
+    return null;
+  }
+
+  String? _extractPlayTokenUriString(String? source) {
+    if (source == null || source.isEmpty) return null;
+    final match = RegExp(
+      r'play_token=([A-Za-z0-9]+)',
+      caseSensitive: false,
+    ).firstMatch(source);
+    if (match != null && match.groupCount >= 1) {
+      return match.group(1);
+    }
+    return null;
   }
 
   String? _sanitizeStalkerResolvedLink(String? link) {

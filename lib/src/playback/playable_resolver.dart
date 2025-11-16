@@ -1186,13 +1186,22 @@ class PlayableResolver {
       }
 
       // Portal link looks usable, proceed normally
-      final normalizedUri = _normalizeStalkerResolvedUri(
-        uri,
-        module: module,
-        portal: config.baseUri,
-        fallbackUri: fallbackUri,
-        fallbackCommand: command,
-      );
+      // Patch stream ID in URL string to preserve sn2= parameter
+      final streamParam = uri.queryParameters['stream'];
+      String? patchedUrlString;
+      if (streamParam == null || streamParam.trim().isEmpty) {
+        final fallbackStream =
+            _extractStreamIdFromUri(fallbackUri) ?? _extractStreamId(command);
+        if (fallbackStream != null && fallbackStream.isNotEmpty) {
+          patchedUrlString = _patchStreamInUrlString(
+            resolvedLink,
+            fallbackStream,
+          );
+        }
+      }
+      final rawUrl = patchedUrlString ?? resolvedLink;
+      final normalizedUri = Uri.tryParse(rawUrl) ?? uri;
+
       effectiveHeaders = _ensureQueryTokenCookies(
         effectiveHeaders,
         normalizedUri,
@@ -1200,22 +1209,12 @@ class PlayableResolver {
       final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
         effectiveHeaders,
       );
-      // Build rawUrl from normalizedUri (which has patched stream ID)
-      // This preserves :80 port and unencoded MAC address
       var playable = _playableFromUri(
         normalizedUri,
         isLive: isLive,
         headers: sanitizedHeaders,
         durationHint: durationHint,
-        rawUrl: _buildRawUrlFromUri(normalizedUri),
-      );
-      PlaybackLogger.videoInfo(
-        'stalker-rawurl-set',
-        extra: {
-          'hasRawUrl': playable?.rawUrl != null,
-          'rawUrl': playable?.rawUrl ?? 'null',
-          'urlString': playable?.url.toString(),
-        },
+        rawUrl: rawUrl,
       );
       final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
       if (playable != null &&
@@ -1548,46 +1547,15 @@ class PlayableResolver {
     return merged;
   }
 
-  Uri _normalizeStalkerResolvedUri(
-    Uri uri, {
-    required Uri portal,
-    required String module,
-    required String fallbackCommand,
-    Uri? fallbackUri,
-  }) {
-    // Restore working commit a210324 logic: patch empty stream parameter
-    final streamParam = uri.queryParameters['stream'];
-    if (streamParam != null && streamParam.trim().isNotEmpty) {
-      return uri;
-    }
-    final fallbackStream =
-        _extractStreamIdFromUri(fallbackUri) ??
-        _extractStreamId(fallbackCommand);
-    if (fallbackStream == null || fallbackStream.isEmpty) {
-      return uri;
-    }
-    final qp = Map<String, String>.from(uri.queryParameters);
-    qp['stream'] = fallbackStream;
-    var patched = uri.replace(queryParameters: qp);
-    final patchedQp = Map<String, String>.from(patched.queryParameters);
-    final playToken =
-        _extractPlayToken(fallbackUri) ??
-        _extractPlayTokenUriString(fallbackCommand);
-    if (playToken != null && playToken.isNotEmpty) {
-      patchedQp.putIfAbsent('play_token', () => playToken);
-    }
-    final sn2 = patchedQp['sn2'];
-    if (sn2 != null && sn2.trim().isEmpty) {
-      patchedQp.remove('sn2');
-    }
-    patched = patched.replace(queryParameters: patchedQp);
-    PlaybackLogger.stalker(
-      'patched-stream-param',
-      portal: portal,
-      module: module,
-      resolvedUri: patched,
+  /// Patches empty stream parameter while preserving exact server response format
+  /// This avoids losing parameters like `&sn2=` that Dart Uri parser drops
+  String? _patchStreamInUrlString(String urlString, String streamId) {
+    // Replace stream=& or stream= with stream=<streamId>
+    final patched = urlString.replaceFirstMapped(
+      RegExp(r'([&?])stream=(&|$)', caseSensitive: false),
+      (match) => '${match.group(1)}stream=$streamId${match.group(2)}',
     );
-    return patched;
+    return patched != urlString ? patched : null;
   }
 
   String? _extractStreamIdFromUri(Uri? uri) {
@@ -1603,27 +1571,6 @@ class PlayableResolver {
     if (source == null || source.isEmpty) return null;
     final match = RegExp(
       r'stream=([0-9]+)',
-      caseSensitive: false,
-    ).firstMatch(source);
-    if (match != null && match.groupCount >= 1) {
-      return match.group(1);
-    }
-    return null;
-  }
-
-  String? _extractPlayToken(Uri? uri) {
-    if (uri == null) return null;
-    final value = uri.queryParameters['play_token'];
-    if (value != null && value.isNotEmpty) {
-      return value;
-    }
-    return null;
-  }
-
-  String? _extractPlayTokenUriString(String? source) {
-    if (source == null || source.isEmpty) return null;
-    final match = RegExp(
-      r'play_token=([A-Za-z0-9]+)',
       caseSensitive: false,
     ).firstMatch(source);
     if (match != null && match.groupCount >= 1) {

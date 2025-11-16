@@ -29,8 +29,8 @@ You must **combine three sources**:
 
 ### The Working Formula
 
-✅ **Final URL:** `http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2=`  
-✅ **Cookie:** `mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=786D21E084C00E2EC6F2407118FCD639; play_token=ArScdwagXu`
+✅ **Final URL:** `http://PORTAL_HOST:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2=`  
+✅ **Cookie:** `mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=SESSION_TOKEN; play_token=FRESH_TOKEN`
 
 **Key Point:** No `play_token` in the URL. Fresh token ONLY in Cookie header.
 
@@ -137,7 +137,7 @@ if (isLive && directUri != null) {
 
 ### Template (Stored in Database)
 ```
-ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&play_token=YHlyqUSCsQ
+ffmpeg http://PORTAL_HOST:80/play/live.php?mac=MAC_ADDRESS&stream=891261&extension=ts&play_token=OLD_TOKEN
 ```
 
 ### Server create_link Response - Live TV (Incomplete - Intentionally)
@@ -145,7 +145,7 @@ ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&
 {
   "js": {
     "id": null,
-    "cmd": "ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=&extension=ts&play_token=ArScdwagXu&sn2="
+    "cmd": "ffmpeg http://PORTAL_HOST:80/play/live.php?mac=MAC_ADDRESS&stream=&extension=ts&play_token=FRESH_TOKEN&sn2="
   }
 }
 ```
@@ -155,24 +155,24 @@ ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&
 {
   "js": {
     "id": "1218792",
-    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=1218792.mp4&play_token=jkckABNcmP&type=movie&sn2="
+    "cmd": "ffmpeg http://PORTAL_HOST:80/play/movie.php?mac=MAC_ADDRESS&stream=1218792.mp4&play_token=FRESH_TOKEN&type=movie&sn2="
   }
 }
 ```
 
 ### Final URL Sent to FFmpeg - Live TV (Hybrid - Working)
 ```
-http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2=
+http://PORTAL_HOST:80/play/live.php?mac=MAC_ADDRESS&stream=891261&extension=ts&sn2=
 ```
 
 ### Final URL Sent to FFmpeg - Movie/VOD (Direct from Server)
 ```
-http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=1218792.mp4&play_token=jkckABNcmP&type=movie&sn2=
+http://PORTAL_HOST:80/play/movie.php?mac=MAC_ADDRESS&stream=1218792.mp4&play_token=FRESH_TOKEN&type=movie&sn2=
 ```
 
 ### Cookie Header (Includes Fresh Token - Both Types)
 ```
-Cookie: mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=786D21E084C00E2EC6F2407118FCD639; play_token=ArScdwagXu
+Cookie: mac=MAC_ADDRESS; stb_lang=en; timezone=UTC; token=SESSION_TOKEN; play_token=FRESH_TOKEN
 ```
 
 ---
@@ -209,9 +209,9 @@ X-User-Agent: Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, li
 Accept: application/json
 Connection: Keep-Alive
 User-Agent: Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) InfomirBrowser/3.0 StbApp/0.23
-Referer: http://6d.tanres.us/stalker_portal/c/
-Cookie: mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=<SESSION_TOKEN>; play_token=<FRESH_TOKEN>
-Authorization: Bearer <SESSION_TOKEN>
+Referer: http://PORTAL_HOST/stalker_portal/c/
+Cookie: mac=MAC_ADDRESS; stb_lang=en; timezone=UTC; token=SESSION_TOKEN; play_token=FRESH_TOKEN
+Authorization: Bearer SESSION_TOKEN
 ```
 
 Headers are sent with `\r\n` line endings to FFmpeg via the `-headers` flag.
@@ -224,8 +224,8 @@ Windows media_kit cannot send custom headers directly. We use FFmpeg to forward 
 
 ```bash
 ffmpeg -loglevel error -nostats \
-  -headers "X-User-Agent: Mozilla/5.0...\r\nAccept: application/json\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/5.0...\r\nReferer: http://6d.tanres.us/stalker_portal/c/\r\nCookie: mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=786D21E084C00E2EC6F2407118FCD639; play_token=ArScdwagXu\r\nAuthorization: Bearer 786D21E084C00E2EC6F2407118FCD639\r\n" \
-  -i http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2= \
+  -headers "X-User-Agent: Mozilla/5.0...\r\nAccept: application/json\r\nConnection: Keep-Alive\r\nUser-Agent: Mozilla/5.0...\r\nReferer: http://PORTAL_HOST/stalker_portal/c/\r\nCookie: mac=MAC_ADDRESS; stb_lang=en; timezone=UTC; token=SESSION_TOKEN; play_token=FRESH_TOKEN\r\nAuthorization: Bearer SESSION_TOKEN\r\n" \
+  -i http://PORTAL_HOST:80/play/live.php?mac=MAC_ADDRESS&stream=891261&extension=ts&sn2= \
   -c copy -f mpegts pipe:1
 ```
 
@@ -264,9 +264,9 @@ Movies are more straightforward than live TV:
 ## VERIFICATION LOGS (SUCCESSFUL PLAYBACK)
 
 ```
-[Playback][VideoInfo] {"stage":"stalker-create-link","status":200,"url":"http://6d.tanres.us/stalker_portal/server/load.php?type=itv&action=create_link&..."}
+[Playback][VideoInfo] {"stage":"stalker-create-link","status":200,"url":"http://PORTAL_HOST/stalker_portal/server/load.php?type=itv&action=create_link&..."}
 
-[Playback][Stalker] {"stage":"live-template-stream-fresh-cookie-token","templateStream":"891261","freshPlayToken":"ArScdwagXu","sn2":"","finalUrl":"http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2="}
+[Playback][Stalker] {"stage":"live-template-stream-fresh-cookie-token","templateStream":"891261","freshPlayToken":"FRESH_TOKEN","sn2":"","finalUrl":"http://PORTAL_HOST:80/play/live.php?mac=MAC_ADDRESS&stream=891261&extension=ts&sn2="}
 
 [Playback][VideoInfo] {"stage":"ffmpeg-restream-command","command":"ffmpeg -loglevel error -nostats -headers \"...\" -i http://... -c copy -f mpegts pipe:1"}
 
@@ -312,7 +312,7 @@ Video dimensions and duration updates indicate successful stream decode and play
 ## TESTING CONFIRMED
 
 ### Live TV (Working)
-- **Portal:** 6d.tanres.us
+- **Portal:** Modified Stalker clone
 - **Channel:** NL - NPO 1 HD (stream 891261)
 - **Resolution:** 1280x720
 - **Playback:** Smooth, no buffering
@@ -320,7 +320,7 @@ Video dimensions and duration updates indicate successful stream decode and play
 - **Date:** 2025-11-16
 
 ### Movies/VOD (Working)
-- **Portal:** 6d.tanres.us
+- **Portal:** Modified Stalker clone
 - **Module:** `vod` (not `itv`)
 - **URL Path:** `/play/movie.php` (not `/play/live.php`)
 - **Examples Tested:**
@@ -443,7 +443,7 @@ GET /stalker_portal/server/load.php?type=vod&action=create_link&cmd={"type":"ser
 {
   "js": {
     "id": "episode_id",
-    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=8412_S03E01.mkv&play_token=FRESH_TOKEN&type=series&sn2="
+    "cmd": "ffmpeg http://PORTAL_HOST:80/play/movie.php?mac=MAC_ADDRESS&stream=8412_S03E01.mkv&play_token=FRESH_TOKEN&type=series&sn2="
   }
 }
 ```
@@ -453,7 +453,7 @@ GET /stalker_portal/server/load.php?type=vod&action=create_link&cmd={"type":"ser
 {
   "js": {
     "id": null,
-    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=.&play_token=FRESH_TOKEN&type=&sn2="
+    "cmd": "ffmpeg http://PORTAL_HOST:80/play/movie.php?mac=MAC_ADDRESS&stream=.&play_token=FRESH_TOKEN&type=&sn2="
   }
 }
 ```
@@ -468,7 +468,7 @@ GET /stalker_portal/server/load.php?type=vod&action=create_link&cmd={"type":"ser
 
 ### Clone Server Episode Playback (CRITICAL - DIFFERENT FROM STANDARD STALKER)
 
-**Server Type:** Modified Stalker clone at 6d.tanres.us
+**Server Type:** Modified Stalker clone
 
 **DOES NOT USE STANDARD STALKER API** - Uses custom parameter-based approach.
 
@@ -497,7 +497,7 @@ The base64 cmd decodes to: `{"series_id":8412,"season_num":3,"type":"series"}` (
 {
   "js": {
     "id": "991604",
-    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=991604.mkv&play_token=CoJ2UNfTSK&type=series&sn2="
+    "cmd": "ffmpeg http://PORTAL_HOST:80/play/movie.php?mac=MAC_ADDRESS&stream=991604.mkv&play_token=FRESH_TOKEN&type=series&sn2="
   }
 }
 ```
@@ -568,7 +568,7 @@ Standard Stalker/Ministra servers use JSON commands:
 {"type":"series","series_id":8412,"season_num":3,"episode":1}
 ```
 
-This does NOT work on clone servers like 6d.tanres.us.
+This does NOT work on clone servers with non-standard API implementations.
 
 ### Server Variations
 

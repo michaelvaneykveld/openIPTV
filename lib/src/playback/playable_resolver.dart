@@ -351,7 +351,6 @@ class PlayableResolver {
     Map<String, String>? headers,
     String? ffmpegCommand,
     Duration? durationHint,
-    String? rawUrl,
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -369,7 +368,6 @@ class PlayableResolver {
       mimeHint: guessMimeFromUri(uri),
       ffmpegCommand: ffmpegCommand,
       durationHint: durationHint,
-      rawUrl: rawUrl,
     );
   }
 
@@ -1134,75 +1132,6 @@ class PlayableResolver {
         );
       }
 
-      // Check if portal returned unusable URL (empty/invalid stream with play_token)
-      final streamParam = uri.queryParameters['stream'];
-      final freshPlayToken = uri.queryParameters['play_token'];
-      final trimmedStream = streamParam?.trim() ?? '';
-      final hasInvalidStream =
-          trimmedStream.isEmpty || trimmedStream == '.' || trimmedStream == '-';
-
-      if (hasInvalidStream &&
-          freshPlayToken != null &&
-          freshPlayToken.isNotEmpty) {
-        // Portal's create_link is broken - use original cmd with fresh play_token
-        PlaybackLogger.stalker(
-          'create-link-unusable-using-fresh-token',
-          portal: config.baseUri,
-          module: module,
-          command: command,
-        );
-
-        if (fallbackUri != null) {
-          // Extract raw URL from command to preserve unencoded MAC address
-          final rawFallbackUrl = _extractRawUrlFromCommand(command);
-          String? freshRawUrl;
-
-          // For live TV (itv/radio), remove play_token entirely - use session token only
-          // Play tokens expire too quickly; session token in Cookie is sufficient
-          if (module == 'itv' || module == 'radio') {
-            freshRawUrl = rawFallbackUrl != null
-                ? _removePlayToken(rawFallbackUrl)
-                : null;
-            PlaybackLogger.videoInfo(
-              'stalker-live-no-play-token',
-              extra: {
-                'module': module,
-                'original': rawFallbackUrl?.substring(0, 120) ?? 'null',
-                'noToken': freshRawUrl?.substring(0, 120) ?? 'null',
-              },
-            );
-          } else {
-            // For VOD/series, use fresh play_token from create_link
-            freshRawUrl = rawFallbackUrl != null
-                ? _replacePlayToken(rawFallbackUrl, freshPlayToken)
-                : null;
-            PlaybackLogger.videoInfo(
-              'stalker-fresh-token-url',
-              extra: {
-                'original': rawFallbackUrl!.length > 120
-                    ? '${rawFallbackUrl.substring(0, 120)}...'
-                    : rawFallbackUrl,
-                'fresh': freshRawUrl!.length > 120
-                    ? '${freshRawUrl.substring(0, 120)}...'
-                    : freshRawUrl,
-              },
-            );
-          }
-
-          if (freshRawUrl != null) {
-            return _buildDirectStalkerPlayable(
-              fallbackUri: fallbackUri,
-              config: config,
-              module: module,
-              command: command,
-              headers: playbackHeaders,
-              isLive: isLive,
-              rawUrl: freshRawUrl,
-            );
-          }
-        }
-      }
-
       // Portal link looks usable, proceed normally
       final normalizedUri = _normalizeStalkerResolvedUri(
         uri,
@@ -1309,7 +1238,6 @@ class PlayableResolver {
     required String command,
     required Map<String, String> headers,
     required bool isLive,
-    String? rawUrl,
   }) {
     if (fallbackUri == null) {
       return null;
@@ -1319,7 +1247,6 @@ class PlayableResolver {
       fallbackUri,
       isLive: isLive,
       headers: sanitizedHeaders,
-      rawUrl: rawUrl,
     );
     if (playable == null) {
       PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
@@ -1761,29 +1688,6 @@ class PlayableResolver {
       default:
         return null;
     }
-  }
-
-  /// Extracts the raw URL from a Stalker command string (e.g., "ffmpeg http://...").
-  String? _extractRawUrlFromCommand(String command) {
-    final match = _urlPattern.firstMatch(command);
-    return match?.group(0);
-  }
-
-  /// Remove play_token from URL string
-  String _removePlayToken(String url) {
-    return url.replaceAll(RegExp(r'[?&]play_token=[^&\s]*'), '');
-  }
-
-  /// Replace play_token in URL string without re-encoding other parameters
-  String _replacePlayToken(String url, String newToken) {
-    // Match play_token=XXXXX and replace with new token
-    final tokenPattern = RegExp(r'play_token=([^&\s]*)');
-    if (tokenPattern.hasMatch(url)) {
-      return url.replaceFirst(tokenPattern, 'play_token=$newToken');
-    }
-    // If no play_token found, append it
-    final separator = url.contains('?') ? '&' : '?';
-    return '$url${separator}play_token=$newToken';
   }
 }
 

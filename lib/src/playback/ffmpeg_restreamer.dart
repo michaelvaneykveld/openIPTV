@@ -234,8 +234,7 @@ class _FfmpegRestreamSession {
       '-reconnect_delay_max',
       '2',
       '-i',
-      // Use rawUrl if available to preserve unencoded query parameters
-      original.playable.rawUrl ?? original.playable.url.toString(),
+      original.playable.url.toString(),
       '-c',
       'copy',
       '-f',

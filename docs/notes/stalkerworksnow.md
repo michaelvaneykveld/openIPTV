@@ -372,3 +372,144 @@ Token expired. Must call `create_link` again to get fresh token before next play
 ---
 
 **Keep this file as the definitive reference.** Every detail here was verified through actual testing, not assumptions.
+
+---
+
+## SERIES/EPISODES PLAYBACK
+
+### Series Command Format (CRITICAL)
+
+Series episodes require **JSON command format**, not simple string IDs:
+
+```json
+{
+  "type": "series",
+  "series_id": 8412,
+  "season_num": 3,
+  "episode": 1
+}
+```
+
+**What doesn't work:**
+- ❌ `series:8412:3:1` - Server returns `stream=.` (invalid)
+- ❌ Episode ID alone - Server doesn't know the context
+
+### Series Workflow (Complete)
+
+#### 1. Get Series List
+```
+GET /stalker_portal/server/load.php?type=vod&action=get_ordered_list&video_type=series&token=SESSION_TOKEN&mac=00:1a:79:00:20:40
+```
+
+Response includes series with `id` field (e.g., `8412`).
+
+#### 2. Get Seasons for Series
+```
+GET /stalker_portal/server/load.php?type=series&action=get_ordered_list&movie_id=8412&season_id=0&episode_id=0&token=SESSION_TOKEN&mac=00:1a:79:00:20:40
+```
+
+Response structure:
+```json
+{
+  "js": {
+    "data": [
+      {
+        "id": "8412:3",
+        "name": "Season 3",
+        "series": [1, 2, 3, 4],
+        "cmd": "eyJzZXJpZXNfaWQiOjg0MTIsInNlYXNvbl9udW0iOjMsInR5cGUiOiJzZXJpZXMifQ=="
+      }
+    ]
+  }
+}
+```
+
+The `cmd` field is base64-encoded JSON: `{"series_id":8412,"season_num":3,"type":"series"}`
+
+#### 3. Get Episodes for Season
+
+The `series` array in the season response contains episode numbers: `[1, 2, 3, 4]`
+
+Each episode needs to be played using the JSON command format with the episode number added.
+
+#### 4. Request Playable Link
+
+```
+GET /stalker_portal/server/load.php?type=vod&action=create_link&cmd={"type":"series","series_id":8412,"season_num":3,"episode":1}&token=SESSION_TOKEN&mac=00:1a:79:00:20:40
+```
+
+**Server Response (Working):**
+```json
+{
+  "js": {
+    "id": "episode_id",
+    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=8412_S03E01.mkv&play_token=FRESH_TOKEN&type=series&sn2="
+  }
+}
+```
+
+**Server Response (Broken - if wrong command):**
+```json
+{
+  "js": {
+    "id": null,
+    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=.&play_token=FRESH_TOKEN&type=&sn2="
+  }
+}
+```
+
+### Series vs Movies vs Live TV
+
+| Type | Module | Command Format | Server Stream Response |
+|------|--------|---------------|----------------------|
+| **Live TV** | `itv` | Template URL | `stream=&` (empty) - **Hybrid approach needed** |
+| **Movies** | `vod` | JSON or template | `stream=1218792.mp4` (complete) - **Use directly** |
+| **Series** | `vod` | JSON: `{"type":"series",...}` | `stream=8412_S03E01.mkv` (complete) - **Use directly** |
+
+### Series Implementation Notes
+
+**Code Location:** `lib/src/ui/player/player_shell.dart`
+
+When user clicks episode, construct proper JSON:
+```dart
+final cmdJson = {
+  'type': 'series',
+  'series_id': episode.seriesId!,
+  'season_num': episode.seasonNumber!,
+  'episode': episode.episodeNumber!,
+};
+final command = jsonEncode(cmdJson);
+```
+
+**Code Location:** `lib/src/playback/playable_resolver.dart`
+
+Detect JSON commands and route to VOD module:
+```dart
+if (module == 'series' && (command.startsWith('{') || command.startsWith('series:'))) {
+  module = 'vod';
+}
+```
+
+### Server Variations
+
+Different Stalker/Ministra servers may use different endpoints:
+
+**Standard format (our server):**
+- Seasons: `type=series&action=get_ordered_list&movie_id=SERIES_ID`
+- Returns seasons as `data` array with embedded episode numbers
+
+**Alternative format (some servers):**
+- Seasons: `action=get_seasons&series_id=SERIES_ID`
+- Episodes: `action=get_episodes&season_id=SEASON_ID`
+- May return separate episode objects with IDs
+
+**Stream URL formats:**
+- `/play/movie.php?stream=EPISODE_FILE` (our server - uses movie.php for series)
+- `/series/TOKEN/EPISODE_ID.mp4` (some servers)
+- `/movie/TOKEN/EPISODE_ID.ts` (other servers)
+
+The key is the JSON command format which should work across all variants.
+
+---
+
+**Keep this file as the definitive reference.** Every detail here was verified through actual testing, not assumptions.

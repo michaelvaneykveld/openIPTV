@@ -38,7 +38,7 @@ You must **combine three sources**:
 
 ## WHY THIS WORKS
 
-### Token Authentication Flow
+### Token Authentication Flow (Live TV)
 
 1. **Template** contains old/expired token: `play_token=YHlyqUSCsQ`
 2. **Call create_link** with full template command
@@ -48,11 +48,24 @@ You must **combine three sources**:
    - Server's fresh token: `play_token=ArScdwagXu` (in Cookie)
    - Server's sn2 param: `sn2=` (empty but required)
 
-### Why Server Returns stream=&
+### Why Server Returns stream=& (Live TV Only)
 
 The server expects you to **keep your original stream ID** from the request, but use the **fresh token** it provides. The empty `stream=&` is a signal that you need to preserve the stream ID you asked for.
 
 If you use the server's URL verbatim with `stream=&`, you get **4XX authentication error**.
+
+### Token Authentication Flow (Movies/VOD)
+
+1. **Call create_link** with movie command (no template needed)
+2. **Server returns** complete URL with:
+   - Full stream parameter: `stream=1218792.mp4`
+   - Fresh token: `play_token=jkckABNcmP`
+   - Movie type: `type=movie`
+   - sn2 parameter: `sn2=`
+3. **Use server response directly** - no hybrid needed
+4. **Add fresh play_token to Cookie** (same as live TV)
+
+**Critical Difference:** Movies don't need hybrid resolution because server provides complete stream parameter with file extension.
 
 ---
 
@@ -127,7 +140,7 @@ if (isLive && directUri != null) {
 ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&play_token=YHlyqUSCsQ
 ```
 
-### Server create_link Response (Incomplete - Intentionally)
+### Server create_link Response - Live TV (Incomplete - Intentionally)
 ```json
 {
   "js": {
@@ -137,12 +150,27 @@ ffmpeg http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&
 }
 ```
 
-### Final URL Sent to FFmpeg (Hybrid - Working)
+### Server create_link Response - Movie/VOD (Complete)
+```json
+{
+  "js": {
+    "id": "1218792",
+    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=1218792.mp4&play_token=jkckABNcmP&type=movie&sn2="
+  }
+}
+```
+
+### Final URL Sent to FFmpeg - Live TV (Hybrid - Working)
 ```
 http://6d.tanres.us:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2=
 ```
 
-### Cookie Header (Includes Fresh Token)
+### Final URL Sent to FFmpeg - Movie/VOD (Direct from Server)
+```
+http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=1218792.mp4&play_token=jkckABNcmP&type=movie&sn2=
+```
+
+### Cookie Header (Includes Fresh Token - Both Types)
 ```
 Cookie: mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=786D21E084C00E2EC6F2407118FCD639; play_token=ArScdwagXu
 ```
@@ -151,13 +179,26 @@ Cookie: mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=786D21E084C00E2E
 
 ## CRITICAL PARAMETERS
 
+### Live TV Parameters
+
 | Parameter | Source | Value | Notes |
 |-----------|--------|-------|-------|
 | `stream` | Template | `891261` | **NOT** server's empty `stream=&` |
-| `play_token` | Server | `ArScdwagXu` | Fresh token - **Cookie ONLY** |
+| `play_token` | Server (Cookie) | `ArScdwagXu` | Fresh token - **Cookie ONLY, not URL** |
 | `sn2` | Server | `""` (empty) | Parameter must exist |
 | `:80` | Template | Port 80 | Must be preserved |
 | `mac` | Template | `00:1a:79:00:20:40` | Unencoded with colons |
+
+### Movie/VOD Parameters
+
+| Parameter | Source | Value | Notes |
+|-----------|--------|-------|-------|
+| `stream` | Server | `1218792.mp4` | Use server's complete value (includes extension) |
+| `play_token` | Server (Cookie) | `jkckABNcmP` | Fresh token - **Cookie ONLY, not URL** |
+| `type` | Server | `movie` | Required for VOD |
+| `sn2` | Server | `""` (empty) | Parameter must exist |
+| `:80` | Server | Port 80 | Must be preserved |
+| `mac` | Server | `00:1a:79:00:20:40` | Unencoded with colons |
 
 ---
 
@@ -198,6 +239,8 @@ FFmpeg:
 
 ## WHAT DOESN'T WORK (ALL TESTED AND FAILED)
 
+### Live TV Failures
+
 | Approach | Result | Why It Fails |
 |----------|--------|--------------|
 | Use server's `stream=&` verbatim | **4XX error** | Empty stream parameter not recognized |
@@ -207,6 +250,14 @@ FFmpeg:
 | Omit `sn2=` parameter | **Potentially unstable** | Some servers require it |
 | Bypass `create_link` entirely | **4XX error** | No fresh token available |
 | Use "working" commit a210324 | **4XX error** | Documentation was incorrect |
+
+### Movie/VOD Notes
+
+Movies are more straightforward than live TV:
+- ✅ Server provides complete `stream` parameter with file extension
+- ✅ Use server's response directly (no hybrid resolution needed)
+- ⚠️ Still requires fresh `play_token` in Cookie (same authentication as live TV)
+- ⚠️ FFmpeg restreaming still required on Windows (same header limitations)
 
 ---
 
@@ -260,12 +311,44 @@ Video dimensions and duration updates indicate successful stream decode and play
 
 ## TESTING CONFIRMED
 
+### Live TV (Working)
 - **Portal:** 6d.tanres.us
 - **Channel:** NL - NPO 1 HD (stream 891261)
 - **Resolution:** 1280x720
 - **Playback:** Smooth, no buffering
 - **Platform:** Windows 11 with FFmpeg restreaming
 - **Date:** 2025-11-16
+
+### Movies/VOD (Working)
+- **Portal:** 6d.tanres.us
+- **Module:** `vod` (not `itv`)
+- **URL Path:** `/play/movie.php` (not `/play/live.php`)
+- **Examples Tested:**
+  - Blood Diamond (2006) - stream 1218792.mp4 - 1920x1080
+  - The Lord of the Rings: Fellowship (2001) - stream 1024134.mkv
+  - Ocean's Eleven (2001) - stream 1023570.mkv
+- **Playback:** Successful with FFmpeg restreaming
+- **Date:** 2025-11-16
+
+**Key Difference for Movies:**
+- Server returns **complete** stream parameter: `stream=1218792.mp4` (NOT empty like live TV)
+- No hybrid resolution needed - use server's response directly
+- Same header requirements (Cookie with play_token, etc.)
+- Same FFmpeg restreaming process on Windows
+
+### Movie Resolution Flow
+
+```dart
+// For VOD: server provides complete stream parameter
+{
+  "js": {
+    "id": "1218792",
+    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=1218792.mp4&play_token=jkckABNcmP&type=movie&sn2="
+  }
+}
+```
+
+Unlike live TV where `stream=&` is empty and requires hybrid approach, movies return complete stream IDs with file extensions (.mp4, .mkv). Use the server's response directly.
 
 ---
 

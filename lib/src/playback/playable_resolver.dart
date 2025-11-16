@@ -1694,9 +1694,9 @@ class PlayableResolver {
     buffer.write(uri.scheme);
     buffer.write('://');
     buffer.write(uri.host);
-    if (uri.hasPort && 
-        !((uri.scheme == 'http' && uri.port == 80) || 
-          (uri.scheme == 'https' && uri.port == 443))) {
+    if (uri.hasPort &&
+        !((uri.scheme == 'http' && uri.port == 80) ||
+            (uri.scheme == 'https' && uri.port == 443))) {
       buffer.write(':');
       buffer.write(uri.port);
     }

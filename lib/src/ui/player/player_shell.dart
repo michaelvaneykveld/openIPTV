@@ -1711,6 +1711,19 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     if (!_isWindowsPlatform(context)) {
       return ResolvedPlayback(source: source, useMediaKit: false);
     }
+    PlaybackLogger.videoInfo(
+      'platform-policy-called',
+      uri: source.playable.url,
+      extra: {
+        'title': source.title,
+        'hasRawUrl': source.playable.rawUrl != null,
+        'rawUrlPrefix':
+            source.playable.rawUrl != null &&
+                source.playable.rawUrl!.length > 80
+            ? '${source.playable.rawUrl!.substring(0, 80)}...'
+            : source.playable.rawUrl ?? 'null',
+      },
+    );
     final support = classifyWindowsPlayable(source.playable);
     final warnOnly = support == WindowsPlaybackSupport.likelyCodecIssue;
     final requiresFallback = support != WindowsPlaybackSupport.okDirect;

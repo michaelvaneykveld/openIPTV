@@ -351,6 +351,7 @@ class PlayableResolver {
     Map<String, String>? headers,
     String? ffmpegCommand,
     Duration? durationHint,
+    String? rawUrl,
   }) {
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -368,6 +369,7 @@ class PlayableResolver {
       mimeHint: guessMimeFromUri(uri),
       ffmpegCommand: ffmpegCommand,
       durationHint: durationHint,
+      rawUrl: rawUrl,
     );
   }
 
@@ -1149,19 +1151,35 @@ class PlayableResolver {
         );
 
         if (fallbackUri != null) {
-          // Replace old play_token in fallback URI with fresh one from portal
-          final qp = Map<String, String>.from(fallbackUri.queryParameters);
-          qp['play_token'] = freshPlayToken;
-          final freshUri = fallbackUri.replace(queryParameters: qp);
+          // Extract raw URL from command to preserve unencoded MAC address
+          final rawFallbackUrl = _extractRawUrlFromCommand(command);
+          final freshRawUrl = rawFallbackUrl != null
+              ? _replacePlayToken(rawFallbackUrl, freshPlayToken)
+              : null;
 
-          return _buildDirectStalkerPlayable(
-            fallbackUri: freshUri,
-            config: config,
-            module: module,
-            command: command,
-            headers: playbackHeaders,
-            isLive: isLive,
-          );
+          if (freshRawUrl != null) {
+            PlaybackLogger.videoInfo(
+              'stalker-fresh-token-url',
+              extra: {
+                'original': rawFallbackUrl!.length > 120
+                    ? '${rawFallbackUrl.substring(0, 120)}...'
+                    : rawFallbackUrl,
+                'fresh': freshRawUrl.length > 120
+                    ? '${freshRawUrl.substring(0, 120)}...'
+                    : freshRawUrl,
+              },
+            );
+
+            return _buildDirectStalkerPlayable(
+              fallbackUri: fallbackUri,
+              config: config,
+              module: module,
+              command: command,
+              headers: playbackHeaders,
+              isLive: isLive,
+              rawUrl: freshRawUrl,
+            );
+          }
         }
       }
 
@@ -1271,6 +1289,7 @@ class PlayableResolver {
     required String command,
     required Map<String, String> headers,
     required bool isLive,
+    String? rawUrl,
   }) {
     if (fallbackUri == null) {
       return null;
@@ -1280,6 +1299,7 @@ class PlayableResolver {
       fallbackUri,
       isLive: isLive,
       headers: sanitizedHeaders,
+      rawUrl: rawUrl,
     );
     if (playable == null) {
       PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
@@ -1721,6 +1741,24 @@ class PlayableResolver {
       default:
         return null;
     }
+  }
+
+  /// Extracts the raw URL from a Stalker command string (e.g., "ffmpeg http://...").
+  String? _extractRawUrlFromCommand(String command) {
+    final match = _urlPattern.firstMatch(command);
+    return match?.group(0);
+  }
+
+  /// Replace play_token in URL string without re-encoding other parameters
+  String _replacePlayToken(String url, String newToken) {
+    // Match play_token=XXXXX and replace with new token
+    final tokenPattern = RegExp(r'play_token=([^&\s]*)');
+    if (tokenPattern.hasMatch(url)) {
+      return url.replaceFirst(tokenPattern, 'play_token=$newToken');
+    }
+    // If no play_token found, append it
+    final separator = url.contains('?') ? '&' : '?';
+    return '$url${separator}play_token=$newToken';
   }
 }
 

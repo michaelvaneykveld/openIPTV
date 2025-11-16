@@ -1429,6 +1429,8 @@ class PlayableResolver {
       final name = trimmed.substring(0, eq).trim();
       final value = trimmed.substring(eq + 1).trim();
       if (name.isEmpty) return;
+      // Skip play_token - it should only be in URL query params
+      if (name == 'play_token') return;
       final existing = parsed[name];
       if (existing == value) {
         return;
@@ -1483,7 +1485,9 @@ class PlayableResolver {
       }
     }
 
-    capture('play_token');
+    // Only capture main token, NOT play_token
+    // play_token should only be in URL query params, not in Cookie header
+    // This prevents token duplication which may cause 4XX errors
     capture('token');
 
     if (entries.isEmpty) {

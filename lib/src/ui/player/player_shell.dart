@@ -2399,7 +2399,10 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
       PlayerMediaSource? source;
 
       // For Stalker episodes, construct proper JSON command
-      if (episode.isStalker && episode.seriesId != null && episode.seasonNumber != null && episode.episodeNumber != null) {
+      if (episode.isStalker &&
+          episode.seriesId != null &&
+          episode.seasonNumber != null &&
+          episode.episodeNumber != null) {
         // Construct JSON command like: {"type":"series","series_id":8417,"season":3,"episode":1}
         final cmdJson = {
           'type': 'series',

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -2413,20 +2412,14 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
     try {
       PlayerMediaSource? source;
 
-      // For Stalker episodes, construct proper JSON command
+      // For Stalker episodes, try simple ID format first
       if (episode.isStalker &&
           episode.seriesId != null &&
           episode.seasonNumber != null &&
           episode.episodeNumber != null) {
-        // Construct JSON command like: {"type":"series","series_id":8412,"season_num":3,"episode":1}
-        // This matches what Stalker VOD API expects for episode playback
-        final cmdJson = {
-          'type': 'series',
-          'series_id': episode.seriesId!,
-          'season_num': episode.seasonNumber!,
-          'episode': episode.episodeNumber!,
-        };
-        final command = jsonEncode(cmdJson);
+        // Try simpler command format: just the episode ID like "31026:1:1"
+        // Some Stalker servers don't support JSON commands for episodes
+        final command = episode.id;
 
         PlaybackLogger.userAction(
           'episode-constructed-command',
@@ -2436,6 +2429,7 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             'episode': episode.episodeNumber,
             'episodeId': episode.id,
             'command': command,
+            'format': 'simple-id',
           },
         );
 

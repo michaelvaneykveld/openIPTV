@@ -988,10 +988,15 @@ class PlayableResolver {
   }) async {
     var module = _stalkerModuleForBucket(kind);
 
-    // For series episodes with JSON command format or series:ID format, use 'vod' module
+    // For series episodes with various command formats, use 'vod' module
     // Stalker VOD module handles series episodes
-    if (module == 'series' &&
-        (command.startsWith('{') || command.startsWith('series:'))) {
+    // Formats: JSON {"type":"series",...}, series:ID, or simple ID like "31026:1:1"
+    final isSeriesCommand =
+        command.startsWith('{') ||
+        command.startsWith('series:') ||
+        (command.contains(':') && !command.contains('//'));
+
+    if (module == 'series' && isSeriesCommand) {
       PlaybackLogger.stalker(
         'series-episode-detected-using-vod-module',
         portal: profile.lockedBase,
@@ -1278,6 +1283,24 @@ class PlayableResolver {
           isLive: isLive,
           rawUrl: fallbackUri != null ? _buildRawUrlFromUri(fallbackUri) : null,
         );
+      }
+
+      // Check if stream parameter is empty/invalid (stream=., stream=&, or stream=)
+      final streamParam = uri.queryParameters['stream'] ?? '';
+      final hasInvalidStream =
+          streamParam.isEmpty || streamParam == '.' || streamParam == '&';
+
+      if (hasInvalidStream) {
+        PlaybackLogger.stalker(
+          'invalid-stream-parameter',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+
+        // For series episodes with JSON command, server doesn't support this format
+        // This server requires a different approach for episodes
+        return null;
       }
 
       // Portal link looks usable, proceed normally

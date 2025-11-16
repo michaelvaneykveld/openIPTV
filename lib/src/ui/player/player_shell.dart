@@ -2412,14 +2412,11 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
     try {
       PlayerMediaSource? source;
 
-      // For Stalker episodes, try simple ID format first
-      if (episode.isStalker &&
-          episode.seriesId != null &&
-          episode.seasonNumber != null &&
-          episode.episodeNumber != null) {
-        // Try simpler command format: just the episode ID like "31026:1:1"
-        // Some Stalker servers don't support JSON commands for episodes
-        final command = episode.id;
+      // For Stalker episodes, use the cmd field from server (episode VOD ID)
+      if (episode.isStalker && episode.stalkerCmd != null) {
+        // Episodes are VOD items with IDs, just like movies
+        // Use the episode's cmd field directly (e.g., "90001")
+        final command = episode.stalkerCmd!;
 
         PlaybackLogger.userAction(
           'episode-constructed-command',
@@ -2429,7 +2426,7 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             'episode': episode.episodeNumber,
             'episodeId': episode.id,
             'command': command,
-            'format': 'simple-id',
+            'format': 'vod-id',
           },
         );
 

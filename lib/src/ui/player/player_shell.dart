@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -2161,6 +2162,8 @@ class _UiEpisodeData {
     this.overview,
     this.durationSec,
     this.stalkerCmd,
+    this.seriesId,
+    this.seasonNumber,
     this.isStalkerSource = false,
   });
 
@@ -2175,13 +2178,20 @@ class _UiEpisodeData {
     );
   }
 
-  factory _UiEpisodeData.fromStalker(StalkerEpisode stalker, int index) {
+  factory _UiEpisodeData.fromStalker(
+    StalkerEpisode stalker,
+    int index,
+    int seriesId,
+    int seasonNumber,
+  ) {
     return _UiEpisodeData(
       id: stalker.id,
       title: stalker.name,
       episodeNumber: stalker.episodeNumber ?? index + 1,
       durationSec: stalker.duration,
       stalkerCmd: stalker.cmd,
+      seriesId: seriesId,
+      seasonNumber: seasonNumber,
       isStalkerSource: true,
     );
   }
@@ -2192,6 +2202,8 @@ class _UiEpisodeData {
   final String? overview;
   final int? durationSec;
   final String? stalkerCmd;
+  final int? seriesId;
+  final int? seasonNumber;
   final bool isStalkerSource;
 
   bool get isStalker => isStalkerSource;
@@ -2297,7 +2309,14 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
         episodes = stalkerEpisodes
             .asMap()
             .entries
-            .map((entry) => _UiEpisodeData.fromStalker(entry.value, entry.key))
+            .map(
+              (entry) => _UiEpisodeData.fromStalker(
+                entry.value,
+                entry.key,
+                widget.season.seriesId,
+                widget.season.seasonNumber,
+              ),
+            )
             .toList();
       } else {
         // For other providers, use the database
@@ -2379,10 +2398,26 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
     try {
       PlayerMediaSource? source;
 
-      // For Stalker episodes, use either the cmd or the episode id
-      if (episode.isStalker || episode.stalkerCmd != null) {
-        // For Stalker, use cmd if available, otherwise use the episode id
-        final command = episode.stalkerCmd ?? episode.id;
+      // For Stalker episodes, construct proper JSON command
+      if (episode.isStalker && episode.seriesId != null && episode.seasonNumber != null && episode.episodeNumber != null) {
+        // Construct JSON command like: {"type":"series","series_id":8417,"season":3,"episode":1}
+        final cmdJson = {
+          'type': 'series',
+          'series_id': episode.seriesId,
+          'season': episode.seasonNumber,
+          'episode': episode.episodeNumber,
+        };
+        final command = jsonEncode(cmdJson);
+
+        PlaybackLogger.userAction(
+          'episode-constructed-command',
+          extra: {
+            'seriesId': episode.seriesId,
+            'season': episode.seasonNumber,
+            'episode': episode.episodeNumber,
+            'command': command,
+          },
+        );
 
         // Create a temporary preview item to match the existing pattern
         final previewItem = CategoryPreviewItem(

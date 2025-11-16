@@ -1377,7 +1377,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
 
   bool _windowsWarningShown = false;
   static const ResolveConfig _resolveConfig = ResolveConfig(
-    neighborRadius: 1,
+    neighborRadius: 0, // Disable prefetching to avoid Stalker token conflicts
     minGap: Duration(milliseconds: 650),
   );
 
@@ -1658,6 +1658,8 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
   }
 
   bool _shouldUseLazyPlayback(BuildContext context) {
+    // Use lazy loading on Windows with neighborRadius=0 to resolve on-demand
+    // This avoids requesting multiple Stalker tokens upfront
     return _isWindowsPlatform(context);
   }
 
@@ -2417,13 +2419,9 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
           episode.seasonNumber != null &&
           episode.episodeNumber != null) {
         // Construct JSON command like: {"type":"series","series_id":8417,"season":3,"episode":1}
-        final cmdJson = {
-          'type': 'series',
-          'series_id': episode.seriesId,
-          'season': episode.seasonNumber,
-          'episode': episode.episodeNumber,
-        };
-        final command = jsonEncode(cmdJson);
+        // For Stalker series episodes, the VOD module expects "series:EPISODE_ID" format
+        // Episode ID is in format "8412:3:1" (seriesId:season:episode)
+        final command = 'series:${episode.id}'; // e.g., "series:8412:3:1"
 
         PlaybackLogger.userAction(
           'episode-constructed-command',
@@ -2431,6 +2429,7 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             'seriesId': episode.seriesId,
             'season': episode.seasonNumber,
             'episode': episode.episodeNumber,
+            'episodeId': episode.id,
             'command': command,
           },
         );

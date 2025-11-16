@@ -988,19 +988,16 @@ class PlayableResolver {
   }) async {
     var module = _stalkerModuleForBucket(kind);
 
-    // For series episodes with ID format like "8412:3:2" (series:season:episode),
-    // use 'vod' module instead of 'series' since create_link doesn't support series
-    if (module == 'series' && command.contains(':')) {
-      final parts = command.split(':');
-      if (parts.length >= 3) {
-        PlaybackLogger.stalker(
-          'series-episode-detected-using-vod-module',
-          portal: profile.lockedBase,
-          module: module,
-          command: command,
-        );
-        module = 'vod';
-      }
+    // For series episodes with format "series:8412:3:1", use 'vod' module
+    // Stalker VOD module handles series episodes with cmd=series:EPISODE_ID
+    if (module == 'series' && command.startsWith('series:')) {
+      PlaybackLogger.stalker(
+        'series-episode-detected-using-vod-module',
+        portal: profile.lockedBase,
+        module: module,
+        command: command,
+      );
+      module = 'vod';
     }
 
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
@@ -1036,7 +1033,6 @@ class PlayableResolver {
       'cmd': command,
       'JsHttpRequest': '1-xml',
     };
-
     final result = await _resolveStalkerLinkViaPortalWithFallback(
       config: config,
       module: module,
@@ -1097,6 +1093,58 @@ class PlayableResolver {
           module: module,
           command: command,
         );
+
+        // For series episodes, construct URL manually from command
+        if (module == 'series' && command.startsWith('{')) {
+          try {
+            final cmdData = jsonDecode(command) as Map<String, dynamic>;
+            final seriesId = cmdData['series_id'];
+            final season = cmdData['season'];
+            final episode = cmdData['episode'];
+
+            if (seriesId != null && season != null && episode != null) {
+              // Try using VOD module with series command - this often works
+              // because series episodes are stored as VOD content
+              PlaybackLogger.stalker(
+                'series-retrying-with-vod-module',
+                portal: config.baseUri,
+                module: module,
+                command: command,
+              );
+
+              final vodResult = await _resolveStalkerLinkViaPortalWithFallback(
+                config: config,
+                module: 'vod', // Use vod module instead of series
+                command: command, // Keep the JSON command
+                queryParameters: {
+                  'type': 'vod',
+                  'action': 'create_link',
+                  'token': (await _loadStalkerSession())?.token ?? '',
+                  'mac': config.macAddress.toLowerCase(),
+                  'cmd': command,
+                  'JsHttpRequest': '1-xml',
+                },
+                sessionHeaders: sessionHeaders,
+                playbackHeaders: playbackHeaders,
+                fallbackUri: null,
+                isLive: false,
+                durationHint: durationHint,
+              );
+
+              if (vodResult != null) {
+                return vodResult;
+              }
+            }
+          } catch (e) {
+            PlaybackLogger.stalker(
+              'series-url-construction-failed',
+              portal: config.baseUri,
+              module: module,
+              command: command,
+            );
+          }
+        }
+
         return _buildDirectStalkerPlayable(
           fallbackUri: fallbackUri,
           config: config,
@@ -1106,6 +1154,8 @@ class PlayableResolver {
           isLive: isLive,
         );
       }
+      // Use the server's URL verbatim - don't parse/rebuild which loses port :80
+      // According to stalkerworksnow.md: "Use the portal's ffmpeg command verbatim"
       final uri = _parseDirectUri(resolvedLink);
       PlaybackLogger.videoInfo(
         'stalker-parse-uri-result',
@@ -1131,6 +1181,7 @@ class PlayableResolver {
           command: command,
           headers: playbackHeaders,
           isLive: isLive,
+          rawUrl: fallbackUri != null ? _buildRawUrlFromUri(fallbackUri) : null,
         );
       }
 
@@ -1149,24 +1200,21 @@ class PlayableResolver {
       final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
         effectiveHeaders,
       );
-      // Build rawUrl from normalized URI to preserve unencoded MAC addresses
-      final patchedRawUrl = _buildRawUrlFromUri(normalizedUri);
+      // Use resolvedLink (server's string) as rawUrl to preserve :80 port
+      // The string from server has the exact format needed
       var playable = _playableFromUri(
         normalizedUri,
         isLive: isLive,
         headers: sanitizedHeaders,
         durationHint: durationHint,
-        rawUrl: patchedRawUrl,
+        rawUrl: resolvedLink,
       );
       PlaybackLogger.videoInfo(
         'stalker-rawurl-set',
         extra: {
           'hasRawUrl': playable?.rawUrl != null,
-          'rawUrlPrefix':
-              playable?.rawUrl != null && playable!.rawUrl!.length > 80
-              ? '${playable.rawUrl!.substring(0, 80)}...'
-              : playable?.rawUrl ?? 'null',
-          'urlString': playable?.url.toString().substring(0, 80) ?? 'null',
+          'rawUrl': playable?.rawUrl ?? 'null',
+          'urlString': playable?.url.toString(),
         },
       );
       final inferredExtension = _stalkerExtensionFromUri(normalizedUri);
@@ -1188,6 +1236,7 @@ class PlayableResolver {
           command: command,
           headers: playbackHeaders,
           isLive: isLive,
+          rawUrl: fallbackUri != null ? _buildRawUrlFromUri(fallbackUri) : null,
         );
       }
       PlaybackLogger.stalker(
@@ -1214,6 +1263,7 @@ class PlayableResolver {
         command: command,
         headers: playbackHeaders,
         isLive: isLive,
+        rawUrl: fallbackUri != null ? _buildRawUrlFromUri(fallbackUri) : null,
       );
     }
   }
@@ -1254,15 +1304,19 @@ class PlayableResolver {
     required String command,
     required Map<String, String> headers,
     required bool isLive,
+    String? rawUrl,
   }) {
     if (fallbackUri == null) {
       return null;
     }
-    final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(headers);
+    // Ensure play_token from URL is added to Cookie header
+    final effectiveHeaders = _ensureQueryTokenCookies(headers, fallbackUri);
+    final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(effectiveHeaders);
     final playable = _playableFromUri(
       fallbackUri,
       isLive: isLive,
       headers: sanitizedHeaders,
+      rawUrl: rawUrl,
     );
     if (playable == null) {
       PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
@@ -1412,8 +1466,7 @@ class PlayableResolver {
       final name = trimmed.substring(0, eq).trim();
       final value = trimmed.substring(eq + 1).trim();
       if (name.isEmpty) return;
-      // Skip play_token - it should only be in URL query params
-      if (name == 'play_token') return;
+      // Include play_token in Cookie header per working notes
       final existing = parsed[name];
       if (existing == value) {
         return;
@@ -1468,10 +1521,9 @@ class PlayableResolver {
       }
     }
 
-    // Only capture main token, NOT play_token
-    // play_token should only be in URL query params, not in Cookie header
-    // This prevents token duplication which may cause 4XX errors
+    // Capture both token and play_token for Cookie header per working notes
     capture('token');
+    capture('play_token');
 
     if (entries.isEmpty) {
       return playbackHeaders;
@@ -1503,80 +1555,15 @@ class PlayableResolver {
     required String fallbackCommand,
     Uri? fallbackUri,
   }) {
-    final streamParam = uri.queryParameters['stream'];
-    if (streamParam != null && streamParam.trim().isNotEmpty) {
-      return uri;
-    }
-    final fallbackStream =
-        _extractStreamIdFromUri(fallbackUri) ??
-        _extractStreamId(fallbackCommand);
-    if (fallbackStream == null || fallbackStream.isEmpty) {
-      return uri;
-    }
-    final qp = Map<String, String>.from(uri.queryParameters);
-    qp['stream'] = fallbackStream;
-    var patched = uri.replace(queryParameters: qp);
-    final patchedQp = Map<String, String>.from(patched.queryParameters);
-    final playToken =
-        _extractPlayToken(fallbackUri) ??
-        _extractPlayTokenUriString(fallbackCommand);
-    if (playToken != null && playToken.isNotEmpty) {
-      patchedQp.putIfAbsent('play_token', () => playToken);
-    }
-    final sn2 = patchedQp['sn2'];
-    if (sn2 != null && sn2.trim().isEmpty) {
-      patchedQp.remove('sn2');
-    }
-    patched = patched.replace(queryParameters: patchedQp);
+    // Use server response as-is - DO NOT patch anything
+    // The working version from a210324 didn't modify the server's response
     PlaybackLogger.stalker(
-      'patched-stream-id',
+      'using-server-response-verbatim',
       portal: portal,
       module: module,
-      resolvedUri: patched,
+      resolvedUri: uri,
     );
-    return patched;
-  }
-
-  String? _extractStreamIdFromUri(Uri? uri) {
-    if (uri == null) return null;
-    final value = uri.queryParameters['stream'];
-    if (value != null && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-    return null;
-  }
-
-  String? _extractStreamId(String? source) {
-    if (source == null || source.isEmpty) return null;
-    final match = RegExp(
-      r'stream=([0-9]+)',
-      caseSensitive: false,
-    ).firstMatch(source);
-    if (match != null && match.groupCount >= 1) {
-      return match.group(1);
-    }
-    return null;
-  }
-
-  String? _extractPlayToken(Uri? uri) {
-    if (uri == null) return null;
-    final value = uri.queryParameters['play_token'];
-    if (value != null && value.isNotEmpty) {
-      return value;
-    }
-    return null;
-  }
-
-  String? _extractPlayTokenUriString(String? source) {
-    if (source == null || source.isEmpty) return null;
-    final match = RegExp(
-      r'play_token=([A-Za-z0-9]+)',
-      caseSensitive: false,
-    ).firstMatch(source);
-    if (match != null && match.groupCount >= 1) {
-      return match.group(1);
-    }
-    return null;
+    return uri;
   }
 
   String? _sanitizeStalkerResolvedLink(String? link) {
@@ -1694,11 +1681,13 @@ class PlayableResolver {
     buffer.write(uri.scheme);
     buffer.write('://');
     buffer.write(uri.host);
-    if (uri.hasPort &&
-        !((uri.scheme == 'http' && uri.port == 80) ||
-            (uri.scheme == 'https' && uri.port == 443))) {
+    // Always include port, even default ports like 80
+    // Stalker servers require explicit :80 in URL
+    // uri.hasPort returns false for default ports, but uri.port still has the value
+    final port = uri.port;
+    if (port > 0) {
       buffer.write(':');
-      buffer.write(uri.port);
+      buffer.write(port);
     }
     buffer.write(uri.path);
     if (uri.hasQuery) {

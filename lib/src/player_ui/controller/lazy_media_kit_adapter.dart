@@ -33,7 +33,15 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       configuration: PlayerConfiguration(
         title: 'OpenIPTV',
         libass: true,
-        protocolWhitelist: const ['file', 'http', 'https', 'tcp', 'udp', 'rtp', 'rtsp'],
+        protocolWhitelist: const [
+          'file',
+          'http',
+          'https',
+          'tcp',
+          'udp',
+          'rtp',
+          'rtsp',
+        ],
       ),
     );
     _videoController = VideoController(_player);
@@ -66,6 +74,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
   bool _isPlaying = false;
   bool _isBuffering = false;
   bool _isDisposed = false;
+  bool _neighborsPrefetchedForCurrent = false;
 
   PlayerMediaSource? get _currentSource =>
       _states[_currentIndex].resolved?.source;
@@ -110,7 +119,9 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     if (_entries.length == 1) {
       return;
     }
+    final oldIndex = _currentIndex;
     _currentIndex = (_currentIndex + 1).clamp(0, _entries.length - 1);
+    await _disposePreviousChannel(oldIndex);
     await _loadCurrent(highPriority: true);
   }
 
@@ -119,8 +130,31 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     if (_entries.length == 1) {
       return;
     }
+    final oldIndex = _currentIndex;
     _currentIndex = (_currentIndex - 1).clamp(0, _entries.length - 1);
+    await _disposePreviousChannel(oldIndex);
     await _loadCurrent(highPriority: true);
+  }
+
+  Future<void> _disposePreviousChannel(int oldIndex) async {
+    if (oldIndex < 0 || oldIndex >= _states.length) {
+      return;
+    }
+    final oldState = _states[oldIndex];
+    if (oldState.resolved?.dispose != null) {
+      PlaybackLogger.playbackState(
+        'disposing-previous-channel',
+        extra: {'oldIndex': oldIndex, 'newIndex': _currentIndex},
+      );
+      try {
+        await oldState.resolved!.dispose!.call();
+      } catch (e) {
+        PlaybackLogger.videoError(
+          'dispose-previous-failed',
+          description: 'Failed to dispose previous channel: $e',
+        );
+      }
+    }
   }
 
   @override
@@ -144,6 +178,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
   }
 
   Future<void> _loadCurrent({bool highPriority = false}) async {
+    _neighborsPrefetchedForCurrent = false;
     try {
       PlaybackLogger.playbackState(
         'resolving',
@@ -184,7 +219,8 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
           extra: {'position': seekStart.toString()},
         );
       }
-      _prefetchNeighbors();
+      // Don't prefetch neighbors immediately - wait for playback to stabilize
+      // Prefetching will be triggered by _attachListeners when stream starts playing
       _evictOutsideHalo();
     } catch (error, stackTrace) {
       PlaybackLogger.videoError(
@@ -274,12 +310,26 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     });
     _durationSub = _player.stream.duration.listen((value) {
       _duration = value;
-      PlaybackLogger.playbackState('duration-update', extra: {'duration': value.toString()});
+      PlaybackLogger.playbackState(
+        'duration-update',
+        extra: {'duration': value.toString()},
+      );
       _emitSnapshot();
     });
     _playingSub = _player.stream.playing.listen((value) {
       _isPlaying = value;
       PlaybackLogger.playbackState(value ? 'playing' : 'paused');
+      if (value && !_neighborsPrefetchedForCurrent) {
+        _neighborsPrefetchedForCurrent = true;
+        // Wait 2 seconds after playback starts before prefetching neighbors
+        // This ensures ffmpeg connection is fully established before getting new tokens
+        Future.delayed(const Duration(seconds: 2), () {
+          if (!_isDisposed && _isPlaying) {
+            _prefetchNeighbors();
+            PlaybackLogger.playbackState('prefetching-neighbors');
+          }
+        });
+      }
       _emitSnapshot();
     });
     _bufferingSub = _player.stream.buffering.listen((value) {
@@ -288,7 +338,11 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       _emitSnapshot();
     });
     _errorSub = _player.stream.error.listen((value) {
-      PlaybackLogger.videoError('media-kit-error', description: value.toString(), error: value);
+      PlaybackLogger.videoError(
+        'media-kit-error',
+        description: value.toString(),
+        error: value,
+      );
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
         error: PlayerError(code: 'MEDIAKIT_ERROR', message: value.toString()),

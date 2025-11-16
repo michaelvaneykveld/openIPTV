@@ -64,6 +64,7 @@ class _FfmpegRestreamSession {
   StreamSubscription<HttpRequest>? _serverSub;
   Process? _process;
   bool _disposed = false;
+  bool _processStarted = false;
   final _activeRequests = <HttpRequest>{};
 
   Future<RestreamHandle?> start() async {
@@ -142,6 +143,18 @@ class _FfmpegRestreamSession {
   }
 
   Future<void> _startProcess(HttpRequest request) async {
+    // Prevent starting multiple ffmpeg processes in the same session
+    if (_processStarted) {
+      PlaybackLogger.videoInfo(
+        'ffmpeg-restream-skip',
+        extra: {'reason': 'Process already started for this session'},
+      );
+      request.response.statusCode = HttpStatus.gone;
+      await request.response.close();
+      return;
+    }
+    _processStarted = true;
+
     final args = _buildArgs();
     Process? process;
     StreamSubscription<List<int>>? stdoutSub;

@@ -2412,11 +2412,15 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
     try {
       PlayerMediaSource? source;
 
-      // For Stalker episodes, use the cmd field from server (episode VOD ID)
-      if (episode.isStalker && episode.stalkerCmd != null) {
-        // Episodes are VOD items with IDs, just like movies
-        // Use the episode's cmd field directly (e.g., "90001")
-        final command = episode.stalkerCmd!;
+      // For Stalker episodes, use cmd field or construct from series data
+      if (episode.isStalker && 
+          episode.seriesId != null &&
+          episode.seasonNumber != null &&
+          episode.episodeNumber != null) {
+        
+        // Prefer server-provided cmd (VOD ID like "90001")
+        // Fall back to compound ID format for servers that return episode arrays
+        final command = episode.stalkerCmd ?? episode.id;
 
         PlaybackLogger.userAction(
           'episode-constructed-command',
@@ -2426,7 +2430,8 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             'episode': episode.episodeNumber,
             'episodeId': episode.id,
             'command': command,
-            'format': 'vod-id',
+            'format': episode.stalkerCmd != null ? 'vod-id' : 'compound-id',
+            'hasServerCmd': episode.stalkerCmd != null,
           },
         );
 
@@ -2452,9 +2457,12 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             title: '${widget.seriesTitle} - ${episode.title}',
           );
         }
+      } else if (episode.isStalker) {
+        // Stalker episode but missing required data
+        _showSnack('Episode data incomplete');
+        return;
       } else {
-        // For database episodes, would need the database record
-        // This would require updating the UI data class or fetching the full record
+        // Database episodes not yet implemented
         _showSnack('Database episode playback not yet implemented');
         return;
       }

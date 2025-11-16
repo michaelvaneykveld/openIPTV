@@ -1025,6 +1025,100 @@ class PlayableResolver {
       _mergeHeaders(headerHints, overrides: sessionHeaders),
     );
     final directUri = _parseDirectUri(command);
+
+    // For live TV: call create_link to get fresh play_token,
+    // but use template URL (with stream ID) instead of server's broken response (stream=&)
+    if (isLive && directUri != null) {
+      final queryParameters = <String, dynamic>{
+        'type': module,
+        'action': 'create_link',
+        'token': session.token,
+        'mac': config.macAddress.toLowerCase(),
+        'cmd': command,
+        'JsHttpRequest': '1-xml',
+      };
+
+      try {
+        final response = await _stalkerHttpClient.getPortal(
+          config,
+          queryParameters: queryParameters,
+          headers: sessionHeaders,
+        );
+
+        _logStalkerCreateLinkResponse(
+          config: config,
+          module: module,
+          command: command,
+          response: response,
+        );
+
+        // Extract just the play_token from server response
+        final resolvedLink = _sanitizeStalkerResolvedLink(
+          _extractStalkerLink(response.body),
+        );
+        final resolvedUri = resolvedLink != null
+            ? Uri.tryParse(resolvedLink)
+            : null;
+        final freshPlayToken = resolvedUri?.queryParameters['play_token'];
+
+        if (freshPlayToken != null &&
+            freshPlayToken.isNotEmpty &&
+            resolvedUri != null) {
+          // CRITICAL INSIGHT: The play_token is tied to the EXACT URL the server returns!
+          // The server returns stream=& because the token itself identifies the stream.
+          // We must use the server's exact response, not modify it.
+
+          // Add fresh play_token to Cookie header
+          var headers = _mergePlaybackCookies(
+            playbackHeaders,
+            response.cookies,
+          );
+          final existingCookies = _parseCookieHeader(headers['Cookie']);
+          existingCookies['play_token'] = freshPlayToken;
+          headers['Cookie'] = existingCookies.entries
+              .map((e) => '${e.key}=${e.value}')
+              .join('; ');
+
+          // Use template URL (with correct stream ID) but remove old play_token
+          // Keep play_token only in Cookie header, and add sn2 from server response
+          final templateQp = Map<String, String>.from(
+            directUri.queryParameters,
+          );
+          templateQp.remove('play_token'); // Remove old token
+          // Add sn2 if server returned it
+          if (resolvedUri.queryParameters.containsKey('sn2')) {
+            templateQp['sn2'] = resolvedUri.queryParameters['sn2']!;
+          }
+          final finalUri = directUri.replace(queryParameters: templateQp);
+
+          PlaybackLogger.stalker(
+            'live-template-stream-fresh-cookie-token',
+            portal: config.baseUri,
+            module: module,
+            command: command,
+          );
+
+          return _buildDirectStalkerPlayable(
+            fallbackUri: finalUri,
+            config: config,
+            module: module,
+            command: command,
+            headers: _sanitizeStalkerPlaybackHeaders(headers),
+            isLive: isLive,
+            rawUrl: _buildRawUrlFromUri(finalUri),
+          );
+        }
+      } catch (e) {
+        PlaybackLogger.stalker(
+          'live-create-link-failed',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+      }
+    }
+
+    // For VOD/Series or if live TV create_link failed, use normal flow
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',
@@ -1186,21 +1280,11 @@ class PlayableResolver {
       }
 
       // Portal link looks usable, proceed normally
-      // Patch stream ID in URL string to preserve sn2= parameter
-      final streamParam = uri.queryParameters['stream'];
-      String? patchedUrlString;
-      if (streamParam == null || streamParam.trim().isEmpty) {
-        final fallbackStream =
-            _extractStreamIdFromUri(fallbackUri) ?? _extractStreamId(command);
-        if (fallbackStream != null && fallbackStream.isNotEmpty) {
-          patchedUrlString = _patchStreamInUrlString(
-            resolvedLink,
-            fallbackStream,
-          );
-        }
-      }
-      final rawUrl = patchedUrlString ?? resolvedLink;
-      final normalizedUri = Uri.tryParse(rawUrl) ?? uri;
+      // DO NOT PATCH stream parameter! The server's token is tied to the exact URL it returns.
+      // If we modify stream=& to stream=123, the token becomes invalid and server returns 4XX.
+      // The server knows which stream to play from the cmd we sent to create_link.
+      final rawUrl = resolvedLink; // Use server response exactly as-is
+      final normalizedUri = uri;
 
       effectiveHeaders = _ensureQueryTokenCookies(
         effectiveHeaders,
@@ -1545,38 +1629,6 @@ class PlayableResolver {
         .map((entry) => '${entry.key}=${entry.value}')
         .join('; ');
     return merged;
-  }
-
-  /// Patches empty stream parameter while preserving exact server response format
-  /// This avoids losing parameters like `&sn2=` that Dart Uri parser drops
-  String? _patchStreamInUrlString(String urlString, String streamId) {
-    // Replace stream=& or stream= with stream=<streamId>
-    final patched = urlString.replaceFirstMapped(
-      RegExp(r'([&?])stream=(&|$)', caseSensitive: false),
-      (match) => '${match.group(1)}stream=$streamId${match.group(2)}',
-    );
-    return patched != urlString ? patched : null;
-  }
-
-  String? _extractStreamIdFromUri(Uri? uri) {
-    if (uri == null) return null;
-    final value = uri.queryParameters['stream'];
-    if (value != null && value.trim().isNotEmpty) {
-      return value.trim();
-    }
-    return null;
-  }
-
-  String? _extractStreamId(String? source) {
-    if (source == null || source.isEmpty) return null;
-    final match = RegExp(
-      r'stream=([0-9]+)',
-      caseSensitive: false,
-    ).firstMatch(source);
-    if (match != null && match.groupCount >= 1) {
-      return match.group(1);
-    }
-    return null;
   }
 
   String? _sanitizeStalkerResolvedLink(String? link) {

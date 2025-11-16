@@ -2412,15 +2412,25 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
     try {
       PlayerMediaSource? source;
 
-      // For Stalker episodes, use cmd field or construct from series data
-      if (episode.isStalker && 
+      // For Stalker episodes, use cmd field or construct JSON command
+      if (episode.isStalker &&
           episode.seriesId != null &&
           episode.seasonNumber != null &&
           episode.episodeNumber != null) {
         
-        // Prefer server-provided cmd (VOD ID like "90001")
-        // Fall back to compound ID format for servers that return episode arrays
-        final command = episode.stalkerCmd ?? episode.id;
+        String command;
+        String format;
+        
+        if (episode.stalkerCmd != null) {
+          // Server provided VOD ID like "90001" - use directly
+          command = episode.stalkerCmd!;
+          format = 'vod-id';
+        } else {
+          // Server returned episode arrays, need JSON command format
+          // Construct: {"type":"series","series_id":8412,"season_num":2,"episode":1}
+          command = '{"type":"series","series_id":${episode.seriesId},"season_num":${episode.seasonNumber},"episode":${episode.episodeNumber}}';
+          format = 'json-command';
+        }
 
         PlaybackLogger.userAction(
           'episode-constructed-command',
@@ -2430,7 +2440,7 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
             'episode': episode.episodeNumber,
             'episodeId': episode.id,
             'command': command,
-            'format': episode.stalkerCmd != null ? 'vod-id' : 'compound-id',
+            'format': format,
             'hasServerCmd': episode.stalkerCmd != null,
           },
         );

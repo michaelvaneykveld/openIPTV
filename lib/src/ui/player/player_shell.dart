@@ -2417,10 +2417,9 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
           episode.seriesId != null &&
           episode.seasonNumber != null &&
           episode.episodeNumber != null) {
-        
         String command;
         String format;
-        
+
         if (episode.stalkerCmd != null) {
           // Server provided VOD ID like "90001" - use directly
           command = episode.stalkerCmd!;
@@ -2428,7 +2427,8 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
         } else {
           // Server returned episode arrays, need JSON command format
           // Construct: {"type":"series","series_id":8412,"season_num":2,"episode":1}
-          command = '{"type":"series","series_id":${episode.seriesId},"season_num":${episode.seasonNumber},"episode":${episode.episodeNumber}}';
+          command =
+              '{"type":"series","series_id":${episode.seriesId},"season_num":${episode.seasonNumber},"episode":${episode.episodeNumber}}';
           format = 'json-command';
         }
 

@@ -50,7 +50,7 @@ class StalkerVodService {
     final seasonsData = data['data'];
     if (seasonsData is List) {
       print('[Stalker VOD] Seasons data array: ${seasonsData.length} items');
-      
+
       if (seasonsData.isEmpty) {
         return [];
       }
@@ -69,17 +69,20 @@ class StalkerVodService {
   }
 
   /// Fetches episodes for a season from the Stalker portal
-  Future<List<StalkerEpisode>> getEpisodes(int seriesId, String seasonId) async {
-    print('[Stalker VOD] Fetching episodes for season $seasonId of series $seriesId');
+  Future<List<StalkerEpisode>> getEpisodes(
+    int seriesId,
+    String seasonId,
+  ) async {
+    print(
+      '[Stalker VOD] Fetching episodes for season $seasonId of series $seriesId',
+    );
 
     final response = await _httpClient.getPortal(
       _configuration,
       queryParameters: {
-        'type': 'series',
-        'action': 'get_ordered_list',
-        'movie_id': seriesId.toString(),
-        'season_id': '0',
-        'episode_id': '0',
+        'type': 'vod',
+        'action': 'get_episodes',
+        'season_id': seasonId,
         'JsHttpRequest': '1-xml',
         'token': _session.token,
         'mac': _configuration.macAddress.toLowerCase(),
@@ -95,29 +98,19 @@ class StalkerVodService {
     }
 
     final data = _decodePortalResponse(response.body);
-    
-    // The response structure has seasons in data array, find the matching season
-    final seasonsData = data['data'];
-    if (seasonsData is List) {
-      // Find the matching season by ID
-      for (final season in seasonsData) {
-        if (season is Map && season['id']?.toString() == seasonId) {
-          // Get episodes from the 'series' array in this season
-          final episodesData = season['series'];
-          print('[Stalker VOD] Episodes data from season: $episodesData');
-          
-          if (episodesData is List && episodesData.isNotEmpty) {
-            final episodes = episodesData
-                .map((item) => _parseEpisodeFromItem(item, seriesId, seasonId))
-                .whereType<StalkerEpisode>()
-                .toList();
 
-            print('[Stalker VOD] Parsed ${episodes.length} episodes');
-            return episodes;
-          }
-          break;
-        }
-      }
+    // Get episodes from the 'episodes' array in the response
+    final episodesData = data['episodes'];
+    print('[Stalker VOD] Episodes data: $episodesData');
+
+    if (episodesData is List && episodesData.isNotEmpty) {
+      final episodes = episodesData
+          .map((item) => _parseEpisodeFromItem(item, seriesId, seasonId))
+          .whereType<StalkerEpisode>()
+          .toList();
+
+      print('[Stalker VOD] Parsed ${episodes.length} episodes');
+      return episodes;
     }
 
     print('[Stalker VOD] No episodes found in response');
@@ -151,7 +144,11 @@ class StalkerVodService {
     );
   }
 
-  StalkerEpisode? _parseEpisodeFromItem(dynamic item, int seriesId, String seasonId) {
+  StalkerEpisode? _parseEpisodeFromItem(
+    dynamic item,
+    int seriesId,
+    String seasonId,
+  ) {
     // Handle if item is just an integer episode number
     if (item is int) {
       return StalkerEpisode(
@@ -175,8 +172,11 @@ class StalkerVodService {
 
     if (id == null) return null;
 
-    // Extract episode number from name or ID
-    int? episodeNum = _extractEpisodeNumber(name ?? '');
+    // Get episode number from episode_num field, or extract from name/ID
+    int? episodeNum = map['episode_num'] as int?;
+    if (episodeNum == null) {
+      episodeNum = _extractEpisodeNumber(name ?? '');
+    }
     if (episodeNum == null && id.contains(':')) {
       final parts = id.split(':');
       if (parts.length >= 2) {
@@ -187,7 +187,7 @@ class StalkerVodService {
     return StalkerEpisode(
       id: id,
       name: name ?? 'Episode $episodeNum',
-      cmd: cmd,
+      cmd: cmd ?? id, // Use ID as cmd if cmd field not present
       seasonId: seasonId,
       seriesId: seriesId.toString(),
       episodeNumber: episodeNum,

@@ -117,13 +117,25 @@ class StalkerVodService {
         if (season is Map && season['id']?.toString() == seasonId) {
           print('[Stalker VOD] Found matching season $seasonId');
           print('[Stalker VOD] Full season data: $season');
+
+          // Extract the base64 cmd from this season
+          final seasonCmd = season['cmd']?.toString();
+          print('[Stalker VOD] Season cmd: $seasonCmd');
+
           // Get episodes from the 'series' array in this season
           final episodesData = season['series'];
           print('[Stalker VOD] Episodes data from season: $episodesData');
 
           if (episodesData is List && episodesData.isNotEmpty) {
             final episodes = episodesData
-                .map((item) => _parseEpisodeFromItem(item, seriesId, seasonId))
+                .map(
+                  (item) => _parseEpisodeFromItem(
+                    item,
+                    seriesId,
+                    seasonId,
+                    seasonCmd,
+                  ),
+                )
                 .whereType<StalkerEpisode>()
                 .toList();
 
@@ -146,6 +158,7 @@ class StalkerVodService {
 
     final id = map['id']?.toString();
     final name = map['name']?.toString() ?? map['title']?.toString();
+    final cmd = map['cmd']?.toString();
 
     if (id == null || name == null) return null;
 
@@ -158,11 +171,16 @@ class StalkerVodService {
       }
     }
 
+    print(
+      '[Stalker VOD] Season $seasonNum has base64 cmd: ${cmd != null ? "YES (${cmd.length} chars)" : "NO"}',
+    );
+
     return StalkerSeason(
       id: id,
       name: name,
       seriesId: seriesId.toString(),
       seasonNumber: seasonNum,
+      cmd: cmd,
     );
   }
 
@@ -170,13 +188,15 @@ class StalkerVodService {
     dynamic item,
     int seriesId,
     String seasonId,
+    String? seasonCmd,
   ) {
     // Handle if item is just an integer episode number
     if (item is int) {
+      // Use season's base64 cmd for episode playback on clone servers
       return StalkerEpisode(
         id: '$seasonId:$item',
         name: 'Episode $item',
-        cmd: null,
+        cmd: seasonCmd,
         seasonId: seasonId,
         seriesId: seriesId.toString(),
         episodeNumber: item,
@@ -299,12 +319,14 @@ class StalkerSeason {
     required this.name,
     this.seriesId,
     this.seasonNumber,
+    this.cmd,
   });
 
   final String id;
   final String name;
   final String? seriesId;
   final int? seasonNumber;
+  final String? cmd;
 }
 
 class StalkerEpisode {

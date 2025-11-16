@@ -2421,9 +2421,10 @@ class _ExpandableSeasonItemState extends ConsumerState<_ExpandableSeasonItem>
         String format;
 
         if (episode.stalkerCmd != null) {
-          // Server provided VOD ID like "90001" - use directly
-          command = episode.stalkerCmd!;
-          format = 'vod-id';
+          // Clone server: Use season's base64 cmd + episode number
+          // Format: cmd=<base64>&episode=1
+          command = '${episode.stalkerCmd}|episode=${episode.episodeNumber}';
+          format = 'clone-cmd-episode';
         } else {
           // Server returned episode arrays, need JSON command format
           // Construct: {"type":"series","series_id":8412,"season_num":2,"episode":1}

@@ -988,9 +988,9 @@ class PlayableResolver {
   }) async {
     var module = _stalkerModuleForBucket(kind);
 
-    // For series episodes, always use 'vod' module
-    // Episodes are VOD items with IDs, just like movies
-    if (module == 'series') {
+    // For clone Stalker servers with embedded episode in cmd, try series module first
+    // Standard Stalker uses VOD module, but clones may use series module
+    if (module == 'series' && !command.contains('|episode=')) {
       PlaybackLogger.stalker(
         'series-episode-using-vod-module',
         portal: profile.lockedBase,
@@ -998,6 +998,13 @@ class PlayableResolver {
         command: command,
       );
       module = 'vod';
+    } else if (module == 'series') {
+      PlaybackLogger.stalker(
+        'series-episode-using-series-module',
+        portal: profile.lockedBase,
+        module: module,
+        command: command,
+      );
     }
 
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
@@ -1118,15 +1125,35 @@ class PlayableResolver {
       }
     }
 
-    // For VOD/Series or if live TV create_link failed, use normal flow
+    // For series episodes on clone servers: use VOD create_link with series parameter
+    // Format: base64cmd|episode=1 → cmd=base64&series=1
     final queryParameters = <String, dynamic>{
-      'type': module,
+      'type': 'vod', // Use VOD module for series episodes on clone servers
       'action': 'create_link',
       'token': session.token,
       'mac': config.macAddress.toLowerCase(),
-      'cmd': command,
       'JsHttpRequest': '1-xml',
     };
+
+    if (command.contains('|episode=')) {
+      final parts = command.split('|episode=');
+      final seasonCmd = parts[0]; // base64 season cmd (unchanged)
+      final episodeNum = parts[1]; // episode number
+
+      PlaybackLogger.stalker(
+        'clone-series-episode-vod-create-link',
+        portal: config.baseUri,
+        module: module,
+        command: 'cmd=$seasonCmd&series=$episodeNum',
+      );
+
+      // Clone servers: pass base64 cmd AS-IS + series parameter for episode
+      queryParameters['cmd'] = seasonCmd;
+      queryParameters['series'] = episodeNum;
+    } else {
+      // Standard flow: use command as cmd
+      queryParameters['cmd'] = command;
+    }
     final result = await _resolveStalkerLinkViaPortalWithFallback(
       config: config,
       module: module,

@@ -466,29 +466,109 @@ GET /stalker_portal/server/load.php?type=vod&action=create_link&cmd={"type":"ser
 | **Movies** | `vod` | JSON or template | `stream=1218792.mp4` (complete) - **Use directly** |
 | **Series** | `vod` | JSON: `{"type":"series",...}` | `stream=8412_S03E01.mkv` (complete) - **Use directly** |
 
-### Series Implementation Notes
+### Clone Server Episode Playback (CRITICAL - DIFFERENT FROM STANDARD STALKER)
 
-**Code Location:** `lib/src/ui/player/player_shell.dart`
+**Server Type:** Modified Stalker clone at 6d.tanres.us
 
-When user clicks episode, construct proper JSON:
-```dart
-final cmdJson = {
-  'type': 'series',
-  'series_id': episode.seriesId!,
-  'season_num': episode.seasonNumber!,
-  'episode': episode.episodeNumber!,
-};
-final command = jsonEncode(cmdJson);
+**DOES NOT USE STANDARD STALKER API** - Uses custom parameter-based approach.
+
+#### Correct Episode Request Format
+
+```
+GET /portal.php?type=vod&action=create_link&cmd=BASE64_SEASON_CMD&series=EPISODE_NUMBER&token=SESSION_TOKEN&mac=00:1a:79:00:20:40&JsHttpRequest=1-xml
 ```
 
-**Code Location:** `lib/src/playback/playable_resolver.dart`
+**Key Points:**
+- ✅ Module: `vod` (NOT `series`)
+- ✅ Action: `create_link` (NOT `get_episode_info`)
+- ✅ Cmd: Base64 season command **AS-IS** from season data (do NOT modify)
+- ✅ Series parameter: Episode number as separate parameter (e.g., `series=1`)
 
-Detect JSON commands and route to VOD module:
-```dart
-if (module == 'series' && (command.startsWith('{') || command.startsWith('series:'))) {
-  module = 'vod';
+**Example:**
+```
+cmd=eyJzZXJpZXNfaWQiOjg0MTIsInNlYXNvbl9udW0iOjMsInR5cGUiOiJzZXJpZXMifQ==
+&series=1
+```
+
+The base64 cmd decodes to: `{"series_id":8412,"season_num":3,"type":"series"}` (no episode field)
+
+**Server Response (Working):**
+```json
+{
+  "js": {
+    "id": "991604",
+    "cmd": "ffmpeg http://6d.tanres.us:80/play/movie.php?mac=00:1a:79:00:20:40&stream=991604.mkv&play_token=CoJ2UNfTSK&type=series&sn2="
+  }
 }
 ```
+
+#### What DOESN'T Work on Clone Servers
+
+| Approach | Result | Why |
+|----------|--------|-----|
+| `type=series&action=get_episode_info&season_id=8412:3&episode=1` | HTTP 200, empty body | Endpoint not implemented |
+| `type=series&action=create_link&cmd=BASE64` | HTTP 200, empty body | Series module doesn't support create_link |
+| `type=vod&action=create_link&cmd=BASE64_WITH_EPISODE` | `stream=.` (invalid) | Server ignores embedded episode field |
+| JSON format: `{"type":"series","series_id":8412,"season_num":3,"episode":1}` | `stream=.` (invalid) | Clone doesn't accept JSON |
+
+#### Implementation Code
+
+**Location:** `lib/src/playback/playable_resolver.dart` (~line 1128)
+
+```dart
+// For series episodes on clone servers: use VOD create_link with series parameter
+// Format: base64cmd|episode=1 → cmd=base64&series=1
+if (command.contains('|episode=')) {
+  final parts = command.split('|episode=');
+  final seasonCmd = parts[0]; // base64 season cmd (unchanged)
+  final episodeNum = parts[1]; // episode number
+
+  // Clone servers: pass base64 cmd AS-IS + series parameter for episode
+  queryParameters['type'] = 'vod';
+  queryParameters['cmd'] = seasonCmd;
+  queryParameters['series'] = episodeNum;
+}
+```
+
+**Location:** `lib/src/ui/player/player_shell.dart` (~line 2445)
+
+Episode command construction:
+```dart
+// For clone servers with base64 cmd from season
+if (episode.stalkerCmd != null && episode.stalkerCmd!.isNotEmpty) {
+  command = '${episode.stalkerCmd}|episode=${episode.episodeNumber}';
+  // Results in: eyJzZXJpZXNfaWQiOjg0MTIsInNlYXNvbl9udW0iOjMsInR5cGUiOiJzZXJpZXMifQ==|episode=1
+}
+```
+
+#### Clone Server Data Flow
+
+1. **Get Seasons:** Returns base64 `cmd` field per season
+   ```json
+   {
+     "id": "8412:3",
+     "cmd": "eyJzZXJpZXNfaWQiOjg0MTIsInNlYXNvbl9udW0iOjMsInR5cGUiOiJzZXJpZXMifQ=="
+   }
+   ```
+
+2. **Extract Episodes:** Season's `series` array contains episode numbers: `[1, 2, 3, 4]`
+
+3. **User Clicks Episode:** Construct `BASE64|episode=1` format
+
+4. **Request Stream:** Split on `|episode=`, send as separate parameters
+
+5. **Server Returns:** Complete stream URL with file ID
+
+**Critical:** Do NOT decode and modify the base64 cmd. Clone server expects the exact base64 string from the season data plus the `series` parameter.
+
+#### Standard Stalker Servers (Not This Clone)
+
+Standard Stalker/Ministra servers use JSON commands:
+```json
+{"type":"series","series_id":8412,"season_num":3,"episode":1}
+```
+
+This does NOT work on clone servers like 6d.tanres.us.
 
 ### Server Variations
 

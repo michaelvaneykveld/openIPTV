@@ -1028,6 +1028,30 @@ class PlayableResolver {
       _mergeHeaders(headerHints, overrides: sessionHeaders),
     );
     final directUri = _parseDirectUri(command);
+
+    // For live TV (itv/radio modules), skip create_link and use template directly
+    // The template tokens are long-lived, while create_link returns short-lived tokens
+    if (module == 'itv' || module == 'radio') {
+      if (directUri != null) {
+        final rawUrl = _extractRawUrlFromCommand(command);
+        PlaybackLogger.stalker(
+          'live-using-template',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+        return _buildDirectStalkerPlayable(
+          fallbackUri: directUri,
+          config: config,
+          module: module,
+          command: command,
+          headers: playbackHeaders,
+          isLive: isLive,
+          rawUrl: rawUrl,
+        );
+      }
+    }
+
     final queryParameters = <String, dynamic>{
       'type': module,
       'action': 'create_link',

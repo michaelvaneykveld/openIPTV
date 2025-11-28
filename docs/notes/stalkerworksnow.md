@@ -1,7 +1,7 @@
 # Stalker Live TV Playback - ACTUAL Working Configuration
 
-**Date:** 2025-11-16  
-**Verified Working:** Live TV playback confirmed functional  
+**Date:** 2025-11-28
+**Verified Working:** Live TV, Movies, and Series playback confirmed functional
 **Critical:** Previous documentation about commit a210324 was INCORRECT - that commit also fails!
 
 ---
@@ -19,20 +19,21 @@ Notice: `stream=&` is **empty**. This is intentional, not a bug.
 
 ---
 
-## THE SOLUTION: Hybrid Approach
+## THE SOLUTION: Hybrid Approach + Auto-Refresh
 
-You must **combine three sources**:
+You must **combine three sources** and **handle session expiry**:
 
 1. **Template URL** → Provides correct `stream=891261` parameter
 2. **Server create_link response** → Provides fresh `play_token=ArScdwagXu` and `sn2=`
 3. **Cookie header** → Fresh `play_token` goes HERE (NOT in URL)
+4. **Auto-Refresh** → If server returns 401/403 or empty link, refresh session and retry
 
 ### The Working Formula
 
 ✅ **Final URL:** `http://PORTAL_HOST:80/play/live.php?mac=00:1a:79:00:20:40&stream=891261&extension=ts&sn2=`  
 ✅ **Cookie:** `mac=00:1a:79:00:20:40; stb_lang=en; timezone=UTC; token=SESSION_TOKEN; play_token=FRESH_TOKEN`
 
-**Key Point:** No `play_token` in the URL. Fresh token ONLY in Cookie header.
+**Key Point:** No `play_token` in the URL. Fresh token ONLY in Cookie header. URL must preserve `:80` port and unencoded MAC address.
 
 ---
 
@@ -53,6 +54,18 @@ You must **combine three sources**:
 The server expects you to **keep your original stream ID** from the request, but use the **fresh token** it provides. The empty `stream=&` is a signal that you need to preserve the stream ID you asked for.
 
 If you use the server's URL verbatim with `stream=&`, you get **4XX authentication error**.
+
+### Auto-Refresh & Retry Mechanism (New)
+
+Stalker sessions expire on the server side, causing 401/403 errors even if the code is correct.
+
+**The Fix:**
+1. **Detect Failure:** If `create_link` returns 401/403 OR an empty link (when one is expected).
+2. **Refresh Session:** Call `_loadStalkerSession(forceRefresh: true)` to get a brand new token.
+3. **Update Headers:** Replace the old `Authorization` and `Cookie` headers with the new session token.
+4. **Retry:** Recursively call the resolution logic **exactly once**.
+
+This ensures that if a user leaves the app open and the session dies, it self-heals on the next playback attempt without crashing.
 
 ### Token Authentication Flow (Movies/VOD)
 
@@ -78,37 +91,10 @@ If you use the server's URL verbatim with `stream=&`, you get **4XX authenticati
 ```dart
 // For live TV: call create_link to get fresh play_token
 if (isLive && directUri != null) {
-  // 1. Call create_link with full template command
-  final queryParameters = <String, dynamic>{
-    'type': module,        // 'itv' for live TV
-    'action': 'create_link',
-    'token': session.token,
-    'mac': config.macAddress.toLowerCase(),
-    'cmd': command,        // Full template command with old token
-    'JsHttpRequest': '1-xml',
-  };
-  
-  final response = await _stalkerHttpClient.getPortal(
-    config,
-    queryParameters: queryParameters,
-    headers: sessionHeaders,
-  );
-  
-  // 2. Extract fresh play_token from server response
-  final resolvedLink = _sanitizeStalkerResolvedLink(
-    _extractStalkerLink(response.body),
-  );
-  final resolvedUri = resolvedLink != null ? Uri.tryParse(resolvedLink) : null;
-  final freshPlayToken = resolvedUri?.queryParameters['play_token'];
+  // ... (create_link call) ...
   
   if (freshPlayToken != null && freshPlayToken.isNotEmpty && resolvedUri != null) {
-    // 3. Add fresh play_token to Cookie header ONLY
-    var headers = _mergePlaybackCookies(playbackHeaders, response.cookies);
-    final existingCookies = _parseCookieHeader(headers['Cookie']);
-    existingCookies['play_token'] = freshPlayToken;
-    headers['Cookie'] = existingCookies.entries
-        .map((e) => '${e.key}=${e.value}')
-        .join('; ');
+    // ... (cookie update) ...
     
     // 4. Build final URL: template stream ID + sn2 from server + NO play_token in URL
     final templateQp = Map<String, String>.from(directUri.queryParameters);
@@ -125,11 +111,35 @@ if (isLive && directUri != null) {
       command: command,
       headers: _sanitizeStalkerPlaybackHeaders(headers),
       isLive: isLive,
-      rawUrl: _buildRawUrlFromUri(finalUri),
+      rawUrl: _buildRawUrlFromUri(finalUri), // CRITICAL: Use raw URL builder
     );
   }
 }
 ```
+
+**Retry Logic (~line 1150):**
+
+```dart
+// Check for auth failure or empty link to trigger session refresh
+final isAuthFailure = response.statusCode == 401 || response.statusCode == 403;
+final isLinkMissing = resolvedLink == null || resolvedLink.isEmpty;
+
+if ((isAuthFailure || isLinkMissing) && retryCount == 0) {
+  // Force refresh session
+  final newSession = await _loadStalkerSession(forceRefresh: true);
+  if (newSession != null) {
+    // Update token in query params & headers
+    // ...
+    // Recurse with retryCount = 1
+    return _resolveStalkerLinkViaPortalWithFallback(..., retryCount: 1);
+  }
+}
+```
+
+**Raw URL Builder:**
+We use `_buildRawUrlFromUri` instead of `uri.toString()` because:
+1. **Port 80:** Stalker servers often require explicit `:80` in the URL, which standard URI stringification drops.
+2. **MAC Address:** Must be sent as `00:1a:79...` (colons), NOT `00%3A1a%3A79...` (encoded).
 
 ---
 

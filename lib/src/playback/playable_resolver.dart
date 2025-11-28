@@ -1128,7 +1128,9 @@ class PlayableResolver {
     // For series episodes on clone servers: use VOD create_link with series parameter
     // Format: base64cmd|episode=1 → cmd=base64&series=1
     final queryParameters = <String, dynamic>{
-      'type': 'vod', // Use VOD module for series episodes on clone servers
+      'type': (module == 'series' || command.contains('|episode='))
+          ? 'vod'
+          : module,
       'action': 'create_link',
       'token': session.token,
       'mac': config.macAddress.toLowerCase(),
@@ -1179,6 +1181,7 @@ class PlayableResolver {
     Uri? fallbackUri,
     required bool isLive,
     Duration? durationHint,
+    int retryCount = 0,
   }) async {
     try {
       final response = await _stalkerHttpClient.getPortal(
@@ -1186,6 +1189,51 @@ class PlayableResolver {
         queryParameters: queryParameters,
         headers: sessionHeaders,
       );
+
+      // Check for auth failure or empty link to trigger session refresh
+      final isAuthFailure =
+          response.statusCode == 401 || response.statusCode == 403;
+      final rawLink = _extractStalkerLink(response.body);
+      final resolvedLink = _sanitizeStalkerResolvedLink(rawLink);
+      final isLinkMissing = resolvedLink == null || resolvedLink.isEmpty;
+
+      if ((isAuthFailure || isLinkMissing) && retryCount == 0) {
+        PlaybackLogger.stalker(
+          'session-refresh-retry-${isAuthFailure ? "auth-failure" : "link-missing"}',
+          portal: config.baseUri,
+          module: module,
+          command: command,
+        );
+
+        // Force refresh session
+        final newSession = await _loadStalkerSession(forceRefresh: true);
+        if (newSession != null) {
+          // Update token in query params
+          final newQueryParams = Map<String, dynamic>.from(queryParameters);
+          newQueryParams['token'] = newSession.token;
+
+          // Update session headers
+          final newSessionHeaders = newSession.buildAuthenticatedHeaders();
+
+          // Update playback headers with new session headers (Authorization, etc)
+          final newPlaybackHeaders = Map<String, String>.from(playbackHeaders);
+          newPlaybackHeaders.addAll(newSessionHeaders);
+
+          return _resolveStalkerLinkViaPortalWithFallback(
+            config: config,
+            module: module,
+            command: command,
+            queryParameters: newQueryParams,
+            sessionHeaders: newSessionHeaders,
+            playbackHeaders: newPlaybackHeaders,
+            fallbackUri: fallbackUri,
+            isLive: isLive,
+            durationHint: durationHint,
+            retryCount: 1,
+          );
+        }
+      }
+
       var effectiveHeaders = _mergePlaybackCookies(
         playbackHeaders,
         response.cookies,
@@ -1196,9 +1244,7 @@ class PlayableResolver {
         command: command,
         response: response,
       );
-      final resolvedLink = _sanitizeStalkerResolvedLink(
-        _extractStalkerLink(response.body),
-      );
+
       PlaybackLogger.videoInfo(
         'stalker-resolved-link',
         extra: {
@@ -1476,13 +1522,15 @@ class PlayableResolver {
     );
   }
 
-  Future<StalkerSession?> _loadStalkerSession() async {
+  Future<StalkerSession?> _loadStalkerSession({
+    bool forceRefresh = false,
+  }) async {
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
     if (config == null) {
       return null;
     }
     final cached = _stalkerSession;
-    if (cached != null && !cached.isExpired) {
+    if (!forceRefresh && cached != null && !cached.isExpired) {
       return cached;
     }
     final pending = _stalkerSessionFuture ??= _stalkerAuthenticator

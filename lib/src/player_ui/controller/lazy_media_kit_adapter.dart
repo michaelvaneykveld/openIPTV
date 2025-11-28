@@ -370,10 +370,11 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     }
     final resolved = _currentSource;
     final phase = _resolvePhase();
-    // Use durationHint from source if available, otherwise use stream duration
+    // Use durationHint from source if available and positive, otherwise use stream duration
+    final hint = resolved?.playable.durationHint;
     final effectiveDuration = resolved?.playable.isLive == true
         ? null
-        : (resolved?.playable.durationHint ?? _duration);
+        : ((hint != null && hint > Duration.zero) ? hint : _duration);
     _snapshot = _snapshot.copyWith(
       phase: phase,
       isLive: resolved?.playable.isLive ?? true,

@@ -918,6 +918,7 @@ class _StalkerCategoriesFetcher {
       final items = <CategoryPreviewItem>[];
       final seenSignatures = <String>{};
       int? totalItems;
+      bool useJs = true;
 
       for (var page = 0; page < 500; page++) {
         final query = <String, dynamic>{
@@ -926,18 +927,48 @@ class _StalkerCategoriesFetcher {
           'p': '$page',
           'from': '${page * pageSize}',
           'cnt': '$pageSize',
-          'JsHttpRequest': '1-xml',
           'token': session.token,
           'mac': config.macAddress.toLowerCase(),
         };
         if (genreKey.isNotEmpty && genreKey != '*') {
           query['genre'] = genreKey;
         }
+        if (useJs) {
+          query['JsHttpRequest'] = '1-xml';
+        }
 
-        final response = await _client
-            .getPortal(config, queryParameters: query, headers: headers)
-            .timeout(const Duration(seconds: 10));
-        final envelope = _decodePortalMap(response.body);
+        PortalResponseEnvelope response;
+        try {
+          response = await _client
+              .getPortal(config, queryParameters: query, headers: headers)
+              .timeout(const Duration(seconds: 10));
+        } catch (_) {
+          if (page == 0 && useJs) {
+            useJs = false;
+            query.remove('JsHttpRequest');
+            response = await _client
+                .getPortal(config, queryParameters: query, headers: headers)
+                .timeout(const Duration(seconds: 10));
+          } else {
+            rethrow;
+          }
+        }
+
+        var envelope = _decodePortalMap(response.body);
+        if (page == 0 && useJs && envelope.isEmpty) {
+          // If the first page returns empty with JS, try without JS.
+          useJs = false;
+          query.remove('JsHttpRequest');
+          try {
+            response = await _client
+                .getPortal(config, queryParameters: query, headers: headers)
+                .timeout(const Duration(seconds: 10));
+            envelope = _decodePortalMap(response.body);
+          } catch (_) {
+            // Ignore failure on retry, proceed with empty envelope
+          }
+        }
+
         totalItems ??= _extractTotalItems(envelope);
         final chunk = _parsePreviewItems(
           module: module,
@@ -1367,7 +1398,7 @@ class _StalkerCategoriesFetcher {
                   'type': module,
                   'action': 'get_ordered_list',
                   if (seed.id.isNotEmpty && seed.id != '*') 'genre': seed.id,
-                  'p': '1',
+                  'p': '0',
                   'JsHttpRequest': '1-xml',
                   'token': session.token,
                   'mac': config.macAddress.toLowerCase(),
@@ -1424,83 +1455,99 @@ class _StalkerCategoriesFetcher {
     required Map<String, String> headers,
     required String module,
   }) async {
-    try {
-      final response = await _client
-          .getPortal(
-            config,
-            queryParameters: {
-              'type': module,
-              'action': 'get_ordered_list',
-              'p': '1',
-              'JsHttpRequest': '1-xml',
-              'token': session.token,
-              'mac': config.macAddress.toLowerCase(),
-            },
-            headers: headers,
-          )
-          .timeout(const Duration(seconds: 3));
-      final envelope = _decodePortalMap(response.body);
-      final data = envelope['data'];
-      if (data is! List) {
-        return const [];
-      }
+    List<dynamic> data = const [];
 
-      final buckets = <String, _CategoryAccumulator>{};
-
-      for (final rawItem in data) {
-        if (rawItem is! Map) continue;
-        final normalized = rawItem.map<String, dynamic>(
-          (key, value) => MapEntry(key.toString(), value),
-        );
-        final id = _coerceScalar(
-          normalized['genre_id'] ??
-              normalized['tv_genre_id'] ??
-              normalized['category_id'] ??
-              normalized['id'],
-        );
-        final name = _coerceScalar(
-          normalized['tv_genre_title'] ??
-              normalized['genre'] ??
-              normalized['category_title'] ??
-              normalized['title'],
-        );
-        if (id.isEmpty || name.isEmpty) {
-          continue;
+    for (final includeJs in [true, false]) {
+      try {
+        final query = {
+          'type': module,
+          'action': 'get_ordered_list',
+          'p': '0',
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+        };
+        if (includeJs) {
+          query['JsHttpRequest'] = '1-xml';
         }
-        final bucket = buckets.putIfAbsent(
-          id,
-          () => _CategoryAccumulator(id: id, name: name),
-        );
-        bucket.count += 1;
-      }
 
-      if (buckets.isEmpty) {
-        return const [];
+        final response = await _client
+            .getPortal(config, queryParameters: query, headers: headers)
+            .timeout(const Duration(seconds: 3));
+        final envelope = _decodePortalMap(response.body);
+        final candidate = envelope['data'];
+        if (candidate is List && candidate.isNotEmpty) {
+          data = candidate;
+          break;
+        }
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker $module listing derive (js=$includeJs) failed: $error\n$stackTrace',
+            ),
+          );
+        }
       }
+    }
 
-      final entries =
-          buckets.entries
-              .map(
-                (entry) => CategoryEntry(
-                  id: entry.value.id,
-                  name: entry.value.name,
-                  count: entry.value.count > 0 ? entry.value.count : null,
-                  providerKey: entry.value.id,
-                ),
-              )
-              .toList(growable: false)
-            ..sort((a, b) => a.name.compareTo(b.name));
-      return entries;
-    } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint(
-          redactSensitiveText(
-            'Stalker $module listing derive failed: $error\n$stackTrace',
-          ),
-        );
-      }
+    if (data.isEmpty) {
       return const [];
     }
+
+    final buckets = <String, _CategoryAccumulator>{};
+
+    for (final rawItem in data) {
+      if (rawItem is! Map) continue;
+      final normalized = rawItem.map<String, dynamic>(
+        (key, value) => MapEntry(key.toString(), value),
+      );
+
+      var id = _coerceScalar(
+        normalized['genre_id'] ??
+            normalized['tv_genre_id'] ??
+            normalized['category_id'],
+      );
+      var name = _coerceScalar(
+        normalized['tv_genre_title'] ??
+            normalized['genre'] ??
+            normalized['category_title'] ??
+            normalized['title'],
+      );
+
+      if (id.isEmpty && module == 'radio') {
+        id = '*';
+        name = _fallbackCategoryLabel(module);
+      } else if (id.isEmpty) {
+        id = _coerceScalar(normalized['id']);
+      }
+
+      if (id.isEmpty || name.isEmpty) {
+        continue;
+      }
+      final bucket = buckets.putIfAbsent(
+        id,
+        () => _CategoryAccumulator(id: id, name: name),
+      );
+      bucket.count += 1;
+    }
+
+    if (buckets.isEmpty) {
+      return const [];
+    }
+
+    final entries =
+        buckets.entries
+            .map(
+              (entry) => CategoryEntry(
+                id: entry.value.id,
+                name: entry.value.name,
+                count: entry.value.count > 0 ? entry.value.count : null,
+                providerKey: entry.value.id,
+              ),
+            )
+            .toList(growable: false)
+          ..sort((a, b) => a.name.compareTo(b.name));
+    return entries;
   }
 
   Future<int?> _loadModuleTotal({
@@ -1509,33 +1556,37 @@ class _StalkerCategoriesFetcher {
     required Map<String, String> headers,
     required String module,
   }) async {
-    try {
-      final response = await _client
-          .getPortal(
-            config,
-            queryParameters: {
-              'type': module,
-              'action': 'get_ordered_list',
-              'p': '1',
-              'JsHttpRequest': '1-xml',
-              'token': session.token,
-              'mac': config.macAddress.toLowerCase(),
-            },
-            headers: headers,
-          )
-          .timeout(const Duration(seconds: 3));
-      final total = _extractTotalItems(response.body);
-      return total >= 0 ? total : null;
-    } catch (error, stackTrace) {
-      if (kDebugMode) {
-        debugPrint(
-          redactSensitiveText(
-            'Stalker $module total fetch failed: $error\n$stackTrace',
-          ),
-        );
+    for (final includeJs in [true, false]) {
+      try {
+        final query = {
+          'type': module,
+          'action': 'get_ordered_list',
+          'p': '0',
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+        };
+        if (includeJs) {
+          query['JsHttpRequest'] = '1-xml';
+        }
+
+        final response = await _client
+            .getPortal(config, queryParameters: query, headers: headers)
+            .timeout(const Duration(seconds: 3));
+        final total = _extractTotalItems(response.body);
+        if (total > 0) {
+          return total;
+        }
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            redactSensitiveText(
+              'Stalker $module total fetch (js=$includeJs) failed: $error\n$stackTrace',
+            ),
+          );
+        }
       }
-      return null;
     }
+    return null;
   }
 
   String _fallbackCategoryLabel(String module) {

@@ -11,6 +11,8 @@ class PlayerTrackPickerSheet extends StatelessWidget {
     required this.selectedText,
     required this.onAudioSelected,
     required this.onTextSelected,
+    this.showAudio = true,
+    this.showSubtitles = true,
   });
 
   final List<PlayerTrack> audioTracks;
@@ -19,6 +21,8 @@ class PlayerTrackPickerSheet extends StatelessWidget {
   final PlayerTrack? selectedText;
   final ValueChanged<PlayerTrack> onAudioSelected;
   final ValueChanged<PlayerTrack?> onTextSelected;
+  final bool showAudio;
+  final bool showSubtitles;
 
   @override
   Widget build(BuildContext context) {
@@ -29,53 +33,60 @@ class PlayerTrackPickerSheet extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: DefaultTextStyle(
           style: theme.textTheme.bodyLarge!,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Audio', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 12),
-              if (audioTracks.isEmpty)
-                Text(
-                  'No audio tracks exposed by backend',
-                  style: theme.textTheme.bodyMedium,
-                )
-              else
-                ...audioTracks.map(
-                  (track) => _TrackOptionTile(
-                    title: track.label,
-                    subtitle: [
-                      if (track.language != null) track.language!.toUpperCase(),
-                      if (track.channels != null) track.channels!,
-                      if (track.codec != null) track.codec!,
-                    ].where((segment) => segment.isNotEmpty).join(' • '),
-                    selected: selectedAudio?.id == track.id,
-                    onTap: () => onAudioSelected(track),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showAudio) ...[
+                  Text('Audio', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  if (audioTracks.isEmpty)
+                    Text(
+                      'No audio tracks exposed by backend',
+                      style: theme.textTheme.bodyMedium,
+                    )
+                  else
+                    ...audioTracks.map(
+                      (track) => _TrackOptionTile(
+                        title: track.label,
+                        subtitle: [
+                          if (track.language != null)
+                            track.language!.toUpperCase(),
+                          if (track.channels != null) track.channels!,
+                          if (track.codec != null) track.codec!,
+                        ].where((segment) => segment.isNotEmpty).join(' • '),
+                        selected: selectedAudio?.id == track.id,
+                        onTap: () => onAudioSelected(track),
+                      ),
+                    ),
+                ],
+                if (showAudio && showSubtitles) const SizedBox(height: 24),
+                if (showSubtitles) ...[
+                  Text('Subtitles', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  _TrackOptionTile(
+                    title: 'Off',
+                    selected: selectedText == null,
+                    onTap: () => onTextSelected(null),
                   ),
-                ),
-              const SizedBox(height: 24),
-              Text('Subtitles', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 12),
-              _TrackOptionTile(
-                title: 'Off',
-                selected: selectedText == null,
-                onTap: () => onTextSelected(null),
-              ),
-              if (textTracks.isEmpty)
-                Text(
-                  'No subtitle tracks available',
-                  style: theme.textTheme.bodyMedium,
-                )
-              else
-                ...textTracks.map(
-                  (track) => _TrackOptionTile(
-                    title: track.label,
-                    subtitle: track.language?.toUpperCase(),
-                    selected: selectedText?.id == track.id,
-                    onTap: () => onTextSelected(track),
-                  ),
-                ),
-            ],
+                  if (textTracks.isEmpty)
+                    Text(
+                      'No subtitle tracks available',
+                      style: theme.textTheme.bodyMedium,
+                    )
+                  else
+                    ...textTracks.map(
+                      (track) => _TrackOptionTile(
+                        title: track.label,
+                        subtitle: track.language?.toUpperCase(),
+                        selected: selectedText?.id == track.id,
+                        onTap: () => onTextSelected(track),
+                      ),
+                    ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

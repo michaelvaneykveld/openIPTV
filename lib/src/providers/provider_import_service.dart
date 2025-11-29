@@ -945,17 +945,6 @@ class ProviderImportService {
           'radio': radio.length,
         },
       );
-      _emitProgress(
-        profile,
-        'stalker.items.ready',
-        metadata: {
-          'live': liveItems.length,
-          'vod': vodItems.length,
-          'series': seriesItems.length,
-          'radio': radioItems.length,
-        },
-      );
-
       final liveSummaryTotal = liveItems.length;
       final radioSummaryTotal = radioItems.length;
       final vodSummaryTotal = ingestVodDuringImport
@@ -964,6 +953,19 @@ class ProviderImportService {
       final seriesSummaryTotal = ingestSeriesDuringImport
           ? seriesItems.length
           : _estimateCategoryItemCount(series);
+
+      _emitProgress(
+        profile,
+        'stalker.items.ready',
+        metadata: {
+          'live': liveItems.length,
+          'vod': vodItems.length,
+          'series': seriesItems.length,
+          'radio': radioItems.length,
+          'vod_total': vodSummaryTotal,
+          'series_total': seriesSummaryTotal,
+        },
+      );
 
       final importer = _ref.read(stalkerImporterProvider);
       final metrics = await importer.importCatalog(
@@ -1297,7 +1299,7 @@ class ProviderImportService {
     int? expectedPages;
     var hitPageCap = false;
     final resumeKey = categoryId ?? '*';
-    var startPage = 1;
+    var startPage = 0;
     final resumeStoreRef = resumeStore;
     final resumeProviderId = providerId;
     if (enableResume && resumeProviderId != null && resumeStoreRef != null) {
@@ -1704,6 +1706,12 @@ class ProviderImportService {
         resolvedId,
         () => StalkerDerivedCategory(id: resolvedId, title: title),
       );
+    }
+
+    if (derived.isEmpty && module == 'radio' && seeds.isNotEmpty) {
+      return [
+        {'id': '*', 'title': 'All Radio', 'name': 'All Radio'},
+      ];
     }
 
     return derived.values

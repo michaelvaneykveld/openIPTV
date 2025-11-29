@@ -126,8 +126,10 @@ class StalkerImporter {
         );
         metrics.channelsUpserted += liveCount + radioCount;
 
+        // Aggressive purge to clean up duplicates from unstable keys (e.g. tokens in cmd)
+        // Was 3 days, now 1 hour to ensure bad imports are cleaned up quickly
         final purgeCutoff = DateTime.now().toUtc().subtract(
-          const Duration(days: 3),
+          const Duration(hours: 1),
         );
         metrics.channelsDeleted = await txn.channels.purgeStaleChannels(
           providerId: providerId,
@@ -228,6 +230,8 @@ class StalkerImporter {
       return 0;
     }
     var count = 0;
+    final seenNumbers = <int>{};
+
     for (final item in items) {
       final key = _resolveChannelKey(item);
       final title =
@@ -235,6 +239,24 @@ class StalkerImporter {
       if (key.isEmpty || title.isEmpty) {
         continue;
       }
+
+      var number = _parseInt(item['number'] ?? item['order']);
+      // Handle duplicate channel numbers (common in Radio pagination where every page starts at 1)
+      if (number != null) {
+        if (seenNumbers.contains(number)) {
+          // If duplicate, assign the next available number at the end of the list
+          // This keeps the list continuous (e.g. 1..14, then 15, 16...) instead of jumping to 10001
+          var maxSeen = 0;
+          if (seenNumbers.isNotEmpty) {
+            maxSeen = seenNumbers.reduce(
+              (curr, next) => curr > next ? curr : next,
+            );
+          }
+          number = maxSeen + 1;
+        }
+        seenNumbers.add(number);
+      }
+
       final channelId = await txn.channels.upsertChannel(
         providerId: providerId,
         providerKey: key,
@@ -242,7 +264,7 @@ class StalkerImporter {
         logoUrl: _coerceString(
           item['logo'] ?? item['screenshot_uri'] ?? item['icon'],
         ),
-        number: _parseInt(item['number'] ?? item['order']),
+        number: number,
         isRadio: isRadio,
         streamUrlTemplate: _coerceString(item['cmd']),
       );
@@ -290,7 +312,13 @@ class StalkerImporter {
         posterUrl: _coerceString(
           item['screenshot_uri'] ?? item['logo'] ?? item['icon'],
         ),
-        durationSec: _parseDurationSeconds(item['time_to_play']),
+        durationSec: _parseDurationSeconds(
+          item['time_to_play'] ??
+              item['duration'] ??
+              item['movie_length'] ??
+              item['runtime'] ??
+              item['time'],
+        ),
         streamUrlTemplate: _coerceString(item['cmd']),
         seenAt: seenAt,
       );
@@ -335,7 +363,7 @@ class StalkerImporter {
         ),
         seenAt: seenAt,
       );
-      
+
       // Import seasons and episodes if series data contains them
       var detailsImported = await _upsertSeriesSeasons(
         txn,
@@ -356,7 +384,7 @@ class StalkerImporter {
           );
         }
       }
-      
+
       metrics.seriesUpserted += 1;
       count += 1;
     }
@@ -377,7 +405,7 @@ class StalkerImporter {
 
     for (final seasonItem in seasonsData) {
       if (seasonItem is! Map<String, dynamic>) continue;
-      
+
       final seasonNum = _parseInt(
         seasonItem['season_number'] ?? seasonItem['season'] ?? seasonItem['id'],
       );
@@ -428,14 +456,12 @@ class StalkerImporter {
       if (episodeKey == null || episodeKey.isEmpty) continue;
 
       final episodeNum = _parseInt(
-        episodeItem['episode_number'] ?? 
-        episodeItem['episode'] ?? 
-        episodeItem['series'],
+        episodeItem['episode_number'] ??
+            episodeItem['episode'] ??
+            episodeItem['series'],
       );
       final title = _coerceString(
-        episodeItem['name'] ?? 
-        episodeItem['title'] ?? 
-        'Episode $episodeNum',
+        episodeItem['name'] ?? episodeItem['title'] ?? 'Episode $episodeNum',
       );
 
       await txn.series.upsertEpisode(
@@ -448,7 +474,13 @@ class StalkerImporter {
         overview: _coerceString(
           episodeItem['description'] ?? episodeItem['plot'],
         ),
-        durationSec: _parseDurationSeconds(episodeItem['time_to_play']),
+        durationSec: _parseDurationSeconds(
+          episodeItem['time_to_play'] ??
+              episodeItem['duration'] ??
+              episodeItem['movie_length'] ??
+              episodeItem['runtime'] ??
+              episodeItem['time'],
+        ),
         streamUrlTemplate: _coerceString(episodeItem['cmd']),
         seenAt: seenAt,
       );
@@ -468,17 +500,21 @@ class StalkerImporter {
           item['fav_category'],
     );
     if (key == null) {
+      if (kind == CategoryKind.radio && categories.containsKey('*')) {
+        return categories['*'];
+      }
       return null;
     }
     return categories[key];
   }
 
   String _resolveChannelKey(Map<String, dynamic> item) {
+    // Prioritize stable IDs over cmd/stream_url which may contain transient tokens
     return _coerceString(
-          item['cmd'] ??
-              item['stream_url'] ??
-              item['id'] ??
+          item['id'] ??
               item['ch_id'] ??
+              item['cmd'] ??
+              item['stream_url'] ??
               item['number'],
         ) ??
         '';

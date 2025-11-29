@@ -350,14 +350,17 @@ class _PlayerShellState extends ConsumerState<PlayerShell>
         final live = event.metadata['live'];
         final vod = event.metadata['vod'];
         final series = event.metadata['series'];
+        final radio = event.metadata['radio'];
         return 'Categories ready '
-            '(live: $live, vod: $vod, series: $series)...';
+            '(live: $live, vod: $vod, series: $series, radio: $radio)...';
       case 'stalker.items.ready':
         final live = event.metadata['live'];
-        final vod = event.metadata['vod'];
-        final series = event.metadata['series'];
+        final vod = event.metadata['vod_total'] ?? event.metadata['vod'];
+        final series =
+            event.metadata['series_total'] ?? event.metadata['series'];
+        final radio = event.metadata['radio'];
         return 'Ingesting items '
-            '(live: $live, vod: $vod, series: $series)...';
+            '(live: $live, vod: $vod, series: $series, radio: $radio)...';
       default:
         return 'Importing provider data...';
     }
@@ -569,7 +572,7 @@ class _CategoriesView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final providerId = profile.providerDbId;
+    // final providerId = profile.providerDbId;
     final sections = ContentBucket.values
         .where((bucket) => data[bucket]?.isNotEmpty == true)
         .toList();
@@ -584,10 +587,11 @@ class _CategoriesView extends StatelessWidget {
     }
 
     final tiles = <Widget>[];
-    if (providerId != null) {
-      tiles.add(_EngagementPanel(profile: profile, providerId: providerId));
-      tiles.add(const SizedBox(height: 12));
-    }
+    // Engagement panel disabled per user request until basic functionality is complete
+    // if (providerId != null) {
+    //   tiles.add(_EngagementPanel(profile: profile, providerId: providerId));
+    //   tiles.add(const SizedBox(height: 12));
+    // }
     for (final bucket in sections) {
       tiles.add(_buildSection(context, bucket, data[bucket]!));
       tiles.add(const SizedBox(height: 12));
@@ -609,7 +613,7 @@ class _CategoriesView extends StatelessWidget {
 
     return Card(
       child: ExpansionTile(
-        initiallyExpanded: true,
+        initiallyExpanded: false,
         leading: Icon(icon),
         title: Text(label, style: theme.textTheme.titleMedium),
         subtitle: total > 0 ? Text('$total items') : null,
@@ -719,6 +723,7 @@ class _CategoryTileState extends ConsumerState<_CategoryTile> {
   }
 }
 
+// ignore: unused_element
 class _EngagementPanel extends ConsumerWidget {
   const _EngagementPanel({required this.profile, required this.providerId});
 
@@ -1742,11 +1747,12 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
         extra: {'support': support.name},
         includeFullUrl: true,
       );
-      final handle = await FfmpegRestreamer.instance.restream(source);
-      if (handle != null) {
-        adjustedSource = handle.source;
-        disposer = handle.dispose;
-      }
+      // Removed FfmpegRestreamer fallback to allow media_kit to handle headers directly
+      // final handle = await FfmpegRestreamer.instance.restream(source);
+      // if (handle != null) {
+      //   adjustedSource = handle.source;
+      //   disposer = handle.dispose;
+      // }
     } else {
       _logWindowsAcceptance(source.playable, support);
     }

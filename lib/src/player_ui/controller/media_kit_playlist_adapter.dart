@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/widgets.dart';
 import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
@@ -27,7 +28,15 @@ class MediaKitPlaylistAdapter
       configuration: PlayerConfiguration(
         title: 'OpenIPTV',
         libass: true,
-        protocolWhitelist: const ['file', 'http', 'https', 'tcp', 'udp', 'rtp', 'rtsp'],
+        protocolWhitelist: const [
+          'file',
+          'http',
+          'https',
+          'tcp',
+          'udp',
+          'rtp',
+          'rtsp',
+        ],
       ),
     );
     _videoController = VideoController(_player);
@@ -51,6 +60,8 @@ class MediaKitPlaylistAdapter
   StreamSubscription<bool>? _playingSub;
   StreamSubscription<bool>? _bufferingSub;
   StreamSubscription<Object>? _errorSub;
+  StreamSubscription<Tracks>? _tracksSub;
+  StreamSubscription<Track>? _trackSub;
   http.Client? _probeClient;
 
   Duration _position = Duration.zero;
@@ -92,13 +103,26 @@ class MediaKitPlaylistAdapter
 
   @override
   Future<void> selectAudio(String trackId) async {
-    // media_kit exposes audio track selection APIs, but they require probing.
-    // For now we leave this as a no-op until track metadata is plumbed through.
+    final track = _player.state.tracks.audio.firstWhereOrNull(
+      (t) => t.id == trackId,
+    );
+    if (track != null) {
+      await _player.setAudioTrack(track);
+    }
   }
 
   @override
   Future<void> selectText(String? trackId) async {
-    // Subtitle routing not implemented yet for the media_kit backend.
+    if (trackId == null) {
+      await _player.setSubtitleTrack(SubtitleTrack.no());
+      return;
+    }
+    final track = _player.state.tracks.subtitle.firstWhereOrNull(
+      (t) => t.id == trackId,
+    );
+    if (track != null) {
+      await _player.setSubtitleTrack(track);
+    }
   }
 
   @override
@@ -130,6 +154,8 @@ class MediaKitPlaylistAdapter
     await _playingSub?.cancel();
     await _bufferingSub?.cancel();
     await _errorSub?.cancel();
+    await _tracksSub?.cancel();
+    await _trackSub?.cancel();
     _probeClient?.close();
     await _player.dispose();
     await _snapshotController.close();
@@ -186,6 +212,57 @@ class MediaKitPlaylistAdapter
       _emitSnapshot();
       PlaybackLogger.videoError('media-kit-error', error: value);
       _probePlaybackFailure(failingSource, value);
+    });
+    _tracksSub = _player.stream.tracks.listen((tracks) {
+      final audioTracks = tracks.audio
+          .map(
+            (t) => PlayerTrack(
+              id: t.id,
+              label: t.title ?? t.language ?? t.id,
+              language: t.language,
+              channels: t.channels?.toString(),
+              codec: t.codec,
+            ),
+          )
+          .toList();
+
+      final textTracks = tracks.subtitle
+          .map(
+            (t) => PlayerTrack(
+              id: t.id,
+              label: t.title ?? t.language ?? t.id,
+              language: t.language,
+              codec: t.codec,
+            ),
+          )
+          .toList();
+
+      _snapshot = _snapshot.copyWith(
+        audioTracks: audioTracks,
+        textTracks: textTracks,
+      );
+      _emitSnapshot();
+    });
+    _trackSub = _player.stream.track.listen((track) {
+      final audio = track.audio;
+      final subtitle = track.subtitle;
+
+      _snapshot = _snapshot.copyWith(
+        selectedAudio: PlayerTrack(
+          id: audio.id,
+          label: audio.title ?? audio.language ?? audio.id,
+          language: audio.language,
+          channels: audio.channels?.toString(),
+          codec: audio.codec,
+        ),
+        selectedText: PlayerTrack(
+          id: subtitle.id,
+          label: subtitle.title ?? subtitle.language ?? subtitle.id,
+          language: subtitle.language,
+          codec: subtitle.codec,
+        ),
+      );
+      _emitSnapshot();
     });
   }
 
@@ -246,10 +323,7 @@ class MediaKitPlaylistAdapter
     return PlayerPhase.idle;
   }
 
-  void _probePlaybackFailure(
-    PlayerMediaSource source,
-    Object error,
-  ) {
+  void _probePlaybackFailure(PlayerMediaSource source, Object error) {
     final uri = source.playable.url;
     final scheme = uri.scheme.toLowerCase();
     if (scheme != 'http' && scheme != 'https') {
@@ -270,8 +344,9 @@ class MediaKitPlaylistAdapter
       ..headers.addAll(headers);
     request.headers.putIfAbsent('Range', () => 'bytes=0-2047');
     try {
-      final response =
-          await client.send(request).timeout(const Duration(seconds: 8));
+      final response = await client
+          .send(request)
+          .timeout(const Duration(seconds: 8));
       final sample = await _readSample(response.stream, 2048);
       PlaybackLogger.videoInfo(
         'media-kit-http-probe',
@@ -295,10 +370,7 @@ class MediaKitPlaylistAdapter
     }
   }
 
-  Future<List<int>> _readSample(
-    Stream<List<int>> stream,
-    int maxBytes,
-  ) async {
+  Future<List<int>> _readSample(Stream<List<int>> stream, int maxBytes) async {
     final buffer = <int>[];
     await for (final chunk in stream) {
       final remaining = maxBytes - buffer.length;

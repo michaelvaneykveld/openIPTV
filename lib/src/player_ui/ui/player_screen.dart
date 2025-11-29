@@ -265,6 +265,8 @@ class _PlayerScreenState extends State<PlayerScreen> {
           textTracks: state.textTracks,
           selectedAudio: state.selectedAudio,
           selectedText: state.selectedText,
+          showAudio: showAudio,
+          showSubtitles: !showAudio,
           onAudioSelected: (track) {
             Navigator.of(sheetContext).pop();
             widget.controller.selectAudio(track);

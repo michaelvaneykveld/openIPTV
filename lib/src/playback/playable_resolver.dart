@@ -127,9 +127,14 @@ class PlayableResolver {
     );
 
     final headers = decodeHeadersJson(movie.streamHeadersJson);
-    final durationHint = movie.durationSec != null
+    var durationHint = movie.durationSec != null
         ? Duration(seconds: movie.durationSec!)
         : null;
+
+    if (durationHint == null && profile.record.kind == ProviderKind.stalker) {
+      durationHint = await _fetchStalkerMovieDuration(movie.providerVodKey);
+    }
+
     final playable = await _buildPlayable(
       kind: ContentBucket.films,
       streamTemplate: movie.streamUrlTemplate,
@@ -173,9 +178,16 @@ class PlayableResolver {
     );
 
     final headers = decodeHeadersJson(episode.streamHeadersJson);
-    final durationHint = episode.durationSec != null
+    var durationHint = episode.durationSec != null
         ? Duration(seconds: episode.durationSec!)
         : null;
+
+    if (durationHint == null && profile.record.kind == ProviderKind.stalker) {
+      durationHint = await _fetchStalkerEpisodeDuration(
+        episode.providerEpisodeKey,
+      );
+    }
+
     final playable = await _buildPlayable(
       kind: ContentBucket.series,
       streamTemplate: episode.streamUrlTemplate,
@@ -2077,6 +2089,138 @@ class PlayableResolver {
       default:
         return null;
     }
+  }
+
+  Future<Duration?> _fetchStalkerMovieDuration(String movieId) async {
+    try {
+      final session = await _loadStalkerSession();
+      if (session == null) return null;
+      final config = _stalkerConfig!;
+
+      final response = await _stalkerHttpClient.getPortal(
+        config,
+        queryParameters: {
+          'type': 'vod',
+          'action': 'get_info',
+          'media_id': movieId,
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+          'JsHttpRequest': '1-xml',
+        },
+        headers: session.buildAuthenticatedHeaders(),
+      );
+
+      var data = _decodePortalPayload(response.body);
+      if (data.containsKey('js') && data['js'] is Map) {
+        data = Map<String, dynamic>.from(data['js']);
+      } else if (data.containsKey('data') && data['data'] is Map) {
+        data = Map<String, dynamic>.from(data['data']);
+      }
+
+      return _parseStalkerDuration(data);
+    } catch (e) {
+      PlaybackLogger.videoError(
+        'stalker-movie-duration-fetch-failed',
+        error: e,
+      );
+      return null;
+    }
+  }
+
+  Future<Duration?> _fetchStalkerEpisodeDuration(String episodeId) async {
+    try {
+      final session = await _loadStalkerSession();
+      if (session == null) return null;
+      final config = _stalkerConfig!;
+
+      // Try get_episode first
+      var response = await _stalkerHttpClient.getPortal(
+        config,
+        queryParameters: {
+          'type': 'series',
+          'action': 'get_episode',
+          'episode_id': episodeId,
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+          'JsHttpRequest': '1-xml',
+        },
+        headers: session.buildAuthenticatedHeaders(),
+      );
+
+      var data = _decodePortalPayload(response.body);
+      if (data.containsKey('js') && data['js'] is Map) {
+        data = Map<String, dynamic>.from(data['js']);
+      }
+
+      var duration = _parseStalkerDuration(data);
+      if (duration != null) return duration;
+
+      // Fallback to vod get_info with episode ID (common for clones)
+      response = await _stalkerHttpClient.getPortal(
+        config,
+        queryParameters: {
+          'type': 'vod',
+          'action': 'get_info',
+          'media_id': episodeId,
+          'token': session.token,
+          'mac': config.macAddress.toLowerCase(),
+          'JsHttpRequest': '1-xml',
+        },
+        headers: session.buildAuthenticatedHeaders(),
+      );
+      data = _decodePortalPayload(response.body);
+      if (data.containsKey('js') && data['js'] is Map) {
+        data = Map<String, dynamic>.from(data['js']);
+      }
+      return _parseStalkerDuration(data);
+    } catch (e) {
+      PlaybackLogger.videoError(
+        'stalker-episode-duration-fetch-failed',
+        error: e,
+      );
+      return null;
+    }
+  }
+
+  Duration? _parseStalkerDuration(Map<String, dynamic> data) {
+    // 1. duration_in_seconds (int)
+    if (data['duration_in_seconds'] != null) {
+      final val = int.tryParse(data['duration_in_seconds'].toString());
+      if (val != null && val > 0) return Duration(seconds: val);
+    }
+
+    // 2. duration (HH:MM:SS)
+    if (data['duration'] != null) {
+      final val = data['duration'].toString();
+      if (val.contains(':')) {
+        final parts = val.split(':').reversed.toList();
+        var seconds = 0;
+        for (var i = 0; i < parts.length; i++) {
+          seconds += (int.tryParse(parts[i]) ?? 0) * [1, 60, 3600][i];
+        }
+        if (seconds > 0) return Duration(seconds: seconds);
+      }
+    }
+
+    // 3. time (seconds or string)
+    if (data['time'] != null) {
+      final val = int.tryParse(data['time'].toString());
+      if (val != null && val > 0) return Duration(seconds: val);
+    }
+
+    // 4. length (minutes)
+    if (data['length'] != null) {
+      final val = int.tryParse(data['length'].toString());
+      if (val != null && val > 0) return Duration(minutes: val);
+    }
+
+    // 5. movie_length (minutes)
+    if (data['movie_length'] != null) {
+      final val = int.tryParse(data['movie_length'].toString());
+      if (val != null && val > 0) return Duration(minutes: val);
+    }
+
+    return null;
   }
 }
 

@@ -18,8 +18,6 @@ import 'package:openiptv/src/utils/header_json_codec.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
-import 'package:openiptv/src/playback/stream_probe.dart';
-import 'package:openiptv/src/playback/local_proxy_server.dart';
 
 class PlayableResolver {
   PlayableResolver(
@@ -129,14 +127,9 @@ class PlayableResolver {
     );
 
     final headers = decodeHeadersJson(movie.streamHeadersJson);
-    var durationHint = movie.durationSec != null
+    final durationHint = movie.durationSec != null
         ? Duration(seconds: movie.durationSec!)
         : null;
-
-    if (durationHint == null && profile.record.kind == ProviderKind.stalker) {
-      durationHint = await _fetchStalkerMovieDuration(movie.providerVodKey);
-    }
-
     final playable = await _buildPlayable(
       kind: ContentBucket.films,
       streamTemplate: movie.streamUrlTemplate,
@@ -180,23 +173,12 @@ class PlayableResolver {
     );
 
     final headers = decodeHeadersJson(episode.streamHeadersJson);
-    var durationHint = episode.durationSec != null
-        ? Duration(seconds: episode.durationSec!)
-        : null;
-
-    if (durationHint == null && profile.record.kind == ProviderKind.stalker) {
-      durationHint = await _fetchStalkerEpisodeDuration(
-        episode.providerEpisodeKey,
-      );
-    }
-
     final playable = await _buildPlayable(
       kind: ContentBucket.series,
       streamTemplate: episode.streamUrlTemplate,
       providerKey: episode.providerEpisodeKey,
       isLive: false,
       headerHints: headers,
-      durationHint: durationHint,
     );
     if (playable == null) {
       PlaybackLogger.resolverActivity(
@@ -291,7 +273,6 @@ class PlayableResolver {
           directUri,
           isLive: isLive,
           headers: _mergeHeaders(headerHints),
-          durationHint: durationHint,
         );
         if (directPlayable != null) {
           return directPlayable;
@@ -317,7 +298,6 @@ class PlayableResolver {
           isLive: isLive,
           templateExtension: _inferExtension(streamTemplate),
           headerHints: headerHints,
-          durationHint: durationHint,
         );
       case ProviderKind.stalker:
         final cmd = streamTemplate ?? previewUrl;
@@ -361,7 +341,6 @@ class PlayableResolver {
           uri,
           isLive: isLive,
           headers: _mergeHeaders(headerHints),
-          durationHint: durationHint,
         );
     }
   }
@@ -400,7 +379,6 @@ class PlayableResolver {
     required bool isLive,
     String? templateExtension,
     Map<String, String>? headerHints,
-    Duration? durationHint,
   }) async {
     final username = _readCredential(const [
       'username',
@@ -425,10 +403,8 @@ class PlayableResolver {
       return null;
     }
     final base = _xtreamStreamBase(serverContext);
-    // Do NOT encode credentials for Xtream. Many servers expect raw characters (e.g. colons in MACs)
-    // and do not decode the path segments correctly if we send %3A.
-    final escapedUsername = username;
-    final escapedPassword = password;
+    final escapedUsername = Uri.encodeComponent(username);
+    final escapedPassword = Uri.encodeComponent(password);
     final slugPrefix = 'live/$escapedUsername/$escapedPassword';
     var headers = _mergeHeaders(headerHints);
     headers = _applyXtreamHeaderDefaults(headers, base, username, password);
@@ -450,70 +426,17 @@ class PlayableResolver {
       ContentBucket.films => 'movie',
       ContentBucket.series => 'series',
     };
-    var ext =
+    final ext =
         templateExtension ??
         _resolveXtreamExtension(kind: kind, isLive: isLive);
-
-    // Fix for Xtream VODs: If extension is 'ts', force 'mp4'.
-    // 'ts' is almost never correct for VODs on Xtream, but importers might infer it from live templates.
-    if ((kind == ContentBucket.films || kind == ContentBucket.series) &&
-        ext == 'ts') {
-      PlaybackLogger.resolverActivity(
-        'xtream-vod-extension-fix',
-        bucket: kind.name,
-        extra: {'original': 'ts', 'forced': 'mp4'},
-      );
-      ext = 'mp4';
-    }
-
     final path = '$segment/$escapedUsername/$escapedPassword/$providerKey.$ext';
     final url = base.resolve(path);
-
-    // Probe and resolve redirects/blocking
-    Uri finalUri = url;
-    try {
-      final resolvedUrl = await StreamProbe.resolve(
-        url.toString(),
-        headers: headers,
-      );
-      finalUri = Uri.parse(resolvedUrl);
-      PlaybackLogger.videoInfo(
-        'xtream-probe-resolved',
-        uri: finalUri,
-        extra: {'original': url.toString()},
-      );
-    } catch (e) {
-      PlaybackLogger.videoError(
-        'xtream-probe-failed',
-        error: e,
-        description: url.toString(),
-      );
-
-      // If probe failed with 403 (blocked), try proxying
-      if (e is StreamProbeException && e.statusCode == 403) {
-        PlaybackLogger.videoInfo(
-          'xtream-activating-proxy',
-          uri: url,
-          extra: {'reason': '403 Forbidden on direct access'},
-        );
-        final proxyUrl = LocalProxyServer.createProxyUrl(
-          url.toString(),
-          headers,
-        );
-        finalUri = Uri.parse(proxyUrl);
-        // When proxying, we don't send headers to the player,
-        // as the proxy server already has them encoded in the URL.
-        headers = {};
-      }
-    }
-
     return Playable(
-      url: finalUri,
+      url: url,
       isLive: isLive,
       headers: headers,
       containerExtension: ext,
       mimeHint: guessMimeFromUri(url),
-      durationHint: durationHint,
     );
   }
 
@@ -997,27 +920,12 @@ class PlayableResolver {
     String password,
   ) {
     final normalized = Map<String, String>.from(headers);
-    normalized['User-Agent'] = 'IPTVSmartersPro';
+    normalized['User-Agent'] = 'VLC/3.0.20';
     normalized['Referer'] = '${base.scheme}://${base.host}/';
-    // Do NOT set Host header manually. It breaks redirects (e.g. VODs redirecting to CDN)
-    // because the HTTP client/player will send the old Host to the new server.
-    // normalized['Host'] = base.host;
+    normalized['Host'] = base.host;
     normalized.putIfAbsent('Accept', () => '*/*');
-    normalized['Connection'] = 'Keep-Alive';
     final creds = base64Encode(utf8.encode('$username:$password'));
     normalized['Authorization'] = 'Basic $creds';
-
-    PlaybackLogger.videoInfo(
-      'xtream-headers-generated',
-      extra: {
-        'User-Agent': normalized['User-Agent'],
-        'Referer': normalized['Referer'],
-        'Host': 'REMOVED-FOR-REDIRECTS',
-        'Connection': normalized['Connection'],
-        'Authorization': 'Basic ${creds.substring(0, 5)}...',
-      },
-    );
-
     return Map.unmodifiable(normalized);
   }
 
@@ -1127,37 +1035,13 @@ class PlayableResolver {
 
     // For live TV: call create_link to get fresh play_token,
     // but use template URL (with stream ID) instead of server's broken response (stream=&)
-    /* DISABLED: This pre-emptive interception forces the stream ID, which breaks signature on strict servers (mag.4k365.xyz).
-       We will let the standard flow handle it, which respects the server's returned URL (even if stream=&).
     if (isLive && directUri != null) {
-      // Clean the command of any old play_token before sending to create_link
-      // This prevents the server from seeing an expired token in the request
-      var cleanCommand = command;
-      if (command.contains('play_token=')) {
-        try {
-          final cmdUri = Uri.parse(command.trim());
-          final newQp = Map<String, String>.from(cmdUri.queryParameters);
-          newQp.remove('play_token');
-          cleanCommand = cmdUri.replace(queryParameters: newQp).toString();
-          // Decode again because toString() encodes query params, but Stalker expects raw colons in mac
-          cleanCommand = Uri.decodeFull(cleanCommand);
-        } catch (_) {
-          // If parsing fails, fallback to regex or just use original
-          cleanCommand = command.replaceAll(
-            RegExp(r'[?&]play_token=[^&]*'),
-            '',
-          );
-        }
-      }
-
       final queryParameters = <String, dynamic>{
         'type': module,
         'action': 'create_link',
         'token': session.token,
         'mac': config.macAddress.toLowerCase(),
-        'cmd': cleanCommand,
-        // 'forced_storage': 'undefined', // Removed
-        // 'disable_ad': '0', // Removed
+        'cmd': command,
         'JsHttpRequest': '1-xml',
       };
 
@@ -1187,45 +1071,35 @@ class PlayableResolver {
         if (freshPlayToken != null &&
             freshPlayToken.isNotEmpty &&
             resolvedUri != null) {
-          // CRITICAL INSIGHT: The server returns stream=& but expects us to use the stream ID we asked for.
-          // We must construct a URL that has BOTH the stream ID AND the fresh play_token.
-          // We put play_token in the Cookie (not URL) to avoid signature issues if the token signs the URL.
-          // This matches the behavior of other players (iptvnator, etc) for Stalker.
+          // CRITICAL INSIGHT: The play_token is tied to the EXACT URL the server returns!
+          // The server returns stream=& because the token itself identifies the stream.
+          // We must use the server's exact response, not modify it.
 
+          // Add fresh play_token to Cookie header
           var headers = _mergePlaybackCookies(
             playbackHeaders,
             response.cookies,
           );
-
-          // Ensure play_token is NOT in the cookie (URL-Only Strategy)
           final existingCookies = _parseCookieHeader(headers['Cookie']);
-          existingCookies.remove('play_token');
+          existingCookies['play_token'] = freshPlayToken;
           headers['Cookie'] = existingCookies.entries
               .map((e) => '${e.key}=${e.value}')
               .join('; ');
 
-          // Use template URL (with correct stream ID)
+          // Use template URL (with correct stream ID) but remove old play_token
+          // Keep play_token only in Cookie header, and add sn2 from server response
           final templateQp = Map<String, String>.from(
             directUri.queryParameters,
           );
-
+          templateQp.remove('play_token'); // Remove old token
           // Add sn2 if server returned it
           if (resolvedUri.queryParameters.containsKey('sn2')) {
             templateQp['sn2'] = resolvedUri.queryParameters['sn2']!;
           }
-
-          // REMOVE play_token from URL (it's in the Cookie now)
-          templateQp.remove('play_token');
-
-          // Add fresh play_token to URL as well (Double-Token Strategy)
-          // Some servers check URL signature (needs token) AND Cookie (needs token)
-          templateQp['play_token'] =
-              freshPlayToken; // RESTORED: Double token strategy
-
           final finalUri = directUri.replace(queryParameters: templateQp);
 
           PlaybackLogger.stalker(
-            'live-template-stream-fresh-url-only-token',
+            'live-template-stream-fresh-cookie-token',
             portal: config.baseUri,
             module: module,
             command: command,
@@ -1236,7 +1110,7 @@ class PlayableResolver {
             config: config,
             module: module,
             command: command,
-            headers: _sanitizeStalkerPlaybackHeaders(headers, config: config),
+            headers: _sanitizeStalkerPlaybackHeaders(headers),
             isLive: isLive,
             rawUrl: _buildRawUrlFromUri(finalUri),
           );
@@ -1250,19 +1124,14 @@ class PlayableResolver {
         );
       }
     }
-    */
 
     // For series episodes on clone servers: use VOD create_link with series parameter
     // Format: base64cmd|episode=1 → cmd=base64&series=1
     final queryParameters = <String, dynamic>{
-      'type': (module == 'series' || command.contains('|episode='))
-          ? 'vod'
-          : module,
+      'type': 'vod', // Use VOD module for series episodes on clone servers
       'action': 'create_link',
       'token': session.token,
       'mac': config.macAddress.toLowerCase(),
-      // 'forced_storage': 'undefined', // Removed: likely undefined in JS means omitted
-      // 'disable_ad': '0', // Removed: likely not needed or default
       'JsHttpRequest': '1-xml',
     };
 
@@ -1283,20 +1152,7 @@ class PlayableResolver {
       queryParameters['series'] = episodeNum;
     } else {
       // Standard flow: use command as cmd
-      // Clean the command of any old play_token before sending to create_link
-      var cleanCmd = command;
-      if (command.contains('play_token=')) {
-        try {
-          final cmdUri = Uri.parse(command.trim());
-          final newQp = Map<String, String>.from(cmdUri.queryParameters);
-          newQp.remove('play_token');
-          cleanCmd = cmdUri.replace(queryParameters: newQp).toString();
-          cleanCmd = Uri.decodeFull(cleanCmd);
-        } catch (_) {
-          cleanCmd = command.replaceAll(RegExp(r'[?&]play_token=[^&]*'), '');
-        }
-      }
-      queryParameters['cmd'] = cleanCmd;
+      queryParameters['cmd'] = command;
     }
     final result = await _resolveStalkerLinkViaPortalWithFallback(
       config: config,
@@ -1323,7 +1179,6 @@ class PlayableResolver {
     Uri? fallbackUri,
     required bool isLive,
     Duration? durationHint,
-    int retryCount = 0,
   }) async {
     try {
       final response = await _stalkerHttpClient.getPortal(
@@ -1331,51 +1186,6 @@ class PlayableResolver {
         queryParameters: queryParameters,
         headers: sessionHeaders,
       );
-
-      // Check for auth failure or empty link to trigger session refresh
-      final isAuthFailure =
-          response.statusCode == 401 || response.statusCode == 403;
-      final rawLink = _extractStalkerLink(response.body);
-      final resolvedLink = _sanitizeStalkerResolvedLink(rawLink);
-      final isLinkMissing = resolvedLink == null || resolvedLink.isEmpty;
-
-      if ((isAuthFailure || isLinkMissing) && retryCount == 0) {
-        PlaybackLogger.stalker(
-          'session-refresh-retry-${isAuthFailure ? "auth-failure" : "link-missing"}',
-          portal: config.baseUri,
-          module: module,
-          command: command,
-        );
-
-        // Force refresh session
-        final newSession = await _loadStalkerSession(forceRefresh: true);
-        if (newSession != null) {
-          // Update token in query params
-          final newQueryParams = Map<String, dynamic>.from(queryParameters);
-          newQueryParams['token'] = newSession.token;
-
-          // Update session headers
-          final newSessionHeaders = newSession.buildAuthenticatedHeaders();
-
-          // Update playback headers with new session headers (Authorization, etc)
-          final newPlaybackHeaders = Map<String, String>.from(playbackHeaders);
-          newPlaybackHeaders.addAll(newSessionHeaders);
-
-          return _resolveStalkerLinkViaPortalWithFallback(
-            config: config,
-            module: module,
-            command: command,
-            queryParameters: newQueryParams,
-            sessionHeaders: newSessionHeaders,
-            playbackHeaders: newPlaybackHeaders,
-            fallbackUri: fallbackUri,
-            isLive: isLive,
-            durationHint: durationHint,
-            retryCount: 1,
-          );
-        }
-      }
-
       var effectiveHeaders = _mergePlaybackCookies(
         playbackHeaders,
         response.cookies,
@@ -1386,7 +1196,9 @@ class PlayableResolver {
         command: command,
         response: response,
       );
-
+      final resolvedLink = _sanitizeStalkerResolvedLink(
+        _extractStalkerLink(response.body),
+      );
       PlaybackLogger.videoInfo(
         'stalker-resolved-link',
         extra: {
@@ -1402,34 +1214,6 @@ class PlayableResolver {
           module: module,
           command: command,
         );
-
-        // Fallback: If Radio module fails, try ITV module
-        // Many providers put radio channels in the ITV system
-        // Simplified condition: if we are in 'radio' module and failed, try 'itv'.
-        // The recursive call passes module='itv', so we won't loop.
-        if (module == 'radio') {
-          PlaybackLogger.stalker(
-            'radio-fallback-to-itv',
-            portal: config.baseUri,
-            module: module,
-            command: command,
-          );
-          return _resolveStalkerLinkViaPortalWithFallback(
-            config: config,
-            module: 'itv', // Switch to ITV
-            command: command,
-            queryParameters: {
-              ...queryParameters,
-              'type': 'itv', // Update type param
-            },
-            sessionHeaders: sessionHeaders,
-            playbackHeaders: playbackHeaders,
-            fallbackUri: fallbackUri,
-            isLive: isLive,
-            durationHint: durationHint,
-            retryCount: retryCount + 1, // Increment retry count
-          );
-        }
 
         // For series episodes, construct URL manually from command
         if (module == 'series' && command.startsWith('{')) {
@@ -1524,11 +1308,8 @@ class PlayableResolver {
 
       // Check if stream parameter is empty/invalid (stream=., stream=&, or stream=)
       final streamParam = uri.queryParameters['stream'] ?? '';
-
-      // If stream is empty, we MUST use the fallback URI (template) because ffmpeg cannot play an empty stream.
-      // We ignore whether a play_token is present or not - an empty stream is useless.
       final hasInvalidStream =
-          (streamParam.isEmpty || streamParam == '.' || streamParam == '&');
+          streamParam.isEmpty || streamParam == '.' || streamParam == '&';
 
       if (hasInvalidStream) {
         PlaybackLogger.stalker(
@@ -1537,62 +1318,6 @@ class PlayableResolver {
           module: module,
           command: command,
         );
-
-        // Attempt to recover using fallbackUri (template) and token from server response
-        // If server returns stream=& but provides a token, we can apply that token to our known good template
-        final freshPlayToken = uri.queryParameters['play_token'];
-        if (fallbackUri != null &&
-            freshPlayToken != null &&
-            freshPlayToken.isNotEmpty) {
-          // DO NOT add play_token to Cookie header. It belongs in URL only.
-          var headers = _mergePlaybackCookies(
-            playbackHeaders,
-            response.cookies,
-          );
-          // Ensure play_token is NOT in the cookie
-          final existingCookies = _parseCookieHeader(headers['Cookie']);
-          if (existingCookies.containsKey('play_token')) {
-            existingCookies.remove('play_token');
-            headers['Cookie'] = existingCookies.entries
-                .map((e) => '${e.key}=${e.value}')
-                .join('; ');
-          }
-
-          // Use template URL (with correct stream ID) but remove old play_token
-          final templateQp = Map<String, String>.from(
-            fallbackUri.queryParameters,
-          );
-
-          // Remove old play_token
-          templateQp.remove('play_token');
-
-          // Add sn2 if server returned it
-          if (uri.queryParameters.containsKey('sn2')) {
-            templateQp['sn2'] = uri.queryParameters['sn2']!;
-          }
-
-          // Add fresh play_token to URL (Stalker/MAG requirement)
-          templateQp['play_token'] = freshPlayToken;
-
-          final finalUri = fallbackUri.replace(queryParameters: templateQp);
-
-          PlaybackLogger.stalker(
-            'live-template-stream-fresh-url-token',
-            portal: config.baseUri,
-            module: module,
-            command: command,
-          );
-
-          return _buildDirectStalkerPlayable(
-            fallbackUri: finalUri,
-            config: config,
-            module: module,
-            command: command,
-            headers: _sanitizeStalkerPlaybackHeaders(headers, config: config),
-            isLive: isLive,
-            rawUrl: _buildRawUrlFromUri(finalUri),
-          );
-        }
 
         // For series episodes with JSON command, server doesn't support this format
         // This server requires a different approach for episodes
@@ -1612,7 +1337,6 @@ class PlayableResolver {
       );
       final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
         effectiveHeaders,
-        config: config,
       );
       var playable = _playableFromUri(
         normalizedUri,
@@ -1713,58 +1437,17 @@ class PlayableResolver {
     if (fallbackUri == null) {
       return null;
     }
-
-    // Handle localhost URLs (common in some Stalker portals for internal streams)
-    // e.g. http://localhost/ch/123 -> http://portal.com/ch/123
-    Uri effectiveUri = fallbackUri;
-    if (effectiveUri.host == 'localhost' || effectiveUri.host == '127.0.0.1') {
-      effectiveUri = effectiveUri.replace(
-        scheme: config.baseUri.scheme,
-        host: config.baseUri.host,
-        port: config.baseUri.port,
-      );
-      PlaybackLogger.stalker(
-        'localhost-rewrite',
-        portal: config.baseUri,
-        module: module,
-        command: command,
-        resolvedUri: effectiveUri,
-      );
-    }
-
     // Ensure play_token from URL is added to Cookie header
-    final effectiveHeaders = _ensureQueryTokenCookies(headers, effectiveUri);
-    final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(
-      effectiveHeaders,
-      config: config,
-    );
-
-    // If we have a play_token in the cookie, remove it from the URL
-    // This helps with servers that return 4XX when token is in both places
-    // Strategy: Cookie Only (Strip from URL)
-    // UPDATE: Re-enabling token in URL because some servers require it in the request line
-    /*
-    if (effectiveUri.queryParameters.containsKey('play_token')) {
-      final newQueryParams = Map<String, String>.from(
-        effectiveUri.queryParameters,
-      );
-      newQueryParams.remove('play_token');
-      effectiveUri = effectiveUri.replace(queryParameters: newQueryParams);
-    }
-    */
-
+    final effectiveHeaders = _ensureQueryTokenCookies(headers, fallbackUri);
+    final sanitizedHeaders = _sanitizeStalkerPlaybackHeaders(effectiveHeaders);
     final playable = _playableFromUri(
-      effectiveUri,
+      fallbackUri,
       isLive: isLive,
       headers: sanitizedHeaders,
-      // Regenerate rawUrl from effectiveUri to ensure changes (localhost rewrite, token removal) are applied
-      rawUrl: _buildRawUrlFromUri(effectiveUri),
+      rawUrl: rawUrl,
     );
     if (playable == null) {
-      PlaybackLogger.playableDrop(
-        'stalker-direct-unhandled',
-        uri: effectiveUri,
-      );
+      PlaybackLogger.playableDrop('stalker-direct-unhandled', uri: fallbackUri);
       return null;
     }
     PlaybackLogger.stalker(
@@ -1772,7 +1455,7 @@ class PlayableResolver {
       portal: config.baseUri,
       module: module,
       command: command,
-      resolvedUri: effectiveUri,
+      resolvedUri: fallbackUri,
       headers: sanitizedHeaders,
     );
     return playable;
@@ -1783,46 +1466,23 @@ class PlayableResolver {
     if (mac.isEmpty) {
       return null;
     }
-
-    // Prepare MAG headers for API calls (create_link, etc)
-    final extra = Map<String, String>.from(_profileHeaders);
-
-    // Force MAG headers
-    extra['X-User-Agent'] = 'Model:MAG254; Link:Ethernet';
-
-    // Ensure Referer points to the portal interface
-    final base = profile.lockedBase;
-    var referer = base.toString();
-    if (!referer.contains('stalker_portal/c')) {
-      referer = base.resolve('stalker_portal/c/').toString();
-    }
-    if (!referer.endsWith('/')) {
-      referer = '$referer/';
-    }
-    extra['Referer'] = referer;
-
-    // Force MAG User-Agent
-    const magUA =
-        'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) InfomirBrowser/3.0 StbApp/0.23';
-
+    final userAgent = _config['userAgent'];
     return StalkerPortalConfiguration(
       baseUri: profile.lockedBase,
       macAddress: mac,
-      userAgent: magUA,
+      userAgent: userAgent?.isNotEmpty == true ? userAgent : null,
       allowSelfSignedTls: profile.record.allowSelfSignedTls,
-      extraHeaders: extra,
+      extraHeaders: _profileHeaders,
     );
   }
 
-  Future<StalkerSession?> _loadStalkerSession({
-    bool forceRefresh = false,
-  }) async {
+  Future<StalkerSession?> _loadStalkerSession() async {
     final config = _stalkerConfig ??= _buildStalkerConfiguration();
     if (config == null) {
       return null;
     }
     final cached = _stalkerSession;
-    if (!forceRefresh && cached != null && !cached.isExpired) {
+    if (cached != null && !cached.isExpired) {
       return cached;
     }
     final pending = _stalkerSessionFuture ??= _stalkerAuthenticator
@@ -1934,10 +1594,7 @@ class PlayableResolver {
       final name = trimmed.substring(0, eq).trim();
       final value = trimmed.substring(eq + 1).trim();
       if (name.isEmpty) return;
-
-      // EXCLUDE play_token from Cookie header per Stalker/MAG compatibility rules
-      // if (name == 'play_token') return; // RESTORED: Allow play_token in Cookie
-
+      // Include play_token in Cookie header per working notes
       final existing = parsed[name];
       if (existing == value) {
         return;
@@ -1961,6 +1618,25 @@ class PlayableResolver {
     return merged;
   }
 
+  Map<String, String> _parseCookieHeader(String? header) {
+    final map = <String, String>{};
+    if (header == null || header.trim().isEmpty) {
+      return map;
+    }
+    final pieces = header.split(';');
+    for (final piece in pieces) {
+      final trimmed = piece.trim();
+      if (trimmed.isEmpty) continue;
+      final eq = trimmed.indexOf('=');
+      if (eq == -1) continue;
+      final name = trimmed.substring(0, eq).trim();
+      final value = trimmed.substring(eq + 1).trim();
+      if (name.isEmpty) continue;
+      map[name] = value;
+    }
+    return map;
+  }
+
   Map<String, String> _ensureQueryTokenCookies(
     Map<String, String> playbackHeaders,
     Uri uri,
@@ -1973,10 +1649,9 @@ class PlayableResolver {
       }
     }
 
-    // Capture token for Cookie header, but NOT play_token
-    // play_token must be in URL only for Stalker/MAG compatibility
-    capture('token'); // RESTORED: Session token belongs in Cookie
-    // capture('play_token'); // REMOVED: play_token belongs in URL only for standard Stalker
+    // Capture both token and play_token for Cookie header per working notes
+    capture('token');
+    capture('play_token');
 
     if (entries.isEmpty) {
       return playbackHeaders;
@@ -2161,138 +1836,6 @@ class PlayableResolver {
         return null;
     }
   }
-
-  Future<Duration?> _fetchStalkerMovieDuration(String movieId) async {
-    try {
-      final session = await _loadStalkerSession();
-      if (session == null) return null;
-      final config = _stalkerConfig!;
-
-      final response = await _stalkerHttpClient.getPortal(
-        config,
-        queryParameters: {
-          'type': 'vod',
-          'action': 'get_info',
-          'media_id': movieId,
-          'token': session.token,
-          'mac': config.macAddress.toLowerCase(),
-          'JsHttpRequest': '1-xml',
-        },
-        headers: session.buildAuthenticatedHeaders(),
-      );
-
-      var data = _decodePortalPayload(response.body);
-      if (data.containsKey('js') && data['js'] is Map) {
-        data = Map<String, dynamic>.from(data['js']);
-      } else if (data.containsKey('data') && data['data'] is Map) {
-        data = Map<String, dynamic>.from(data['data']);
-      }
-
-      return _parseStalkerDuration(data);
-    } catch (e) {
-      PlaybackLogger.videoError(
-        'stalker-movie-duration-fetch-failed',
-        error: e,
-      );
-      return null;
-    }
-  }
-
-  Future<Duration?> _fetchStalkerEpisodeDuration(String episodeId) async {
-    try {
-      final session = await _loadStalkerSession();
-      if (session == null) return null;
-      final config = _stalkerConfig!;
-
-      // Try get_episode first
-      var response = await _stalkerHttpClient.getPortal(
-        config,
-        queryParameters: {
-          'type': 'series',
-          'action': 'get_episode',
-          'episode_id': episodeId,
-          'token': session.token,
-          'mac': config.macAddress.toLowerCase(),
-          'JsHttpRequest': '1-xml',
-        },
-        headers: session.buildAuthenticatedHeaders(),
-      );
-
-      var data = _decodePortalPayload(response.body);
-      if (data.containsKey('js') && data['js'] is Map) {
-        data = Map<String, dynamic>.from(data['js']);
-      }
-
-      var duration = _parseStalkerDuration(data);
-      if (duration != null) return duration;
-
-      // Fallback to vod get_info with episode ID (common for clones)
-      response = await _stalkerHttpClient.getPortal(
-        config,
-        queryParameters: {
-          'type': 'vod',
-          'action': 'get_info',
-          'media_id': episodeId,
-          'token': session.token,
-          'mac': config.macAddress.toLowerCase(),
-          'JsHttpRequest': '1-xml',
-        },
-        headers: session.buildAuthenticatedHeaders(),
-      );
-      data = _decodePortalPayload(response.body);
-      if (data.containsKey('js') && data['js'] is Map) {
-        data = Map<String, dynamic>.from(data['js']);
-      }
-      return _parseStalkerDuration(data);
-    } catch (e) {
-      PlaybackLogger.videoError(
-        'stalker-episode-duration-fetch-failed',
-        error: e,
-      );
-      return null;
-    }
-  }
-
-  Duration? _parseStalkerDuration(Map<String, dynamic> data) {
-    // 1. duration_in_seconds (int)
-    if (data['duration_in_seconds'] != null) {
-      final val = int.tryParse(data['duration_in_seconds'].toString());
-      if (val != null && val > 0) return Duration(seconds: val);
-    }
-
-    // 2. duration (HH:MM:SS)
-    if (data['duration'] != null) {
-      final val = data['duration'].toString();
-      if (val.contains(':')) {
-        final parts = val.split(':').reversed.toList();
-        var seconds = 0;
-        for (var i = 0; i < parts.length; i++) {
-          seconds += (int.tryParse(parts[i]) ?? 0) * [1, 60, 3600][i];
-        }
-        if (seconds > 0) return Duration(seconds: seconds);
-      }
-    }
-
-    // 3. time (seconds or string)
-    if (data['time'] != null) {
-      final val = int.tryParse(data['time'].toString());
-      if (val != null && val > 0) return Duration(seconds: val);
-    }
-
-    // 4. length (minutes)
-    if (data['length'] != null) {
-      final val = int.tryParse(data['length'].toString());
-      if (val != null && val > 0) return Duration(minutes: val);
-    }
-
-    // 5. movie_length (minutes)
-    if (data['movie_length'] != null) {
-      final val = int.tryParse(data['movie_length'].toString());
-      if (val != null && val > 0) return Duration(minutes: val);
-    }
-
-    return null;
-  }
 }
 
 class _XtreamCandidate {
@@ -2348,96 +1891,10 @@ class _XtreamServerContext {
   }
 }
 
-Map<String, String> _parseCookieHeader(String? header) {
-  final map = <String, String>{};
-  if (header == null || header.trim().isEmpty) {
-    return map;
-  }
-  final pieces = header.split(';');
-  for (final piece in pieces) {
-    final trimmed = piece.trim();
-    if (trimmed.isEmpty) continue;
-    final eq = trimmed.indexOf('=');
-    if (eq == -1) continue;
-    final name = trimmed.substring(0, eq).trim();
-    final value = trimmed.substring(eq + 1).trim();
-    if (name.isEmpty) continue;
-    map[name] = value;
-  }
-  return map;
-}
-
 Map<String, String> _sanitizeStalkerPlaybackHeaders(
-  Map<String, String> headers, {
-  StalkerPortalConfiguration? config,
-}) {
+  Map<String, String> headers,
+) {
   // Per stalkerworksnow.md: Never strip Cookie, Authorization, or X-User-Agent
   // All portal session headers must reach ffmpeg/media_kit for Windows playback
-  final sanitized = Map<String, String>.from(headers);
-
-  // FORCE MAG headers required for playback
-  // We overwrite existing values because they might be incorrect (e.g. X-User-Agent matching User-Agent)
-  sanitized['User-Agent'] =
-      'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) InfomirBrowser/3.0 StbApp/0.23';
-
-  sanitized['X-User-Agent'] = 'Model:MAG254; Link:Ethernet';
-
-  // Force Accept to */* for media streams (ffmpeg default)
-  sanitized['Accept'] = '*/*';
-
-  // Remove Authorization header for playback requests
-  // The media server (play/live.php) authenticates via Cookie/URL params (mac, token)
-  // Sending 'Authorization: Bearer ...' can cause 400/403 errors on strict servers
-  sanitized.remove('Authorization');
-
-  // Remove Referer and Origin headers
-  // Stalker servers often reject playback requests with a Referer header (hotlinking protection)
-  // The stream URL is signed with a token, so Referer is not needed for security
-  // sanitized.remove('Referer'); // RESTORED: Some servers might need it
-  sanitized.remove('Origin');
-
-  // Remove Cookie header entirely for playback
-  // The 'play_token' and 'mac' are in the URL, which is sufficient for authentication.
-  // Sending Cookies (especially 'mac' or 'token') can cause 4XX errors (e.g. 406/412)
-  // on some servers due to conflict or anti-bot protection.
-  // sanitized.remove('Cookie'); // RESTORED: We are now putting play_token in Cookie
-
-  // Remove 'token' (session token) from Cookie if present
-  // Some servers (e.g. mag.4k365.xyz) reject playback if session token is in cookie
-  // The 'play_token' in the Cookie is sufficient and correct for playback
-  /* RESTORED: We are keeping the session token because "YOU ARE BANNED" might mean "missing session token".
-  if (sanitized.containsKey('Cookie')) {
-    final cookies = _parseCookieHeader(sanitized['Cookie']);
-    if (cookies.containsKey('token')) {
-      cookies.remove('token');
-      if (cookies.isEmpty) {
-        sanitized.remove('Cookie');
-      } else {
-        sanitized['Cookie'] = cookies.entries
-            .map((e) => '${e.key}=${e.value}')
-            .join('; ');
-      }
-    }
-  }
-  */
-  if (config != null) {
-    // Ensure Referer points to the portal interface
-    // Usually http://host/stalker_portal/c/
-    // RESTORED: Standard Stalker behavior requires Referer
-    final base = config.baseUri;
-    var referer = base.toString();
-
-    // Ensure it points to /c/ directory
-    if (!referer.contains('stalker_portal/c')) {
-      referer = base.resolve('stalker_portal/c/').toString();
-    }
-
-    // STRICTLY ensure trailing slash for Referer
-    if (!referer.endsWith('/')) {
-      referer = '$referer/';
-    }
-    sanitized['Referer'] = referer;
-  }
-
-  return sanitized;
+  return Map<String, String>.from(headers);
 }

@@ -39,6 +39,25 @@ class MediaKitPlaylistAdapter
         ],
       ),
     );
+    // Allow redirects to potentially unsafe URLs (common in IPTV)
+    try {
+      // setProperty is not in the Player interface but available on NativePlayer
+      (_player.platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
+      // Also set user-agent to match what we use in probing
+      (_player.platform as dynamic).setProperty(
+        'user-agent',
+        'IPTVSmartersPro',
+      );
+      // Force HTTP/1.1 to avoid issues with Nginx/Xtream panels that advertise h2 but fail to stream it
+      (_player.platform as dynamic).setProperty('http-version', '1.1');
+      // Force demuxer to be more lenient with container mismatches (e.g. TS in MP4)
+      (_player.platform as dynamic).setProperty(
+        'demuxer-lavf-format',
+        'mpegts,mp4,mov,m4v,matroska,avi',
+      );
+    } catch (e) {
+      PlaybackLogger.videoError('media-kit-unsafe-property-failed', error: e);
+    }
     _videoController = VideoController(_player);
     _currentIndex = initialIndex.clamp(0, sources.length - 1);
     _snapshot = _initialSnapshot();
@@ -164,11 +183,15 @@ class MediaKitPlaylistAdapter
   Future<void> _loadCurrent() async {
     final source = _currentSource;
     try {
+      // Filter out User-Agent from headers passed to open(), as we set it via setProperty.
+      // This prevents potential duplicate User-Agent headers in mpv.
+      final headers = Map<String, String>.from(source.playable.headers);
+      headers.remove('User-Agent');
+
+      PlaybackLogger.videoInfo('media-kit-open-headers', extra: headers);
+
       await _player.open(
-        Media(
-          source.playable.url.toString(),
-          httpHeaders: source.playable.headers,
-        ),
+        Media(source.playable.url.toString(), httpHeaders: headers),
         play: _autoPlay,
       );
       final seekStart = source.playable.seekStart;

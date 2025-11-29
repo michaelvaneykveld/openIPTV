@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:openiptv/src/ui/login_screen.dart';
+import 'package:openiptv/src/playback/local_proxy_server.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await LocalProxyServer.start();
   runApp(const ProviderScope(child: OpenIptvApp()));
 }
 
@@ -26,5 +28,3 @@ class OpenIptvApp extends StatelessWidget {
     );
   }
 }
-
-

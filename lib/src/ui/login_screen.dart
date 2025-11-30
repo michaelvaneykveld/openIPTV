@@ -69,7 +69,7 @@ import 'package:openiptv/storage/provider_profile_repository.dart';
 
 import 'package:openiptv/src/ui/discovery_cache_manager.dart';
 
-import 'package:openiptv/src/ui/player/player_shell.dart' as player;
+import 'package:openiptv/src/ui/dashboard/dashboard_screen.dart';
 
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 
@@ -4362,7 +4362,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (context) => player.PlayerShell(profile: profile),
+        builder: (context) => DashboardScreen(profile: profile),
       ),
     );
   }

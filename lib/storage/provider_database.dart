@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:drift_sqflite/drift_sqflite.dart';
 import 'package:path/path.dart' as p;
@@ -84,6 +85,158 @@ class ProviderSecrets extends Table {
   Set<Column<Object>> get primaryKey => {providerId};
 }
 
+/// Groups/Categories for Live, Movie, and Series content.
+class StreamGroups extends Table {
+  @override
+  String get tableName => 'stream_groups';
+
+  IntColumn get id => integer()(); // Category ID from Xtream
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get name => text()();
+  TextColumn get type => text()(); // 'live', 'movie', 'series'
+
+  @override
+  Set<Column<Object>> get primaryKey => {id, providerId, type};
+}
+
+/// Live TV Channels.
+class LiveStreams extends Table {
+  @override
+  String get tableName => 'live_streams';
+
+  IntColumn get streamId => integer()();
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get name => text()();
+  TextColumn get streamIcon => text().nullable()();
+  TextColumn get epgChannelId => text().nullable()();
+  IntColumn get categoryId => integer().nullable()();
+  IntColumn get num => integer().nullable()();
+  BoolColumn get isAdult => boolean().withDefault(const Constant(false))();
+
+  @override
+  Set<Column<Object>> get primaryKey => {streamId, providerId};
+}
+
+/// VOD / Movies.
+class VodStreams extends Table {
+  @override
+  String get tableName => 'vod_streams';
+
+  IntColumn get streamId => integer()();
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get name => text()();
+  TextColumn get streamIcon => text().nullable()();
+  TextColumn get containerExtension => text().nullable()();
+  IntColumn get categoryId => integer().nullable()();
+  RealColumn get rating => real().nullable()();
+  DateTimeColumn get added => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {streamId, providerId};
+}
+
+/// TV Series.
+class Series extends Table {
+  @override
+  String get tableName => 'series';
+
+  IntColumn get seriesId => integer()();
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get name => text()();
+  TextColumn get cover => text().nullable()();
+  TextColumn get plot => text().nullable()();
+  TextColumn get cast => text().nullable()();
+  TextColumn get director => text().nullable()();
+  TextColumn get genre => text().nullable()();
+  TextColumn get releaseDate => text().nullable()();
+  DateTimeColumn get lastModified => dateTime().nullable()();
+  IntColumn get categoryId => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {seriesId, providerId};
+}
+
+/// Episodes for Series (Lazy Loaded).
+class Episodes extends Table {
+  @override
+  String get tableName => 'episodes';
+
+  IntColumn get id => integer()();
+  IntColumn get seriesId => integer()();
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get title => text()();
+  TextColumn get containerExtension => text().nullable()();
+  TextColumn get info => text().nullable()();
+  IntColumn get season => integer().nullable()();
+  IntColumn get episode => integer().nullable()();
+  IntColumn get duration => integer().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id, providerId};
+}
+
+/// EPG Events.
+class EpgEvents extends Table {
+  @override
+  String get tableName => 'epg_events';
+
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  TextColumn get channelId => text()();
+  TextColumn get title => text()();
+  TextColumn get description => text().nullable()();
+  DateTimeColumn get start => dateTime()();
+  DateTimeColumn get end => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {providerId, channelId, start};
+}
+
+/// User Favorites.
+class Favorites extends Table {
+  @override
+  String get tableName => 'favorites';
+
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  IntColumn get contentId => integer()();
+  TextColumn get type => text()(); // 'live', 'movie', 'series'
+  DateTimeColumn get dateAdded => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {providerId, contentId, type};
+}
+
+/// Watch History / Resume Points.
+class PlaybackHistory extends Table {
+  @override
+  String get tableName => 'playback_history';
+
+  TextColumn get providerId => text().customConstraint(
+    'REFERENCES providers(id) ON DELETE CASCADE NOT NULL',
+  )();
+  IntColumn get contentId => integer()();
+  TextColumn get type => text()(); // 'live', 'movie', 'series', 'episode'
+  IntColumn get positionSeconds => integer()();
+  IntColumn get durationSeconds => integer().nullable()();
+  DateTimeColumn get lastWatched => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {providerId, contentId, type};
+}
+
 LazyDatabase _openProviderConnection() {
   return LazyDatabase(() async {
     _ensureSqfliteFactoryForDesktop();
@@ -107,7 +260,20 @@ void _ensureSqfliteFactoryForDesktop() {
 }
 
 /// Central database that stores provider profiles and secure storage mappings.
-@DriftDatabase(tables: [ProviderProfiles, ProviderSecrets])
+@DriftDatabase(
+  tables: [
+    ProviderProfiles,
+    ProviderSecrets,
+    StreamGroups,
+    LiveStreams,
+    VodStreams,
+    Series,
+    Episodes,
+    EpgEvents,
+    Favorites,
+    PlaybackHistory,
+  ],
+)
 class ProviderDatabase extends _$ProviderDatabase {
   ProviderDatabase() : super(_openProviderConnection());
 
@@ -115,5 +281,11 @@ class ProviderDatabase extends _$ProviderDatabase {
   ProviderDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 }
+
+final providerDatabaseProvider = Provider<ProviderDatabase>((ref) {
+  final db = ProviderDatabase();
+  ref.onDispose(db.close);
+  return db;
+});

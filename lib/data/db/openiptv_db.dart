@@ -66,7 +66,7 @@ part 'tables/vod_search_fts.dart';
   ],
 )
 class OpenIptvDb extends _$OpenIptvDb {
-  static const int schemaVersionLatest = 7;
+  static const int schemaVersionLatest = 8;
   static const int _largeImportThresholdBytes = 100 * 1024 * 1024;
   static const Duration _slowQueryThreshold = Duration(milliseconds: 120);
 
@@ -137,6 +137,8 @@ class OpenIptvDb extends _$OpenIptvDb {
             await _migrateFrom6To7();
             break;
           default:
+            // For any unknown migration step, we wipe the DB but preserve providers (logins).
+            await _nukeAndPaveKeepingProviders(m);
             break;
         }
       }
@@ -669,6 +671,72 @@ class OpenIptvDb extends _$OpenIptvDb {
       'CREATE INDEX IF NOT EXISTS idx_channel_categories_category_channel '
       'ON channel_categories(category_id, channel_id);',
     );
+  }
+
+  Future<void> _nukeAndPaveKeepingProviders(Migrator m) async {
+    // 1. Backup Providers
+    final List<Map<String, dynamic>> rawProviders = [];
+    try {
+      final rows = await customSelect('SELECT * FROM providers').get();
+      for (final row in rows) {
+        rawProviders.add(row.data);
+      }
+    } catch (e) {
+      // If we can't read providers, we can't save them.
+      // Proceed with wipe to at least get a working DB.
+      debugPrint('Failed to backup providers during migration: $e');
+    }
+
+    // 2. Wipe
+    for (final table in allTables) {
+      await m.deleteTable(table.actualTableName);
+    }
+
+    // 3. Recreate
+    await m.createAll();
+    await _ensureEpgSearchIndex(rebuild: true);
+    await _ensureChannelSearchIndex(rebuild: true);
+    await _ensureVodSearchIndex(rebuild: true);
+    await _ensureProviderIndexes();
+    await _ensureChannelTileIndexes();
+
+    // 4. Restore Providers
+    if (rawProviders.isNotEmpty) {
+      for (final row in rawProviders) {
+        try {
+          // We map fields manually to ensure we only insert what fits in the new schema.
+          // We assume the core login fields are stable.
+          await into(providers).insert(
+            ProvidersCompanion.insert(
+              kind: _parseProviderKind(row['kind']),
+              displayName: Value(row['display_name']?.toString() ?? ''),
+              lockedBase: row['locked_base']?.toString() ?? '',
+              needsUa: Value(row['needs_ua'] == 1 || row['needs_ua'] == true),
+              allowSelfSigned: Value(
+                row['allow_self_signed'] == 1 ||
+                    row['allow_self_signed'] == true,
+              ),
+              legacyProfileId: Value(row['legacy_profile_id']?.toString()),
+              // Try to preserve ID if possible
+              id: Value(row['id'] as int),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+        } catch (e) {
+          debugPrint('Failed to restore provider ${row['id']}: $e');
+        }
+      }
+    }
+  }
+
+  ProviderKind _parseProviderKind(dynamic value) {
+    if (value is String) {
+      return ProviderKind.values.firstWhere(
+        (e) => e.name == value,
+        orElse: () => ProviderKind.xtream,
+      );
+    }
+    return ProviderKind.xtream;
   }
 }
 

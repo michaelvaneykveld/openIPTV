@@ -229,6 +229,8 @@ class _SavedLoginsError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('CRITICAL: Failed to load saved logins: $error');
+    debugPrint(stackTrace.toString());
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
 
@@ -5128,7 +5130,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
           'inputMode': state.m3u.inputMode.name,
 
-          'autoUpdate': state.m3u.autoUpdate,
+          'autoUpdate': state.m3u.autoUpdate ? 'true' : 'false',
 
           'followRedirects': state.m3u.followRedirects,
 

@@ -351,3 +351,12 @@ channel-start → ... → channel-resolved → resolving → open
     - **Series**: Updated `SeriesDetailsScreen` to use `playableResolverProvider` for episode playback and fixed schema mismatch errors (removed `cast`, `director`, etc.).
 - **Content Providers**:
     - Created `lib/src/providers/openiptv_content_providers.dart` as the central source for Riverpod providers (`channels`, `movies`, `series`, `episodes`, `resolver`).
+
+### 2025-11-30: Database Stability & Login Fixes
+- **ProviderDatabase Migration**:
+    - Implemented a `MigrationStrategy` for `ProviderDatabase` (schema v2) to handle upgrades from older versions.
+    - This fixes the "Failed to load saved logins" error by ensuring new tables are created and missing columns (`needs_user_agent`, `allow_self_signed_tls`, etc.) are added if they don't exist.
+- **UI Logging**:
+    - Added critical error logging to `LoginScreen` to capture stack traces if login loading fails in the future.
+- **Code Cleanup**:
+    - Fixed undefined `controller` variable in `LoginScreen._applyInputClassification`.

@@ -282,6 +282,57 @@ class ProviderDatabase extends _$ProviderDatabase {
 
   @override
   int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (Migrator m) => m.createAll(),
+    onUpgrade: (Migrator m, int from, int to) async {
+      // Ensure any new tables are created
+      await m.createAll();
+
+      if (from < 2) {
+        // Attempt to backfill columns that might be missing in older schemas
+        await _addColumnIfMissing(
+          'providers',
+          'needs_user_agent',
+          'INTEGER NOT NULL DEFAULT 0',
+        );
+        await _addColumnIfMissing(
+          'providers',
+          'allow_self_signed_tls',
+          'INTEGER NOT NULL DEFAULT 0',
+        );
+        await _addColumnIfMissing(
+          'providers',
+          'follow_redirects',
+          'INTEGER NOT NULL DEFAULT 1',
+        );
+        await _addColumnIfMissing(
+          'providers',
+          'hints',
+          "TEXT NOT NULL DEFAULT '{}'",
+        );
+        await _addColumnIfMissing('providers', 'last_error', 'TEXT NULL');
+      }
+    },
+    beforeOpen: (details) async {
+      await customStatement('PRAGMA foreign_keys = ON;');
+    },
+  );
+
+  Future<void> _addColumnIfMissing(
+    String tableName,
+    String columnName,
+    String columnDef,
+  ) async {
+    final columns = await customSelect('PRAGMA table_info($tableName)').get();
+    final exists = columns.any((row) => row.data['name'] == columnName);
+    if (!exists) {
+      await customStatement(
+        'ALTER TABLE $tableName ADD COLUMN $columnName $columnDef',
+      );
+    }
+  }
 }
 
 final providerDatabaseProvider = Provider<ProviderDatabase>((ref) {

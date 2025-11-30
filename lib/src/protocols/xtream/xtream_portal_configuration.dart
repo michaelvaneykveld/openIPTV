@@ -21,6 +21,9 @@ class XtreamPortalConfiguration {
   /// mimic well-known clients (Kodi, Hypnotix) so we give callers control.
   final String userAgent;
 
+  /// The persistent device ID for this installation.
+  final String? deviceId;
+
   /// Whether to trust self-signed TLS certificates for this portal.
   final bool allowSelfSignedTls;
 
@@ -34,12 +37,12 @@ class XtreamPortalConfiguration {
     required this.username,
     required this.password,
     String? userAgent,
+    this.deviceId,
     this.allowSelfSignedTls = false,
     Map<String, String>? extraHeaders,
   }) : baseUri = _normaliseBaseUri(baseUri),
        userAgent =
-           userAgent ??
-           'Hypnotix/2.0 (Linux; IPTV) Flutter/OpenIPTV XtreamAdapter',
+           userAgent ?? 'okhttp/4.9.3', // Standard Android client signature
        extraHeaders = extraHeaders == null
            ? const {}
            : Map.unmodifiable(Map.of(extraHeaders));
@@ -52,6 +55,7 @@ class XtreamPortalConfiguration {
     required String username,
     required String password,
     String? userAgent,
+    String? deviceId,
     bool allowSelfSignedTls = false,
     Map<String, String>? extraHeaders,
   }) {
@@ -61,6 +65,7 @@ class XtreamPortalConfiguration {
       username: username,
       password: password,
       userAgent: userAgent,
+      deviceId: deviceId,
       allowSelfSignedTls: allowSelfSignedTls,
       extraHeaders: extraHeaders,
     );

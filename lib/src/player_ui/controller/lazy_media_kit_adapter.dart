@@ -49,10 +49,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       // setProperty is not in the Player interface but available on NativePlayer
       (_player.platform as dynamic).setProperty('load-unsafe-playlists', 'yes');
       // Also set user-agent to match what we use in probing
-      (_player.platform as dynamic).setProperty(
-        'user-agent',
-        'IPTVSmartersPro',
-      );
+      (_player.platform as dynamic).setProperty('user-agent', 'okhttp/4.9.3');
       // Force HTTP/1.1 to avoid issues with Nginx/Xtream panels that advertise h2 but fail to stream it
       (_player.platform as dynamic).setProperty('http-version', '1.1');
       // Force demuxer to be more lenient with container mismatches (e.g. TS in MP4)

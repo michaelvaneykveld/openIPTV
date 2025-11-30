@@ -14,6 +14,7 @@ import 'package:openiptv/src/protocols/stalker/stalker_authenticator.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_http_client.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
 import 'package:openiptv/src/protocols/stalker/stalker_session.dart';
+import 'package:openiptv/src/utils/device_identity.dart';
 import 'package:openiptv/src/utils/header_json_codec.dart';
 import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
@@ -430,8 +431,16 @@ class PlayableResolver {
     final escapedUsername = username;
     final escapedPassword = password;
     final slugPrefix = 'live/$escapedUsername/$escapedPassword';
+
+    final deviceId = await DeviceIdentity.getDeviceId();
     var headers = _mergeHeaders(headerHints);
-    headers = _applyXtreamHeaderDefaults(headers, base, username, password);
+    headers = _applyXtreamHeaderDefaults(
+      headers,
+      base,
+      username,
+      password,
+      deviceId: deviceId,
+    );
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
@@ -625,12 +634,15 @@ class PlayableResolver {
     final request = http.Request('GET', playerUri)
       ..followRedirects = true
       ..maxRedirects = 5;
+
+    final deviceId = await DeviceIdentity.getDeviceId();
     final apiHeaders = Map<String, String>.from(
       _applyXtreamHeaderDefaults(
         _profileHeaders,
         discoveryBase,
         username,
         password,
+        deviceId: deviceId,
       ),
     );
     apiHeaders['Accept'] = 'application/json';
@@ -994,16 +1006,20 @@ class PlayableResolver {
     Map<String, String> headers,
     Uri base,
     String username,
-    String password,
-  ) {
+    String password, {
+    String? deviceId,
+  }) {
     final normalized = Map<String, String>.from(headers);
-    normalized['User-Agent'] = 'IPTVSmartersPro';
+    normalized['User-Agent'] = 'okhttp/4.9.3';
     normalized['Referer'] = '${base.scheme}://${base.host}/';
     // Do NOT set Host header manually. It breaks redirects (e.g. VODs redirecting to CDN)
     // because the HTTP client/player will send the old Host to the new server.
     // normalized['Host'] = base.host;
     normalized.putIfAbsent('Accept', () => '*/*');
     normalized['Connection'] = 'Keep-Alive';
+    if (deviceId != null) {
+      normalized['X-Device-Id'] = deviceId;
+    }
     final creds = base64Encode(utf8.encode('$username:$password'));
     normalized['Authorization'] = 'Basic $creds';
 
@@ -1015,6 +1031,7 @@ class PlayableResolver {
         'Host': 'REMOVED-FOR-REDIRECTS',
         'Connection': normalized['Connection'],
         'Authorization': 'Basic ${creds.substring(0, 5)}...',
+        'X-Device-Id': normalized['X-Device-Id'],
       },
     );
 

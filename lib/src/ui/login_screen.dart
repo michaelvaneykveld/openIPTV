@@ -73,6 +73,8 @@ import 'package:openiptv/src/ui/player/player_shell.dart' as player;
 
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 
+import 'package:openiptv/src/utils/device_identity.dart';
+
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
 enum _ClassificationSource { paste, validation }
@@ -89,7 +91,7 @@ class MacAddressInputFormatter extends TextInputFormatter {
     TextEditingValue newValue,
   ) {
     final raw = newValue.text.toUpperCase().replaceAll(
-      RegExp(r'[^0-9A-F]'),
+      RegExp(r'[^0-9-A-F]'),
 
       '',
     );
@@ -2920,6 +2922,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
       final refreshedState = ref.read(loginFlowControllerProvider);
 
+      final deviceId = await DeviceIdentity.getDeviceId();
+
       final configuration = XtreamPortalConfiguration(
         baseUri: handshakeBase,
 
@@ -2928,6 +2932,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         password: refreshedState.xtream.password.value.trim(),
 
         userAgent: userAgentOverride.isEmpty ? null : userAgentOverride,
+
+        deviceId: deviceId,
 
         allowSelfSignedTls: refreshedState.xtream.allowSelfSignedTls,
 

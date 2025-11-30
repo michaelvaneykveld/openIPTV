@@ -112,7 +112,9 @@ class LocalProxyServer {
         // Skip encoding headers as we are streaming raw bytes
         if (name.toLowerCase() != 'transfer-encoding' &&
             name.toLowerCase() != 'content-encoding') {
-          values.forEach((v) => request.response.headers.add(name, v));
+          for (final v in values) {
+            request.response.headers.add(name, v);
+          }
         }
       });
 

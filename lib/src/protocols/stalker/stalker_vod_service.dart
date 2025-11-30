@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'package:logger/logger.dart';
 
 import 'stalker_http_client.dart';
 import 'stalker_portal_configuration.dart';
 import 'stalker_session.dart';
 
 class StalkerVodService {
+  static final Logger _logger = Logger();
+
   StalkerVodService({
     required StalkerPortalConfiguration configuration,
     required StalkerSession session,
@@ -19,7 +22,7 @@ class StalkerVodService {
 
   /// Fetches seasons for a series from the Stalker portal
   Future<List<StalkerSeason>> getSeasons(int seriesId) async {
-    print('[Stalker VOD] Fetching seasons for series $seriesId');
+    _logger.d('[Stalker VOD] Fetching seasons for series $seriesId');
 
     final response = await _httpClient.getPortal(
       _configuration,
@@ -36,20 +39,22 @@ class StalkerVodService {
       headers: _session.buildAuthenticatedHeaders(),
     );
 
-    print('[Stalker VOD] Seasons response status: ${response.statusCode}');
-    print('[Stalker VOD] Seasons response body: ${response.body}');
+    _logger.d('[Stalker VOD] Seasons response status: ${response.statusCode}');
+    _logger.d('[Stalker VOD] Seasons response body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch seasons: HTTP ${response.statusCode}');
     }
 
     final data = _decodePortalResponse(response.body);
-    print('[Stalker VOD] Decoded data: $data');
+    _logger.d('[Stalker VOD] Decoded data: $data');
 
     // The response structure has seasons directly in the data array
     final seasonsData = data['data'];
     if (seasonsData is List) {
-      print('[Stalker VOD] Seasons data array: ${seasonsData.length} items');
+      _logger.d(
+        '[Stalker VOD] Seasons data array: ${seasonsData.length} items',
+      );
 
       if (seasonsData.isEmpty) {
         return [];
@@ -60,11 +65,11 @@ class StalkerVodService {
           .whereType<StalkerSeason>()
           .toList();
 
-      print('[Stalker VOD] Parsed ${seasons.length} seasons');
+      _logger.d('[Stalker VOD] Parsed ${seasons.length} seasons');
       return seasons;
     }
 
-    print('[Stalker VOD] No seasons found in response');
+    _logger.d('[Stalker VOD] No seasons found in response');
     return [];
   }
 
@@ -73,7 +78,7 @@ class StalkerVodService {
     int seriesId,
     String seasonId,
   ) async {
-    print(
+    _logger.d(
       '[Stalker VOD] Fetching episodes for season $seasonId of series $seriesId',
     );
 
@@ -92,39 +97,39 @@ class StalkerVodService {
       headers: _session.buildAuthenticatedHeaders(),
     );
 
-    print('[Stalker VOD] Episodes response status: ${response.statusCode}');
-    print('[Stalker VOD] Episodes response body: ${response.body}');
+    _logger.d('[Stalker VOD] Episodes response status: ${response.statusCode}');
+    _logger.d('[Stalker VOD] Episodes response body: ${response.body}');
 
     if (response.statusCode != 200) {
       throw Exception('Failed to fetch episodes: HTTP ${response.statusCode}');
     }
 
     final data = _decodePortalResponse(response.body);
-    print('[Stalker VOD] Decoded episodes data: $data');
+    _logger.d('[Stalker VOD] Decoded episodes data: $data');
 
     // The response structure has seasons in data array, find the matching season
     final seasonsData = data['data'];
-    print(
+    _logger.d(
       '[Stalker VOD] Looking for season $seasonId in ${seasonsData is List ? seasonsData.length : 0} seasons',
     );
 
     if (seasonsData is List) {
       // Find the matching season by ID
       for (final season in seasonsData) {
-        print(
+        _logger.d(
           '[Stalker VOD] Checking season: ${season is Map ? season['id'] : 'not a map'}',
         );
         if (season is Map && season['id']?.toString() == seasonId) {
-          print('[Stalker VOD] Found matching season $seasonId');
-          print('[Stalker VOD] Full season data: $season');
+          _logger.d('[Stalker VOD] Found matching season $seasonId');
+          _logger.d('[Stalker VOD] Full season data: $season');
 
           // Extract the base64 cmd from this season
           final seasonCmd = season['cmd']?.toString();
-          print('[Stalker VOD] Season cmd: $seasonCmd');
+          _logger.d('[Stalker VOD] Season cmd: $seasonCmd');
 
           // Get episodes from the 'series' array in this season
           final episodesData = season['series'];
-          print('[Stalker VOD] Episodes data from season: $episodesData');
+          _logger.d('[Stalker VOD] Episodes data from season: $episodesData');
 
           if (episodesData is List && episodesData.isNotEmpty) {
             final episodes = episodesData
@@ -139,7 +144,7 @@ class StalkerVodService {
                 .whereType<StalkerEpisode>()
                 .toList();
 
-            print('[Stalker VOD] Parsed ${episodes.length} episodes');
+            _logger.d('[Stalker VOD] Parsed ${episodes.length} episodes');
             return episodes;
           }
           break;
@@ -147,7 +152,7 @@ class StalkerVodService {
       }
     }
 
-    print('[Stalker VOD] No episodes found in response');
+    _logger.d('[Stalker VOD] No episodes found in response');
     return [];
   }
 
@@ -171,7 +176,7 @@ class StalkerVodService {
       }
     }
 
-    print(
+    _logger.d(
       '[Stalker VOD] Season $seasonNum has base64 cmd: ${cmd != null ? "YES (${cmd.length} chars)" : "NO"}',
     );
 
@@ -216,9 +221,7 @@ class StalkerVodService {
 
     // Get episode number from episode_num field, or extract from name/ID
     int? episodeNum = map['episode_num'] as int?;
-    if (episodeNum == null) {
-      episodeNum = _extractEpisodeNumber(name ?? '');
-    }
+    episodeNum ??= _extractEpisodeNumber(name ?? '');
     if (episodeNum == null && id.contains(':')) {
       final parts = id.split(':');
       if (parts.length >= 2) {

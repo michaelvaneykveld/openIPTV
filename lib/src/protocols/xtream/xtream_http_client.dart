@@ -55,7 +55,10 @@ class XtreamHttpClient {
         responseType: ResponseType.json,
         headers: {
           'User-Agent': configuration.userAgent,
-          'Accept': 'application/json',
+          'Accept': '*/*',
+          'Connection': 'keep-alive',
+          if (configuration.deviceId != null)
+            'X-Device-Id': configuration.deviceId,
           ...configuration.extraHeaders,
         },
         validateStatus: (status) => status != null && status < 500,

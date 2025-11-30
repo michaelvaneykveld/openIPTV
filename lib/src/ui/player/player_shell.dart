@@ -17,7 +17,6 @@ import 'package:openiptv/src/protocols/stalker/stalker_vod_service.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
-import 'package:openiptv/src/playback/ffmpeg_restreamer.dart';
 import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';

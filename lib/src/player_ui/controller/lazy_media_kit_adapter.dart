@@ -32,16 +32,16 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     _player = Player(
       configuration: PlayerConfiguration(
         title: 'OpenIPTV',
-        libass: true,
-        protocolWhitelist: const [
-          'file',
-          'http',
-          'https',
-          'tcp',
-          'udp',
-          'rtp',
-          'rtsp',
-        ],
+        // libass: true,
+        // protocolWhitelist: const [
+        //   'file',
+        //   'http',
+        //   'https',
+        //   'tcp',
+        //   'udp',
+        //   'rtp',
+        //   'rtsp',
+        // ],
       ),
     );
     // Allow redirects to potentially unsafe URLs (common in IPTV)
@@ -52,11 +52,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       (_player.platform as dynamic).setProperty('user-agent', 'okhttp/4.9.3');
       // Force HTTP/1.1 to avoid issues with Nginx/Xtream panels that advertise h2 but fail to stream it
       (_player.platform as dynamic).setProperty('http-version', '1.1');
-      // Force demuxer to be more lenient with container mismatches (e.g. TS in MP4)
-      (_player.platform as dynamic).setProperty(
-        'demuxer-lavf-format',
-        'mpegts,mp4,mov,m4v,matroska,avi',
-      );
+      // Removed demuxer-lavf-format restriction to allow mpv to detect format automatically
     } catch (e) {
       PlaybackLogger.videoError('media-kit-unsafe-property-failed', error: e);
     }
@@ -213,13 +209,18 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
         throw StateError('No playable stream available.');
       }
 
-      final url = playback.source.playable.url.toString();
+      final url =
+          playback.source.playable.rawUrl ??
+          playback.source.playable.url.toString();
       // Filter out User-Agent from headers passed to open(), as we set it via setProperty.
       // This prevents potential duplicate User-Agent headers in mpv.
       final headers = Map<String, String>.from(
         playback.source.playable.headers,
       );
       headers.remove('User-Agent');
+      // Ensure we don't send Range or Accept headers manually, let MediaKit handle it
+      headers.remove('Range');
+      headers.remove('Accept');
 
       PlaybackLogger.mediaOpen(
         url,
@@ -228,7 +229,10 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
         isLive: playback.source.playable.isLive,
       );
 
-      await _player.open(Media(url, httpHeaders: headers), play: _autoPlay);
+      await _player.open(
+        Media(url, httpHeaders: headers.isEmpty ? null : headers),
+        play: _autoPlay,
+      );
 
       PlaybackLogger.playbackStarted(url, title: playback.source.title);
 

@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:drift/drift.dart';
 import 'package:logger/logger.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 
 import 'stalker_http_client.dart';
 import 'stalker_portal_configuration.dart';
@@ -19,6 +21,136 @@ class StalkerVodService {
   final StalkerPortalConfiguration _configuration;
   final StalkerSession _session;
   final StalkerHttpClient _httpClient;
+
+  Future<void> fetchCategoryContent({
+    required OpenIptvDb db,
+    required int providerId,
+    required String categoryId,
+    required int categoryKindIndex, // 1=VOD, 2=Series
+  }) async {
+    final type = categoryKindIndex == 2 ? 'series' : 'vod';
+    _logger.d(
+      '[Stalker VOD] Fetching category content for $categoryId ($type)',
+    );
+
+    try {
+      final response = await _httpClient.getPortal(
+        _configuration,
+        queryParameters: {
+          'type': type,
+          'action': 'get_ordered_list',
+          'category': categoryId,
+          'category_id': categoryId,
+          'p': 1,
+          'page': 1,
+          'JsHttpRequest': '1-xml',
+          'token': _session.token,
+          'mac': _configuration.macAddress.toLowerCase(),
+        },
+        headers: _session.buildAuthenticatedHeaders(),
+      );
+
+      if (response.statusCode != 200) {
+        _logger.e(
+          '[Stalker VOD] Failed to fetch category: ${response.statusCode}',
+        );
+        return;
+      }
+
+      final data = _decodePortalResponse(response.body);
+      final items = data['data'];
+
+      if (items is! List) {
+        _logger.d('[Stalker VOD] No items found in category');
+        return;
+      }
+
+      await db.transaction(() async {
+        final seenAt = DateTime.now().toUtc();
+
+        // Find internal category ID
+        final category =
+            await (db.select(db.categories)..where(
+                  (tbl) =>
+                      tbl.providerId.equals(providerId) &
+                      tbl.providerCategoryKey.equals(categoryId) &
+                      tbl.kind.equalsValue(
+                        CategoryKind.values[categoryKindIndex],
+                      ),
+                ))
+                .getSingleOrNull();
+
+        if (category == null) {
+          _logger.w('[Stalker VOD] Category $categoryId not found in DB');
+          return;
+        }
+
+        if (categoryKindIndex == 2) {
+          // Series
+          for (final item in items) {
+            if (item is! Map) continue;
+            final seriesKey = item['id']?.toString();
+            final title = item['name']?.toString() ?? item['title']?.toString();
+            if (seriesKey == null || title == null) continue;
+
+            await db
+                .into(db.series)
+                .insertOnConflictUpdate(
+                  SeriesCompanion(
+                    providerId: Value(providerId),
+                    providerSeriesKey: Value(seriesKey),
+                    title: Value(title),
+                    categoryId: Value(category.id),
+                    posterUrl: Value(
+                      item['screenshot_uri']?.toString() ??
+                          item['cover']?.toString(),
+                    ),
+                    overview: Value(
+                      item['description']?.toString() ??
+                          item['plot']?.toString(),
+                    ),
+                    lastSeenAt: Value(seenAt),
+                  ),
+                );
+          }
+        } else {
+          // VOD
+          for (final item in items) {
+            if (item is! Map) continue;
+            final vodKey = item['id']?.toString();
+            final title = item['name']?.toString() ?? item['title']?.toString();
+            if (vodKey == null || title == null) continue;
+
+            final cmd = item['cmd']?.toString() ?? item['url']?.toString();
+
+            await db
+                .into(db.movies)
+                .insertOnConflictUpdate(
+                  MoviesCompanion(
+                    providerId: Value(providerId),
+                    providerVodKey: Value(vodKey),
+                    title: Value(title),
+                    categoryId: Value(category.id),
+                    posterUrl: Value(
+                      item['screenshot_uri']?.toString() ??
+                          item['cover']?.toString(),
+                    ),
+                    overview: Value(
+                      item['description']?.toString() ??
+                          item['plot']?.toString(),
+                    ),
+                    streamUrlTemplate: Value(cmd),
+                    lastSeenAt: Value(seenAt),
+                  ),
+                );
+          }
+        }
+      });
+      _logger.d('[Stalker VOD] Fetched and saved ${items.length} items');
+    } catch (e) {
+      _logger.e('[Stalker VOD] Error fetching category content', error: e);
+    }
+  }
 
   /// Fetches seasons for a series from the Stalker portal
   Future<List<StalkerSeason>> getSeasons(int seriesId) async {

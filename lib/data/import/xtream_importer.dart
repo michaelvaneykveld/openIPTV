@@ -275,7 +275,9 @@ class XtreamImporter {
         ),
         durationSec: _parseDurationSeconds(item['duration']),
         streamUrlTemplate: _coerceString(
-          item['stream_url'] ?? item['direct_source'],
+          item['container_extension'] != null
+              ? '.${item['container_extension']}'
+              : item['stream_url'] ?? item['direct_source'],
         ),
         seenAt: seenAt,
       );

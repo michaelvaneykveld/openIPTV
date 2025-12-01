@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/ui/live/live_tv_screen.dart';
 import 'package:openiptv/src/ui/vod/vod_grid_screen.dart';
@@ -24,6 +25,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           NavigationRail(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (int index) {
+              if (index == 5) {
+                Navigator.of(context).pop();
+                return;
+              }
               setState(() {
                 _selectedIndex = index;
               });
@@ -43,8 +48,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 label: Text('Series'),
               ),
               NavigationRailDestination(
+                icon: Icon(Icons.radio),
+                label: Text('Radio'),
+              ),
+              NavigationRailDestination(
                 icon: Icon(Icons.settings),
                 label: Text('Settings'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.logout),
+                label: Text('Logout'),
               ),
             ],
           ),
@@ -64,6 +77,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       case 2:
         return VodGridScreen(profile: widget.profile, type: 'series');
       case 3:
+        return LiveTvScreen(
+          profile: widget.profile,
+          categoryKind: CategoryKind.radio,
+        );
+      case 4:
         return const Center(child: Text('Settings Placeholder'));
       default:
         return const SizedBox.shrink();

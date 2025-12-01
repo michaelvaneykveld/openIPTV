@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' hide Column;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 
@@ -14,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:file_picker/file_picker.dart';
 
+import 'package:openiptv/data/db/database_locator.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 
 import 'package:openiptv/src/providers/login_flow_controller.dart';
@@ -2911,13 +2913,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               offset: lockedBaseString.length,
             );
         }
-
-        if (discoveryResult.hints['needsUserAgent'] == 'true' &&
-            userAgentOverride.isEmpty) {
-          flowController.setBannerMessage(
-            'Server requires a specific User-Agent. Consider saving one in Advanced settings.',
-          );
-        }
       } else {
         handshakeBase = Uri.parse(lockedBase);
       }
@@ -4895,6 +4890,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _showSnack('Unable to open ${record.displayName}.');
 
       return;
+    }
+
+    final providerId = resolved.providerDbId;
+    if (providerId != null) {
+      final db = ref.read(openIptvDbProvider);
+      final count =
+          await (db.selectOnly(db.channels)
+                ..addColumns([db.channels.id.count()])
+                ..where(db.channels.providerId.equals(providerId)))
+              .map((row) => row.read(db.channels.id.count()))
+              .getSingle();
+
+      if (count == 0) {
+        _kickOffInitialImport(resolved);
+      }
     }
 
     await _navigateToPlayer(resolved);

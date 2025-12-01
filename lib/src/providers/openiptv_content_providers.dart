@@ -17,7 +17,7 @@ final playableResolverProvider =
 final channelsProvider =
     StreamProvider.family<
       List<ChannelRecord>,
-      ({int providerId, int? categoryId})
+      ({int providerId, int? categoryId, CategoryKind? kind})
     >((ref, args) {
       final db = ref.watch(openIptvDbProvider);
 
@@ -36,6 +36,29 @@ final channelsProvider =
           OrderingTerm(expression: db.channels.number),
           OrderingTerm(expression: db.channels.name),
         ]);
+        return query.map((row) => row.readTable(db.channels)).watch();
+      }
+
+      if (args.kind != null) {
+        final query = db.select(db.channels).join([
+          innerJoin(
+            db.channelCategories,
+            db.channelCategories.channelId.equalsExp(db.channels.id),
+          ),
+          innerJoin(
+            db.categories,
+            db.categories.id.equalsExp(db.channelCategories.categoryId),
+          ),
+        ]);
+        query.where(
+          db.channels.providerId.equals(args.providerId) &
+              db.categories.kind.equalsValue(args.kind!),
+        );
+        query.orderBy([
+          OrderingTerm(expression: db.channels.number),
+          OrderingTerm(expression: db.channels.name),
+        ]);
+        query.groupBy([db.channels.id]);
         return query.map((row) => row.readTable(db.channels)).watch();
       }
 

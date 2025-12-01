@@ -188,7 +188,10 @@ class MediaKitPlaylistAdapter
       PlaybackLogger.videoInfo('media-kit-open-headers', extra: headers);
 
       await _player.open(
-        Media(source.playable.url.toString(), httpHeaders: headers),
+        Media(
+          source.playable.rawUrl ?? source.playable.url.toString(),
+          httpHeaders: headers,
+        ),
         play: _autoPlay,
       );
       final seekStart = source.playable.seekStart;

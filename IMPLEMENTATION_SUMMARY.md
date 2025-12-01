@@ -360,3 +360,12 @@ channel-start → ... → channel-resolved → resolving → open
     - Added critical error logging to `LoginScreen` to capture stack traces if login loading fails in the future.
 - **Code Cleanup**:
     - Fixed undefined `controller` variable in `LoginScreen._applyInputClassification`.
+
+### 2025-11-30: Data Ingestion Fix
+- **Issue**: Categories and items were missing in the new UI layout after the database migration.
+- **Diagnosis**: The `LoginScreen` was not triggering the initial data import for saved profiles if the database was empty (due to the "nuke and pave" migration).
+- **Fix**:
+    - Modified `_connectSavedProfile` in `LoginScreen` to check the channel count in the database.
+    - If the count is 0, it now triggers `_kickOffInitialImport` to repopulate the database.
+    - Fixed compilation errors in `LoginScreen` (undefined `controller` -> `flowController`).
+- **Status**: Fixed. Data should now populate correctly upon login.

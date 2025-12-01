@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
+import 'package:openiptv/src/protocols/xtream/xtream_episodes_service.dart';
+import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/openiptv_content_providers.dart';
 import 'package:openiptv/src/ui/player/mini_player.dart';
 
-class SeriesDetailsScreen extends ConsumerWidget {
+class SeriesDetailsScreen extends ConsumerStatefulWidget {
   final ResolvedProviderProfile profile;
   final SeriesRecord series;
 
@@ -16,18 +19,52 @@ class SeriesDetailsScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final providerId = profile.providerDbId;
+  ConsumerState<SeriesDetailsScreen> createState() =>
+      _SeriesDetailsScreenState();
+}
+
+class _SeriesDetailsScreenState extends ConsumerState<SeriesDetailsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _fetchEpisodesIfNeeded();
+  }
+
+  Future<void> _fetchEpisodesIfNeeded() async {
+    if (widget.profile.kind == ProviderKind.xtream) {
+      final providerId = widget.profile.providerDbId;
+      if (providerId == null) return;
+
+      final config = XtreamPortalConfiguration.fromCredentials(
+        url: widget.profile.lockedBase.toString(),
+        username: widget.profile.secrets['username'] ?? '',
+        password: widget.profile.secrets['password'] ?? '',
+      );
+
+      await ref
+          .read(xtreamEpisodesServiceProvider)
+          .fetchAndSaveEpisodes(
+            config: config,
+            providerId: providerId,
+            seriesId: widget.series.id,
+            seriesProviderKey: widget.series.providerSeriesKey,
+          );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final providerId = widget.profile.providerDbId;
     if (providerId == null) {
       return const Center(child: Text('Provider not initialized in new DB'));
     }
 
     final episodesAsync = ref.watch(
-      episodesProvider((providerId: providerId, seriesId: series.id)),
+      episodesProvider((providerId: providerId, seriesId: widget.series.id)),
     );
 
     return Scaffold(
-      appBar: AppBar(title: Text(series.title)),
+      appBar: AppBar(title: Text(widget.series.title)),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -38,21 +75,22 @@ class SeriesDetailsScreen extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  if (series.posterUrl != null)
+                  if (widget.series.posterUrl != null)
                     Image.network(
-                      series.posterUrl!,
+                      widget.series.posterUrl!,
                       width: 200,
                       errorBuilder: (context, error, stackTrace) =>
                           const Icon(Icons.tv, size: 100),
                     ),
                   const SizedBox(height: 16),
                   Text(
-                    series.title,
+                    widget.series.title,
                     style: Theme.of(context).textTheme.headlineSmall,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
-                  if (series.overview != null) Text(series.overview!),
+                  if (widget.series.overview != null)
+                    Text(widget.series.overview!),
                 ],
               ),
             ),
@@ -64,7 +102,9 @@ class SeriesDetailsScreen extends ConsumerWidget {
             child: episodesAsync.when(
               data: (episodes) {
                 if (episodes.isEmpty) {
-                  return const Center(child: Text('No episodes found.'));
+                  return const Center(
+                    child: Text('No episodes found. Fetching...'),
+                  );
                 }
                 return ListView.builder(
                   itemCount: episodes.length,
@@ -103,8 +143,11 @@ class SeriesDetailsScreen extends ConsumerWidget {
     );
 
     try {
-      final resolver = ref.read(playableResolverProvider(profile));
-      final source = await resolver.episode(episode, seriesTitle: series.title);
+      final resolver = ref.read(playableResolverProvider(widget.profile));
+      final source = await resolver.episode(
+        episode,
+        seriesTitle: widget.series.title,
+      );
 
       if (context.mounted) {
         Navigator.of(context).pop(); // Dismiss loading

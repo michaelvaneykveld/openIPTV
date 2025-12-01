@@ -1,32 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
+import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/providers/openiptv_content_providers.dart';
 import 'package:openiptv/src/ui/player/mini_player.dart';
 import 'package:openiptv/src/ui/vod/series_details_screen.dart';
+import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
+import 'package:openiptv/data/db/database_locator.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_vod_service.dart';
+import 'package:openiptv/src/providers/protocol_auth_providers.dart';
+import 'package:openiptv/src/utils/profile_header_utils.dart';
 
-class VodGridScreen extends ConsumerWidget {
+class VodGridScreen extends ConsumerStatefulWidget {
   final ResolvedProviderProfile profile;
   final String type; // 'movie' or 'series'
 
   const VodGridScreen({super.key, required this.profile, required this.type});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final providerId = profile.providerDbId;
+  ConsumerState<VodGridScreen> createState() => _VodGridScreenState();
+}
+
+class _VodGridScreenState extends ConsumerState<VodGridScreen> {
+  int? _selectedCategoryId;
+
+  @override
+  Widget build(BuildContext context) {
+    final providerId = widget.profile.providerDbId;
     if (providerId == null) {
       return const Center(child: Text('Provider not initialized in new DB'));
     }
 
-    return type == 'movie'
-        ? _buildMovieGrid(context, ref, providerId)
-        : _buildSeriesGrid(context, ref, providerId);
+    final bucket = widget.type == 'movie'
+        ? ContentBucket.films
+        : ContentBucket.series;
+    final groupsAsync = ref.watch(dbCategoriesProvider(providerId));
+
+    return Row(
+      children: [
+        // Categories
+        Expanded(
+          flex: 1,
+          child: Container(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: groupsAsync.when(
+              data: (categoryMap) {
+                final groups = categoryMap[bucket] ?? [];
+                return ListView.builder(
+                  itemCount: groups.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return ListTile(
+                        title: const Text('All'),
+                        selected: _selectedCategoryId == null,
+                        onTap: () => setState(() => _selectedCategoryId = null),
+                      );
+                    }
+                    final group = groups[index - 1];
+                    final groupId = int.tryParse(group.id);
+                    if (groupId == null) return const SizedBox.shrink();
+
+                    return ListTile(
+                      title: Text('${group.name} (${group.count ?? 0})'),
+                      selected: _selectedCategoryId == groupId,
+                      onTap: () {
+                        setState(() => _selectedCategoryId = groupId);
+                        if (widget.profile.kind == ProviderKind.stalker &&
+                            group.providerKey != null) {
+                          _fetchCategoryContent(
+                            providerId,
+                            group.providerKey!,
+                            widget.type,
+                          );
+                        }
+                      },
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, stack) => Center(child: Text('Error: $err')),
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        // Grid
+        Expanded(
+          flex: 4,
+          child: widget.type == 'movie'
+              ? _buildMovieGrid(context, ref, providerId)
+              : _buildSeriesGrid(context, ref, providerId),
+        ),
+      ],
+    );
   }
 
   Widget _buildMovieGrid(BuildContext context, WidgetRef ref, int providerId) {
     final moviesAsync = ref.watch(
-      moviesProvider((providerId: providerId, categoryId: null)),
+      moviesProvider((providerId: providerId, categoryId: _selectedCategoryId)),
     );
 
     return moviesAsync.when(
@@ -55,7 +128,7 @@ class VodGridScreen extends ConsumerWidget {
 
   Widget _buildSeriesGrid(BuildContext context, WidgetRef ref, int providerId) {
     final seriesAsync = ref.watch(
-      seriesProvider((providerId: providerId, categoryId: null)),
+      seriesProvider((providerId: providerId, categoryId: _selectedCategoryId)),
     );
 
     return seriesAsync.when(
@@ -75,8 +148,10 @@ class VodGridScreen extends ConsumerWidget {
             series.posterUrl,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) =>
-                    SeriesDetailsScreen(profile: profile, series: series),
+                builder: (_) => SeriesDetailsScreen(
+                  profile: widget.profile,
+                  series: series,
+                ),
               ),
             ),
           );
@@ -137,7 +212,7 @@ class VodGridScreen extends ConsumerWidget {
     );
 
     try {
-      final resolver = ref.read(playableResolverProvider(profile));
+      final resolver = ref.read(playableResolverProvider(widget.profile));
       final source = await resolver.movie(movie);
 
       if (context.mounted) {
@@ -171,6 +246,40 @@ class VodGridScreen extends ConsumerWidget {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _fetchCategoryContent(
+    int providerId,
+    String categoryId,
+    String type,
+  ) async {
+    final config = StalkerPortalConfiguration(
+      baseUri: widget.profile.lockedBase,
+      macAddress: widget.profile.record.configuration['macAddress'] ?? '',
+      userAgent: widget.profile.record.configuration['userAgent'],
+      allowSelfSignedTls: widget.profile.record.allowSelfSignedTls,
+      extraHeaders: decodeProfileCustomHeaders(widget.profile),
+    );
+
+    try {
+      final session = await ref.read(stalkerSessionProvider(config).future);
+      final service = StalkerVodService(
+        configuration: config,
+        session: session,
+      );
+
+      // 1=VOD, 2=Series (matching CategoryKind enum index)
+      final kindIndex = type == 'series' ? 2 : 1;
+
+      await service.fetchCategoryContent(
+        db: ref.read(openIptvDbProvider),
+        providerId: providerId,
+        categoryId: categoryId,
+        categoryKindIndex: kindIndex,
+      );
+    } catch (e) {
+      debugPrint('Failed to fetch category content: $e');
     }
   }
 }

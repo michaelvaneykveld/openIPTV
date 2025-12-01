@@ -1,133 +1,131 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'package:logger/logger.dart';
+
+import 'package:openiptv/src/utils/playback_logger.dart';
 
 class LocalProxyServer {
-  static final Logger _logger = Logger();
   static HttpServer? _server;
   static int _port = 0;
-
-  static int get port => _port;
 
   static Future<void> start() async {
     if (_server != null) return;
 
-    try {
-      _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      _port = _server!.port;
-      _logger.i('[LocalProxyServer] Started on port $_port');
+    // Bind to any available port on loopback
+    _server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    _port = _server!.port;
 
-      _server!.listen(
-        _handleRequest,
-        onError: (e) {
-          _logger.e('[LocalProxyServer] Server error', error: e);
-        },
-      );
-    } catch (e) {
-      _logger.e('[LocalProxyServer] Failed to start', error: e);
-      rethrow;
-    }
+    PlaybackLogger.videoInfo('proxy-started', extra: {'port': _port});
+
+    _server!.listen(_handleRequest);
   }
 
-  static Future<void> stop() async {
-    await _server?.close();
-    _server = null;
-    _port = 0;
-  }
-
-  static String createProxyUrl(String remoteUrl, Map<String, String> headers) {
+  static String createProxyUrl(String targetUrl, Map<String, String> headers) {
     if (_server == null) {
       throw StateError('LocalProxyServer not started');
     }
-    final encodedUrl = Uri.encodeComponent(remoteUrl);
-    final encodedHeaders = base64Url.encode(utf8.encode(jsonEncode(headers)));
-    return 'http://127.0.0.1:$_port/proxy?url=$encodedUrl&h=$encodedHeaders';
+    // We encode headers into the URL to keep it stateless
+    final uri = Uri.parse('http://127.0.0.1:$_port/proxy');
+    final queryParams = <String, String>{'url': targetUrl};
+    // Add headers as query params prefixed with h_
+    for (final entry in headers.entries) {
+      queryParams['h_${entry.key}'] = entry.value;
+    }
+
+    return uri.replace(queryParameters: queryParams).toString();
   }
 
   static Future<void> _handleRequest(HttpRequest request) async {
     final client = HttpClient();
-    // Allow self-signed certs if needed (Xtream often uses them)
+    // Allow self-signed certs
     client.badCertificateCallback = (cert, host, port) => true;
+    // Auto-uncompress
+    client.autoUncompress = true;
 
     try {
-      final uri = request.uri;
-      if (uri.path != '/proxy') {
-        request.response.statusCode = HttpStatus.notFound;
-        await request.response.close();
-        return;
-      }
-
-      final remoteUrlParam = uri.queryParameters['url'];
-      final headersParam = uri.queryParameters['h'];
-
-      if (remoteUrlParam == null) {
+      final targetUrl = request.uri.queryParameters['url'];
+      if (targetUrl == null) {
         request.response.statusCode = HttpStatus.badRequest;
-        request.response.write('Missing url parameter');
         await request.response.close();
         return;
       }
 
-      final remoteUrl = Uri.decodeComponent(remoteUrlParam);
-      Map<String, String> headers = {};
-      if (headersParam != null) {
-        try {
-          final jsonStr = utf8.decode(base64Url.decode(headersParam));
-          headers = Map<String, String>.from(jsonDecode(jsonStr));
-        } catch (e) {
-          _logger.w('[LocalProxyServer] Failed to decode headers', error: e);
+      final targetUri = Uri.parse(targetUrl);
+      final proxyRequest = await client.openUrl(request.method, targetUri);
+
+      // Copy headers from query params (h_ prefix)
+      for (final entry in request.uri.queryParameters.entries) {
+        if (entry.key.startsWith('h_')) {
+          final headerName = entry.key.substring(2);
+          proxyRequest.headers.set(headerName, entry.value);
         }
       }
 
-      _logger.d('[LocalProxyServer] Proxying: $remoteUrl');
-
-      // Create outgoing request
-      final proxyReq = await client.getUrl(Uri.parse(remoteUrl));
-
-      // Copy headers
-      headers.forEach((k, v) {
-        // Skip Host header to let HttpClient set it correctly for the target
-        if (k.toLowerCase() != 'host') {
-          proxyReq.headers.set(k, v);
-        }
-      });
-
-      // Forward Range header from player if present
-      final range = request.headers.value(HttpHeaders.rangeHeader);
-      if (range != null) {
-        proxyReq.headers.set(HttpHeaders.rangeHeader, range);
-      }
-
-      final proxyRes = await proxyReq.close();
-
-      _logger.d(
-        '[LocalProxyServer] Upstream response: ${proxyRes.statusCode} ${proxyRes.reasonPhrase}',
-      );
-
-      // Forward status code
-      request.response.statusCode = proxyRes.statusCode;
-
-      // Forward response headers
-      proxyRes.headers.forEach((name, values) {
-        // Skip encoding headers as we are streaming raw bytes
-        if (name.toLowerCase() != 'transfer-encoding' &&
-            name.toLowerCase() != 'content-encoding') {
-          for (final v in values) {
-            request.response.headers.add(name, v);
+      // Also copy standard headers from the incoming request (Range, etc.)
+      request.headers.forEach((name, values) {
+        if (!_isExcludedHeader(name)) {
+          for (final value in values) {
+            proxyRequest.headers.add(name, value);
           }
         }
       });
 
-      // Stream data
-      await proxyRes.pipe(request.response);
+      // Ensure User-Agent is set if not already
+      // NOTE: We must be careful not to add it if it's already there, to avoid "More than one value" error.
+      if (proxyRequest.headers.value(HttpHeaders.userAgentHeader) == null) {
+        proxyRequest.headers.set(HttpHeaders.userAgentHeader, 'okhttp/4.9.3');
+      } else {
+        // Force override to ensure it's the one we want, and only one.
+        proxyRequest.headers.set(HttpHeaders.userAgentHeader, 'okhttp/4.9.3');
+      }
+
+      // Ensure Connection: keep-alive
+      proxyRequest.headers.set(HttpHeaders.connectionHeader, 'keep-alive');
+
+      final proxyResponse = await proxyRequest.close();
+
+      request.response.statusCode = proxyResponse.statusCode;
+
+      // Copy response headers
+      proxyResponse.headers.forEach((name, values) {
+        if (!_isExcludedResponseHeader(name)) {
+          for (final value in values) {
+            request.response.headers.add(name, value);
+          }
+        }
+      });
+
+      // Stream the data
+      await proxyResponse.pipe(request.response);
     } catch (e) {
-      _logger.e('[LocalProxyServer] Proxy error', error: e);
+      PlaybackLogger.videoError('proxy-error', error: e);
       try {
         request.response.statusCode = HttpStatus.internalServerError;
+        request.response.write('Proxy error: $e');
         await request.response.close();
       } catch (_) {}
     } finally {
       client.close();
     }
+  }
+
+  static bool _isExcludedHeader(String name) {
+    final lower = name.toLowerCase();
+    return lower == 'host' ||
+        lower == 'connection' ||
+        lower == 'upgrade' ||
+        lower == 'content-length' ||
+        lower == 'user-agent' || // We handle UA explicitly
+        lower ==
+            'referer' || // Exclude Referer to avoid leaking proxy URL or triggering anti-leech
+        lower ==
+            'accept' || // Exclude Accept to avoid triggering strict server checks
+        lower.startsWith('h_'); // Don't copy our internal params
+  }
+
+  static bool _isExcludedResponseHeader(String name) {
+    final lower = name.toLowerCase();
+    return lower == 'connection' ||
+        lower == 'transfer-encoding' ||
+        lower == 'content-length'; // Let the server calculate this
   }
 }

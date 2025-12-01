@@ -22,6 +22,8 @@ import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/playback/stream_probe.dart';
 import 'package:openiptv/src/playback/local_proxy_server.dart';
 
+import 'package:openiptv/src/utils/xtream_flutter_integration.dart';
+
 class PlayableResolver {
   PlayableResolver(
     this.profile, {
@@ -45,7 +47,7 @@ class PlayableResolver {
   _XtreamServerContext? _xtreamServerContext;
   Future<_XtreamServerContext?>? _xtreamServerContextFuture;
 
-  static const Duration _xtreamProbeTimeout = Duration(seconds: 10);
+  static const Duration _xtreamProbeTimeout = Duration(seconds: 20);
 
   Map<String, String> get _secrets => profile.secrets;
   Map<String, String> get _config => profile.record.configuration;
@@ -426,11 +428,14 @@ class PlayableResolver {
       return null;
     }
     final base = _xtreamStreamBase(serverContext);
-    // Do NOT encode credentials for Xtream. Many servers expect raw characters (e.g. colons in MACs)
-    // and do not decode the path segments correctly if we send %3A.
-    final escapedUsername = username;
-    final escapedPassword = password;
-    final slugPrefix = 'live/$escapedUsername/$escapedPassword';
+    // SPLIT STRATEGY:
+    // Live TV: Use RAW credentials. The server rejects encoded credentials during probe.
+    // VOD: Use ENCODED credentials. Direct playback requires safe URLs for players/FFmpeg.
+
+    // 1. Setup for Live (Raw)
+    final rawUsername = username;
+    final rawPassword = password;
+    final liveSlugPrefix = 'live/$rawUsername/$rawPassword';
 
     final deviceId = await DeviceIdentity.getDeviceId();
     var headers = _mergeHeaders(headerHints);
@@ -441,19 +446,31 @@ class PlayableResolver {
       password,
       deviceId: deviceId,
     );
+
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
-        slugPrefix: slugPrefix,
+        slugPrefix: liveSlugPrefix, // Use RAW for Live
         providerKey: providerKey,
         headers: headers,
         templateExtension: templateExtension,
       );
       if (livePlayable != null) {
-        return livePlayable;
+        // Use Proxy for Live TV to handle connection quirks and headers
+        final proxyUrl = LocalProxyServer.createProxyUrl(
+          livePlayable.url.toString(),
+          headers,
+        );
+        return livePlayable.copyWith(
+          url: Uri.parse(proxyUrl),
+          headers: {}, // Proxy handles headers
+        );
       }
       return null;
     }
+
+    // 2. Setup for VOD (Encoded)
+    // Use SmartUrlBuilder to handle encoding correctly
     final segment = switch (kind) {
       ContentBucket.live || ContentBucket.radio => 'live',
       ContentBucket.films => 'movie',
@@ -463,19 +480,45 @@ class PlayableResolver {
         templateExtension ??
         _resolveXtreamExtension(kind: kind, isLive: isLive);
 
-    // Fix for Xtream VODs: If extension is 'ts', force 'mp4'.
-    // 'ts' is almost never correct for VODs on Xtream, but importers might infer it from live templates.
-    if ((kind == ContentBucket.films || kind == ContentBucket.series) &&
-        ext == 'ts') {
-      PlaybackLogger.resolverActivity(
-        'xtream-vod-extension-fix',
-        bucket: kind.name,
-        extra: {'original': 'ts', 'forced': 'mp4'},
+    // NEW: Skip probe for VOD to match reference app behavior
+    if (kind == ContentBucket.films || kind == ContentBucket.series) {
+      // Use SmartUrlBuilder for robust URL construction
+      final manualUrl = SmartUrlBuilder.build(
+        host: base.host,
+        port: base.port,
+        type: segment,
+        username: username,
+        password: password,
+        id: providerKey,
+        ext: ext,
+        forceHttps: base.scheme == 'https',
       );
-      ext = 'mp4';
+
+      PlaybackLogger.videoInfo(
+        'xtream-vod-direct-skip-probe',
+        uri: Uri.parse(manualUrl),
+        extra: {
+          'reason': 'Matching reference app behavior (skip probe)',
+          'extension': ext,
+          'manualUrl': manualUrl,
+          'encoding': 'smart-builder',
+        },
+      );
+
+      return Playable(
+        url: Uri.parse(manualUrl),
+        isLive: isLive,
+        headers:
+            headers, // Send headers (User-Agent, Referer) just like Live TV
+        containerExtension: ext,
+        mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+        durationHint: durationHint,
+        rawUrl: manualUrl,
+      );
     }
 
-    final path = '$segment/$escapedUsername/$escapedPassword/$providerKey.$ext';
+    // Fallback for unknown types (shouldn't happen given the if block above)
+    final path = '$segment/$rawUsername/$rawPassword/$providerKey.$ext';
     final url = base.resolve(path);
 
     // Probe and resolve redirects/blocking
@@ -497,23 +540,7 @@ class PlayableResolver {
         error: e,
         description: url.toString(),
       );
-
-      // If probe failed with 403 (blocked), try proxying
-      if (e is StreamProbeException && e.statusCode == 403) {
-        PlaybackLogger.videoInfo(
-          'xtream-activating-proxy',
-          uri: url,
-          extra: {'reason': '403 Forbidden on direct access'},
-        );
-        final proxyUrl = LocalProxyServer.createProxyUrl(
-          url.toString(),
-          headers,
-        );
-        finalUri = Uri.parse(proxyUrl);
-        // When proxying, we don't send headers to the player,
-        // as the proxy server already has them encoded in the URL.
-        headers = {};
-      }
+      // Proxy fallback removed as per user request
     }
 
     return Playable(
@@ -1010,28 +1037,29 @@ class PlayableResolver {
     String? deviceId,
   }) {
     final normalized = Map<String, String>.from(headers);
+    // Revert to okhttp/4.9.3 as it is known to work with this provider
     normalized['User-Agent'] = 'okhttp/4.9.3';
-    normalized['Referer'] = '${base.scheme}://${base.host}/';
-    // Do NOT set Host header manually. It breaks redirects (e.g. VODs redirecting to CDN)
-    // because the HTTP client/player will send the old Host to the new server.
-    // normalized['Host'] = base.host;
-    normalized.putIfAbsent('Accept', () => '*/*');
-    normalized['Connection'] = 'Keep-Alive';
+
+    // Remove Referer and Accept as per strict Xtream VOD rules
+    // "Use only: User-Agent, Optional: X-Device-ID, Connection: keep-alive"
+    normalized.remove('Referer');
+    normalized.remove('Accept');
+    normalized.remove('Host'); // Ensure Host is gone
+
+    normalized['Connection'] = 'keep-alive';
+
     if (deviceId != null) {
       normalized['X-Device-Id'] = deviceId;
     }
-    final creds = base64Encode(utf8.encode('$username:$password'));
-    normalized['Authorization'] = 'Basic $creds';
 
     PlaybackLogger.videoInfo(
       'xtream-headers-generated',
       extra: {
         'User-Agent': normalized['User-Agent'],
-        'Referer': normalized['Referer'],
-        'Host': 'REMOVED-FOR-REDIRECTS',
         'Connection': normalized['Connection'],
-        'Authorization': 'Basic ${creds.substring(0, 5)}...',
         'X-Device-Id': normalized['X-Device-Id'],
+        'Referer': 'REMOVED',
+        'Accept': 'REMOVED',
       },
     );
 
@@ -2327,7 +2355,14 @@ class _XtreamCandidate {
 
   Uri resolve(Uri base, String providerKey) {
     final resolvedBase = baseOverride ?? base;
-    final path = pathTemplate.replaceAll(placeholder, providerKey);
+    var path = pathTemplate.replaceAll(placeholder, providerKey);
+
+    // If the path starts with a potential scheme (e.g. "d0:d0..."), prepend "./"
+    // to force Uri.resolve to treat it as a relative path.
+    if (path.contains(':') && !path.startsWith('/')) {
+      path = './$path';
+    }
+
     return resolvedBase.resolve(path);
   }
 }

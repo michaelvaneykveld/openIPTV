@@ -9,8 +9,13 @@ import 'package:openiptv/src/ui/player/mini_player.dart';
 
 class LiveTvScreen extends ConsumerStatefulWidget {
   final ResolvedProviderProfile profile;
+  final CategoryKind categoryKind;
 
-  const LiveTvScreen({super.key, required this.profile});
+  const LiveTvScreen({
+    super.key,
+    required this.profile,
+    this.categoryKind = CategoryKind.live,
+  });
 
   @override
   ConsumerState<LiveTvScreen> createState() => _LiveTvScreenState();
@@ -50,6 +55,19 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen> {
     }
   }
 
+  ContentBucket _getBucket() {
+    switch (widget.categoryKind) {
+      case CategoryKind.live:
+        return ContentBucket.live;
+      case CategoryKind.radio:
+        return ContentBucket.radio;
+      case CategoryKind.vod:
+        return ContentBucket.films;
+      case CategoryKind.series:
+        return ContentBucket.series;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final providerId = widget.profile.providerDbId;
@@ -68,7 +86,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen> {
             color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: groupsAsync.when(
               data: (categoryMap) {
-                final groups = categoryMap[ContentBucket.live] ?? [];
+                final groups = categoryMap[_getBucket()] ?? [];
                 return ListView.builder(
                   itemCount: groups.length + 1, // +1 for "All"
                   itemBuilder: (context, index) {
@@ -158,6 +176,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen> {
       channelsProvider((
         providerId: providerId,
         categoryId: _selectedCategoryId,
+        kind: widget.categoryKind,
       )),
     );
 

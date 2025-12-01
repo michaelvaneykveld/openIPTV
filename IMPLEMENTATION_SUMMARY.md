@@ -398,48 +398,54 @@ channel-start → ... → channel-resolved → resolving → open
 
 #### 4. Final Stability Fixes (Live & VOD) - SUPERSEDED
 
-#### 5. **ROOT CAUSE FIX: Conditional Encoding for Xtream Usernames (2025-12-01)**
+#### 5. **ROOT CAUSE FIX: Skip Xtream Live TV Probe Entirely (2025-12-01)**
 
 **The Problem:**
-- **MAC-style usernames** (e.g., `d0:d0:03:03:47:aa`): Probe failed with `TimeoutException` because HTTP client interpreted colons as protocol
-- **Numeric usernames** (e.g., `611627758292`): Probe returned `401 Unauthorized` when encoded
+- **All Live TV probes returned 401 Unauthorized** regardless of username format
+- Probe URLs like `http://host:8080/live/username/password/id.ts` were rejected by the server
+- The conditional encoding approach didn't solve the authentication issue
 
 **Root Cause Analysis:**
-1. **Two types of Xtream usernames exist**:
-   - **MAC addresses** with colons: `d0:d0:03:03:47:aa`
-   - **Numeric credentials** without colons: `611627758292`
-2. **MAC usernames break HTTP clients** during probe because `d0:` looks like a protocol scheme
-3. **Numeric usernames break authentication** when URL-encoded during probe (server rejects them)
-4. **Both types need RAW format for final playback** through the proxy
+1. **Xtream servers require full authentication** (headers + proper request format) for stream access
+2. **Simple probe requests without auth context fail with 401** even with correct credentials in the path
+3. **VOD already skips the probe** and works perfectly by building URLs directly
+4. **The probe was unnecessary** - we know the URL format from the API response
 
-**The Conditional Solution:**
+**The Simple Solution: Skip Probe for Live TV**
 
-1. **Smart Encoding During Probe:**
-   ```dart
-   final probeUsername = rawUsername.contains(':') 
-       ? Uri.encodeComponent(rawUsername)  // Encode only if contains colons
-       : rawUsername;                       // Keep numeric usernames raw
-   ```
+Just like VOD, build the URL directly and let the proxy handle authentication:
 
-2. **Always Use Raw for Final Playback:**
-   - Extract password from probe pattern
-   - Reconstruct URL with raw username: `http://host/live/RAW_USERNAME/password/id.ext`
-   - Pass raw URL to proxy for upstream connection
+```dart
+// Skip probe for Live TV - just like VOD, build URL directly
+// Probing causes 401 errors because servers require full authentication
+final ext = templateExtension ?? (isLive ? 'ts' : 'm3u8');
 
-3. **Implementation Details:**
-   - Modified `_buildXtreamPlayable` to conditionally encode username based on colon presence
-   - Updated `_playableFromPattern` to extract password and rebuild URL with raw username
-   - Proxy receives raw URL and sends it upstream exactly as server expects
+final manualUrl = SmartUrlBuilder.build(
+  host: base.host,
+  port: base.port,
+  type: 'live',
+  username: rawUsername,
+  password: rawPassword,
+  id: providerKey,
+  ext: ext,
+  forceHttps: base.scheme == 'https',
+);
 
-4. **Why This Works:**
-   - ✅ **MAC usernames (d0:d0:...)**: Encoded during probe → HTTP client succeeds, Raw for playback → Server accepts
-   - ✅ **Numeric usernames (611627758292)**: Raw during probe → Authentication succeeds, Raw for playback → Server accepts
-   - ✅ **Player compatibility**: Always sees clean proxy URL: `http://127.0.0.1:port/proxy?url=...`
+// Use Proxy - it handles headers and authentication
+final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
+```
+
+**Why This Works:**
+- ✅ **No probe = No 401 errors** - we don't try to authenticate during discovery
+- ✅ **Direct URL construction** - we know the format: `live/username/password/id.ext`
+- ✅ **Proxy handles auth** - headers (User-Agent, X-Device-Id) are sent by the proxy
+- ✅ **Same strategy as VOD** - proven to work, now unified approach
+- ✅ **Works with all username formats** - MAC addresses, numeric, any format
 
 **Files Changed:**
-- `lib/src/playback/playable_resolver.dart`: Conditional encoding logic
+- `lib/src/playback/playable_resolver.dart`: Removed probe logic, build URLs directly
 - `IMPLEMENTATION_SUMMARY.md`: This documentation
 
 **Result:**
-Both username types now work correctly for Live TV and VOD on first click.
+Xtream Live TV and VOD both skip probes and build URLs directly. Both work on first click.
 

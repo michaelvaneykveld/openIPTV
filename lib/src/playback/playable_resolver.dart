@@ -447,33 +447,42 @@ class PlayableResolver {
     );
 
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
-      // For probe: only encode username if it contains colons (MAC addresses like d0:d0:...)
-      // Numeric usernames must stay raw for authentication to work
-      final probeUsername = rawUsername.contains(':')
-          ? Uri.encodeComponent(rawUsername)
-          : rawUsername;
-      final probeSlugPrefix = 'live/$probeUsername/$rawPassword';
+      // Skip probe for Live TV - just like VOD, build URL directly
+      // Probing causes 401 errors because servers require full authentication
+      final ext = templateExtension ?? (isLive ? 'ts' : 'm3u8');
 
-      final livePlayable = await _buildXtreamLivePlayable(
-        base: base,
-        slugPrefix: probeSlugPrefix,
-        providerKey: providerKey,
-        headers: headers,
-        templateExtension: templateExtension,
-        rawUsername: rawUsername, // Pass raw for final URL construction
+      final manualUrl = SmartUrlBuilder.build(
+        host: base.host,
+        port: base.port,
+        type: 'live',
+        username: rawUsername,
+        password: rawPassword,
+        id: providerKey,
+        ext: ext,
+        forceHttps: base.scheme == 'https',
       );
-      if (livePlayable != null) {
-        // Use Proxy for Live TV to handle connection quirks and headers
-        // Use rawUrl if available (contains unencoded MAC address)
-        final targetUrl = livePlayable.rawUrl ?? livePlayable.url.toString();
-        final proxyUrl = LocalProxyServer.createProxyUrl(targetUrl, headers);
-        return livePlayable.copyWith(
-          url: Uri.parse(proxyUrl),
-          headers: {}, // Proxy handles headers
-          rawUrl: proxyUrl,
-        );
-      }
-      return null;
+
+      PlaybackLogger.videoInfo(
+        'xtream-live-direct-skip-probe',
+        uri: Uri.parse(manualUrl),
+        extra: {
+          'reason': 'Skip probe to avoid 401, use direct URL like VOD',
+          'extension': ext,
+          'manualUrl': manualUrl,
+        },
+      );
+
+      // Use Proxy for Live TV to handle connection quirks and headers
+      final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
+
+      return Playable(
+        url: Uri.parse(proxyUrl),
+        isLive: isLive,
+        headers: {}, // Proxy handles headers
+        containerExtension: ext,
+        mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+        rawUrl: proxyUrl,
+      );
     }
 
     // 2. Setup for VOD (Encoded)

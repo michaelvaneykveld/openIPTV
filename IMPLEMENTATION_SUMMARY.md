@@ -369,3 +369,36 @@ channel-start → ... → channel-resolved → resolving → open
     - If the count is 0, it now triggers `_kickOffInitialImport` to repopulate the database.
     - Fixed compilation errors in `LoginScreen` (undefined `controller` -> `flowController`).
 - **Status**: Fixed. Data should now populate correctly upon login.
+
+### 2025-12-01: Xtream Playback Fixes (Live & VOD)
+
+#### 1. Live TV Fixes
+- **Issue**: Live TV channels required a "double click" to play (first attempt timed out).
+- **Diagnosis**: The initial probe timeout (10s) was too short for some servers, and the probe logic was misinterpreting usernames with colons (e.g., MAC addresses) as URL schemes.
+- **Fixes**:
+    - Increased `_xtreamProbeTimeout` to **20 seconds** in `PlayableResolver`.
+    - Updated `_XtreamCandidate.resolve` to prepend `./` to paths starting with potential schemes (e.g., `d0:d0...`), forcing them to be treated as relative paths.
+    - **Proxy Fix**: Updated `LocalProxyServer` to explicitly strip `Referer` and `Accept` headers from the upstream request to avoid `403 Forbidden` errors from strict servers.
+
+#### 2. VOD Playback Fixes
+- **Issue**: VOD playback failed completely.
+- **Diagnosis**:
+    - **Failure 1 (Encoding)**: `SmartUrlBuilder` was URL-encoding the username (e.g., `d0:d0...` -> `d0%3Ad0...`). The server expects the **raw** MAC address in the path.
+    - **Failure 2 (Uri Normalization)**: Even with correct string building, passing the URL through Dart's `Uri` class normalized `%3A` back to `:`, or caused other parsing issues with `media_kit` (FFmpeg).
+    - **Failure 3 (Ports)**: Explicitly including port 80 in the URL caused issues with some servers.
+- **Fixes**:
+    - **Raw URL Support**: Added `rawUrl` field to `Playable` class. Updated `LazyMediaKitAdapter` and `MediaKitPlaylistAdapter` to use `rawUrl` directly if present, bypassing `Uri.toString()` normalization.
+    - **SmartUrlBuilder Updates**:
+        - Reverted username encoding to send **raw** username (preserving colons).
+        - Updated builder to **omit** the port if it is 80 or 443.
+    - **Result**: VOD URLs are now constructed exactly as required (e.g., `http://host/movie/d0:d0.../password/id.ts`) and passed directly to the player.
+
+#### 3. Code Cleanup
+- **Flutter Analysis**: Fixed linter errors regarding HTML in documentation comments and removed debug `print` statements.
+
+#### 4. Final Stability Fixes (Live & VOD)
+- **Live TV Soft-Fail**: Modified `PlayableResolver` to **soft-fail** the probe. If all probes time out (e.g. slow server), it now defaults to the first candidate (usually `.ts`) instead of failing the channel. This eliminates the "double click" issue and ensures playback starts immediately via the Proxy.
+- **VOD via Proxy**: Switched VOD playback to use the **Local Proxy Server**.
+    - **Reason**: Direct playback failed because `media_kit` (mpv) on Windows chokes on URLs with raw colons (MAC addresses), while the server rejects encoded colons.
+    - **Solution**: The Proxy serves a clean URL (`http://127.0.0.1...`) to the player and handles the raw upstream connection (`http://host/movie/d0:d0...`) correctly.
+

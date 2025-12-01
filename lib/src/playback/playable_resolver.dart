@@ -505,15 +505,18 @@ class PlayableResolver {
         },
       );
 
+      // Use Proxy for VOD to handle colons in URL which confuse players
+      // The Proxy will handle the raw upstream connection while presenting a clean URL to the player
+      final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
+
       return Playable(
-        url: Uri.parse(manualUrl),
+        url: Uri.parse(proxyUrl),
         isLive: isLive,
-        headers:
-            headers, // Send headers (User-Agent, Referer) just like Live TV
+        headers: {}, // Proxy handles headers
         containerExtension: ext,
         mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
         durationHint: durationHint,
-        rawUrl: manualUrl,
+        rawUrl: proxyUrl, // Force player to use Proxy
       );
     }
 
@@ -796,6 +799,32 @@ class PlayableResolver {
         extension: ext,
       );
     }
+
+    // SOFT-FAIL: If all probes fail, return the first candidate (usually .m3u8 or .ts)
+    // This prevents "double click" issues caused by slow probes.
+    if (candidates.isNotEmpty) {
+      final fallback = candidates.first;
+      PlaybackLogger.videoInfo(
+        'xtream-live-probe-soft-fail',
+        extra: {
+          'reason': 'All probes failed, using fallback',
+          'template': fallback.pathTemplate,
+        },
+      );
+      // We don't have a probe result, so we guess extension
+      // We construct a fake probe result to satisfy the method signature
+      return _candidateFromProbe(
+        original: fallback,
+        probe: _XtreamProbeResult(
+          uri: fallback.resolve(base, providerKey),
+          contentType: null,
+          playbackHeaders: headers,
+        ),
+        providerKey: providerKey,
+        extension: fallback.extension ?? 'ts',
+      );
+    }
+
     PlaybackLogger.videoError(
       'xtream-live-probe-failed',
       description: 'Unable to resolve live stream variants',

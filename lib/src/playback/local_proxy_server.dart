@@ -31,7 +31,16 @@ class LocalProxyServer {
       queryParams['h_${entry.key}'] = entry.value;
     }
 
-    return uri.replace(queryParameters: queryParams).toString();
+    final proxyUrl = uri.replace(queryParameters: queryParams).toString();
+    PlaybackLogger.videoInfo(
+      'proxy-url-created',
+      extra: {
+        'proxyUrl': proxyUrl,
+        'targetUrl': targetUrl,
+        'port': _port,
+      },
+    );
+    return proxyUrl;
   }
 
   static Future<void> _handleRequest(HttpRequest request) async {
@@ -43,7 +52,20 @@ class LocalProxyServer {
 
     try {
       final targetUrl = request.uri.queryParameters['url'];
+      PlaybackLogger.videoInfo(
+        'proxy-request-received',
+        extra: {
+          'method': request.method,
+          'targetUrl': targetUrl ?? 'MISSING',
+          'clientAddress': request.connectionInfo?.remoteAddress.address,
+        },
+      );
+      
       if (targetUrl == null) {
+        PlaybackLogger.videoError(
+          'proxy-bad-request',
+          description: 'Missing url parameter',
+        );
         request.response.statusCode = HttpStatus.badRequest;
         await request.response.close();
         return;
@@ -84,6 +106,15 @@ class LocalProxyServer {
       final proxyResponse = await proxyRequest.close();
 
       request.response.statusCode = proxyResponse.statusCode;
+      
+      PlaybackLogger.videoInfo(
+        'proxy-upstream-response',
+        extra: {
+          'statusCode': proxyResponse.statusCode,
+          'contentLength': proxyResponse.headers.value('content-length') ?? 'unknown',
+          'contentType': proxyResponse.headers.value('content-type') ?? 'unknown',
+        },
+      );
 
       // Copy response headers
       proxyResponse.headers.forEach((name, values) {
@@ -97,7 +128,7 @@ class LocalProxyServer {
       // Stream the data
       await proxyResponse.pipe(request.response);
     } catch (e) {
-      PlaybackLogger.videoError('proxy-error', error: e);
+      PlaybackLogger.videoError('proxy-error', error: e, description: 'Failed to proxy request');
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         request.response.write('Proxy error: $e');

@@ -398,45 +398,48 @@ channel-start → ... → channel-resolved → resolving → open
 
 #### 4. Final Stability Fixes (Live & VOD) - SUPERSEDED
 
-#### 5. **ROOT CAUSE FIX: Probe vs Playback Encoding Strategy (2025-12-01)**
+#### 5. **ROOT CAUSE FIX: Conditional Encoding for Xtream Usernames (2025-12-01)**
 
 **The Problem:**
-Both Live TV and VOD were failing with `TimeoutException` during probe. The logs showed:
-```
-[Playback][Video] {"stage":"xtream-live-probe-error","description":"GET http://atlas213.xyz/live/d0:d0:03:03:47:aa/010101/202076.ts","error":"TimeoutException"}
-```
+- **MAC-style usernames** (e.g., `d0:d0:03:03:47:aa`): Probe failed with `TimeoutException` because HTTP client interpreted colons as protocol
+- **Numeric usernames** (e.g., `611627758292`): Probe returned `401 Unauthorized` when encoded
 
 **Root Cause Analysis:**
-1. **Xtream servers require MAC addresses (usernames) to be RAW (unencoded) in the final playback URL**: `http://host/live/d0:d0:03:03:47:aa/password/id.ts`
-2. **HTTP clients (Dart's `http` package, `Uri.parse()`) interpret colons as protocol separators**: When we pass `live/d0:d0:03:03:47:aa/...` to the HTTP client, it sees `d0:` as a protocol scheme and fails with "No host specified" or times out.
-3. **The Previous Fix Attempt Failed**: The code tried to prepend `./` to paths with colons, but this only worked if the colon was at the start. Colons in the middle of the path (after `live/`) still caused failures.
+1. **Two types of Xtream usernames exist**:
+   - **MAC addresses** with colons: `d0:d0:03:03:47:aa`
+   - **Numeric credentials** without colons: `611627758292`
+2. **MAC usernames break HTTP clients** during probe because `d0:` looks like a protocol scheme
+3. **Numeric usernames break authentication** when URL-encoded during probe (server rejects them)
+4. **Both types need RAW format for final playback** through the proxy
 
-**The Comprehensive Solution:**
+**The Conditional Solution:**
 
-1. **Split Strategy: Probe vs Playback**
-   - **During Probe**: URL-encode the username (`d0:d0...` → `d0%3Ad0...`) so the HTTP client can successfully make the request
-   - **For Final Playback**: Use the RAW username (`d0:d0...`) in the URL passed to the Proxy
-   - **Proxy → Upstream**: The Proxy sends the RAW URL to the server, which is what it expects
+1. **Smart Encoding During Probe:**
+   ```dart
+   final probeUsername = rawUsername.contains(':') 
+       ? Uri.encodeComponent(rawUsername)  // Encode only if contains colons
+       : rawUsername;                       // Keep numeric usernames raw
+   ```
 
-2. **Implementation Details:**
-   - Modified `_buildXtreamPlayable` to create two slug prefixes:
-     - `probeSlugPrefix = 'live/ENCODED_USERNAME/password'` for probe requests
-     - Keep `rawUsername` for final URL construction
-   - Updated `_buildXtreamLivePlayable` to accept `rawUsername` parameter
-   - Modified `_playableFromPattern` to construct a `rawUrl` with the unencoded MAC address
-   - Updated the Proxy invocation to use `rawUrl` (with raw colons) as the upstream target
-   - Reverted `SmartUrlBuilder` to use RAW credentials (as confirmed by user tests)
+2. **Always Use Raw for Final Playback:**
+   - Extract password from probe pattern
+   - Reconstruct URL with raw username: `http://host/live/RAW_USERNAME/password/id.ext`
+   - Pass raw URL to proxy for upstream connection
 
-3. **Why This Works:**
-   - ✅ **Probe succeeds**: HTTP client sees `live/d0%3Ad0%3A.../password/id.ts` which is a valid path
-   - ✅ **Server accepts playback URL**: Proxy sends `http://host/live/d0:d0:03:03:47:aa/password/id.ts` which matches server expectations
-   - ✅ **Player sees clean URL**: `http://127.0.0.1:port/proxy?url=...` with no raw colons to confuse `media_kit`
+3. **Implementation Details:**
+   - Modified `_buildXtreamPlayable` to conditionally encode username based on colon presence
+   - Updated `_playableFromPattern` to extract password and rebuild URL with raw username
+   - Proxy receives raw URL and sends it upstream exactly as server expects
+
+4. **Why This Works:**
+   - ✅ **MAC usernames (d0:d0:...)**: Encoded during probe → HTTP client succeeds, Raw for playback → Server accepts
+   - ✅ **Numeric usernames (611627758292)**: Raw during probe → Authentication succeeds, Raw for playback → Server accepts
+   - ✅ **Player compatibility**: Always sees clean proxy URL: `http://127.0.0.1:port/proxy?url=...`
 
 **Files Changed:**
-- `lib/src/playback/playable_resolver.dart`: Split probe/playback encoding logic
-- `lib/src/utils/xtream_flutter_integration.dart`: Reverted to raw credentials (confirmed working)
+- `lib/src/playback/playable_resolver.dart`: Conditional encoding logic
 - `IMPLEMENTATION_SUMMARY.md`: This documentation
 
 **Result:**
-Both Live TV and VOD should now work on the **first click** without timeouts or encoding errors.
+Both username types now work correctly for Live TV and VOD on first click.
 

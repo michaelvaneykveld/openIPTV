@@ -447,13 +447,16 @@ class PlayableResolver {
     );
 
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
-      // For probe: use encoded username to avoid HTTP client treating colons as protocol
-      final encodedUsername = Uri.encodeComponent(rawUsername);
-      final probeSlugPrefix = 'live/$encodedUsername/$rawPassword';
-      
+      // For probe: only encode username if it contains colons (MAC addresses like d0:d0:...)
+      // Numeric usernames must stay raw for authentication to work
+      final probeUsername = rawUsername.contains(':')
+          ? Uri.encodeComponent(rawUsername)
+          : rawUsername;
+      final probeSlugPrefix = 'live/$probeUsername/$rawPassword';
+
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
-        slugPrefix: probeSlugPrefix, // Use ENCODED for probe
+        slugPrefix: probeSlugPrefix,
         providerKey: providerKey,
         headers: headers,
         templateExtension: templateExtension,
@@ -463,10 +466,7 @@ class PlayableResolver {
         // Use Proxy for Live TV to handle connection quirks and headers
         // Use rawUrl if available (contains unencoded MAC address)
         final targetUrl = livePlayable.rawUrl ?? livePlayable.url.toString();
-        final proxyUrl = LocalProxyServer.createProxyUrl(
-          targetUrl,
-          headers,
-        );
+        final proxyUrl = LocalProxyServer.createProxyUrl(targetUrl, headers);
         return livePlayable.copyWith(
           url: Uri.parse(proxyUrl),
           headers: {}, // Proxy handles headers
@@ -854,18 +854,23 @@ class PlayableResolver {
         ? candidate.extension!
         : guessExtensionFromUri(uri);
     final mime = guessMimeFromUri(uri) ?? _mimeFromExtension(ext) ?? '';
-    
+
     // Build raw URL with unencoded username for proxy
     String? rawUrl;
     if (rawUsername != null) {
       // Reconstruct the URL with raw username (colons preserved)
-      // The pattern will have the encoded username, so we need to build from scratch
-      final path = candidate.pathTemplate
-          .replaceAll(_XtreamCandidate.placeholder, providerKey)
-          .replaceFirst(RegExp(r'live/[^/]+/'), 'live/$rawUsername/');
-      rawUrl = '${base.scheme}://${base.host}${base.port == 80 || base.port == 443 ? '' : ':${base.port}'}/$path';
+      // Extract password from pattern: live/username/password/{stream_id}.ext
+      final pathParts = candidate.pathTemplate.split('/');
+      final password = pathParts.length > 2 ? pathParts[2] : '';
+      final ext = candidate.extension ?? 'ts';
+
+      final portPart = (base.port == 80 || base.port == 443)
+          ? ''
+          : ':${base.port}';
+      rawUrl =
+          '${base.scheme}://${base.host}$portPart/live/$rawUsername/$password/$providerKey.$ext';
     }
-    
+
     return Playable(
       url: uri,
       isLive: true,

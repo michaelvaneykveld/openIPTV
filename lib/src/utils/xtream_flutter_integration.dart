@@ -14,8 +14,8 @@ class SmartUrlBuilder {
   ///
   /// Rules applied:
   /// - The path structure remains: `/<type>/<username>/<password>/<id>.<ext>`
-  /// - Username: percent-encoded using Uri.encodeComponent() (to protect colons)
-  /// - Password: percent-encoded using Uri.encodeComponent() (to protect colons)
+  /// - Username: RAW (no encoding) - servers expect MAC addresses as-is (d0:d0:...)
+  /// - Password: RAW (no encoding) - keep as-is to match reference apps
   /// - Extension: trusted from API; do NOT change
   static String build({
     required String host,
@@ -29,19 +29,17 @@ class SmartUrlBuilder {
   }) {
     final scheme = forceHttps ? 'https' : 'http';
 
-    // Username: allow as-is but protect slashes that would break path segments.
-    // We do NOT encode colons in the username because some servers (and the proxy)
-    // expect the raw username (e.g. MAC address) in the path.
-    final safeUser = _encodePathSegment(username);
+    // Username: Use RAW - servers expect MAC addresses with colons (d0:d0:...)
+    // The proxy will handle these correctly even though they confuse URI parsers
+    final safeUser = username;
 
-    // Password: encode to neutralize colons and other unsafe characters.
-    final safePass = Uri.encodeComponent(password);
+    // Password: Use RAW - match reference app behavior
+    final safePass = password;
 
-    // ID should normally be numeric/string safe. Still protect slashes.
-    final safeId = _encodePathSegment(id);
+    // ID should normally be numeric/string safe
+    final safeId = id;
 
     // Use string interpolation to avoid Uri() constructor normalization
-    // which might decode %3A back to :
     // NOTE: We omit the port if it is 80 or 443 to avoid issues with some servers
     // that reject the Host header with a port or the URL with a port.
     final portPart = (port == 80 || port == 443) ? '' : ':$port';
@@ -49,12 +47,6 @@ class SmartUrlBuilder {
         '$scheme://$host$portPart/$type/$safeUser/$safePass/$safeId.$ext';
 
     return url;
-  }
-
-  static String _encodePathSegment(String s) {
-    // Keep common safe chars but ensure slash is encoded.
-    // Also encode colon if it appears in username/id (though rare)
-    return s.replaceAll('/', '%2F');
   }
 }
 

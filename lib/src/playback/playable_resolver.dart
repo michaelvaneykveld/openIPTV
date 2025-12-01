@@ -435,7 +435,6 @@ class PlayableResolver {
     // 1. Setup for Live (Raw)
     final rawUsername = username;
     final rawPassword = password;
-    final liveSlugPrefix = 'live/$rawUsername/$rawPassword';
 
     final deviceId = await DeviceIdentity.getDeviceId();
     var headers = _mergeHeaders(headerHints);
@@ -448,22 +447,30 @@ class PlayableResolver {
     );
 
     if (kind == ContentBucket.live || kind == ContentBucket.radio) {
+      // For probe: use encoded username to avoid HTTP client treating colons as protocol
+      final encodedUsername = Uri.encodeComponent(rawUsername);
+      final probeSlugPrefix = 'live/$encodedUsername/$rawPassword';
+      
       final livePlayable = await _buildXtreamLivePlayable(
         base: base,
-        slugPrefix: liveSlugPrefix, // Use RAW for Live
+        slugPrefix: probeSlugPrefix, // Use ENCODED for probe
         providerKey: providerKey,
         headers: headers,
         templateExtension: templateExtension,
+        rawUsername: rawUsername, // Pass raw for final URL construction
       );
       if (livePlayable != null) {
         // Use Proxy for Live TV to handle connection quirks and headers
+        // Use rawUrl if available (contains unencoded MAC address)
+        final targetUrl = livePlayable.rawUrl ?? livePlayable.url.toString();
         final proxyUrl = LocalProxyServer.createProxyUrl(
-          livePlayable.url.toString(),
+          targetUrl,
           headers,
         );
         return livePlayable.copyWith(
           url: Uri.parse(proxyUrl),
           headers: {}, // Proxy handles headers
+          rawUrl: proxyUrl,
         );
       }
       return null;
@@ -580,6 +587,7 @@ class PlayableResolver {
     required String providerKey,
     required Map<String, String> headers,
     String? templateExtension,
+    String? rawUsername, // Raw username for final URL construction
   }) async {
     final normalizedTemplate = templateExtension?.toLowerCase();
     final cachedPattern = _xtreamLivePattern;
@@ -591,6 +599,7 @@ class PlayableResolver {
         candidate: cachedPattern,
         providerKey: providerKey,
         headers: headers,
+        rawUsername: rawUsername,
       );
     }
     final candidate = await _ensureXtreamLivePattern(
@@ -608,6 +617,7 @@ class PlayableResolver {
       candidate: candidate,
       providerKey: providerKey,
       headers: headers,
+      rawUsername: rawUsername,
     );
   }
 
@@ -837,18 +847,32 @@ class PlayableResolver {
     required _XtreamCandidate candidate,
     required String providerKey,
     required Map<String, String> headers,
+    String? rawUsername,
   }) {
     final uri = candidate.resolve(base, providerKey);
     final ext = (candidate.extension?.isNotEmpty ?? false)
         ? candidate.extension!
         : guessExtensionFromUri(uri);
     final mime = guessMimeFromUri(uri) ?? _mimeFromExtension(ext) ?? '';
+    
+    // Build raw URL with unencoded username for proxy
+    String? rawUrl;
+    if (rawUsername != null) {
+      // Reconstruct the URL with raw username (colons preserved)
+      // The pattern will have the encoded username, so we need to build from scratch
+      final path = candidate.pathTemplate
+          .replaceAll(_XtreamCandidate.placeholder, providerKey)
+          .replaceFirst(RegExp(r'live/[^/]+/'), 'live/$rawUsername/');
+      rawUrl = '${base.scheme}://${base.host}${base.port == 80 || base.port == 443 ? '' : ':${base.port}'}/$path';
+    }
+    
     return Playable(
       url: uri,
       isLive: true,
       headers: headers,
       containerExtension: ext,
       mimeHint: mime.isEmpty ? null : mime,
+      rawUrl: rawUrl,
     );
   }
 
@@ -2384,14 +2408,10 @@ class _XtreamCandidate {
 
   Uri resolve(Uri base, String providerKey) {
     final resolvedBase = baseOverride ?? base;
-    var path = pathTemplate.replaceAll(placeholder, providerKey);
+    final path = pathTemplate.replaceAll(placeholder, providerKey);
 
-    // If the path starts with a potential scheme (e.g. "d0:d0..."), prepend "./"
-    // to force Uri.resolve to treat it as a relative path.
-    if (path.contains(':') && !path.startsWith('/')) {
-      path = './$path';
-    }
-
+    // The path should now have URL-encoded username (no raw colons)
+    // so Uri.resolve should work correctly
     return resolvedBase.resolve(path);
   }
 }

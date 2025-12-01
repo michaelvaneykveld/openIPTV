@@ -396,9 +396,47 @@ channel-start → ... → channel-resolved → resolving → open
 #### 3. Code Cleanup
 - **Flutter Analysis**: Fixed linter errors regarding HTML in documentation comments and removed debug `print` statements.
 
-#### 4. Final Stability Fixes (Live & VOD)
-- **Live TV Soft-Fail**: Modified `PlayableResolver` to **soft-fail** the probe. If all probes time out (e.g. slow server), it now defaults to the first candidate (usually `.ts`) instead of failing the channel. This eliminates the "double click" issue and ensures playback starts immediately via the Proxy.
-- **VOD via Proxy**: Switched VOD playback to use the **Local Proxy Server**.
-    - **Reason**: Direct playback failed because `media_kit` (mpv) on Windows chokes on URLs with raw colons (MAC addresses), while the server rejects encoded colons.
-    - **Solution**: The Proxy serves a clean URL (`http://127.0.0.1...`) to the player and handles the raw upstream connection (`http://host/movie/d0:d0...`) correctly.
+#### 4. Final Stability Fixes (Live & VOD) - SUPERSEDED
+
+#### 5. **ROOT CAUSE FIX: Probe vs Playback Encoding Strategy (2025-12-01)**
+
+**The Problem:**
+Both Live TV and VOD were failing with `TimeoutException` during probe. The logs showed:
+```
+[Playback][Video] {"stage":"xtream-live-probe-error","description":"GET http://atlas213.xyz/live/d0:d0:03:03:47:aa/010101/202076.ts","error":"TimeoutException"}
+```
+
+**Root Cause Analysis:**
+1. **Xtream servers require MAC addresses (usernames) to be RAW (unencoded) in the final playback URL**: `http://host/live/d0:d0:03:03:47:aa/password/id.ts`
+2. **HTTP clients (Dart's `http` package, `Uri.parse()`) interpret colons as protocol separators**: When we pass `live/d0:d0:03:03:47:aa/...` to the HTTP client, it sees `d0:` as a protocol scheme and fails with "No host specified" or times out.
+3. **The Previous Fix Attempt Failed**: The code tried to prepend `./` to paths with colons, but this only worked if the colon was at the start. Colons in the middle of the path (after `live/`) still caused failures.
+
+**The Comprehensive Solution:**
+
+1. **Split Strategy: Probe vs Playback**
+   - **During Probe**: URL-encode the username (`d0:d0...` → `d0%3Ad0...`) so the HTTP client can successfully make the request
+   - **For Final Playback**: Use the RAW username (`d0:d0...`) in the URL passed to the Proxy
+   - **Proxy → Upstream**: The Proxy sends the RAW URL to the server, which is what it expects
+
+2. **Implementation Details:**
+   - Modified `_buildXtreamPlayable` to create two slug prefixes:
+     - `probeSlugPrefix = 'live/ENCODED_USERNAME/password'` for probe requests
+     - Keep `rawUsername` for final URL construction
+   - Updated `_buildXtreamLivePlayable` to accept `rawUsername` parameter
+   - Modified `_playableFromPattern` to construct a `rawUrl` with the unencoded MAC address
+   - Updated the Proxy invocation to use `rawUrl` (with raw colons) as the upstream target
+   - Reverted `SmartUrlBuilder` to use RAW credentials (as confirmed by user tests)
+
+3. **Why This Works:**
+   - ✅ **Probe succeeds**: HTTP client sees `live/d0%3Ad0%3A.../password/id.ts` which is a valid path
+   - ✅ **Server accepts playback URL**: Proxy sends `http://host/live/d0:d0:03:03:47:aa/password/id.ts` which matches server expectations
+   - ✅ **Player sees clean URL**: `http://127.0.0.1:port/proxy?url=...` with no raw colons to confuse `media_kit`
+
+**Files Changed:**
+- `lib/src/playback/playable_resolver.dart`: Split probe/playback encoding logic
+- `lib/src/utils/xtream_flutter_integration.dart`: Reverted to raw credentials (confirmed working)
+- `IMPLEMENTATION_SUMMARY.md`: This documentation
+
+**Result:**
+Both Live TV and VOD should now work on the **first click** without timeouts or encoding errors.
 

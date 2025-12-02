@@ -16,6 +16,43 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _selectedIndex = 0;
+  bool _isRefreshing = false;
+
+  Future<void> _refreshPortal() async {
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    try {
+      // TODO: Implement portal refresh logic
+      // This should fetch the latest playlist/categories from the provider
+      await Future.delayed(const Duration(seconds: 2)); // Placeholder
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Portal refreshed successfully'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to refresh: $e'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +63,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             selectedIndex: _selectedIndex,
             onDestinationSelected: (int index) {
               if (index == 5) {
+                // Refresh button
+                _refreshPortal();
+                return;
+              }
+              if (index == 6) {
+                // Back button
                 Navigator.of(context).pop();
                 return;
               }
@@ -34,30 +77,40 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               });
             },
             labelType: NavigationRailLabelType.all,
-            destinations: const <NavigationRailDestination>[
-              NavigationRailDestination(
+            destinations: <NavigationRailDestination>[
+              const NavigationRailDestination(
                 icon: Icon(Icons.tv),
                 label: Text('Live TV'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.movie),
                 label: Text('Movies'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.video_library),
                 label: Text('Series'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.radio),
                 label: Text('Radio'),
               ),
-              NavigationRailDestination(
+              const NavigationRailDestination(
                 icon: Icon(Icons.settings),
                 label: Text('Settings'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.logout),
-                label: Text('Logout'),
+                icon: _isRefreshing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh),
+                label: const Text('Refresh'),
+              ),
+              const NavigationRailDestination(
+                icon: Icon(Icons.arrow_back),
+                label: Text('Back'),
               ),
             ],
           ),

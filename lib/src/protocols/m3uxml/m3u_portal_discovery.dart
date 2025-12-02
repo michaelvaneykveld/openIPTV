@@ -109,11 +109,15 @@ class M3uPortalDiscovery implements PortalDiscovery {
     final query = uri.queryParameters;
     final hasCredentials =
         query.containsKey('username') && query.containsKey('password');
-    final hasMarkers =
-        path.contains('player_api.php') ||
-        path.contains('get.php') ||
-        path.contains('xmltv.php');
-    return hasCredentials || hasMarkers;
+
+    // Only treat as Xtream if it has player_api.php endpoint
+    // get.php alone is just an M3U playlist provider, not full Xtream API
+    final hasPlayerApi = path.contains('player_api.php');
+
+    // Allow xmltv.php with credentials as Xtream indicator
+    final hasXmlTv = path.contains('xmltv.php') && hasCredentials;
+
+    return hasPlayerApi || hasXmlTv;
   }
 
   Uri _deriveXtreamBase(Uri uri) {

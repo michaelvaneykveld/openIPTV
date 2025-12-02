@@ -203,7 +203,7 @@ class PlayerOverlayOSD extends StatelessWidget {
       alignment: Alignment.topRight,
       child: IconButton(
         tooltip: 'Back to channel list',
-        icon: const Icon(Icons.logout_rounded),
+        icon: const Icon(Icons.arrow_back),
         color: theme.colorScheme.onSurface,
         iconSize: 32,
         onPressed: onExitPlayer,

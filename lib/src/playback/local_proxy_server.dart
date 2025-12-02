@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:openiptv/src/utils/playback_logger.dart';
+import 'package:openiptv/src/networking/xtream_raw_client.dart';
 
 class LocalProxyServer {
   static HttpServer? _server;
@@ -34,21 +35,17 @@ class LocalProxyServer {
     final proxyUrl = uri.replace(queryParameters: queryParams).toString();
     PlaybackLogger.videoInfo(
       'proxy-url-created',
-      extra: {
-        'proxyUrl': proxyUrl,
-        'targetUrl': targetUrl,
-        'port': _port,
-      },
+      extra: {'proxyUrl': proxyUrl, 'targetUrl': targetUrl, 'port': _port},
     );
     return proxyUrl;
   }
 
   static Future<void> _handleRequest(HttpRequest request) async {
-    final client = HttpClient();
-    // Allow self-signed certs
-    client.badCertificateCallback = (cert, host, port) => true;
-    // Auto-uncompress
-    client.autoUncompress = true;
+    // Use raw TCP sockets instead of HttpClient to avoid automatic header injection
+    final rawClient = XtreamRawClient(
+      timeout: const Duration(seconds: 30),
+      enableLogging: true,
+    );
 
     try {
       final targetUrl = request.uri.queryParameters['url'];
@@ -60,7 +57,7 @@ class LocalProxyServer {
           'clientAddress': request.connectionInfo?.remoteAddress.address,
         },
       );
-      
+
       if (targetUrl == null) {
         PlaybackLogger.videoError(
           'proxy-bad-request',
@@ -72,91 +69,68 @@ class LocalProxyServer {
       }
 
       final targetUri = Uri.parse(targetUrl);
-      final proxyRequest = await client.openUrl(request.method, targetUri);
 
-      // Copy headers from query params (h_ prefix)
-      for (final entry in request.uri.queryParameters.entries) {
-        if (entry.key.startsWith('h_')) {
-          final headerName = entry.key.substring(2);
-          proxyRequest.headers.set(headerName, entry.value);
-        }
-      }
-
-      // Also copy standard headers from the incoming request (Range, etc.)
-      request.headers.forEach((name, values) {
-        if (!_isExcludedHeader(name)) {
-          for (final value in values) {
-            proxyRequest.headers.add(name, value);
-          }
-        }
-      });
-
-      // Ensure User-Agent is set if not already
-      // NOTE: We must be careful not to add it if it's already there, to avoid "More than one value" error.
-      if (proxyRequest.headers.value(HttpHeaders.userAgentHeader) == null) {
-        proxyRequest.headers.set(HttpHeaders.userAgentHeader, 'okhttp/4.9.3');
-      } else {
-        // Force override to ensure it's the one we want, and only one.
-        proxyRequest.headers.set(HttpHeaders.userAgentHeader, 'okhttp/4.9.3');
-      }
-
-      // Ensure Connection: keep-alive
-      proxyRequest.headers.set(HttpHeaders.connectionHeader, 'keep-alive');
-
-      final proxyResponse = await proxyRequest.close();
-
-      request.response.statusCode = proxyResponse.statusCode;
-      
       PlaybackLogger.videoInfo(
-        'proxy-upstream-response',
+        'proxy-sending-to-upstream-raw',
         extra: {
-          'statusCode': proxyResponse.statusCode,
-          'contentLength': proxyResponse.headers.value('content-length') ?? 'unknown',
-          'contentType': proxyResponse.headers.value('content-type') ?? 'unknown',
+          'scheme': targetUri.scheme,
+          'host': targetUri.host,
+          'port': targetUri.port,
+          'path': targetUri.path,
+          'fullUrl': targetUri.toString(),
+          'method': 'RAW-TCP-SOCKET',
         },
       );
 
-      // Copy response headers
-      proxyResponse.headers.forEach((name, values) {
-        if (!_isExcludedResponseHeader(name)) {
-          for (final value in values) {
-            request.response.headers.add(name, value);
-          }
+      // Collect custom headers from query params (h_ prefix)
+      final customHeaders = <String, String>{};
+      for (final entry in request.uri.queryParameters.entries) {
+        if (entry.key.startsWith('h_')) {
+          final headerName = entry.key.substring(2);
+          customHeaders[headerName] = entry.value;
         }
-      });
+      }
 
-      // Stream the data
-      await proxyResponse.pipe(request.response);
+      // Log headers being sent
+      PlaybackLogger.videoInfo('proxy-raw-headers-sent', extra: customHeaders);
+
+      // Open raw socket stream for media content
+      final streamWithHeaders = await rawClient.openStream(
+        targetUri.host,
+        targetUri.port,
+        '${targetUri.path}${targetUri.query.isNotEmpty ? '?' : ''}${targetUri.query}',
+        customHeaders,
+      );
+
+      request.response.statusCode = streamWithHeaders.statusCode;
+
+      PlaybackLogger.videoInfo(
+        'proxy-raw-upstream-connected',
+        extra: {
+          'statusCode': streamWithHeaders.statusCode,
+          'reasonPhrase': streamWithHeaders.reasonPhrase,
+          'method': 'streaming-from-raw-socket',
+          'headers': streamWithHeaders.headers.toString(),
+        },
+      );
+
+      // Set appropriate headers for streaming
+      request.response.headers.set('Content-Type', 'video/MP2T');
+      request.response.headers.set('Connection', 'keep-alive');
+
+      // Pipe raw socket stream directly to HTTP response
+      await streamWithHeaders.stream.pipe(request.response);
     } catch (e) {
-      PlaybackLogger.videoError('proxy-error', error: e, description: 'Failed to proxy request');
+      PlaybackLogger.videoError(
+        'proxy-raw-error',
+        error: e,
+        description: 'Failed to proxy request via raw socket',
+      );
       try {
         request.response.statusCode = HttpStatus.internalServerError;
         request.response.write('Proxy error: $e');
         await request.response.close();
       } catch (_) {}
-    } finally {
-      client.close();
     }
-  }
-
-  static bool _isExcludedHeader(String name) {
-    final lower = name.toLowerCase();
-    return lower == 'host' ||
-        lower == 'connection' ||
-        lower == 'upgrade' ||
-        lower == 'content-length' ||
-        lower == 'user-agent' || // We handle UA explicitly
-        lower ==
-            'referer' || // Exclude Referer to avoid leaking proxy URL or triggering anti-leech
-        lower ==
-            'accept' || // Exclude Accept to avoid triggering strict server checks
-        lower.startsWith('h_'); // Don't copy our internal params
-  }
-
-  static bool _isExcludedResponseHeader(String name) {
-    final lower = name.toLowerCase();
-    return lower == 'connection' ||
-        lower == 'transfer-encoding' ||
-        lower == 'content-length'; // Let the server calculate this
   }
 }

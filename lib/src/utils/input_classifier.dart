@@ -174,9 +174,11 @@ class InputClassifier {
     final query = workingUri.queryParameters;
     final hasCredentialParams =
         query.containsKey('username') && query.containsKey('password');
+
+    // Only treat as Xtream if it has player_api.php endpoint
+    // get.php alone is just an M3U playlist provider, not full Xtream API
     final hasXtreamMarkers =
         pathLower.contains('player_api.php') ||
-        pathLower.contains('get.php') ||
         pathLower.contains('xmltv.php') ||
         pathLower.contains('portal.php?type=stalker'); // rare fallback
 
@@ -303,7 +305,9 @@ class InputClassifier {
     final uri = Uri.tryParse(withScheme);
     if (uri == null || uri.host.isEmpty) return false;
     final host = uri.host.toLowerCase();
-    return host.contains('xtream') || host.contains('stbt') || host.contains('iptv');
+    return host.contains('xtream') ||
+        host.contains('stbt') ||
+        host.contains('iptv');
   }
 
   Uri _deriveXtreamHostOnly(String input) {
@@ -320,5 +324,4 @@ class InputClassifier {
     final stripped = stripKnownFiles(lowered);
     return ensureTrailingSlash(stripped);
   }
-
 }

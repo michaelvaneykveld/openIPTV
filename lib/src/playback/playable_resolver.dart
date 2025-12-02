@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:http/http.dart' as http;
-import 'package:http/io_client.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/categories_fetchers.dart';
 import 'package:openiptv/src/player/summary_models.dart';
@@ -21,6 +18,8 @@ import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/playback/stream_probe.dart';
 import 'package:openiptv/src/playback/local_proxy_server.dart';
+import 'package:openiptv/src/networking/xtream_raw_client.dart';
+import 'package:openiptv/src/networking/xtream_api_client.dart';
 
 import 'package:openiptv/src/utils/xtream_flutter_integration.dart';
 
@@ -41,13 +40,10 @@ class PlayableResolver {
   StalkerPortalConfiguration? _stalkerConfig;
   StalkerSession? _stalkerSession;
   Future<StalkerSession>? _stalkerSessionFuture;
-  http.Client? _xtreamProbeClient;
-  _XtreamCandidate? _xtreamLivePattern;
-  Future<_XtreamCandidate?>? _xtreamLivePatternFuture;
+  XtreamRawClient? _xtreamRawClient;
+  XtreamApiClient? _xtreamApiClient;
   _XtreamServerContext? _xtreamServerContext;
   Future<_XtreamServerContext?>? _xtreamServerContextFuture;
-
-  static const Duration _xtreamProbeTimeout = Duration(seconds: 20);
 
   Map<String, String> get _secrets => profile.secrets;
   Map<String, String> get _config => profile.record.configuration;
@@ -416,17 +412,35 @@ class PlayableResolver {
       return null;
     }
 
+    PlaybackLogger.videoInfo(
+      'xtream-api-warmup-start',
+      extra: {
+        'username': username,
+        'reason': 'Establish server session before playback',
+      },
+    );
+
     final serverContext = await _ensureXtreamServerContext(
       username: username,
       password: password,
     );
+
     if (serverContext == null) {
       PlaybackLogger.videoError(
         'xtream-server-info-missing',
-        description: 'Xtream server_info unavailable',
+        description: 'Xtream server_info unavailable - API call failed',
       );
       return null;
     }
+
+    PlaybackLogger.videoInfo(
+      'xtream-api-warmup-success',
+      extra: {
+        'serverHost': serverContext.host,
+        'serverPort': serverContext.portForScheme(),
+        'auth': 'session-established',
+      },
+    );
     final base = _xtreamStreamBase(serverContext);
     // SPLIT STRATEGY:
     // Live TV: Use RAW credentials. The server rejects encoded credentials during probe.
@@ -472,6 +486,29 @@ class PlayableResolver {
         },
       );
 
+      // Check if direct stream mode is enabled (bypass proxy)
+      final useDirectStream = _config['useDirectStream'] == 'true';
+
+      if (useDirectStream) {
+        PlaybackLogger.videoInfo(
+          'xtream-direct-stream-mode',
+          uri: Uri.parse(manualUrl),
+          extra: {
+            'reason': 'Direct streaming enabled - bypassing local proxy',
+            'cloudflareWorkaround': true,
+          },
+        );
+
+        return Playable(
+          url: Uri.parse(manualUrl),
+          isLive: isLive,
+          headers: headers, // Direct headers to media_kit
+          containerExtension: ext,
+          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+          rawUrl: manualUrl,
+        );
+      }
+
       // Use Proxy for Live TV to handle connection quirks and headers
       final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
 
@@ -492,13 +529,25 @@ class PlayableResolver {
       ContentBucket.films => 'movie',
       ContentBucket.series => 'series',
     };
-    var ext =
-        templateExtension ??
-        _resolveXtreamExtension(kind: kind, isLive: isLive);
+    // For VOD, ignore template extension and use proper container format
+    // Some providers mistakenly set .ts in templates, but VOD requires .mp4/.mkv
+    var ext = (kind == ContentBucket.films || kind == ContentBucket.series)
+        ? _resolveXtreamExtension(kind: kind, isLive: isLive)
+        : (templateExtension ??
+              _resolveXtreamExtension(kind: kind, isLive: isLive));
 
-    // NEW: Skip probe for VOD to match reference app behavior
+    PlaybackLogger.videoInfo(
+      'xtream-extension-resolved',
+      extra: {
+        'bucket': kind.name,
+        'templateExtension': templateExtension ?? 'null',
+        'resolvedExtension': ext,
+        'configOutputFormat': _config['outputFormat'] ?? 'null',
+      },
+    );
+
+    // VOD requires following redirects to get token-based URLs
     if (kind == ContentBucket.films || kind == ContentBucket.series) {
-      // Use SmartUrlBuilder for robust URL construction
       final manualUrl = SmartUrlBuilder.build(
         host: base.host,
         port: base.port,
@@ -514,16 +563,42 @@ class PlayableResolver {
         'xtream-vod-direct-skip-probe',
         uri: Uri.parse(manualUrl),
         extra: {
-          'reason': 'Matching reference app behavior (skip probe)',
+          'reason': 'Server blocks GET probe, use direct URL like live streams',
           'extension': ext,
           'manualUrl': manualUrl,
           'encoding': 'smart-builder',
         },
       );
 
-      // Use Proxy for VOD to handle colons in URL which confuse players
-      // The Proxy will handle the raw upstream connection while presenting a clean URL to the player
+      // Check if direct stream mode is enabled (bypass proxy)
+      final useDirectStream = _config['useDirectStream'] == 'true';
+
+      if (useDirectStream) {
+        PlaybackLogger.videoInfo(
+          'xtream-vod-direct-stream-mode',
+          uri: Uri.parse(manualUrl),
+          extra: {
+            'reason': 'Direct streaming enabled - bypassing local proxy',
+            'cloudflareWorkaround': true,
+          },
+        );
+
+        return Playable(
+          url: Uri.parse(manualUrl),
+          isLive: isLive,
+          headers: headers, // Direct headers to media_kit
+          containerExtension: ext,
+          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+          rawUrl: manualUrl,
+          durationHint: durationHint,
+        );
+      }
+
+      // Use direct URL without probing - this provider blocks probe requests
+      // but accepts direct playback URLs (just like live streams)
       final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
+
+      // Port is already logged in createProxyUrl
 
       return Playable(
         url: Uri.parse(proxyUrl),
@@ -531,8 +606,8 @@ class PlayableResolver {
         headers: {}, // Proxy handles headers
         containerExtension: ext,
         mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+        rawUrl: proxyUrl,
         durationHint: durationHint,
-        rawUrl: proxyUrl, // Force player to use Proxy
       );
     }
 
@@ -576,6 +651,12 @@ class PlayableResolver {
     required ContentBucket kind,
     required bool isLive,
   }) {
+    // For VOD (films/series), always use mp4 regardless of config
+    // The outputFormat config is meant for live streams only
+    if (kind == ContentBucket.films || kind == ContentBucket.series) {
+      return 'mp4';
+    }
+
     final preferred = (_config['outputFormat'] ?? '').trim().toLowerCase();
     if (preferred.isNotEmpty) {
       return preferred;
@@ -588,46 +669,6 @@ class PlayableResolver {
       case ContentBucket.series:
         return 'mp4';
     }
-  }
-
-  Future<Playable?> _buildXtreamLivePlayable({
-    required Uri base,
-    required String slugPrefix,
-    required String providerKey,
-    required Map<String, String> headers,
-    String? templateExtension,
-    String? rawUsername, // Raw username for final URL construction
-  }) async {
-    final normalizedTemplate = templateExtension?.toLowerCase();
-    final cachedPattern = _xtreamLivePattern;
-    if (cachedPattern != null &&
-        (normalizedTemplate == null ||
-            cachedPattern.extension == normalizedTemplate)) {
-      return _playableFromPattern(
-        base: base,
-        candidate: cachedPattern,
-        providerKey: providerKey,
-        headers: headers,
-        rawUsername: rawUsername,
-      );
-    }
-    final candidate = await _ensureXtreamLivePattern(
-      base: base,
-      slugPrefix: slugPrefix,
-      providerKey: providerKey,
-      headers: headers,
-      templateExtension: normalizedTemplate,
-    );
-    if (candidate == null) {
-      return null;
-    }
-    return _playableFromPattern(
-      base: base,
-      candidate: candidate,
-      providerKey: providerKey,
-      headers: headers,
-      rawUsername: rawUsername,
-    );
   }
 
   Future<_XtreamServerContext?> _ensureXtreamServerContext({
@@ -664,7 +705,14 @@ class PlayableResolver {
     required String username,
     required String password,
   }) async {
-    final client = _xtreamProbeClient ??= _createXtreamProbeClient();
+    // Use XtreamApiClient with full TiviMate handshake
+    final apiClient = _xtreamApiClient ??= XtreamApiClient(
+      rawClient: _xtreamRawClient ??= XtreamRawClient(
+        timeout: const Duration(seconds: 20),
+        enableLogging: true,
+      ),
+    );
+
     final discoveryBase = ensureTrailingSlash(
       stripKnownFiles(
         profile.lockedBase,
@@ -677,50 +725,48 @@ class PlayableResolver {
         },
       ),
     );
+
     final playerUri = discoveryBase
         .resolve('player_api.php')
         .replace(queryParameters: {'username': username, 'password': password});
-    final request = http.Request('GET', playerUri)
-      ..followRedirects = true
-      ..maxRedirects = 5;
 
-    final deviceId = await DeviceIdentity.getDeviceId();
-    final apiHeaders = Map<String, String>.from(
-      _applyXtreamHeaderDefaults(
-        _profileHeaders,
-        discoveryBase,
-        username,
-        password,
-        deviceId: deviceId,
-      ),
+    PlaybackLogger.videoInfo(
+      'xtream-handshake-start',
+      uri: playerUri,
+      extra: {'method': 'tivimate-session-handshake'},
     );
-    apiHeaders['Accept'] = 'application/json';
-    request.headers.addAll(apiHeaders);
+
     try {
-      final response = await client.send(request).timeout(_xtreamProbeTimeout);
-      final body = await response.stream.bytesToString();
-      if (response.statusCode >= 400) {
-        PlaybackLogger.videoInfo(
-          'xtream-server-info-http',
-          uri: playerUri,
-          extra: {'code': response.statusCode},
-        );
-        return null;
-      }
-      final decoded = jsonDecode(body);
-      if (decoded is! Map<String, dynamic>) {
-        return null;
-      }
+      // Perform full TiviMate handshake sequence
+      final decoded = await apiClient.loadPlayerApi(
+        host: playerUri.host,
+        port: playerUri.port,
+        username: username,
+        password: password,
+        performFullHandshake: true, // Enable TiviMate handshake!
+      );
+
+      PlaybackLogger.videoInfo(
+        'xtream-handshake-success',
+        uri: playerUri,
+        extra: {
+          'method': 'tivimate-session-established',
+          'keepalive': 'active',
+        },
+      );
+
       final serverInfo = decoded['server_info'];
       if (serverInfo is! Map) {
         return null;
       }
       final rawScheme = serverInfo['server_protocol']?.toString();
       final scheme = _normalizeXtreamScheme(rawScheme) ?? discoveryBase.scheme;
-      final host = _normalizeServerHost(
-        serverInfo['url']?.toString(),
-        discoveryBase.host,
-      );
+
+      // CRITICAL: Use the API server hostname (discoveryBase.host) for streaming
+      // Many providers return a different server in server_info['url'] that blocks direct requests
+      // The API server that handled authentication will also handle streaming
+      final host = discoveryBase.host;
+
       final httpPort = _parsePortValue(serverInfo['port']);
       final httpsPort = _parsePortValue(
         serverInfo['https_port'] ?? serverInfo['httpsPort'],
@@ -733,367 +779,12 @@ class PlayableResolver {
       );
     } catch (error) {
       PlaybackLogger.videoError(
-        'xtream-server-info-error',
-        description: 'Failed to load server_info',
+        'xtream-handshake-error',
+        description: 'TiviMate handshake failed',
         error: error,
       );
       return null;
     }
-  }
-
-  Future<_XtreamCandidate?> _ensureXtreamLivePattern({
-    required Uri base,
-    required String slugPrefix,
-    required String providerKey,
-    required Map<String, String> headers,
-    String? templateExtension,
-  }) async {
-    final cached = _xtreamLivePattern;
-    if (cached != null &&
-        (templateExtension == null || cached.extension == templateExtension)) {
-      return cached;
-    }
-    final pending = _xtreamLivePatternFuture;
-    if (pending != null) {
-      final candidate = await pending;
-      if (candidate != null &&
-          (templateExtension == null ||
-              candidate.extension == templateExtension)) {
-        return candidate;
-      }
-    }
-    final future = _probeXtreamLivePattern(
-      base: base,
-      slugPrefix: slugPrefix,
-      providerKey: providerKey,
-      headers: headers,
-      templateExtension: templateExtension,
-    );
-    _xtreamLivePatternFuture = future;
-    try {
-      final candidate = await future;
-      if (candidate != null && _xtreamLivePattern == null) {
-        _xtreamLivePattern = candidate;
-      }
-      return candidate;
-    } finally {
-      if (identical(_xtreamLivePatternFuture, future)) {
-        _xtreamLivePatternFuture = null;
-      }
-    }
-  }
-
-  Future<_XtreamCandidate?> _probeXtreamLivePattern({
-    required Uri base,
-    required String slugPrefix,
-    required String providerKey,
-    required Map<String, String> headers,
-    String? templateExtension,
-  }) async {
-    final candidates = _xtreamLiveCandidates(
-      slugPrefix: slugPrefix,
-      templateExtension: templateExtension,
-    );
-    for (final candidate in candidates) {
-      final uri = candidate.resolve(base, providerKey);
-      PlaybackLogger.videoInfo(
-        'xtream-live-probe-start',
-        uri: uri,
-        extra: {'template': candidate.pathTemplate},
-      );
-      final probe = await _probeXtreamCandidate(uri, headers);
-      if (probe == null) {
-        continue;
-      }
-      final ext = _determineXtreamExtension(probe, candidate);
-      PlaybackLogger.videoInfo(
-        'xtream-live-probe-success',
-        uri: probe.uri,
-        extra: {'ext': ext, 'template': candidate.pathTemplate},
-      );
-      return _candidateFromProbe(
-        original: candidate,
-        probe: probe,
-        providerKey: providerKey,
-        extension: ext,
-      );
-    }
-
-    // SOFT-FAIL: If all probes fail, return the first candidate (usually .m3u8 or .ts)
-    // This prevents "double click" issues caused by slow probes.
-    if (candidates.isNotEmpty) {
-      final fallback = candidates.first;
-      PlaybackLogger.videoInfo(
-        'xtream-live-probe-soft-fail',
-        extra: {
-          'reason': 'All probes failed, using fallback',
-          'template': fallback.pathTemplate,
-        },
-      );
-      // We don't have a probe result, so we guess extension
-      // We construct a fake probe result to satisfy the method signature
-      return _candidateFromProbe(
-        original: fallback,
-        probe: _XtreamProbeResult(
-          uri: fallback.resolve(base, providerKey),
-          contentType: null,
-          playbackHeaders: headers,
-        ),
-        providerKey: providerKey,
-        extension: fallback.extension ?? 'ts',
-      );
-    }
-
-    PlaybackLogger.videoError(
-      'xtream-live-probe-failed',
-      description: 'Unable to resolve live stream variants',
-    );
-    return null;
-  }
-
-  Playable _playableFromPattern({
-    required Uri base,
-    required _XtreamCandidate candidate,
-    required String providerKey,
-    required Map<String, String> headers,
-    String? rawUsername,
-  }) {
-    final uri = candidate.resolve(base, providerKey);
-    final ext = (candidate.extension?.isNotEmpty ?? false)
-        ? candidate.extension!
-        : guessExtensionFromUri(uri);
-    final mime = guessMimeFromUri(uri) ?? _mimeFromExtension(ext) ?? '';
-
-    // Build raw URL with unencoded username for proxy
-    String? rawUrl;
-    if (rawUsername != null) {
-      // Reconstruct the URL with raw username (colons preserved)
-      // Extract password from pattern: live/username/password/{stream_id}.ext
-      final pathParts = candidate.pathTemplate.split('/');
-      final password = pathParts.length > 2 ? pathParts[2] : '';
-      final ext = candidate.extension ?? 'ts';
-
-      final portPart = (base.port == 80 || base.port == 443)
-          ? ''
-          : ':${base.port}';
-      rawUrl =
-          '${base.scheme}://${base.host}$portPart/live/$rawUsername/$password/$providerKey.$ext';
-    }
-
-    return Playable(
-      url: uri,
-      isLive: true,
-      headers: headers,
-      containerExtension: ext,
-      mimeHint: mime.isEmpty ? null : mime,
-      rawUrl: rawUrl,
-    );
-  }
-
-  List<_XtreamCandidate> _xtreamLiveCandidates({
-    required String slugPrefix,
-    String? templateExtension,
-  }) {
-    final slug = '$slugPrefix/${_XtreamCandidate.placeholder}';
-    final barePrefix = slugPrefix.startsWith('live/')
-        ? slugPrefix.substring(5)
-        : slugPrefix;
-    final bareSlug = '$barePrefix/${_XtreamCandidate.placeholder}';
-    final raw = <_XtreamCandidate>[
-      _XtreamCandidate(pathTemplate: '$slug.m3u8', extension: 'm3u8'),
-      _XtreamCandidate(pathTemplate: '$slug.ts', extension: 'ts'),
-      if (barePrefix.isNotEmpty && barePrefix != slugPrefix) ...[
-        _XtreamCandidate(pathTemplate: '$bareSlug.m3u8', extension: 'm3u8'),
-        _XtreamCandidate(pathTemplate: '$bareSlug.ts', extension: 'ts'),
-      ],
-    ];
-    if (templateExtension == null || templateExtension.isEmpty) {
-      return raw;
-    }
-    final normalized = templateExtension.toLowerCase();
-    raw.sort((a, b) {
-      final aScore = a.extension == normalized ? 0 : 1;
-      final bScore = b.extension == normalized ? 0 : 1;
-      return aScore.compareTo(bScore);
-    });
-    return raw;
-  }
-
-  Future<_XtreamProbeResult?> _probeXtreamCandidate(
-    Uri uri,
-    Map<String, String> playbackHeaders,
-  ) async {
-    final headers = playbackHeaders.isEmpty
-        ? <String, String>{}
-        : Map<String, String>.from(playbackHeaders);
-    headers['Range'] = 'bytes=0-2047';
-    return _sendXtreamProbeRequest(
-      uri,
-      headers,
-      method: 'GET',
-      playbackHeaders: playbackHeaders,
-    );
-  }
-
-  Future<_XtreamProbeResult?> _sendXtreamProbeRequest(
-    Uri uri,
-    Map<String, String> requestHeaders, {
-    required String method,
-    Map<String, String>? playbackHeaders,
-  }) async {
-    final client = _xtreamProbeClient ??= _createXtreamProbeClient();
-    final request = http.Request(method, uri)
-      ..followRedirects = true
-      ..maxRedirects = 5
-      ..headers.addAll(requestHeaders);
-    try {
-      final response = await client.send(request).timeout(_xtreamProbeTimeout);
-      await response.stream.drain();
-      final resolvedUri = response.request?.url ?? uri;
-      if (response.statusCode >= 200 && response.statusCode < 400) {
-        final contentType = response.headers['content-type'];
-        if (!_isLikelyPlayableContentType(contentType)) {
-          return null;
-        }
-        return _XtreamProbeResult(
-          uri: resolvedUri,
-          contentType: contentType,
-          playbackHeaders: playbackHeaders ?? Map.unmodifiable(requestHeaders),
-        );
-      }
-      PlaybackLogger.videoInfo(
-        'xtream-live-probe-http',
-        uri: resolvedUri,
-        extra: {'code': response.statusCode, 'method': method},
-      );
-    } catch (error) {
-      PlaybackLogger.videoError(
-        'xtream-live-probe-error',
-        description: '$method ${uri.toString()}',
-        error: error,
-      );
-      return null;
-    }
-    return null;
-  }
-
-  _XtreamCandidate _candidateFromProbe({
-    required _XtreamCandidate original,
-    required _XtreamProbeResult probe,
-    required String providerKey,
-    required String extension,
-  }) {
-    final template =
-        _buildTemplateFromProbe(probe.uri, providerKey) ??
-        original.pathTemplate;
-    final baseOverride =
-        _deriveBaseOverride(probe.uri, providerKey, template) ??
-        original.baseOverride;
-    return _XtreamCandidate(
-      pathTemplate: template,
-      extension: extension,
-      baseOverride: baseOverride,
-    );
-  }
-
-  String? _buildTemplateFromProbe(Uri uri, String providerKey) {
-    final normalizedPath = uri.path.startsWith('/')
-        ? uri.path.substring(1)
-        : uri.path;
-    final buffer = StringBuffer(normalizedPath);
-    if (uri.hasQuery) {
-      buffer
-        ..write('?')
-        ..write(uri.query);
-    }
-    final replaced = buffer.toString().replaceAll(
-      providerKey,
-      _XtreamCandidate.placeholder,
-    );
-    if (!replaced.contains(_XtreamCandidate.placeholder)) {
-      return null;
-    }
-    return replaced;
-  }
-
-  Uri? _deriveBaseOverride(Uri uri, String providerKey, String template) {
-    final normalizedPath = uri.path.startsWith('/')
-        ? uri.path.substring(1)
-        : uri.path;
-    final realized = template.replaceAll(
-      _XtreamCandidate.placeholder,
-      providerKey,
-    );
-    final realizedPath = realized.split('?').first;
-    if (!normalizedPath.endsWith(realizedPath)) {
-      return null;
-    }
-    final baseLength = normalizedPath.length - realizedPath.length;
-    final baseSegment = baseLength <= 0
-        ? ''
-        : normalizedPath.substring(0, baseLength);
-    final prefixed = baseSegment.isEmpty
-        ? '/'
-        : baseSegment.startsWith('/')
-        ? baseSegment
-        : '/$baseSegment';
-    final normalizedBase = prefixed.endsWith('/') ? prefixed : '$prefixed/';
-    return uri.replace(path: normalizedBase, query: '', fragment: '');
-  }
-
-  String _determineXtreamExtension(
-    _XtreamProbeResult probe,
-    _XtreamCandidate candidate,
-  ) {
-    if (candidate.extension != null && candidate.extension!.isNotEmpty) {
-      return candidate.extension!;
-    }
-    final fromContentType = _extensionFromContentType(probe.contentType);
-    if (fromContentType != null) {
-      return fromContentType;
-    }
-    final guessed = guessExtensionFromUri(probe.uri);
-    if (guessed.isNotEmpty && guessed != 'unknown') {
-      return guessed;
-    }
-    return 'ts';
-  }
-
-  bool _isLikelyPlayableContentType(String? contentType) {
-    if (contentType == null || contentType.isEmpty) {
-      return true;
-    }
-    final lowered = contentType.toLowerCase();
-    if (lowered.contains('json')) {
-      return false;
-    }
-    if (lowered.contains('html')) {
-      return false;
-    }
-    return true;
-  }
-
-  String? _extensionFromContentType(String? contentType) {
-    if (contentType == null) {
-      return null;
-    }
-    final normalized = contentType.toLowerCase();
-    if (normalized.contains('mpegurl')) {
-      return 'm3u8';
-    }
-    if (normalized.contains('mp2t')) {
-      return 'ts';
-    }
-    return null;
-  }
-
-  http.Client _createXtreamProbeClient() {
-    if (profile.record.allowSelfSignedTls) {
-      final ioClient = HttpClient()
-        ..badCertificateCallback = (cert, host, port) => true;
-      return IOClient(ioClient);
-    }
-    return http.Client();
   }
 
   Map<String, String> _applyXtreamHeaderDefaults(
@@ -1104,29 +795,35 @@ class PlayableResolver {
     String? deviceId,
   }) {
     final normalized = Map<String, String>.from(headers);
-    // Revert to okhttp/4.9.3 as it is known to work with this provider
-    normalized['User-Agent'] = 'okhttp/4.9.3';
 
-    // Remove Referer and Accept as per strict Xtream VOD rules
-    // "Use only: User-Agent, Optional: X-Device-ID, Connection: keep-alive"
-    normalized.remove('Referer');
-    normalized.remove('Accept');
-    normalized.remove('Host'); // Ensure Host is gone
+    PlaybackLogger.videoInfo(
+      'xtream-headers-incoming',
+      extra: Map<String, String>.from(normalized),
+    );
 
+    // Use TiviMate User-Agent - whitelisted by most Xtream providers
+    // okhttp/4.9.3 is often blacklisted as a scraper fingerprint
+    normalized.clear();
+    normalized['User-Agent'] = 'Dalvik/2.1.0 (Linux; U; Android 11; TiviMate)';
     normalized['Connection'] = 'keep-alive';
 
-    if (deviceId != null) {
+    // Add Referer - many Xtream servers require this to prevent hotlinking
+    final baseUrl =
+        '${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}';
+    normalized['Referer'] = baseUrl;
+
+    // Add X-Device-Id if provided - many Xtream servers require this
+    if (deviceId != null && deviceId.isNotEmpty) {
       normalized['X-Device-Id'] = deviceId;
     }
 
     PlaybackLogger.videoInfo(
       'xtream-headers-generated',
       extra: {
-        'User-Agent': normalized['User-Agent'],
-        'Connection': normalized['Connection'],
-        'X-Device-Id': normalized['X-Device-Id'],
-        'Referer': 'REMOVED',
-        'Accept': 'REMOVED',
+        'User-Agent': normalized['User-Agent']!,
+        'Connection': normalized['Connection']!,
+        'X-Device-Id': normalized['X-Device-Id'] ?? 'not-set',
+        'Referer': normalized['Referer']!,
       },
     );
 
@@ -1156,20 +853,6 @@ class PlayableResolver {
       return null;
     }
     return parsed;
-  }
-
-  String _normalizeServerHost(String? value, String fallback) {
-    if (value == null || value.trim().isEmpty) {
-      return fallback;
-    }
-    final trimmed = value.trim();
-    if (trimmed.contains('://')) {
-      final parsed = Uri.tryParse(trimmed);
-      if (parsed != null && parsed.host.isNotEmpty) {
-        return parsed.host;
-      }
-    }
-    return trimmed.replaceAll(RegExp(r'/+$'), '');
   }
 
   String _summarizeResponseBody(dynamic body, {int maxLength = 200}) {
@@ -2405,41 +2088,6 @@ class PlayableResolver {
 
     return null;
   }
-}
-
-class _XtreamCandidate {
-  const _XtreamCandidate({
-    required this.pathTemplate,
-    required this.extension,
-    this.baseOverride,
-  });
-
-  static const placeholder = '{stream_id}';
-
-  final String pathTemplate;
-  final String? extension;
-  final Uri? baseOverride;
-
-  Uri resolve(Uri base, String providerKey) {
-    final resolvedBase = baseOverride ?? base;
-    final path = pathTemplate.replaceAll(placeholder, providerKey);
-
-    // The path should now have URL-encoded username (no raw colons)
-    // so Uri.resolve should work correctly
-    return resolvedBase.resolve(path);
-  }
-}
-
-class _XtreamProbeResult {
-  _XtreamProbeResult({
-    required this.uri,
-    required this.contentType,
-    required this.playbackHeaders,
-  });
-
-  final Uri uri;
-  final String? contentType;
-  final Map<String, String> playbackHeaders;
 }
 
 class _XtreamServerContext {

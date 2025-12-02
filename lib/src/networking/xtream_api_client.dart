@@ -1,48 +1,47 @@
 import 'dart:convert';
 import 'xtream_raw_client.dart';
-import 'xtream_session_manager.dart';
+// REMOVED: import 'xtream_session_manager.dart'; (RAW keepalive disabled)
 
 /// High-level Xtream API client using raw sockets
 class XtreamApiClient {
   final XtreamRawClient _rawClient;
-  final XtreamSessionManager _sessionManager;
+  // REMOVED: _sessionManager (RAW keepalive disabled)
 
   XtreamApiClient({XtreamRawClient? rawClient})
-    : _rawClient = rawClient ?? XtreamRawClient(),
-      _sessionManager = XtreamSessionManager(rawClient: rawClient);
+    : _rawClient = rawClient ?? XtreamRawClient();
 
   /// Authenticate and load player API data
   ///
-  /// Now performs full TiviMate handshake sequence!
+  /// DISABLED: TiviMate handshake (RAW TCP blocked by Cloudflare)
+  /// Uses simple HTTP API call only - no session management, no keepalive
   /// Returns parsed JSON response from player_api.php
   Future<Map<String, dynamic>> loadPlayerApi({
     required String host,
     required int port,
     required String username,
     required String password,
-    bool performFullHandshake = true,
+    bool performFullHandshake = false, // DISABLED by default
   }) async {
     print('[xtream-api] Loading player API: $host:$port');
 
     try {
       if (performFullHandshake) {
-        // Use TiviMate handshake sequence
-        print('[xtream-api] 🔐 Performing TiviMate handshake sequence...');
-        return await _sessionManager.performHandshake(
-          host: host,
-          port: port,
-          username: username,
-          password: password,
-          enableLogging: true,
+        // DEPRECATED: TiviMate handshake (RAW TCP blocked by Cloudflare)
+        print(
+          '[xtream-api] ⚠️  WARNING: RAW handshake requested but deprecated',
         );
-      } else {
-        // Simple API call (old behavior)
-        final path = '/player_api.php?username=$username&password=$password';
-        final response = await _rawClient.get(host, port, path, {});
-        final json = jsonDecode(response) as Map<String, dynamic>;
-        print('[xtream-api] Player API loaded successfully');
-        return json;
+        print(
+          '[xtream-api] ⚠️  Cloudflare blocks RAW TCP keepalive - using simple HTTP instead',
+        );
       }
+
+      // ALWAYS use simple HTTP API call (Cloudflare-compatible)
+      // No handshake sequence, no keepalive, no session management
+      final path = '/player_api.php?username=$username&password=$password';
+      final response = await _rawClient.get(host, port, path, {});
+      final json = jsonDecode(response) as Map<String, dynamic>;
+      print('[xtream-api] Player API loaded successfully (simple HTTP)');
+      return json;
     } catch (e) {
       print('[xtream-api] Player API failed: $e');
       rethrow;

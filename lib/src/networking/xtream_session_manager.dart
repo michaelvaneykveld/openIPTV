@@ -3,16 +3,18 @@ import 'dart:convert';
 import 'dart:math';
 import 'xtream_raw_client.dart';
 
-/// TiviMate-style session manager for Xtream providers
+/// DEPRECATED: TiviMate-style session manager - BLOCKED BY CLOUDFLARE
 ///
-/// This class replicates TiviMate's exact handshake and keepalive sequence
-/// to establish and maintain valid streaming sessions.
+/// This class uses RAW TCP sockets for keepalive which Cloudflare blocks.
+/// DO NOT USE - kept for reference only.
 ///
-/// Many Xtream providers require:
-/// 1. Specific API call sequence before streaming
-/// 2. Periodic keepalive pings
-/// 3. Device fingerprinting via custom headers
-/// 4. Session tokens from handshake responses
+/// Cloudflare blocks:
+/// 1. RAW TCP keepalive pings (live_clients polling)
+/// 2. Extended handshake sequences
+/// 3. Session management via raw sockets
+/// 4. Any non-standard HTTP patterns
+///
+/// Use simple HTTP API calls instead - no session management needed.
 class XtreamSessionManager {
   final XtreamRawClient _rawClient;
   final Random _random = Random();
@@ -156,14 +158,20 @@ class XtreamSessionManager {
       print('[xtream-session]   Series: ${_sessionData!['series_count']}');
     }
 
-    // Start keepalive timer
-    _startKeepalive(
-      host: host,
-      port: port,
-      username: username,
-      password: password,
-      enableLogging: enableLogging,
-    );
+    // DISABLED: Keepalive timer (RAW TCP blocked by Cloudflare)
+    // _startKeepalive(
+    //   host: host,
+    //   port: port,
+    //   username: username,
+    //   password: password,
+    //   enableLogging: enableLogging,
+    // );
+
+    if (enableLogging) {
+      print(
+        '[xtream-session] ⚠️  Keepalive DISABLED (Cloudflare blocks RAW TCP)',
+      );
+    }
 
     return playerApiResponse;
   }
@@ -198,11 +206,14 @@ class XtreamSessionManager {
     return jsonDecode(body);
   }
 
-  /// Start TiviMate-style keepalive timer
+  /// DEPRECATED: TiviMate-style keepalive timer - BLOCKED BY CLOUDFLARE
   ///
-  /// TiviMate sends periodic requests to maintain session:
-  /// - action=live_clients (every 12-15 seconds)
-  /// - action=keep_alive (fallback)
+  /// Cloudflare blocks RAW TCP keepalive patterns:
+  /// - action=live_clients (every 12-15 seconds) ❌ BLOCKED
+  /// - action=keep_alive (fallback) ❌ BLOCKED
+  ///
+  /// DO NOT USE - This method is disabled and should not be called.
+  // ignore: unused_element
   void _startKeepalive({
     required String host,
     required int port,

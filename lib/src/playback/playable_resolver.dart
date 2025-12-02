@@ -728,28 +728,26 @@ class PlayableResolver {
         .replace(queryParameters: {'username': username, 'password': password});
 
     PlaybackLogger.videoInfo(
-      'xtream-handshake-start',
+      'xtream-api-call-start',
       uri: playerUri,
-      extra: {'method': 'tivimate-session-handshake'},
+      extra: {'method': 'simple-http-api-call'},
     );
 
     try {
-      // Perform full TiviMate handshake sequence
+      // DISABLED: TiviMate handshake (RAW TCP keepalive blocked by Cloudflare)
+      // Use simple HTTP API call only - no session management, no keepalive
       final decoded = await apiClient.loadPlayerApi(
         host: playerUri.host,
         port: playerUri.port,
         username: username,
         password: password,
-        performFullHandshake: true, // Enable TiviMate handshake!
+        performFullHandshake: false, // DISABLED: No RAW handshake/keepalive
       );
 
       PlaybackLogger.videoInfo(
-        'xtream-handshake-success',
+        'xtream-api-call-success',
         uri: playerUri,
-        extra: {
-          'method': 'tivimate-session-established',
-          'keepalive': 'active',
-        },
+        extra: {'method': 'simple-http-response', 'keepalive': 'DISABLED'},
       );
 
       final serverInfo = decoded['server_info'];
@@ -776,8 +774,8 @@ class PlayableResolver {
       );
     } catch (error) {
       PlaybackLogger.videoError(
-        'xtream-handshake-error',
-        description: 'TiviMate handshake failed',
+        'xtream-api-call-error',
+        description: 'Simple HTTP API call failed',
         error: error,
       );
       return null;

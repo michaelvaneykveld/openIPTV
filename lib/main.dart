@@ -7,6 +7,7 @@ import 'package:openiptv/src/ui/login_screen.dart';
 // import 'package:openiptv/src/playback/local_proxy_server.dart';
 
 Future<void> main() async {
+  print('========== APP STARTING - MAIN() CALLED ==========');
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 

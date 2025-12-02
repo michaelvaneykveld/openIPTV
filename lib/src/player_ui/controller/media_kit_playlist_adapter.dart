@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:collection/collection.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -23,6 +23,7 @@ class MediaKitPlaylistAdapter
   }) : _sources = sources,
        _autoPlay = autoPlay,
        _snapshotController = StreamController<PlayerSnapshot>.broadcast() {
+    print('[PLAYLIST-INIT] MediaKitPlaylistAdapter constructor called');
     MediaKit.ensureInitialized();
     _player = Player(
       configuration: PlayerConfiguration(
@@ -55,20 +56,87 @@ class MediaKitPlaylistAdapter
     } catch (e) {
       PlaybackLogger.videoError('media-kit-unsafe-property-failed', error: e);
     }
-    _videoController = VideoController(_player);
     _currentIndex = initialIndex.clamp(0, sources.length - 1);
     _snapshot = _initialSnapshot();
-    _attachListeners();
-    unawaited(_loadCurrent());
+    // CRITICAL: VideoController will be created lazily after first non-zero layout
+  }
+
+  Future<void> _createVideoControllerForSize(Size size) async {
+    print(
+      '[PLAYLIST-INIT] _createVideoControllerForSize called: ${size.width}x${size.height}',
+    );
+
+    if (_isCreatingController) {
+      print('[PLAYLIST-INIT] Already creating controller, skipping');
+      return;
+    }
+    if (_videoController != null) {
+      print('[PLAYLIST-INIT] Controller already exists, skipping');
+      return;
+    }
+    if (size.width <= 0 || size.height <= 0) {
+      print(
+        '[PLAYLIST-INIT] Invalid size (${size.width}x${size.height}), skipping',
+      );
+      return;
+    }
+
+    _isCreatingController = true;
+    print(
+      '[PLAYLIST-INIT] Starting controller creation with size ${size.width}x${size.height}',
+    );
+    PlaybackLogger.videoInfo(
+      'playlist-controller-creation-start',
+      extra: {'width': size.width, 'height': size.height},
+    );
+
+    try {
+      // Small delay to ensure native window metrics are fully settled
+      print('[PLAYLIST-INIT] Waiting 16ms for window metrics to settle...');
+      await Future.delayed(const Duration(milliseconds: 16));
+
+      // Create VideoController with measured dimensions
+      print(
+        '[PLAYLIST-INIT] Creating VideoController with config: ${size.width.toInt()}x${size.height.toInt()}',
+      );
+      _videoController = VideoController(
+        _player,
+        configuration: VideoControllerConfiguration(
+          width: size.width.toInt(),
+          height: size.height.toInt(),
+        ),
+      );
+      print('[PLAYLIST-INIT] VideoController created successfully');
+
+      PlaybackLogger.videoInfo(
+        'playlist-controller-creation-success',
+        extra: {'width': size.width, 'height': size.height},
+      );
+
+      _attachListeners();
+      unawaited(_loadCurrent());
+    } catch (e, st) {
+      print('[PLAYLIST-INIT] ERROR creating controller: $e');
+      PlaybackLogger.videoError(
+        'playlist-controller-creation-failed',
+        description: '$e\n$st',
+        error: e,
+      );
+    } finally {
+      _isCreatingController = false;
+      print('[PLAYLIST-INIT] Controller creation completed');
+    }
   }
 
   final List<PlayerMediaSource> _sources;
   final bool _autoPlay;
 
   late final Player _player;
-  late final VideoController _videoController;
+  VideoController? _videoController;
   late int _currentIndex;
   late PlayerSnapshot _snapshot;
+  bool _isCreatingController = false;
+  Size _lastKnownSize = Size.zero;
 
   final StreamController<PlayerSnapshot> _snapshotController;
   StreamSubscription<Duration>? _positionSub;
@@ -93,17 +161,82 @@ class MediaKitPlaylistAdapter
 
   @override
   Widget buildVideoSurface(BuildContext context) {
-    // CRITICAL FIX: LIVE streams need concrete dimensions BEFORE metadata loads
-    // media_kit creates texture BEFORE layout pass, so we MUST provide explicit size
-    // Use fixed dimensions that media_kit can see immediately
-    return SizedBox(
-      width: 1920,
-      height: 1080,
-      child: Video(
-        controller: _videoController,
-        fit: BoxFit.contain,
-        controls: NoVideoControls,
-      ),
+    print('[PLAYLIST-INIT] buildVideoSurface called');
+
+    // CRITICAL: Use LayoutBuilder to observe real constraints
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        print(
+          '[PLAYLIST-INIT] LayoutBuilder constraints: ${constraints.maxWidth}x${constraints.maxHeight}',
+        );
+
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+        // Use finite dimensions or fallback to reasonable defaults
+        final width = size.width.isFinite ? size.width : 1920.0;
+        final height = size.height.isFinite ? size.height : 1080.0;
+        final measuredSize = Size(width, height);
+
+        print(
+          '[PLAYLIST-INIT] Measured size: ${width}x$height (finite: ${size.width.isFinite}x${size.height.isFinite})',
+        );
+
+        // Track last known non-zero size
+        if (width > 0 && height > 0 && _lastKnownSize != measuredSize) {
+          _lastKnownSize = measuredSize;
+          print('[PLAYLIST-INIT] Updated _lastKnownSize to ${width}x$height');
+          PlaybackLogger.videoInfo(
+            'playlist-layout-measured',
+            extra: {'width': width, 'height': height},
+          );
+        }
+
+        print(
+          '[PLAYLIST-INIT] Controller state: exists=${_videoController != null}, creating=$_isCreatingController, lastSize=${_lastKnownSize.width}x${_lastKnownSize.height}',
+        );
+
+        // If we don't have a controller yet and we have measured non-zero size -> create it
+        if (_videoController == null &&
+            !_isCreatingController &&
+            _lastKnownSize.width > 0 &&
+            _lastKnownSize.height > 0) {
+          print(
+            '[PLAYLIST-INIT] Scheduling post-frame callback to create controller',
+          );
+          // Create controller AFTER this frame (ensures native sees real window metrics)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            print('[PLAYLIST-INIT] Post-frame callback executing');
+            _createVideoControllerForSize(_lastKnownSize);
+          });
+        }
+
+        // If controller exists, build the actual Video widget
+        if (_videoController != null) {
+          return SizedBox.expand(
+            child: Video(
+              controller: _videoController!,
+              fit: BoxFit.contain,
+              controls: NoVideoControls,
+            ),
+          );
+        }
+
+        // Placeholder while controller is being created
+        // IMPORTANT: Keep the same size to avoid layout thrashing
+        return SizedBox(
+          width: width,
+          height: height,
+          child: const ColoredBox(
+            color: Colors.black,
+            child: Center(
+              child: Text(
+                'Initializing video...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

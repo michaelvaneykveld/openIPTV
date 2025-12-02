@@ -180,10 +180,14 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Widget? _buildVideoChild(BuildContext context) {
+    print('[PLAYER-SCREEN] _buildVideoChild called');
     final adapter = widget.controller.adapter;
+    print('[PLAYER-SCREEN] Adapter type: ${adapter.runtimeType}');
     if (adapter is PlayerVideoSurfaceProvider) {
+      print('[PLAYER-SCREEN] Calling buildVideoSurface on adapter');
       return (adapter as PlayerVideoSurfaceProvider).buildVideoSurface(context);
     }
+    print('[PLAYER-SCREEN] Adapter is NOT PlayerVideoSurfaceProvider');
     return null;
   }
 

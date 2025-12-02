@@ -1165,6 +1165,7 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
       return false;
     }
     if (_shouldUseLazyPlayback(context)) {
+      print('[PLAYER-SHELL] Using lazy playback on Windows');
       final lazyEntries = _buildLazyChannelEntries(channels);
       if (!mounted) {
         return false;
@@ -1173,6 +1174,9 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
         channels,
         int.tryParse(item.id),
         (channel) => channel.id,
+      );
+      print(
+        '[PLAYER-SHELL] Calling _pushLazyPlaylist with ${lazyEntries.length} entries',
       );
       return _pushLazyPlaylist(
         context: context,
@@ -1638,25 +1642,34 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       0,
       math.min(initialIndex, entries.length - 1),
     );
+    print(
+      '[PLAYER-SHELL] Creating LazyMediaKitAdapter with ${entries.length} entries',
+    );
     final adapter = LazyMediaKitAdapter(
       entries: entries,
       scheduler: ResolveScheduler(minGap: _resolveConfig.minGap),
       config: _resolveConfig,
       initialIndex: clampedIndex,
     );
+    print(
+      '[PLAYER-SHELL] LazyMediaKitAdapter created, creating PlayerController',
+    );
     final controller = PlayerController(adapter: adapter);
+    print('[PLAYER-SHELL] PlayerController created');
     if (_isWindowsPlatform(context)) {
       PlaybackLogger.videoInfo(
         'windows-mediakit-fallback',
         extra: {'count': entries.length, 'mode': 'lazy'},
       );
     }
+    print('[PLAYER-SHELL] Pushing PlayerScreen');
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             PlayerScreen(controller: controller, ownsController: true),
       ),
     );
+    print('[PLAYER-SHELL] PlayerScreen popped');
     return true;
   }
 
@@ -1731,7 +1744,9 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     );
     final support = classifyWindowsPlayable(source.playable);
     final warnOnly = support == WindowsPlaybackSupport.likelyCodecIssue;
-    final requiresFallback = support != WindowsPlaybackSupport.okDirect;
+    // CRITICAL FIX: Always use MediaKit on Windows to avoid video_player 0x0 texture bug
+    // video_player creates texture before layout, causing LIVE streams to fail
+    final requiresFallback = true; // Force MediaKit for all Windows playback
     var adjustedSource = source;
     Future<void> Function()? disposer;
     if (requiresFallback) {

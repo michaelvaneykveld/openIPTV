@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -28,6 +28,9 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
          entries.length,
          (_) => _LazyEntryState(),
        ) {
+    print(
+      '[LAZY-INIT] LazyMediaKitAdapter constructor called - entries: ${entries.length}',
+    );
     MediaKit.ensureInitialized();
     _player = Player(
       configuration: PlayerConfiguration(
@@ -56,11 +59,76 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
     } catch (e) {
       PlaybackLogger.videoError('media-kit-unsafe-property-failed', error: e);
     }
-    _videoController = VideoController(_player);
     _currentIndex = initialIndex.clamp(0, entries.length - 1);
     _snapshot = _initialSnapshot();
-    _attachListeners();
-    unawaited(_loadCurrent());
+    // CRITICAL: VideoController will be created lazily after first non-zero layout
+  }
+
+  Future<void> _createVideoControllerForSize(Size size) async {
+    print(
+      '[LAZY-INIT] _createVideoControllerForSize called: ${size.width}x${size.height}',
+    );
+
+    if (_isCreatingController) {
+      print('[LAZY-INIT] Already creating controller, skipping');
+      return;
+    }
+    if (_videoController != null) {
+      print('[LAZY-INIT] Controller already exists, skipping');
+      return;
+    }
+    if (size.width <= 0 || size.height <= 0) {
+      print(
+        '[LAZY-INIT] Invalid size (${size.width}x${size.height}), skipping',
+      );
+      return;
+    }
+
+    _isCreatingController = true;
+    print(
+      '[LAZY-INIT] Starting controller creation with size ${size.width}x${size.height}',
+    );
+    PlaybackLogger.videoInfo(
+      'lazy-controller-creation-start',
+      extra: {'width': size.width, 'height': size.height},
+    );
+
+    try {
+      // Small delay to ensure native window metrics are fully settled
+      print('[LAZY-INIT] Waiting 16ms for window metrics to settle...');
+      await Future.delayed(const Duration(milliseconds: 16));
+
+      // Create VideoController with measured dimensions
+      print(
+        '[LAZY-INIT] Creating VideoController with config: ${size.width.toInt()}x${size.height.toInt()}',
+      );
+      _videoController = VideoController(
+        _player,
+        configuration: VideoControllerConfiguration(
+          width: size.width.toInt(),
+          height: size.height.toInt(),
+        ),
+      );
+      print('[LAZY-INIT] VideoController created successfully');
+
+      PlaybackLogger.videoInfo(
+        'lazy-controller-creation-success',
+        extra: {'width': size.width, 'height': size.height},
+      );
+
+      _attachListeners();
+      unawaited(_loadCurrent());
+    } catch (e, st) {
+      print('[LAZY-INIT] ERROR creating controller: $e');
+      PlaybackLogger.videoError(
+        'lazy-controller-creation-failed',
+        description: '$e\n$st',
+        error: e,
+      );
+    } finally {
+      _isCreatingController = false;
+      print('[LAZY-INIT] Controller creation completed');
+    }
   }
 
   final List<LazyPlaybackEntry> _entries;
@@ -70,9 +138,11 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
   final bool _autoPlay;
 
   late final Player _player;
-  late final VideoController _videoController;
+  VideoController? _videoController;
   late int _currentIndex;
   late PlayerSnapshot _snapshot;
+  bool _isCreatingController = false;
+  Size _lastKnownSize = Size.zero;
 
   final StreamController<PlayerSnapshot> _snapshotController;
   StreamSubscription<Duration>? _positionSub;
@@ -96,17 +166,82 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
 
   @override
   Widget buildVideoSurface(BuildContext context) {
-    // CRITICAL FIX: LIVE streams need concrete dimensions BEFORE metadata loads
-    // media_kit creates texture BEFORE layout pass, so we MUST provide explicit size
-    // Use fixed dimensions that media_kit can see immediately
-    return SizedBox(
-      width: 1920,
-      height: 1080,
-      child: Video(
-        controller: _videoController,
-        fit: BoxFit.contain,
-        controls: NoVideoControls,
-      ),
+    print('[LAZY-INIT] buildVideoSurface called');
+
+    // CRITICAL: Use LayoutBuilder to observe real constraints
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        print(
+          '[LAZY-INIT] LayoutBuilder constraints: ${constraints.maxWidth}x${constraints.maxHeight}',
+        );
+
+        final size = Size(constraints.maxWidth, constraints.maxHeight);
+
+        // Use finite dimensions or fallback to reasonable defaults
+        final width = size.width.isFinite ? size.width : 1920.0;
+        final height = size.height.isFinite ? size.height : 1080.0;
+        final measuredSize = Size(width, height);
+
+        print(
+          '[LAZY-INIT] Measured size: ${width}x$height (finite: ${size.width.isFinite}x${size.height.isFinite})',
+        );
+
+        // Track last known non-zero size
+        if (width > 0 && height > 0 && _lastKnownSize != measuredSize) {
+          _lastKnownSize = measuredSize;
+          print('[LAZY-INIT] Updated _lastKnownSize to ${width}x$height');
+          PlaybackLogger.videoInfo(
+            'layout-measured',
+            extra: {'width': width, 'height': height},
+          );
+        }
+
+        print(
+          '[LAZY-INIT] Controller state: exists=${_videoController != null}, creating=$_isCreatingController, lastSize=${_lastKnownSize.width}x${_lastKnownSize.height}',
+        );
+
+        // If we don't have a controller yet and we have measured non-zero size -> create it
+        if (_videoController == null &&
+            !_isCreatingController &&
+            _lastKnownSize.width > 0 &&
+            _lastKnownSize.height > 0) {
+          print(
+            '[LAZY-INIT] Scheduling post-frame callback to create controller',
+          );
+          // Create controller AFTER this frame (ensures native sees real window metrics)
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            print('[LAZY-INIT] Post-frame callback executing');
+            _createVideoControllerForSize(_lastKnownSize);
+          });
+        }
+
+        // If controller exists, build the actual Video widget
+        if (_videoController != null) {
+          return SizedBox.expand(
+            child: Video(
+              controller: _videoController!,
+              fit: BoxFit.contain,
+              controls: NoVideoControls,
+            ),
+          );
+        }
+
+        // Placeholder while controller is being created
+        // IMPORTANT: Keep the same size to avoid layout thrashing
+        return SizedBox(
+          width: width,
+          height: height,
+          child: const ColoredBox(
+            color: Colors.black,
+            child: Center(
+              child: Text(
+                'Initializing video...',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

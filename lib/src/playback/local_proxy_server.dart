@@ -4,6 +4,13 @@ import 'dart:io';
 import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/networking/xtream_raw_client.dart';
 
+/// DEPRECATED: RAW TCP Socket Proxy - Blocked by Cloudflare
+///
+/// This proxy uses raw TCP sockets which Cloudflare blocks 100% of the time.
+/// Direct Stream mode is now the default (bypasses this proxy entirely).
+///
+/// This class is kept for backward compatibility only.
+/// New code should NOT use this proxy.
 class LocalProxyServer {
   static HttpServer? _server;
   static int _port = 0;

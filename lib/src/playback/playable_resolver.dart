@@ -17,7 +17,8 @@ import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/playback/stream_probe.dart';
-import 'package:openiptv/src/playback/local_proxy_server.dart';
+// DEPRECATED: LocalProxyServer is no longer used (RAW TCP mode disabled)
+// import 'package:openiptv/src/playback/local_proxy_server.dart';
 import 'package:openiptv/src/networking/xtream_raw_client.dart';
 import 'package:openiptv/src/networking/xtream_api_client.dart';
 
@@ -486,39 +487,39 @@ class PlayableResolver {
         },
       );
 
-      // Check if direct stream mode is enabled (bypass proxy)
-      final useDirectStream = _config['useDirectStream'] == 'true';
+      // ALWAYS use Direct Stream mode - bypass RAW TCP proxy (Cloudflare blocks it)
+      // Direct mode passes headers to media_kit/player directly (normal HTTP)
+      final useDirectStream =
+          _config['useDirectStream'] != 'false'; // Default: true
 
-      if (useDirectStream) {
+      if (!useDirectStream) {
         PlaybackLogger.videoInfo(
-          'xtream-direct-stream-mode',
+          'xtream-proxy-mode-deprecated',
           uri: Uri.parse(manualUrl),
           extra: {
-            'reason': 'Direct streaming enabled - bypassing local proxy',
-            'cloudflareWorkaround': true,
+            'reason': 'RAW TCP proxy mode is deprecated (Cloudflare blocks it)',
+            'recommendation': 'Remove useDirectStream=false from configuration',
           },
-        );
-
-        return Playable(
-          url: Uri.parse(manualUrl),
-          isLive: isLive,
-          headers: headers, // Direct headers to media_kit
-          containerExtension: ext,
-          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
-          rawUrl: manualUrl,
         );
       }
 
-      // Use Proxy for Live TV to handle connection quirks and headers
-      final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
+      PlaybackLogger.videoInfo(
+        'xtream-direct-stream-mode',
+        uri: Uri.parse(manualUrl),
+        extra: {
+          'reason': 'Direct streaming - normal HTTP with headers',
+          'cloudflareCompatible': true,
+          'proxyDisabled': true,
+        },
+      );
 
       return Playable(
-        url: Uri.parse(proxyUrl),
+        url: Uri.parse(manualUrl),
         isLive: isLive,
-        headers: {}, // Proxy handles headers
+        headers: headers, // Direct headers to media_kit
         containerExtension: ext,
         mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
-        rawUrl: proxyUrl,
+        rawUrl: manualUrl,
       );
     }
 
@@ -570,43 +571,39 @@ class PlayableResolver {
         },
       );
 
-      // Check if direct stream mode is enabled (bypass proxy)
-      final useDirectStream = _config['useDirectStream'] == 'true';
+      // ALWAYS use Direct Stream mode - bypass RAW TCP proxy (Cloudflare blocks it)
+      // Direct mode passes headers to media_kit/player directly (normal HTTP)
+      final useDirectStream =
+          _config['useDirectStream'] != 'false'; // Default: true
 
-      if (useDirectStream) {
+      if (!useDirectStream) {
         PlaybackLogger.videoInfo(
-          'xtream-vod-direct-stream-mode',
+          'xtream-vod-proxy-mode-deprecated',
           uri: Uri.parse(manualUrl),
           extra: {
-            'reason': 'Direct streaming enabled - bypassing local proxy',
-            'cloudflareWorkaround': true,
+            'reason': 'RAW TCP proxy mode is deprecated (Cloudflare blocks it)',
+            'recommendation': 'Remove useDirectStream=false from configuration',
           },
-        );
-
-        return Playable(
-          url: Uri.parse(manualUrl),
-          isLive: isLive,
-          headers: headers, // Direct headers to media_kit
-          containerExtension: ext,
-          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
-          rawUrl: manualUrl,
-          durationHint: durationHint,
         );
       }
 
-      // Use direct URL without probing - this provider blocks probe requests
-      // but accepts direct playback URLs (just like live streams)
-      final proxyUrl = LocalProxyServer.createProxyUrl(manualUrl, headers);
-
-      // Port is already logged in createProxyUrl
+      PlaybackLogger.videoInfo(
+        'xtream-vod-direct-stream-mode',
+        uri: Uri.parse(manualUrl),
+        extra: {
+          'reason': 'Direct streaming - normal HTTP with headers',
+          'cloudflareCompatible': true,
+          'proxyDisabled': true,
+        },
+      );
 
       return Playable(
-        url: Uri.parse(proxyUrl),
+        url: Uri.parse(manualUrl),
         isLive: isLive,
-        headers: {}, // Proxy handles headers
+        headers: headers, // Direct headers to media_kit
         containerExtension: ext,
         mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
-        rawUrl: proxyUrl,
+        rawUrl: manualUrl,
         durationHint: durationHint,
       );
     }

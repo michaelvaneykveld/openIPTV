@@ -17,9 +17,7 @@ class PlayerVideoSurface extends StatelessWidget {
         Positioned.fill(
           child: DecoratedBox(
             decoration: const BoxDecoration(color: Colors.black),
-            child: SizedBox.expand(
-              child: videoChild ?? const SizedBox.shrink(),
-            ),
+            child: Center(child: videoChild ?? const SizedBox.shrink()),
           ),
         ),
         if (state.phase == PlayerPhase.loading || state.isBuffering)

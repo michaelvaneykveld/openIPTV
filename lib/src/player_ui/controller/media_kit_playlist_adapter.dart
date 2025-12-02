@@ -94,9 +94,11 @@ class MediaKitPlaylistAdapter
   @override
   Widget buildVideoSurface(BuildContext context) {
     // CRITICAL FIX: LIVE streams need concrete dimensions BEFORE metadata loads
-    // Without this, media_kit on Windows creates a 0x0 texture and destroys it instantly
-    return AspectRatio(
-      aspectRatio: 16 / 9,
+    // media_kit creates texture BEFORE layout pass, so we MUST provide explicit size
+    // Use fixed dimensions that media_kit can see immediately
+    return SizedBox(
+      width: 1920,
+      height: 1080,
       child: Video(
         controller: _videoController,
         fit: BoxFit.contain,

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:openiptv/src/utils/playback_logger.dart';
 import 'xtream_raw_client.dart';
 // REMOVED: import 'xtream_session_manager.dart'; (RAW keepalive disabled)
 
@@ -22,16 +23,18 @@ class XtreamApiClient {
     required String password,
     bool performFullHandshake = false, // DISABLED by default
   }) async {
-    print('[xtream-api] Loading player API: $host:$port');
+    PlaybackLogger.log('Loading player API: $host:$port', tag: 'xtream-api');
 
     try {
       if (performFullHandshake) {
         // DEPRECATED: TiviMate handshake (RAW TCP blocked by Cloudflare)
-        print(
-          '[xtream-api] ⚠️  WARNING: RAW handshake requested but deprecated',
+        PlaybackLogger.log(
+          '⚠️  WARNING: RAW handshake requested but deprecated',
+          tag: 'xtream-api',
         );
-        print(
-          '[xtream-api] ⚠️  Cloudflare blocks RAW TCP keepalive - using simple HTTP instead',
+        PlaybackLogger.log(
+          '⚠️  Cloudflare blocks RAW TCP keepalive - using simple HTTP instead',
+          tag: 'xtream-api',
         );
       }
 
@@ -40,10 +43,13 @@ class XtreamApiClient {
       final path = '/player_api.php?username=$username&password=$password';
       final response = await _rawClient.get(host, port, path, {});
       final json = jsonDecode(response) as Map<String, dynamic>;
-      print('[xtream-api] Player API loaded successfully (simple HTTP)');
+      PlaybackLogger.log(
+        'Player API loaded successfully (simple HTTP)',
+        tag: 'xtream-api',
+      );
       return json;
     } catch (e) {
-      print('[xtream-api] Player API failed: $e');
+      PlaybackLogger.error('Player API failed', error: e, tag: 'xtream-api');
       rethrow;
     }
   }
@@ -60,7 +66,7 @@ class XtreamApiClient {
     final path =
         '/player_api.php?username=$username&password=$password&action=get_live_streams$categoryParam';
 
-    print('[xtream-api] Loading live streams');
+    PlaybackLogger.log('Loading live streams', tag: 'xtream-api');
 
     final response = await _rawClient.get(host, port, path, {});
     return jsonDecode(response) as List<dynamic>;
@@ -78,7 +84,7 @@ class XtreamApiClient {
     final path =
         '/player_api.php?username=$username&password=$password&action=get_vod_streams$categoryParam';
 
-    print('[xtream-api] Loading VOD streams');
+    PlaybackLogger.log('Loading VOD streams', tag: 'xtream-api');
 
     final response = await _rawClient.get(host, port, path, {});
     return jsonDecode(response) as List<dynamic>;
@@ -96,7 +102,7 @@ class XtreamApiClient {
     final path =
         '/player_api.php?username=$username&password=$password&action=get_series$categoryParam';
 
-    print('[xtream-api] Loading series');
+    PlaybackLogger.log('Loading series', tag: 'xtream-api');
 
     final response = await _rawClient.get(host, port, path, {});
     return jsonDecode(response) as List<dynamic>;
@@ -113,65 +119,5 @@ class XtreamApiClient {
     String extension = 'ts',
   }) {
     return '/$type/$username/$password/$streamId.$extension';
-  }
-
-  /// Open streaming connection for Live TV or VOD
-  ///
-  /// Returns raw socket for feeding to media player
-  Future<StreamingConnection> openStreamingConnection({
-    required String host,
-    required int port,
-    required String type,
-    required String username,
-    required String password,
-    required String streamId,
-    String extension = 'ts',
-  }) async {
-    final path = buildXtreamPath(
-      type: type,
-      username: username,
-      password: password,
-      streamId: streamId,
-      extension: extension,
-    );
-
-    print('[xtream-api] Opening streaming connection: $host:$port$path');
-
-    final socket = await _rawClient.openStream(
-      host,
-      port,
-      path,
-      {}, // Use default TiviMate headers
-    );
-
-    return StreamingConnection(
-      socket: socket,
-      host: host,
-      port: port,
-      path: path,
-    );
-  }
-}
-
-/// Represents an open streaming connection
-class StreamingConnection {
-  final dynamic socket; // Socket from dart:io
-  final String host;
-  final int port;
-  final String path;
-
-  StreamingConnection({
-    required this.socket,
-    required this.host,
-    required this.port,
-    required this.path,
-  });
-
-  /// Get full URL for display purposes
-  String get url => 'http://$host:$port$path';
-
-  /// Close the streaming connection
-  Future<void> close() async {
-    await socket.close();
   }
 }

@@ -42,3 +42,8 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // OkHttp for native HTTP client (same as TiviMate)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+}

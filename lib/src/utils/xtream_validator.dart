@@ -300,9 +300,9 @@ class XtreamValidator {
     }
 
     if (proxyRequired) {
-      buffer.writeln('• Local Proxy: REQUIRED (server blocks direct access)');
+      buffer.writeln('• Direct Access: BLOCKED (Server returns HTML/Fake 200)');
     } else {
-      buffer.writeln('• Local Proxy: Optional');
+      buffer.writeln('• Direct Access: OK');
     }
 
     if (!apiOk || !loginOk) {

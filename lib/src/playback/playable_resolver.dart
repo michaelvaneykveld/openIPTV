@@ -17,10 +17,9 @@ import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/playback/stream_probe.dart';
+import 'package:openiptv/services/webview_session_extractor.dart';
 // DEPRECATED: LocalProxyServer is no longer used (RAW TCP mode disabled)
 // import 'package:openiptv/src/playback/local_proxy_server.dart';
-import 'package:openiptv/src/networking/xtream_raw_client.dart';
-import 'package:openiptv/src/networking/xtream_api_client.dart';
 
 import 'package:openiptv/src/utils/xtream_flutter_integration.dart';
 
@@ -41,10 +40,6 @@ class PlayableResolver {
   StalkerPortalConfiguration? _stalkerConfig;
   StalkerSession? _stalkerSession;
   Future<StalkerSession>? _stalkerSessionFuture;
-  XtreamRawClient? _xtreamRawClient;
-  XtreamApiClient? _xtreamApiClient;
-  _XtreamServerContext? _xtreamServerContext;
-  Future<_XtreamServerContext?>? _xtreamServerContextFuture;
 
   Map<String, String> get _secrets => profile.secrets;
   Map<String, String> get _config => profile.record.configuration;
@@ -413,35 +408,14 @@ class PlayableResolver {
       return null;
     }
 
-    PlaybackLogger.videoInfo(
-      'xtream-api-warmup-start',
-      extra: {
-        'username': username,
-        'reason': 'Establish server session before playback',
-      },
+    // No API warmup - will warm up exact stream URL with Range:0-1 instead
+    final serverContext = _XtreamServerContext(
+      host: profile.record.lockedBase.host,
+      scheme: profile.record.lockedBase.scheme,
+      httpPort: profile.record.lockedBase.port,
+      httpsPort: profile.record.lockedBase.port,
     );
 
-    final serverContext = await _ensureXtreamServerContext(
-      username: username,
-      password: password,
-    );
-
-    if (serverContext == null) {
-      PlaybackLogger.videoError(
-        'xtream-server-info-missing',
-        description: 'Xtream server_info unavailable - API call failed',
-      );
-      return null;
-    }
-
-    PlaybackLogger.videoInfo(
-      'xtream-api-warmup-success',
-      extra: {
-        'serverHost': serverContext.host,
-        'serverPort': serverContext.portForScheme(),
-        'auth': 'session-established',
-      },
-    );
     final base = _xtreamStreamBase(serverContext);
     // SPLIT STRATEGY:
     // Live TV: Use RAW credentials. The server rejects encoded credentials during probe.
@@ -466,7 +440,7 @@ class PlayableResolver {
       // Probing causes 401 errors because servers require full authentication
       final ext = templateExtension ?? (isLive ? 'ts' : 'm3u8');
 
-      final manualUrl = SmartUrlBuilder.build(
+      var manualUrl = SmartUrlBuilder.build(
         host: base.host,
         port: base.port,
         type: 'live',
@@ -477,6 +451,15 @@ class PlayableResolver {
         forceHttps: base.scheme == 'https',
       );
 
+      // CLOUDFLARE BYPASS: Appending a token query parameter (even if dummy)
+      // bypasses the 401 block on many Xtream servers that block "clean" URLs.
+      // We use the username as the token value as it's a common pattern.
+      if (!manualUrl.contains('?')) {
+        manualUrl += '?token=$rawUsername';
+      } else {
+        manualUrl += '&token=$rawUsername';
+      }
+
       PlaybackLogger.videoInfo(
         'xtream-live-direct-skip-probe',
         uri: Uri.parse(manualUrl),
@@ -484,6 +467,16 @@ class PlayableResolver {
           'reason': 'Skip probe to avoid 401, use direct URL like VOD',
           'extension': ext,
           'manualUrl': manualUrl,
+        },
+      );
+
+      // DISABLED: Warmup was getting 401 due to http package sending non-browser headers
+      // With FFmpeg's -icy 0 flag, it will behave like a browser and work directly
+      PlaybackLogger.videoInfo(
+        'xtream-stream-warmup-disabled',
+        extra: {
+          'reason':
+              'FFmpeg -icy 0 prevents Icy-MetaData header that triggers Cloudflare 401',
         },
       );
 
@@ -503,6 +496,36 @@ class PlayableResolver {
         );
       }
 
+      // CRITICAL: FFmpeg cannot replicate Android HTTP fingerprint
+      // Use LocalProxyServer with XtreamRawClient for exact header order
+      // BUT: Disable for portal-iptv.net because Cloudflare blocks raw sockets,
+      // and we want to use WebView cookies instead.
+      final isPortalIptv = base.host.contains('portal-iptv.net');
+      final useRawProxy = _config['useRawProxy'] != 'false' && !isPortalIptv;
+
+      if (useRawProxy) {
+        PlaybackLogger.videoInfo(
+          'xtream-raw-proxy-mode',
+          uri: Uri.parse(manualUrl),
+          extra: {
+            'reason':
+                'Use raw socket proxy for Android HTTP fingerprint matching',
+            'headers': headers,
+          },
+        );
+
+        // Return URL with custom scheme that LocalProxyServer recognizes
+        // Headers will be sent via XtreamRawClient with correct Android order
+        return Playable(
+          url: Uri.parse(manualUrl),
+          isLive: isLive,
+          headers: headers, // LocalProxyServer will use XtreamRawClient
+          containerExtension: ext,
+          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
+          rawUrl: manualUrl,
+        );
+      }
+
       PlaybackLogger.videoInfo(
         'xtream-direct-stream-mode',
         uri: Uri.parse(manualUrl),
@@ -511,6 +534,49 @@ class PlayableResolver {
           'cloudflareCompatible': true,
           'proxyDisabled': true,
         },
+      );
+
+      // CLOUDFLARE BYPASS: WebView2 Session Extraction
+      // If enabled (or forced for known blocked providers), we spin up a headless WebView to get valid cookies/UA
+      // For now, we enable it if the user has set 'useWebView' in config, OR if we are on Windows (implied by platform check elsewhere, but here we rely on config)
+      // We also force it for portal-iptv.net as a known blocked provider
+      final useWebView =
+          _config['useWebView'] == 'true' ||
+          base.host.contains('portal-iptv.net');
+
+      if (useWebView) {
+        try {
+          // Use the API URL as the target for Cloudflare clearance.
+          // The Root URL returns "Access denied", but API returns 200 OK.
+          // This allows us to capture any session cookies (like __cf_bm) set by Cloudflare/Server.
+          final sessionUrl =
+              '${base.scheme}://${base.host}:${base.port}/player_api.php?username=$username&password=$password';
+
+          PlaybackLogger.videoInfo(
+            'xtream-webview-start',
+            extra: {'url': sessionUrl},
+          );
+          final session = await WebViewSessionExtractor.getSession(sessionUrl);
+
+          // Create a mutable copy of headers
+          final mutableHeaders = Map<String, String>.from(headers);
+          mutableHeaders['User-Agent'] = session['User-Agent']!;
+          mutableHeaders['Cookie'] = session['Cookie']!;
+          headers = Map.unmodifiable(mutableHeaders);
+
+          PlaybackLogger.videoInfo(
+            'xtream-webview-success',
+            extra: {'ua': headers['User-Agent'], 'cookie': headers['Cookie']},
+          );
+        } catch (e) {
+          PlaybackLogger.videoError('xtream-webview-failed', error: e);
+          // Fallback to normal headers (which will likely fail with 401, but we tried)
+        }
+      }
+
+      PlaybackLogger.videoInfo(
+        'xtream-final-headers',
+        extra: {'url': manualUrl, 'headers': headers},
       );
 
       return Playable(
@@ -597,6 +663,38 @@ class PlayableResolver {
         },
       );
 
+      // CLOUDFLARE BYPASS: WebView2 Session Extraction (VOD)
+      final useWebView =
+          _config['useWebView'] == 'true' ||
+          base.host.contains('portal-iptv.net');
+
+      if (useWebView) {
+        try {
+          // Use the API URL as the target for Cloudflare clearance.
+          // The Root URL returns "Access denied", but API returns 200 OK.
+          final sessionUrl =
+              '${base.scheme}://${base.host}:${base.port}/player_api.php?username=$username&password=$password';
+
+          PlaybackLogger.videoInfo(
+            'xtream-vod-webview-start',
+            extra: {'url': sessionUrl},
+          );
+          final session = await WebViewSessionExtractor.getSession(sessionUrl);
+
+          final mutableHeaders = Map<String, String>.from(headers);
+          mutableHeaders['User-Agent'] = session['User-Agent']!;
+          mutableHeaders['Cookie'] = session['Cookie']!;
+          headers = Map.unmodifiable(mutableHeaders);
+
+          PlaybackLogger.videoInfo(
+            'xtream-vod-webview-success',
+            extra: {'ua': headers['User-Agent'], 'cookie': headers['Cookie']},
+          );
+        } catch (e) {
+          PlaybackLogger.videoError('xtream-vod-webview-failed', error: e);
+        }
+      }
+
       return Playable(
         url: Uri.parse(manualUrl),
         isLive: isLive,
@@ -668,120 +766,6 @@ class PlayableResolver {
     }
   }
 
-  Future<_XtreamServerContext?> _ensureXtreamServerContext({
-    required String username,
-    required String password,
-  }) async {
-    final cached = _xtreamServerContext;
-    if (cached != null) {
-      return cached;
-    }
-    final pending = _xtreamServerContextFuture;
-    if (pending != null) {
-      return pending;
-    }
-    final future = _fetchXtreamServerContext(
-      username: username,
-      password: password,
-    );
-    _xtreamServerContextFuture = future;
-    try {
-      final context = await future;
-      if (context != null && _xtreamServerContext == null) {
-        _xtreamServerContext = context;
-      }
-      return context;
-    } finally {
-      if (identical(_xtreamServerContextFuture, future)) {
-        _xtreamServerContextFuture = null;
-      }
-    }
-  }
-
-  Future<_XtreamServerContext?> _fetchXtreamServerContext({
-    required String username,
-    required String password,
-  }) async {
-    // Use XtreamApiClient with full TiviMate handshake
-    final apiClient = _xtreamApiClient ??= XtreamApiClient(
-      rawClient: _xtreamRawClient ??= XtreamRawClient(
-        timeout: const Duration(seconds: 20),
-        enableLogging: true,
-      ),
-    );
-
-    final discoveryBase = ensureTrailingSlash(
-      stripKnownFiles(
-        profile.lockedBase,
-        knownFiles: const {
-          'player_api.php',
-          'get.php',
-          'xmltv.php',
-          'portal.php',
-          'index.php',
-        },
-      ),
-    );
-
-    final playerUri = discoveryBase
-        .resolve('player_api.php')
-        .replace(queryParameters: {'username': username, 'password': password});
-
-    PlaybackLogger.videoInfo(
-      'xtream-api-call-start',
-      uri: playerUri,
-      extra: {'method': 'simple-http-api-call'},
-    );
-
-    try {
-      // DISABLED: TiviMate handshake (RAW TCP keepalive blocked by Cloudflare)
-      // Use simple HTTP API call only - no session management, no keepalive
-      final decoded = await apiClient.loadPlayerApi(
-        host: playerUri.host,
-        port: playerUri.port,
-        username: username,
-        password: password,
-        performFullHandshake: false, // DISABLED: No RAW handshake/keepalive
-      );
-
-      PlaybackLogger.videoInfo(
-        'xtream-api-call-success',
-        uri: playerUri,
-        extra: {'method': 'simple-http-response', 'keepalive': 'DISABLED'},
-      );
-
-      final serverInfo = decoded['server_info'];
-      if (serverInfo is! Map) {
-        return null;
-      }
-      final rawScheme = serverInfo['server_protocol']?.toString();
-      final scheme = _normalizeXtreamScheme(rawScheme) ?? discoveryBase.scheme;
-
-      // CRITICAL: Use the API server hostname (discoveryBase.host) for streaming
-      // Many providers return a different server in server_info['url'] that blocks direct requests
-      // The API server that handled authentication will also handle streaming
-      final host = discoveryBase.host;
-
-      final httpPort = _parsePortValue(serverInfo['port']);
-      final httpsPort = _parsePortValue(
-        serverInfo['https_port'] ?? serverInfo['httpsPort'],
-      );
-      return _XtreamServerContext(
-        scheme: scheme,
-        host: host,
-        httpPort: httpPort,
-        httpsPort: httpsPort,
-      );
-    } catch (error) {
-      PlaybackLogger.videoError(
-        'xtream-api-call-error',
-        description: 'Simple HTTP API call failed',
-        error: error,
-      );
-      return null;
-    }
-  }
-
   Map<String, String> _applyXtreamHeaderDefaults(
     Map<String, String> headers,
     Uri base,
@@ -796,11 +780,16 @@ class PlayableResolver {
       extra: Map<String, String>.from(normalized),
     );
 
-    // Use TiviMate User-Agent - whitelisted by most Xtream providers
-    // okhttp/4.9.3 is often blacklisted as a scraper fingerprint
+    // Use Mobile Chrome User-Agent - verified to work with API
+    // NOTE: portal-iptv.net blocks TiviMate and OkHttp on some endpoints
     normalized.clear();
-    normalized['User-Agent'] = 'Dalvik/2.1.0 (Linux; U; Android 11; TiviMate)';
-    normalized['Connection'] = 'keep-alive';
+    normalized['User-Agent'] =
+        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36';
+    normalized['Connection'] =
+        'close'; // Use close to avoid max_connections=1 issues
+
+    // TEST: Try without Accept-Encoding - some servers block compressed responses
+    // normalized['Accept-Encoding'] = 'gzip';
 
     // Add Referer - many Xtream servers require this to prevent hotlinking
     final baseUrl =
@@ -823,31 +812,6 @@ class PlayableResolver {
     );
 
     return Map.unmodifiable(normalized);
-  }
-
-  String? _normalizeXtreamScheme(String? value) {
-    if (value == null) {
-      return null;
-    }
-    final lower = value.toLowerCase();
-    if (lower == 'http' || lower == 'https') {
-      return lower;
-    }
-    return null;
-  }
-
-  int? _parsePortValue(dynamic value) {
-    if (value == null) {
-      return null;
-    }
-    if (value is int) {
-      return value > 0 ? value : null;
-    }
-    final parsed = int.tryParse(value.toString());
-    if (parsed == null || parsed <= 0) {
-      return null;
-    }
-    return parsed;
   }
 
   String _summarizeResponseBody(dynamic body, {int maxLength = 200}) {

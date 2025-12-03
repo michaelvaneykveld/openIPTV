@@ -17,7 +17,6 @@ import 'package:openiptv/src/protocols/stalker/stalker_vod_service.dart';
 import 'package:openiptv/src/providers/artwork_fetcher_provider.dart';
 import 'package:openiptv/src/providers/player_library_providers.dart';
 import 'package:openiptv/src/providers/provider_import_service.dart';
-import 'package:openiptv/src/playback/playable.dart';
 import 'package:openiptv/src/playback/playable_resolver.dart';
 import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 import 'package:openiptv/src/player_ui/controller/lazy_media_kit_adapter.dart';
@@ -1165,7 +1164,6 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
       return false;
     }
     if (_shouldUseLazyPlayback(context)) {
-      print('[PLAYER-SHELL] Using lazy playback on Windows');
       final lazyEntries = _buildLazyChannelEntries(channels);
       if (!mounted) {
         return false;
@@ -1174,9 +1172,6 @@ class _CategoryPreviewListState extends ConsumerState<_CategoryPreviewList>
         channels,
         int.tryParse(item.id),
         (channel) => channel.id,
-      );
-      print(
-        '[PLAYER-SHELL] Calling _pushLazyPlaylist with ${lazyEntries.length} entries',
       );
       return _pushLazyPlaylist(
         context: context,
@@ -1642,34 +1637,25 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       0,
       math.min(initialIndex, entries.length - 1),
     );
-    print(
-      '[PLAYER-SHELL] Creating LazyMediaKitAdapter with ${entries.length} entries',
-    );
     final adapter = LazyMediaKitAdapter(
       entries: entries,
       scheduler: ResolveScheduler(minGap: _resolveConfig.minGap),
       config: _resolveConfig,
       initialIndex: clampedIndex,
     );
-    print(
-      '[PLAYER-SHELL] LazyMediaKitAdapter created, creating PlayerController',
-    );
     final controller = PlayerController(adapter: adapter);
-    print('[PLAYER-SHELL] PlayerController created');
     if (_isWindowsPlatform(context)) {
       PlaybackLogger.videoInfo(
         'windows-mediakit-fallback',
         extra: {'count': entries.length, 'mode': 'lazy'},
       );
     }
-    print('[PLAYER-SHELL] Pushing PlayerScreen');
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
             PlayerScreen(controller: controller, ownsController: true),
       ),
     );
-    print('[PLAYER-SHELL] PlayerScreen popped');
     return true;
   }
 
@@ -1767,8 +1753,6 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
       //   adjustedSource = handle.source;
       //   disposer = handle.dispose;
       // }
-    } else {
-      _logWindowsAcceptance(source.playable, support);
     }
     if (warnOnly) {
       PlaybackLogger.videoInfo(
@@ -1789,19 +1773,6 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
   bool _isWindowsPlatform(BuildContext context) {
     final platform = Theme.of(context).platform;
     return platform == TargetPlatform.windows;
-  }
-
-  void _logWindowsAcceptance(
-    Playable playable,
-    WindowsPlaybackSupport support,
-  ) {
-    PlaybackLogger.videoInfo(
-      'windows-play-accepted',
-      uri: playable.url,
-      headers: playable.headers,
-      extra: {'support': support.name},
-      includeFullUrl: true,
-    );
   }
 }
 

@@ -1,5 +1,4 @@
 import 'dart:ffi' as ffi;
-import 'dart:io';
 import 'package:ffi/ffi.dart';
 
 /// Windows native HTTP client using WinHTTP via FFI

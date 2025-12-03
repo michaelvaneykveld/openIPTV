@@ -29,12 +29,11 @@ class SmartUrlBuilder {
   }) {
     final scheme = forceHttps ? 'https' : 'http';
 
-    // Username: Use RAW - servers expect MAC addresses with colons (d0:d0:...)
-    // The proxy will handle these correctly even though they confuse URI parsers
-    final safeUser = username;
-
-    // Password: Use RAW - match reference app behavior
-    final safePass = password;
+    // CRITICAL: URL-encode username/password to prevent FFmpeg from parsing them as HTTP auth
+    // FFmpeg sees /live/USER/PASS/file.ts and interprets USER:PASS as credentials
+    // By encoding them, FFmpeg treats the entire path as-is
+    final safeUser = Uri.encodeComponent(username);
+    final safePass = Uri.encodeComponent(password);
 
     // ID should normally be numeric/string safe
     final safeId = id;

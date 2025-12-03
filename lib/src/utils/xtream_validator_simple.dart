@@ -252,8 +252,8 @@ class XtreamValidator {
     details['vod_ok'] = vodOk;
     details['vod_content_type'] = vodResponse?.headers['content-type'];
 
-    // Step 7: Proxy Requirement Detection
-    buffer.writeln('STEP 7: Proxy Requirement Detection');
+    // Step 7: Direct Access Check
+    buffer.writeln('STEP 7: Direct Access Check');
     buffer.writeln('───────────────────────────────────────────────────');
 
     final proxyRequired =
@@ -265,7 +265,9 @@ class XtreamValidator {
     buffer.writeln(
       'HTML Response: ${_isHtmlContent(liveResponse) ? "YES" : "NO"}',
     );
-    buffer.writeln('Proxy Required: ${proxyRequired ? "✓ YES" : "✗ NO"}\n');
+    buffer.writeln(
+      'Direct Access Blocked: ${proxyRequired ? "✓ YES" : "✗ NO"}\n',
+    );
 
     details['proxy_required'] = proxyRequired;
 
@@ -280,7 +282,7 @@ class XtreamValidator {
     buffer.writeln('RAW Colons:          ${rawColonsAllowed ? "✓" : "✗"}');
     buffer.writeln('Encoded Colons:      ${encodedColonsAllowed ? "✓" : "✗"}');
     buffer.writeln('User-Agent Needed:   ${uaRequired ? "✓" : "✗"}');
-    buffer.writeln('Proxy Needed:        ${proxyRequired ? "✓" : "✗"}');
+    buffer.writeln('Direct Access Blocked: ${proxyRequired ? "✓" : "✗"}');
     buffer.writeln('═══════════════════════════════════════════════════');
 
     return XtreamValidationResult(

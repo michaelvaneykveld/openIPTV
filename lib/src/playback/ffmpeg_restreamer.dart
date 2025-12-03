@@ -102,6 +102,7 @@ class _FfmpegRestreamSession {
     );
     final restreamedPlayable = original.playable.copyWith(
       url: restreamUri,
+      rawUrl: restreamUri.toString(), // Clear original rawUrl, use restream URL
       headers: const <String, String>{},
       containerExtension: 'ts',
       mimeHint: 'video/mp2t',
@@ -142,6 +143,57 @@ class _FfmpegRestreamSession {
     }
   }
 
+  /// Warm up Xtream session with quick player_api.php call
+  /// This establishes IP-based session for servers with max_connections=1
+  Future<void> _warmupXtreamSession() async {
+    try {
+      // Extract credentials from URL
+      final url = original.playable.rawUrl ?? original.playable.url.toString();
+      final uri = Uri.parse(url);
+
+      // Check if this is an Xtream URL pattern
+      if (!url.contains('/live/') && !url.contains('/movie/')) {
+        return; // Not Xtream, skip warmup
+      }
+
+      // Extract username/password from path like /live/user/pass/stream.ts
+      final pathParts = uri.path.split('/');
+      if (pathParts.length < 4) return;
+
+      final username = pathParts[2];
+      final password = pathParts[3];
+
+      // Make quick player_api.php call with Connection: close
+      final apiUrl =
+          'http://${uri.host}:${uri.port}/player_api.php?username=$username&password=$password';
+
+      final client = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 3);
+
+      final request = await client.getUrl(Uri.parse(apiUrl));
+      request.headers.set('Connection', 'close');
+      request.headers.set('User-Agent', 'okhttp/4.9.3');
+
+      final response = await request.close();
+      await response.drain(); // Discard response body
+      client.close();
+
+      PlaybackLogger.videoInfo(
+        'xtream-warmup-complete',
+        extra: {'status': response.statusCode},
+      );
+
+      // Small delay to ensure connection closes before ffmpeg starts
+      await Future.delayed(const Duration(milliseconds: 100));
+    } catch (e) {
+      // Warmup failure is non-fatal, continue with streaming attempt
+      PlaybackLogger.videoInfo(
+        'xtream-warmup-failed',
+        extra: {'error': e.toString()},
+      );
+    }
+  }
+
   Future<void> _startProcess(HttpRequest request) async {
     // Prevent starting multiple ffmpeg processes in the same session
     if (_processStarted) {
@@ -154,6 +206,10 @@ class _FfmpegRestreamSession {
       return;
     }
     _processStarted = true;
+
+    // CRITICAL: Warm up the session with player_api.php call right before streaming
+    // Xtream servers with max_connections=1 require a recent API call from the same IP
+    await _warmupXtreamSession();
 
     final args = _buildArgs();
     Process? process;
@@ -169,9 +225,18 @@ class _FfmpegRestreamSession {
 
     try {
       if (args.isNotEmpty) {
+        // Log args as list to see actual argument boundaries
         PlaybackLogger.videoInfo(
           'ffmpeg-restream-command',
-          extra: {'command': args.join(' ')},
+          extra: {
+            'argCount': args.length,
+            'args': args.map((a) {
+              if (a.contains('\r') || a.contains('\n')) {
+                return a.replaceAll('\r', '\\r').replaceAll('\n', '\\n');
+              }
+              return a;
+            }).toList(),
+          },
         );
       }
       process = await Process.start('ffmpeg', args);
@@ -238,8 +303,17 @@ class _FfmpegRestreamSession {
     }
     final baseArgs = <String>[
       '-loglevel',
-      'error',
+      'debug', // Changed from 'error' to see HTTP request details
       '-nostats',
+      '-seekable', '0', // Disable seeking to prevent Range headers
+      '-icy',
+      '0', // CRITICAL: Disable Icy-MetaData header
+      '-icy_metadata_headers',
+      '0', // CRITICAL: Extra safety for newer FFmpeg versions
+      '-auth_type',
+      'none', // CRITICAL: Prevent FFmpeg from parsing /live/user/pass/ as HTTP auth
+      '-method',
+      'GET', // Explicitly set method (prevents FFmpeg from adding extra headers)
       '-i',
       original.playable.rawUrl ?? original.playable.url.toString(),
       '-c',
@@ -248,46 +322,75 @@ class _FfmpegRestreamSession {
       'mpegts',
       'pipe:1',
     ];
-    final headers = _composeHeaders(original.playable.headers);
-    if (headers == null || headers.isEmpty) {
+    if (original.playable.headers.isEmpty) {
       return baseArgs;
     }
-    return _insertHeaders(baseArgs, headers);
+    return _insertHeaders(baseArgs, original.playable.headers);
   }
 
-  String? _composeHeaders(Map<String, String> headers) {
-    if (headers.isEmpty) {
-      return null;
-    }
-    final buffer = StringBuffer();
-    headers.forEach((key, value) {
-      if (value.isEmpty) return;
-      buffer
-        ..write(key)
-        ..write(': ')
-        ..write(value)
-        ..write('\r\n');
-    });
-    final result = buffer.toString();
-    return result.isEmpty ? null : result;
-  }
-
-  List<String> _insertHeaders(List<String> args, String headers) {
+  List<String> _insertHeaders(List<String> args, Map<String, String> headers) {
     final idx = args.indexWhere((arg) => arg.toLowerCase() == '-i');
-    if (idx != -1) {
-      final updated = List<String>.from(args);
-      updated.insertAll(idx, ['-headers', headers]);
-      return updated;
+    final insertionPoint = idx != -1
+        ? idx
+        : args.indexWhere((arg) => !arg.startsWith('-') && arg.isNotEmpty);
+
+    if (insertionPoint == -1) {
+      return args;
     }
-    final firstInputIdx = args.indexWhere(
-      (arg) => !arg.startsWith('-') && arg.isNotEmpty,
+
+    final updated = List<String>.from(args);
+    final headerArgs = <String>[];
+
+    // CRITICAL: Must put ALL headers in -headers string to control exact order
+    // FFmpeg's -user_agent flag puts User-Agent FIRST (wrong for Android)
+    // Android/TiviMate order: Host (auto), Connection, User-Agent, Accept-Encoding, custom
+
+    final headerLines = <String>[];
+
+    // 1. Connection header (Android sends this before User-Agent)
+    final connection = headers['Connection'];
+    if (connection != null && connection.isNotEmpty) {
+      headerLines.add('Connection: $connection');
+    }
+
+    // 2. User-Agent (MUST come after Connection in Android)
+    final userAgent = headers['User-Agent'];
+    if (userAgent != null && userAgent.isNotEmpty) {
+      headerLines.add('User-Agent: $userAgent');
+    }
+
+    // 3. Accept-Encoding (Android default - gzip)
+    headerLines.add('Accept-Encoding: gzip');
+
+    // 4. Custom headers (Referer, X-Device-Id, etc.) in original order
+    headers.forEach((key, value) {
+      if (value.isNotEmpty &&
+          key != 'User-Agent' &&
+          key != 'Connection' &&
+          key != 'Accept-Encoding') {
+        headerLines.add('$key: $value');
+      }
+    });
+
+    if (headerLines.isNotEmpty) {
+      final headersString = '${headerLines.join('\r\n')}\r\n';
+      headerArgs.addAll(['-headers', headersString]);
+    }
+
+    PlaybackLogger.videoInfo(
+      'ffmpeg-headers-combined',
+      extra: {
+        'headerCount': headers.length,
+        'userAgent': userAgent,
+        'connection': connection,
+        'totalArgsGenerated': headerArgs.length,
+        'insertionIndex': insertionPoint,
+        'headerLines': headerLines,
+      },
     );
-    if (firstInputIdx != -1) {
-      final updated = List<String>.from(args);
-      updated.insertAll(firstInputIdx, ['-headers', headers]);
-      return updated;
-    }
-    return [...args, '-headers', headers];
+
+    updated.insertAll(insertionPoint, headerArgs);
+    return updated;
   }
 
   List<String> _commandArgs(String? command) {

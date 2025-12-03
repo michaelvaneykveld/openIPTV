@@ -151,15 +151,34 @@ class PlaybackLogger {
   }
 
   /// Log user actions and interactions
-  static void userAction(
-    String action, {
-    Map<String, Object?>? extra,
-  }) {
+  static void userAction(String action, {Map<String, Object?>? extra}) {
     if (!_enabled) return;
     final payload = <String, Object?>{
       'action': action,
       if (extra != null) ...extra,
     };
     debugPrint('[Playback][UserAction] ${jsonEncode(payload)}');
+  }
+
+  /// Generic log method
+  static void log(String message, {String? tag, Map<String, Object?>? extra}) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'message': message,
+      if (tag != null) 'tag': tag,
+      if (extra != null) ...extra,
+    };
+    debugPrint('[Playback][Log] ${jsonEncode(payload)}');
+  }
+
+  /// Generic error method
+  static void error(String message, {Object? error, String? tag}) {
+    if (!_enabled) return;
+    final payload = <String, Object?>{
+      'message': message,
+      if (tag != null) 'tag': tag,
+      if (error != null) 'error': '$error',
+    };
+    debugPrint('[Playback][Error] ${jsonEncode(payload)}');
   }
 }

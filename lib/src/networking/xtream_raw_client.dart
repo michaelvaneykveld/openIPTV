@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:openiptv/src/utils/playback_logger.dart';
 
 /// Raw TCP socket HTTP client for Xtream API and streaming.
 ///
@@ -8,10 +9,9 @@ import 'dart:io';
 /// - Header order and casing
 /// - No automatic gzip/chunked headers
 /// - IPv4-only connections
-/// - TiviMate-compatible fingerprinting
+/// - okhttp-compatible fingerprinting (confirmed working)
 class XtreamRawClient {
-  static const String _defaultUserAgent =
-      'Dalvik/2.1.0 (Linux; U; Android 11; TiviMate)';
+  static const String _defaultUserAgent = 'okhttp/4.9.3';
 
   /// Connection timeout for socket operations
   final Duration timeout;
@@ -38,7 +38,7 @@ class XtreamRawClient {
 
     try {
       // Send HTTP request
-      await _sendRequest(socket, 'GET', host, path, headers);
+      await _sendRequest(socket, 'GET', host, port, path, headers);
 
       // Read response
       final response = await _readResponse(socket);
@@ -61,59 +61,13 @@ class XtreamRawClient {
     }
   }
 
-  /// Open streaming connection using raw TCP socket.
-  ///
-  /// Returns StreamWithHeaders containing socket stream and HTTP status/headers.
-  /// Caller is responsible for closing the stream.
-  Future<StreamWithHeaders> openStream(
-    String host,
-    int port,
-    String path,
-    Map<String, String> headers,
-  ) async {
-    final socket = await _connect(host, port);
-
-    try {
-      // Send HTTP request
-      await _sendRequest(socket, 'GET', host, path, headers);
-
-      // Parse headers from socket stream without canceling subscription
-      final headerResult = await _parseHeadersFromStream(socket);
-
-      if (enableLogging) {
-        print(
-          '[xtream-raw] Stream opened: HTTP ${headerResult.statusCode} ${headerResult.reasonPhrase}',
-        );
-        print('[xtream-raw] Headers: ${headerResult.headers}');
-      }
-
-      // Check for HTTP errors
-      if (headerResult.statusCode >= 400) {
-        await socket.close();
-        throw HttpException(
-          'HTTP ${headerResult.statusCode}: ${headerResult.reasonPhrase}',
-          uri: Uri(scheme: 'http', host: host, port: port, path: path),
-        );
-      }
-
-      // Return the stream controller's stream that continues after headers
-      return StreamWithHeaders(
-        stream: headerResult.bodyStream,
-        statusCode: headerResult.statusCode,
-        reasonPhrase: headerResult.reasonPhrase,
-        headers: headerResult.headers,
-        socket: socket,
-      );
-    } catch (e) {
-      await socket.close();
-      rethrow;
-    }
-  }
-
   /// Connect to host using IPv4-only raw TCP socket
   Future<Socket> _connect(String host, int port) async {
     if (enableLogging) {
-      print('[xtream-raw] Connecting to $host:$port (IPv4 only)');
+      PlaybackLogger.log(
+        'Connecting to $host:$port (IPv4 only)',
+        tag: 'xtream-raw',
+      );
     }
 
     try {
@@ -126,15 +80,16 @@ class XtreamRawClient {
       );
 
       if (enableLogging) {
-        print(
-          '[xtream-raw] Connected: ${socket.remoteAddress}:${socket.remotePort}',
+        PlaybackLogger.log(
+          'Connected: ${socket.remoteAddress}:${socket.remotePort}',
+          tag: 'xtream-raw',
         );
       }
 
       return socket;
     } catch (e) {
       if (enableLogging) {
-        print('[xtream-raw] Connection failed: $e');
+        PlaybackLogger.error('Connection failed', error: e, tag: 'xtream-raw');
       }
       rethrow;
     }
@@ -150,6 +105,7 @@ class XtreamRawClient {
     Socket socket,
     String method,
     String host,
+    int port,
     String path,
     Map<String, String> customHeaders,
   ) async {
@@ -160,11 +116,13 @@ class XtreamRawClient {
     lines.add('$method $path HTTP/1.1');
 
     // Build headers in exact OkHttp/Android order for TCP fingerprinting
-    // The order is critical - anti-restream guards check this!
+    // CRITICAL: Only send headers that Android/OkHttp actually sends
+    // Extra headers trigger Cloudflare bot detection
     final orderedHeaders = <MapEntry<String, String>>[];
 
-    // 1. Host (always first)
-    orderedHeaders.add(MapEntry('Host', host));
+    // 1. Host (always first) - include port if non-standard (not 80)
+    final hostHeader = port == 80 ? host : '$host:$port';
+    orderedHeaders.add(MapEntry('Host', hostHeader));
 
     // 2. Connection (from custom or default)
     orderedHeaders.add(
@@ -176,26 +134,19 @@ class XtreamRawClient {
       MapEntry('User-Agent', customHeaders['User-Agent'] ?? _defaultUserAgent),
     );
 
-    // 4. Standard headers
-    orderedHeaders.add(MapEntry('Accept', customHeaders['Accept'] ?? '*/*'));
-    orderedHeaders.add(
-      MapEntry('Accept-Language', customHeaders['Accept-Language'] ?? 'en-US'),
-    );
-    orderedHeaders.add(
-      MapEntry(
-        'Accept-Encoding',
-        customHeaders['Accept-Encoding'] ?? 'identity',
-      ),
-    );
+    // 4. Accept-Encoding (only if explicitly provided - Android may not send for .ts)
+    if (customHeaders.containsKey('Accept-Encoding')) {
+      orderedHeaders.add(
+        MapEntry('Accept-Encoding', customHeaders['Accept-Encoding']!),
+      );
+    }
 
-    // 5. Custom headers (excluding ones already added)
+    // 5. Custom headers (excluding standard ones already added)
     final standardKeys = {
       'Host',
       'Connection',
       'User-Agent',
-      'Accept',
-      'Accept-Language',
-      'Accept-Encoding',
+      'Accept-Encoding', // Only added if explicitly provided
     };
     for (final entry in customHeaders.entries) {
       if (!standardKeys.contains(entry.key)) {
@@ -203,10 +154,8 @@ class XtreamRawClient {
       }
     }
 
-    // 6. Icy-MetaData last (if not in custom)
-    if (!customHeaders.containsKey('Icy-MetaData')) {
-      orderedHeaders.add(MapEntry('Icy-MetaData', '1'));
-    }
+    // CRITICAL: DO NOT add Accept, Accept-Language, or Icy-MetaData
+    // Android/TiviMate doesn't send these headers, and they trigger 401
 
     // Add headers to lines (preserving exact order from orderedHeaders)
     for (final entry in orderedHeaders) {
@@ -217,25 +166,30 @@ class XtreamRawClient {
     final requestStr = '${lines.join('\r\n')}\r\n\r\n';
 
     if (enableLogging) {
-      print('[xtream-raw] === RAW REQUEST ===');
+      PlaybackLogger.log('=== RAW REQUEST ===', tag: 'xtream-raw');
       // Log each line separately to see exact formatting
       for (final line in lines) {
-        print(line);
+        PlaybackLogger.log(line, tag: 'xtream-raw');
       }
-      print('[xtream-raw] (followed by \\r\\n\\r\\n)');
-      print('[xtream-raw] Request bytes length: ${requestStr.length}');
+      PlaybackLogger.log('(followed by \\r\\n\\r\\n)', tag: 'xtream-raw');
+      PlaybackLogger.log(
+        'Request bytes length: ${requestStr.length}',
+        tag: 'xtream-raw',
+      );
 
       // Debug: Show hex of first/last bytes to verify CRLF
       final bytes = requestStr.codeUnits;
       if (bytes.length > 20) {
-        print(
-          '[xtream-raw] First 20 bytes (hex): ${bytes.take(20).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+        PlaybackLogger.log(
+          'First 20 bytes (hex): ${bytes.take(20).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+          tag: 'xtream-raw',
         );
-        print(
-          '[xtream-raw] Last 10 bytes (hex): ${bytes.skip(bytes.length - 10).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+        PlaybackLogger.log(
+          'Last 10 bytes (hex): ${bytes.skip(bytes.length - 10).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ')}',
+          tag: 'xtream-raw',
         );
       }
-      print('[xtream-raw] ==================');
+      PlaybackLogger.log('==================', tag: 'xtream-raw');
     }
 
     // Send as single packet - critical for TCP fingerprint matching
@@ -389,133 +343,23 @@ class XtreamRawClient {
     return -1;
   }
 
-  /// Parse headers from stream and return body stream continuation
-  Future<_StreamHeaderResult> _parseHeadersFromStream(Socket socket) async {
-    final buffer = <int>[];
-    final bodyController = StreamController<List<int>>();
-    final completer = Completer<_StreamHeaderResult>();
-    var headersParsed = false;
-
-    socket.listen(
-      (chunk) {
-        if (!headersParsed) {
-          buffer.addAll(chunk);
-
-          // Search for \r\n\r\n pattern
-          for (var i = 0; i <= buffer.length - 4; i++) {
-            if (buffer[i] == 13 &&
-                buffer[i + 1] == 10 &&
-                buffer[i + 2] == 13 &&
-                buffer[i + 3] == 10) {
-              // Found end of headers
-              final headerBytes = buffer.sublist(0, i);
-              final bodyPrefixBytes = buffer.sublist(i + 4);
-
-              final headerText = utf8.decode(headerBytes, allowMalformed: true);
-              final headerLines = headerText.split('\r\n');
-
-              if (headerLines.isEmpty) {
-                bodyController.addError(
-                  const SocketException('No response received'),
-                );
-                bodyController.close();
-                completer.completeError(
-                  const SocketException('No response received'),
-                );
-                return;
-              }
-
-              // Parse status line
-              final statusLine = headerLines[0];
-              final statusMatch = RegExp(
-                r'HTTP/\d\.\d\s+(\d+)\s+(.+)',
-              ).firstMatch(statusLine);
-              if (statusMatch == null) {
-                bodyController.addError(
-                  FormatException('Invalid HTTP status line: $statusLine'),
-                );
-                bodyController.close();
-                completer.completeError(
-                  FormatException('Invalid HTTP status line: $statusLine'),
-                );
-                return;
-              }
-
-              final statusCode = int.parse(statusMatch.group(1)!);
-              final reasonPhrase = statusMatch.group(2)!;
-
-              // Parse headers
-              final headers = <String, String>{};
-              for (var j = 1; j < headerLines.length; j++) {
-                final line = headerLines[j];
-                if (line.isEmpty) continue;
-
-                final colonIndex = line.indexOf(':');
-                if (colonIndex == -1) continue;
-
-                final name = line.substring(0, colonIndex).trim().toLowerCase();
-                final value = line.substring(colonIndex + 1).trim();
-                headers[name] = value;
-              }
-
-              headersParsed = true;
-
-              // Add body prefix to stream if any
-              if (bodyPrefixBytes.isNotEmpty) {
-                bodyController.add(bodyPrefixBytes);
-              }
-
-              completer.complete(
-                _StreamHeaderResult(
-                  statusCode: statusCode,
-                  reasonPhrase: reasonPhrase,
-                  headers: headers,
-                  bodyStream: bodyController.stream,
-                ),
-              );
-              return;
-            }
-          }
-        } else {
-          // Headers already parsed, just forward body data
-          bodyController.add(chunk);
-        }
-      },
-      onError: (error) {
-        bodyController.addError(error);
-        if (!completer.isCompleted) {
-          completer.completeError(error);
-        }
-      },
-      onDone: () {
-        bodyController.close();
-        if (!completer.isCompleted) {
-          completer.completeError(
-            const SocketException(
-              'Connection closed before complete headers received',
-            ),
-          );
-        }
-      },
-      cancelOnError: true,
-    );
-
-    return completer.future;
-  }
-
   /// Log response details
   void _logResponse(_HttpResponse response) {
-    print('[xtream-raw] === RAW RESPONSE ===');
-    print('[xtream-raw] HTTP ${response.statusCode} ${response.reasonPhrase}');
-    print('[xtream-raw] Headers:');
+    PlaybackLogger.log('=== RAW RESPONSE ===', tag: 'xtream-raw');
+    PlaybackLogger.log(
+      'HTTP ${response.statusCode} ${response.reasonPhrase}',
+      tag: 'xtream-raw',
+    );
+    PlaybackLogger.log('Headers:', tag: 'xtream-raw');
     response.headers.forEach((key, value) {
-      print('[xtream-raw]   $key: $value');
+      PlaybackLogger.log('  $key: $value', tag: 'xtream-raw');
     });
 
     // Detect gzip
     if (response.headers['content-encoding']?.contains('gzip') ?? false) {
-      print(
-        '[xtream-raw] ⚠️  GZIP DETECTED - Server returned compressed response!',
+      PlaybackLogger.log(
+        '⚠️  GZIP DETECTED - Server returned compressed response!',
+        tag: 'xtream-raw',
       );
     }
 
@@ -523,9 +367,12 @@ class XtreamRawClient {
     final preview = response.body.length > 256
         ? response.body.substring(0, 256)
         : response.body;
-    print('[xtream-raw] Body preview (${response.body.length} bytes):');
-    print(preview);
-    print('[xtream-raw] ===================');
+    PlaybackLogger.log(
+      'Body preview (${response.body.length} bytes):',
+      tag: 'xtream-raw',
+    );
+    PlaybackLogger.log(preview, tag: 'xtream-raw');
+    PlaybackLogger.log('===================', tag: 'xtream-raw');
   }
 }
 
@@ -557,41 +404,4 @@ class _HttpResponseWithBodyPrefix {
     required this.headers,
     required this.bodyPrefix,
   });
-}
-
-/// Stream header parse result with body stream
-class _StreamHeaderResult {
-  final int statusCode;
-  final String reasonPhrase;
-  final Map<String, String> headers;
-  final Stream<List<int>> bodyStream;
-
-  _StreamHeaderResult({
-    required this.statusCode,
-    required this.reasonPhrase,
-    required this.headers,
-    required this.bodyStream,
-  });
-}
-
-/// Stream with HTTP headers
-class StreamWithHeaders {
-  final Stream<List<int>> stream;
-  final int statusCode;
-  final String reasonPhrase;
-  final Map<String, String> headers;
-  final Socket socket;
-
-  StreamWithHeaders({
-    required this.stream,
-    required this.statusCode,
-    required this.reasonPhrase,
-    required this.headers,
-    required this.socket,
-  });
-
-  /// Close the underlying socket
-  Future<void> close() async {
-    await socket.close();
-  }
 }

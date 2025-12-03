@@ -1667,3 +1667,211 @@ This documentation will serve as a reference for:
 *"We may have lost the battle, but we documented it beautifully."*
 
 **End of Battle Log**
+
+## Phase 10: The Token Theory Revisited (December 3, 2025)
+
+### Attempt 10.1: Forcing Token Parameters
+
+**Hypothesis:**
+Although the playlist analysis in Phase 8 showed no tokens, we hypothesized that manually appending a token parameter (using the username as the token) might bypass the block, as this is a common pattern for some Xtream Codes implementations.
+
+**Test Matrix:**
+We tested the following combinations using `curl` (mimicking the app's behavior):
+
+1.  **Baseline:** `http://.../35098.ts` (No token)
+2.  **Username Token:** `http://.../35098.ts?token=611627758292`
+3.  **Dummy Token:** `http://.../35098.ts?token=dummy123`
+4.  **Double Token:** `http://.../35098.ts?token=611627758292&token=611627758292`
+
+**Results:**
+All combinations returned **401 Unauthorized** for GET requests.
+
+### Attempt 10.2: HTTPS Verification
+
+**Hypothesis:**
+Maybe the server requires or supports HTTPS, and the 401 is due to protocol mismatch or redirection issues not handled by our simple HTTP tests.
+
+**Test:**
+```powershell
+curl.exe -k -s -w "%{http_code}" -o NUL -H "User-Agent: okhttp/4.9.0" "https://portal-iptv.net:8080/live/.../35098.ts?token=..."
+```
+
+**Result:**
+Connection failed (000). The server does not appear to listen on port 8080 for HTTPS, or the connection was reset immediately.
+
+### Attempt 10.3: User-Agent Alignment
+
+**Discovery:**
+We found a discrepancy in the application code. The resolver was setting `User-Agent: okhttp/4.9.0`, but the `media_kit` player adapter was overriding this with `okhttp/4.9.3`.
+
+**Action:**
+We patched `media_kit_playlist_adapter.dart` and `lazy_media_kit_adapter.dart` to strictly use `okhttp/4.9.0`.
+
+**Result:**
+This alignment did not resolve the issue. The underlying block remains robust against simple header manipulation.
+
+### Attempt 10.4: The Final Exhaustive Matrix (December 3, 2025)
+
+**Objective:**
+To leave no stone unturned, we ran a script (`test_exhaustive_combinations.ps1`) testing every reasonable combination of Protocol, Port, and Token.
+
+**Results Matrix:**
+
+| Protocol | Port | Token Strategy | HEAD Result | GET Result | Conclusion |
+|----------|------|----------------|-------------|------------|------------|
+| **HTTP** | **8080** | None | ✅ **200 OK** | ❌ **401 Unauthorized** | **The Status Quo.** Cloudflare allows checks but blocks data. |
+| **HTTP** | **8080** | User (Username) | ✅ **200 OK** | ❌ **401 Unauthorized** | Token ignored. |
+| **HTTP** | **8080** | Dummy | ✅ **200 OK** | ❌ **401 Unauthorized** | Token ignored. |
+| **HTTP** | **8080** | Double Token | ✅ **200 OK** | ❌ **401 Unauthorized** | Token ignored. |
+| **HTTPS** | **8080** | None | ❌ **CONN_FAIL** | ❌ **CONN_FAIL** | Server does not speak SSL on port 8080. |
+| **HTTPS** | **443** | None | ❌ **521** | ❌ **521** | Cloudflare "Web Server Is Down". Origin refuses 443. |
+| **HTTP** | **80** | None | ❌ **521** | ❌ **521** | Cloudflare "Web Server Is Down". Origin refuses 80. |
+
+**Final Verdict:**
+There is no "magic URL" or "hidden port". The server listens on HTTP:8080. It accepts HEAD requests from anyone (likely for health checks). It strictly blocks GET requests from Windows clients, regardless of tokens or User-Agent headers.
+
+### Final Conclusion (Reaffirmed)
+
+The "Token Theory" and "HTTPS" avenues have been exhausted. The server's protection is not bypassed by simply appending tokens or changing the User-Agent version. The initial conclusion stands: **The provider is using sophisticated fingerprinting (likely JA3/TLS + HTTP/2 behavior) that specifically targets and blocks non-mobile/non-Android clients.**
+
+## Phase 11: The Stalker Portal Breakthrough (December 3, 2025)
+
+### Attempt 11.1: MAG Emulation Reconnaissance
+
+**Hypothesis:**
+The user suggested that while Xtream endpoints are blocked, the provider might support MAG devices (Stalker Portal) which often bypass Cloudflare checks due to legacy device requirements.
+
+**Target:** `http://portal-iptv.net:8080/server/load.php` (and variants)
+
+**Test Setup:**
+- **User-Agent:** `Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Mobile Safari/533.3`
+- **Cookie:** `mac=00:1A:79:C1:8F:22; stb_lang=en; timezone=Europe/London`
+- **Header:** `X-User-Agent: Model: MAG250; Link: WiFi`
+
+**Results:**
+1.  `/stalker_portal/server/load.php` -> **404 Not Found**
+2.  `/c/server/load.php` -> **404 Not Found**
+3.  `/portal/server/load.php` -> **404 Not Found**
+4.  `/server/load.php` (Root) -> ✅ **200 OK**
+
+**Handshake Success:**
+Request:
+```bash
+curl "http://portal-iptv.net:8080/server/load.php?type=stb&action=handshake&token=&mac=00:1A:79:C1:8F:22" ...
+```
+Response:
+```json
+{"js":{"token":"93212E6AC9093761A2094540180F9B40"}}
+```
+
+**Profile Fetch Success:**
+Request:
+```bash
+curl "...&action=get_profile&token=...&mac=..." ...
+```
+Response:
+```json
+{"js":{"id":null,"name":null, ... "mac":"00:1A:79:C1:8F:22", ... "status":1}}
+```
+
+**Conclusion:**
+**WE HAVE A BYPASS!**
+The provider's Stalker Portal API (`/server/load.php`) is **NOT** blocked by Cloudflare when accessed with MAG emulation headers. We successfully performed a handshake and retrieved a profile using a random MAC address.
+
+**The Catch:**
+The random MAC address returned an empty channel list (`get_all_channels` -> empty). This is expected as the MAC is not linked to a subscription.
+
+**Solution Strategy:**
+To bypass the Cloudflare block on Windows, the user must:
+1.  **Register a MAC address** with their provider (linked to their subscription).
+2.  Use a client (like this app, if updated) that emulates a MAG device using that MAC address.
+3.  Fetch streams via the Stalker API instead of the Xtream API.
+
+This confirms that the "Cloudflare Wall" has a door, but it requires a specific key (MAC address) and a specific knock (Stalker Protocol).
+
+### Attempt 11.2: Implicit MAG Binding Test
+
+**Hypothesis:**
+Some providers support "Implicit MAG Binding," where sending a valid Xtream username/password via the Stalker `do_auth` endpoint links the current MAC address to the subscription automatically.
+
+**Test Setup:**
+- **MAC:** `00:1A:79:C1:8F:22` (Random)
+- **User:** `611627758292`
+- **Pass:** `611627758292`
+- **Action:** `do_auth` followed by `get_profile` and `get_all_channels`.
+
+**Results:**
+1.  **Handshake:** ✅ Success (Token received).
+2.  **Authentication:** ✅ `do_auth` returned 200 OK (Empty body).
+3.  **Profile Check:**
+    -   `status`: **1** (Active?)
+    -   `id`: **null** (The script falsely matched an ID from a nested object. The root ID is null).
+4.  **Channel Fetch:** ❌ Empty response.
+
+**Conclusion:**
+This provider **does NOT** support implicit MAG binding via `do_auth`. The MAC address remains unlinked, and no channels are returned. The `status: 1` likely refers to the portal's general availability or a default state for unauthenticated sessions, not a valid subscription status.
+
+**Action Required:**
+Manual registration of the MAC address is the only way forward.
+
+## Phase 12: The Browser Engine Hypothesis (WebView2)
+
+### Attempt 12.1: Hypothesis Verification
+
+**User Hypothesis:**
+> "Use a genuine Windows browser engine (CEF / WebView2)... Cloudflare trusts Chromium TLS fingerprint + HTTP/2 fingerprint + Browser cookie flow + JS execution."
+
+**Evidence Review:**
+1.  **Partial Mimicry (Phase 7):** We used `uTLS` to perfectly mimic the **Chrome 120 TLS fingerprint**.
+    *   Result: **401 Unauthorized**.
+    *   Meaning: TLS fingerprint alone is **NOT** enough. Cloudflare also checks HTTP/2 behavior, header order, and potentially JS execution.
+2.  **Full Browser (Phase 9):** We opened the stream URL in **Microsoft Edge** (Chromium-based).
+    *   Result: **Success** (File downloaded).
+    *   Meaning: The **full Chromium stack** (TLS + HTTP/2 + JS + Cookies) successfully bypasses the block.
+
+**Conclusion:**
+The user's hypothesis is **CORRECT**.
+Since we cannot easily script a headless WebView2 instance in PowerShell without external dependencies (.NET SDK), the manual Edge test serves as definitive proof.
+Implementing `flutter_inappwebview` (WebView2) to intercept the stream would work because it provides the exact same fingerprint and behavior as the Edge browser.
+
+**Comparison of Solutions:**
+
+| Feature | Stalker Portal (MAG) | WebView2 (Browser) |
+| :--- | :--- | :--- |
+| **Mechanism** | API-level (different endpoint) | Client-level (full emulation) |
+| **Complexity** | Medium (New API implementation) | High (Headless browser + stream interception) |
+| **Reliability** | High (Official legacy support) | High (Looks like real user) |
+| **Resource Usage** | Low (Standard HTTP) | High (Runs full browser engine) |
+| **User Action** | **Requires MAC Registration** | **Plug & Play** (No registration needed) |
+
+**Verdict:**
+While Stalker Portal is cleaner technically, **WebView2 is the superior user experience** because it doesn't require the user to contact their provider to register a MAC address. It works with the existing Xtream credentials by simply "being a browser".
+
+## Phase 13: The WebView2 Implementation (December 3, 2025)
+
+### Attempt 13.1: Dependency Selection
+
+**Decision:**
+We chose `flutter_inappwebview` because:
+1.  It wraps the native WebView2 control on Windows.
+2.  It uses the **pre-installed** Microsoft Edge Runtime (present on all modern Windows).
+3.  It requires **no additional downloads** for the user (unlike the Go proxy or manual .NET installs).
+4.  It provides a "Headless" mode to perform the Cloudflare bypass in the background.
+
+### Attempt 13.2: The Strategy
+
+**The Plan:**
+1.  Instantiate a `HeadlessInAppWebView`.
+2.  Navigate to the stream URL (or a page on the same domain).
+3.  Allow the WebView to execute Cloudflare's JavaScript challenges.
+4.  Wait for the page to load (indicating the challenge is passed).
+5.  Extract the valid `Cookie` string and `User-Agent` from the WebView.
+6.  Pass these credentials to the video player (`media_kit`).
+
+**Hypothesis:**
+Even though `media_kit` (libmpv) has a different TLS fingerprint than Edge, Cloudflare often relaxes the TLS check if the session cookie is valid and recently minted by a trusted browser on the same IP. If this fails, we will fallback to using the WebView itself as a proxy or player.
+
+**Implementation Status:**
+-   Added `flutter_inappwebview` to `pubspec.yaml`.
+-   Created `WebViewSessionExtractor` service.
+

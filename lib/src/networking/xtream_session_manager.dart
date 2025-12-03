@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:openiptv/src/utils/playback_logger.dart';
 import 'xtream_raw_client.dart';
 
 /// DEPRECATED: TiviMate-style session manager - BLOCKED BY CLOUDFLARE
@@ -52,7 +53,10 @@ class XtreamSessionManager {
     bool enableLogging = true,
   }) async {
     if (enableLogging) {
-      print('[xtream-session] 🚀 Starting TiviMate handshake sequence');
+      PlaybackLogger.log(
+        '🚀 Starting TiviMate handshake sequence',
+        tag: 'xtream-session',
+      );
     }
 
     // Step 1: Initial player_api.php call (basic auth)
@@ -83,25 +87,38 @@ class XtreamSessionManager {
     }
 
     if (enableLogging) {
-      print('[xtream-session] ✅ Step 1/5: Authentication successful');
-      print('[xtream-session]   Username: $username');
-      print('[xtream-session]   Status: $status');
-      print('[xtream-session]   Expiry: ${userInfo['exp_date']}');
-      print(
-        '[xtream-session]   Max connections: ${userInfo['max_connections']}',
+      PlaybackLogger.log(
+        '✅ Step 1/5: Authentication successful',
+        tag: 'xtream-session',
+      );
+      PlaybackLogger.log('  Username: $username', tag: 'xtream-session');
+      PlaybackLogger.log('  Status: $status', tag: 'xtream-session');
+      PlaybackLogger.log(
+        '  Expiry: ${userInfo['exp_date']}',
+        tag: 'xtream-session',
+      );
+      PlaybackLogger.log(
+        '  Max connections: ${userInfo['max_connections']}',
+        tag: 'xtream-session',
       );
     }
 
     // Step 2: Random delay (TiviMate timing pattern)
     final delayMs = 400 + _random.nextInt(300); // 400-700ms
     if (enableLogging) {
-      print('[xtream-session] ⏱️  Step 2/5: Random delay ${delayMs}ms');
+      PlaybackLogger.log(
+        '⏱️  Step 2/5: Random delay ${delayMs}ms',
+        tag: 'xtream-session',
+      );
     }
     await Future.delayed(Duration(milliseconds: delayMs));
 
     // Step 3: Get live streams (establishes session context)
     if (enableLogging) {
-      print('[xtream-session] 📡 Step 3/5: Fetching live streams');
+      PlaybackLogger.log(
+        '📡 Step 3/5: Fetching live streams',
+        tag: 'xtream-session',
+      );
     }
     final liveStreams = await _callPlayerApi(
       host: host,
@@ -114,7 +131,10 @@ class XtreamSessionManager {
 
     // Step 4: Get VOD streams
     if (enableLogging) {
-      print('[xtream-session] 🎬 Step 4/5: Fetching VOD streams');
+      PlaybackLogger.log(
+        '🎬 Step 4/5: Fetching VOD streams',
+        tag: 'xtream-session',
+      );
     }
     final vodStreams = await _callPlayerApi(
       host: host,
@@ -127,7 +147,7 @@ class XtreamSessionManager {
 
     // Step 5: Get series
     if (enableLogging) {
-      print('[xtream-session] 📺 Step 5/5: Fetching series');
+      PlaybackLogger.log('📺 Step 5/5: Fetching series', tag: 'xtream-session');
     }
     final series = await _callPlayerApi(
       host: host,
@@ -152,10 +172,19 @@ class XtreamSessionManager {
     _lastHandshake = DateTime.now();
 
     if (enableLogging) {
-      print('[xtream-session] ✅ Handshake complete!');
-      print('[xtream-session]   Live channels: ${_sessionData!['live_count']}');
-      print('[xtream-session]   VOD items: ${_sessionData!['vod_count']}');
-      print('[xtream-session]   Series: ${_sessionData!['series_count']}');
+      PlaybackLogger.log('✅ Handshake complete!', tag: 'xtream-session');
+      PlaybackLogger.log(
+        '  Live channels: ${_sessionData!['live_count']}',
+        tag: 'xtream-session',
+      );
+      PlaybackLogger.log(
+        '  VOD items: ${_sessionData!['vod_count']}',
+        tag: 'xtream-session',
+      );
+      PlaybackLogger.log(
+        '  Series: ${_sessionData!['series_count']}',
+        tag: 'xtream-session',
+      );
     }
 
     // DISABLED: Keepalive timer (RAW TCP blocked by Cloudflare)
@@ -168,8 +197,9 @@ class XtreamSessionManager {
     // );
 
     if (enableLogging) {
-      print(
-        '[xtream-session] ⚠️  Keepalive DISABLED (Cloudflare blocks RAW TCP)',
+      PlaybackLogger.log(
+        '⚠️  Keepalive DISABLED (Cloudflare blocks RAW TCP)',
+        tag: 'xtream-session',
       );
     }
 
@@ -199,7 +229,7 @@ class XtreamSessionManager {
     final path = '/player_api.php?$query';
 
     if (enableLogging) {
-      print('[xtream-session] GET $host:$port$path');
+      PlaybackLogger.log('GET $host:$port$path', tag: 'xtream-session');
     }
 
     final body = await _rawClient.get(host, port, path, {});
@@ -224,15 +254,19 @@ class XtreamSessionManager {
     _keepaliveTimer?.cancel();
 
     if (enableLogging) {
-      print(
-        '[xtream-session] 💓 Starting keepalive timer (${_keepaliveInterval.inSeconds}s)',
+      PlaybackLogger.log(
+        '💓 Starting keepalive timer (${_keepaliveInterval.inSeconds}s)',
+        tag: 'xtream-session',
       );
     }
 
     _keepaliveTimer = Timer.periodic(_keepaliveInterval, (timer) async {
       try {
         if (enableLogging) {
-          print('[xtream-session] 💓 Sending keepalive ping');
+          PlaybackLogger.log(
+            '💓 Sending keepalive ping',
+            tag: 'xtream-session',
+          );
         }
 
         // Try live_clients first (TiviMate pattern)
@@ -258,7 +292,11 @@ class XtreamSessionManager {
         }
       } catch (e) {
         if (enableLogging) {
-          print('[xtream-session] ⚠️ Keepalive failed: $e');
+          PlaybackLogger.error(
+            '⚠️ Keepalive failed',
+            error: e,
+            tag: 'xtream-session',
+          );
         }
       }
     });
@@ -268,7 +306,7 @@ class XtreamSessionManager {
   void stopKeepalive() {
     _keepaliveTimer?.cancel();
     _keepaliveTimer = null;
-    print('[xtream-session] 💓 Keepalive stopped');
+    PlaybackLogger.log('💓 Keepalive stopped', tag: 'xtream-session');
   }
 
   /// Clear session data
@@ -276,7 +314,7 @@ class XtreamSessionManager {
     stopKeepalive();
     _sessionData = null;
     _lastHandshake = null;
-    print('[xtream-session] 🗑️ Session cleared');
+    PlaybackLogger.log('🗑️ Session cleared', tag: 'xtream-session');
   }
 
   /// Dispose resources

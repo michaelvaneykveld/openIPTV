@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:openiptv/data/db/database_locator.dart';
 import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_portal_configuration.dart';
+import 'package:openiptv/src/protocols/stalker/stalker_vod_service.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_episodes_service.dart';
 import 'package:openiptv/src/protocols/xtream/xtream_portal_configuration.dart';
 import 'package:openiptv/src/providers/openiptv_content_providers.dart';
+import 'package:openiptv/src/providers/protocol_auth_providers.dart';
 import 'package:openiptv/src/ui/player/mini_player.dart';
+import 'package:openiptv/src/utils/profile_header_utils.dart';
 
 class SeriesDetailsScreen extends ConsumerStatefulWidget {
   final ResolvedProviderProfile profile;
@@ -31,10 +36,10 @@ class _SeriesDetailsScreenState extends ConsumerState<SeriesDetailsScreen> {
   }
 
   Future<void> _fetchEpisodesIfNeeded() async {
-    if (widget.profile.kind == ProviderKind.xtream) {
-      final providerId = widget.profile.providerDbId;
-      if (providerId == null) return;
+    final providerId = widget.profile.providerDbId;
+    if (providerId == null) return;
 
+    if (widget.profile.kind == ProviderKind.xtream) {
       final config = XtreamPortalConfiguration.fromCredentials(
         url: widget.profile.lockedBase.toString(),
         username: widget.profile.secrets['username'] ?? '',
@@ -49,6 +54,31 @@ class _SeriesDetailsScreenState extends ConsumerState<SeriesDetailsScreen> {
             seriesId: widget.series.id,
             seriesProviderKey: widget.series.providerSeriesKey,
           );
+    } else if (widget.profile.kind == ProviderKind.stalker) {
+      final config = StalkerPortalConfiguration(
+        baseUri: widget.profile.lockedBase,
+        macAddress: widget.profile.record.configuration['macAddress'] ?? '',
+        userAgent: widget.profile.record.configuration['userAgent'],
+        allowSelfSignedTls: widget.profile.record.allowSelfSignedTls,
+        extraHeaders: decodeProfileCustomHeaders(widget.profile),
+      );
+
+      try {
+        final session = await ref.read(stalkerSessionProvider(config).future);
+        final service = StalkerVodService(
+          configuration: config,
+          session: session,
+        );
+
+        await service.fetchAndSaveEpisodes(
+          db: ref.read(openIptvDbProvider),
+          providerId: providerId,
+          seriesId: widget.series.id,
+          seriesProviderKey: widget.series.providerSeriesKey,
+        );
+      } catch (e) {
+        debugPrint('Error fetching Stalker episodes: $e');
+      }
     }
   }
 

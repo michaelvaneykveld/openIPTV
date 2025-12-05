@@ -93,25 +93,53 @@ class StalkerVodService {
             final title = item['name']?.toString() ?? item['title']?.toString();
             if (seriesKey == null || title == null) continue;
 
-            await db
-                .into(db.series)
-                .insertOnConflictUpdate(
-                  SeriesCompanion(
-                    providerId: Value(providerId),
-                    providerSeriesKey: Value(seriesKey),
-                    title: Value(title),
-                    categoryId: Value(category.id),
-                    posterUrl: Value(
-                      item['screenshot_uri']?.toString() ??
-                          item['cover']?.toString(),
-                    ),
-                    overview: Value(
-                      item['description']?.toString() ??
-                          item['plot']?.toString(),
-                    ),
-                    lastSeenAt: Value(seenAt),
+            // Check if series exists to avoid UNIQUE constraint violations
+            final existingSeries =
+                await (db.select(db.series)..where(
+                      (t) =>
+                          t.providerId.equals(providerId) &
+                          t.providerSeriesKey.equals(seriesKey),
+                    ))
+                    .getSingleOrNull();
+
+            if (existingSeries != null) {
+              await (db.update(
+                db.series,
+              )..where((t) => t.id.equals(existingSeries.id))).write(
+                SeriesCompanion(
+                  title: Value(title),
+                  categoryId: Value(category.id),
+                  posterUrl: Value(
+                    item['screenshot_uri']?.toString() ??
+                        item['cover']?.toString(),
                   ),
-                );
+                  overview: Value(
+                    item['description']?.toString() ?? item['plot']?.toString(),
+                  ),
+                  lastSeenAt: Value(seenAt),
+                ),
+              );
+            } else {
+              await db
+                  .into(db.series)
+                  .insert(
+                    SeriesCompanion(
+                      providerId: Value(providerId),
+                      providerSeriesKey: Value(seriesKey),
+                      title: Value(title),
+                      categoryId: Value(category.id),
+                      posterUrl: Value(
+                        item['screenshot_uri']?.toString() ??
+                            item['cover']?.toString(),
+                      ),
+                      overview: Value(
+                        item['description']?.toString() ??
+                            item['plot']?.toString(),
+                      ),
+                      lastSeenAt: Value(seenAt),
+                    ),
+                  );
+            }
           }
         } else {
           // VOD
@@ -123,32 +151,165 @@ class StalkerVodService {
 
             final cmd = item['cmd']?.toString() ?? item['url']?.toString();
 
-            await db
-                .into(db.movies)
-                .insertOnConflictUpdate(
-                  MoviesCompanion(
-                    providerId: Value(providerId),
-                    providerVodKey: Value(vodKey),
-                    title: Value(title),
-                    categoryId: Value(category.id),
-                    posterUrl: Value(
-                      item['screenshot_uri']?.toString() ??
-                          item['cover']?.toString(),
-                    ),
-                    overview: Value(
-                      item['description']?.toString() ??
-                          item['plot']?.toString(),
-                    ),
-                    streamUrlTemplate: Value(cmd),
-                    lastSeenAt: Value(seenAt),
+            // Check if movie exists to avoid UNIQUE constraint violations
+            final existingMovie =
+                await (db.select(db.movies)..where(
+                      (t) =>
+                          t.providerId.equals(providerId) &
+                          t.providerVodKey.equals(vodKey),
+                    ))
+                    .getSingleOrNull();
+
+            if (existingMovie != null) {
+              await (db.update(
+                db.movies,
+              )..where((t) => t.id.equals(existingMovie.id))).write(
+                MoviesCompanion(
+                  title: Value(title),
+                  categoryId: Value(category.id),
+                  posterUrl: Value(
+                    item['screenshot_uri']?.toString() ??
+                        item['cover']?.toString(),
                   ),
-                );
+                  overview: Value(
+                    item['description']?.toString() ?? item['plot']?.toString(),
+                  ),
+                  streamUrlTemplate: Value(cmd),
+                  lastSeenAt: Value(seenAt),
+                ),
+              );
+            } else {
+              await db
+                  .into(db.movies)
+                  .insert(
+                    MoviesCompanion(
+                      providerId: Value(providerId),
+                      providerVodKey: Value(vodKey),
+                      title: Value(title),
+                      categoryId: Value(category.id),
+                      posterUrl: Value(
+                        item['screenshot_uri']?.toString() ??
+                            item['cover']?.toString(),
+                      ),
+                      overview: Value(
+                        item['description']?.toString() ??
+                            item['plot']?.toString(),
+                      ),
+                      streamUrlTemplate: Value(cmd),
+                      lastSeenAt: Value(seenAt),
+                    ),
+                  );
+            }
           }
         }
       });
       _logger.d('[Stalker VOD] Fetched and saved ${items.length} items');
     } catch (e) {
       _logger.e('[Stalker VOD] Error fetching category content', error: e);
+    }
+  }
+
+  Future<void> fetchAndSaveEpisodes({
+    required OpenIptvDb db,
+    required int providerId,
+    required int seriesId,
+    required String seriesProviderKey,
+  }) async {
+    try {
+      // Handle keys that might be in format "id:something"
+      var cleanKey = seriesProviderKey;
+      if (cleanKey.contains(':')) {
+        cleanKey = cleanKey.split(':').first;
+      }
+
+      final stalkerSeriesId = int.tryParse(cleanKey);
+      if (stalkerSeriesId == null) {
+        _logger.e('[Stalker VOD] Invalid series key: $seriesProviderKey');
+        return;
+      }
+
+      final seasons = await getSeasons(stalkerSeriesId);
+
+      await db.transaction(() async {
+        for (final season in seasons) {
+          // Check if season exists to avoid UNIQUE constraint violations
+          // (series_id, season_number) is unique
+          final existingSeason =
+              await (db.select(db.seasons)..where(
+                    (t) =>
+                        t.seriesId.equals(seriesId) &
+                        t.seasonNumber.equals(season.seasonNumber ?? 0),
+                  ))
+                  .getSingleOrNull();
+
+          int seasonId;
+          if (existingSeason != null) {
+            seasonId = existingSeason.id;
+            await (db.update(db.seasons)..where((t) => t.id.equals(seasonId)))
+                .write(SeasonsCompanion(name: Value(season.name)));
+          } else {
+            seasonId = await db
+                .into(db.seasons)
+                .insert(
+                  SeasonsCompanion(
+                    seriesId: Value(seriesId),
+                    seasonNumber: Value(season.seasonNumber ?? 0),
+                    name: Value(season.name),
+                  ),
+                );
+          }
+
+          // Fetch Episodes for this season
+          final episodes = await getEpisodes(stalkerSeriesId, season.id);
+
+          for (final episode in episodes) {
+            // Check if episode exists to avoid UNIQUE constraint violations
+            // (series_id, season_number, episode_number) is unique
+            final existingEpisode =
+                await (db.select(db.episodes)..where(
+                      (t) =>
+                          t.seriesId.equals(seriesId) &
+                          t.seasonNumber.equals(season.seasonNumber ?? 0) &
+                          t.episodeNumber.equals(episode.episodeNumber ?? 0),
+                    ))
+                    .getSingleOrNull();
+
+            if (existingEpisode != null) {
+              await (db.update(
+                db.episodes,
+              )..where((t) => t.id.equals(existingEpisode.id))).write(
+                EpisodesCompanion(
+                  title: Value(episode.name),
+                  streamUrlTemplate: Value(episode.cmd),
+                  durationSec: Value(episode.duration),
+                  providerEpisodeKey: Value(episode.id),
+                ),
+              );
+            } else {
+              await db
+                  .into(db.episodes)
+                  .insert(
+                    EpisodesCompanion(
+                      seriesId: Value(seriesId),
+                      seasonId: Value(seasonId),
+                      providerEpisodeKey: Value(episode.id),
+                      seasonNumber: Value(season.seasonNumber),
+                      episodeNumber: Value(episode.episodeNumber),
+                      title: Value(episode.name),
+                      streamUrlTemplate: Value(episode.cmd),
+                      durationSec: Value(episode.duration),
+                      lastSeenAt: Value(DateTime.now().toUtc()),
+                    ),
+                  );
+            }
+          }
+        }
+      });
+      _logger.d(
+        '[Stalker VOD] Fetched and saved episodes for series $seriesId',
+      );
+    } catch (e) {
+      _logger.e('[Stalker VOD] Error fetching episodes', error: e);
     }
   }
 
@@ -330,10 +491,12 @@ class StalkerVodService {
     // Handle if item is just an integer episode number
     if (item is int) {
       // Use season's base64 cmd for episode playback on clone servers
+      // Append |episode=X so resolver knows to use series param
+      final cmd = seasonCmd != null ? '$seasonCmd|episode=$item' : null;
       return StalkerEpisode(
         id: '$seasonId:$item',
         name: 'Episode $item',
-        cmd: seasonCmd,
+        cmd: cmd,
         seasonId: seasonId,
         seriesId: seriesId.toString(),
         episodeNumber: item,
@@ -347,7 +510,7 @@ class StalkerVodService {
 
     final id = map['id']?.toString();
     final name = map['name']?.toString() ?? map['title']?.toString();
-    final cmd = map['cmd']?.toString();
+    var cmd = map['cmd']?.toString();
 
     if (id == null) return null;
 
@@ -359,6 +522,17 @@ class StalkerVodService {
       if (parts.length >= 2) {
         episodeNum = int.tryParse(parts.last);
       }
+    }
+
+    // If cmd is missing, try using seasonCmd
+    if (cmd == null && seasonCmd != null) {
+      cmd = seasonCmd;
+    }
+
+    // If we are using the seasonCmd (either because map['cmd'] was equal to it, or we fell back to it),
+    // we should append the episode number so resolver knows to use series param.
+    if (cmd != null && cmd == seasonCmd && episodeNum != null) {
+      cmd = '$cmd|episode=$episodeNum';
     }
 
     return StalkerEpisode(

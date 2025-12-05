@@ -4,6 +4,7 @@ import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/ui/live/live_tv_screen.dart';
 import 'package:openiptv/src/ui/vod/vod_grid_screen.dart';
+import 'package:openiptv/src/ui/dashboard/portal_info_card.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   final ResolvedProviderProfile profile;
@@ -113,6 +114,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 label: Text('Back'),
               ),
             ],
+            trailing: Padding(
+              padding: const EdgeInsets.only(top: 20.0, bottom: 20.0),
+              child: PortalInfoCard(profile: widget.profile),
+            ),
           ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _buildContent()),

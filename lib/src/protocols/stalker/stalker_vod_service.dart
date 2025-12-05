@@ -27,8 +27,93 @@ class StalkerVodService {
     required int providerId,
     required String categoryId,
     required int categoryKindIndex, // 1=VOD, 2=Series
+    bool forceRefresh = false,
   }) async {
     final type = categoryKindIndex == 2 ? 'series' : 'vod';
+
+    if (!forceRefresh) {
+      try {
+        // Check if we have items
+        final category =
+            await (db.select(db.categories)..where(
+                  (tbl) =>
+                      tbl.providerId.equals(providerId) &
+                      tbl.providerCategoryKey.equals(categoryId) &
+                      tbl.kind.equalsValue(
+                        CategoryKind.values[categoryKindIndex],
+                      ),
+                ))
+                .getSingleOrNull();
+
+        if (category != null) {
+          int count = 0;
+          if (categoryKindIndex == 2) {
+            // Series
+            final result = await (db.select(
+              db.series,
+            )..where((tbl) => tbl.categoryId.equals(category.id))).get();
+            count = result.length;
+          } else {
+            // VOD
+            final result = await (db.select(
+              db.movies,
+            )..where((tbl) => tbl.categoryId.equals(category.id))).get();
+            count = result.length;
+          }
+
+          if (count > 0) {
+            // Check freshness of the data
+            DateTime? lastSeen;
+            if (categoryKindIndex == 2) {
+              // Series
+              final latestItem =
+                  await (db.select(db.series)
+                        ..where((tbl) => tbl.categoryId.equals(category.id))
+                        ..orderBy([
+                          (t) => OrderingTerm(
+                            expression: t.lastSeenAt,
+                            mode: OrderingMode.desc,
+                          ),
+                        ])
+                        ..limit(1))
+                      .getSingleOrNull();
+              lastSeen = latestItem?.lastSeenAt;
+            } else {
+              // VOD
+              final latestItem =
+                  await (db.select(db.movies)
+                        ..where((tbl) => tbl.categoryId.equals(category.id))
+                        ..orderBy([
+                          (t) => OrderingTerm(
+                            expression: t.lastSeenAt,
+                            mode: OrderingMode.desc,
+                          ),
+                        ])
+                        ..limit(1))
+                      .getSingleOrNull();
+              lastSeen = latestItem?.lastSeenAt;
+            }
+
+            // If data is fresh (less than 24 hours old), skip fetch
+            if (lastSeen != null &&
+                DateTime.now().difference(lastSeen.toLocal()) <
+                    const Duration(hours: 24)) {
+              _logger.d(
+                '[Stalker VOD] Category $categoryId has $count items (fresh), skipping fetch',
+              );
+              return;
+            } else {
+              _logger.d(
+                '[Stalker VOD] Category $categoryId has $count items (stale), fetching...',
+              );
+            }
+          }
+        }
+      } catch (e) {
+        _logger.w('[Stalker VOD] Error checking cache: $e');
+      }
+    }
+
     _logger.d(
       '[Stalker VOD] Fetching category content for $categoryId ($type)',
     );

@@ -4,6 +4,7 @@ import 'package:openiptv/data/db/openiptv_db.dart';
 import 'package:openiptv/src/player/summary_models.dart';
 import 'package:openiptv/src/ui/live/live_tv_screen.dart';
 import 'package:openiptv/src/ui/vod/vod_grid_screen.dart';
+import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/ui/dashboard/portal_info_card.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -25,9 +26,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
 
     try {
-      // TODO: Implement portal refresh logic
-      // This should fetch the latest playlist/categories from the provider
-      await Future.delayed(const Duration(seconds: 2)); // Placeholder
+      await ref
+          .read(providerImportServiceProvider)
+          .runInitialImport(widget.profile, forceRefresh: true);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

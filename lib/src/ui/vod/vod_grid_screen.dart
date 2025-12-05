@@ -25,6 +25,7 @@ class VodGridScreen extends ConsumerStatefulWidget {
 
 class _VodGridScreenState extends ConsumerState<VodGridScreen> {
   int? _selectedCategoryId;
+  String? _selectedCategoryKey;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +56,10 @@ class _VodGridScreenState extends ConsumerState<VodGridScreen> {
                       return ListTile(
                         title: const Text('All'),
                         selected: _selectedCategoryId == null,
-                        onTap: () => setState(() => _selectedCategoryId = null),
+                        onTap: () => setState(() {
+                          _selectedCategoryId = null;
+                          _selectedCategoryKey = null;
+                        }),
                       );
                     }
                     final group = groups[index - 1];
@@ -66,7 +70,10 @@ class _VodGridScreenState extends ConsumerState<VodGridScreen> {
                       title: Text('${group.name} (${group.count ?? 0})'),
                       selected: _selectedCategoryId == groupId,
                       onTap: () {
-                        setState(() => _selectedCategoryId = groupId);
+                        setState(() {
+                          _selectedCategoryId = groupId;
+                          _selectedCategoryKey = group.providerKey;
+                        });
                         if (widget.profile.kind == ProviderKind.stalker &&
                             group.providerKey != null) {
                           _fetchCategoryContent(
@@ -89,9 +96,35 @@ class _VodGridScreenState extends ConsumerState<VodGridScreen> {
         // Grid
         Expanded(
           flex: 4,
-          child: widget.type == 'movie'
-              ? _buildMovieGrid(context, ref, providerId)
-              : _buildSeriesGrid(context, ref, providerId),
+          child: Column(
+            children: [
+              if (_selectedCategoryId != null &&
+                  widget.profile.kind == ProviderKind.stalker &&
+                  _selectedCategoryKey != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Refresh'),
+                    onPressed: () => _fetchCategoryContent(
+                      providerId,
+                      _selectedCategoryKey!,
+                      widget.type,
+                      forceRefresh: true,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: widget.type == 'movie'
+                    ? _buildMovieGrid(context, ref, providerId)
+                    : _buildSeriesGrid(context, ref, providerId),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -252,8 +285,9 @@ class _VodGridScreenState extends ConsumerState<VodGridScreen> {
   Future<void> _fetchCategoryContent(
     int providerId,
     String categoryId,
-    String type,
-  ) async {
+    String type, {
+    bool forceRefresh = false,
+  }) async {
     final config = StalkerPortalConfiguration(
       baseUri: widget.profile.lockedBase,
       macAddress: widget.profile.record.configuration['macAddress'] ?? '',
@@ -277,6 +311,7 @@ class _VodGridScreenState extends ConsumerState<VodGridScreen> {
         providerId: providerId,
         categoryId: categoryId,
         categoryKindIndex: kindIndex,
+        forceRefresh: forceRefresh,
       );
     } catch (e) {
       debugPrint('Failed to fetch category content: $e');

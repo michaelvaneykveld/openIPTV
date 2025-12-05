@@ -333,9 +333,18 @@ class MediaKitPlaylistAdapter
     });
     _errorSub = _player.stream.error.listen((value) {
       final failingSource = _currentSource;
+      var errorMessage = value.toString();
+      // Check for common 401 indicators in the error message
+      if (errorMessage.contains('401') ||
+          errorMessage.contains('Unauthorized') ||
+          errorMessage.contains('Server returned 401')) {
+        errorMessage =
+            'Error 401 - The stream is blocked by Cloudflare, please contact your provider';
+      }
+
       _snapshot = _snapshot.copyWith(
         phase: PlayerPhase.error,
-        error: PlayerError(code: 'MEDIAKIT_ERROR', message: value.toString()),
+        error: PlayerError(code: 'MEDIAKIT_ERROR', message: errorMessage),
       );
       _emitSnapshot();
       PlaybackLogger.videoError('media-kit-error', error: value);

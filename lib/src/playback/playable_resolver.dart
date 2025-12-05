@@ -451,35 +451,6 @@ class PlayableResolver {
         forceHttps: base.scheme == 'https',
       );
 
-      // CLOUDFLARE BYPASS: Appending a token query parameter (even if dummy)
-      // bypasses the 401 block on many Xtream servers that block "clean" URLs.
-      // We use the username as the token value as it's a common pattern.
-      if (!manualUrl.contains('?')) {
-        manualUrl += '?token=$rawUsername';
-      } else {
-        manualUrl += '&token=$rawUsername';
-      }
-
-      PlaybackLogger.videoInfo(
-        'xtream-live-direct-skip-probe',
-        uri: Uri.parse(manualUrl),
-        extra: {
-          'reason': 'Skip probe to avoid 401, use direct URL like VOD',
-          'extension': ext,
-          'manualUrl': manualUrl,
-        },
-      );
-
-      // DISABLED: Warmup was getting 401 due to http package sending non-browser headers
-      // With FFmpeg's -icy 0 flag, it will behave like a browser and work directly
-      PlaybackLogger.videoInfo(
-        'xtream-stream-warmup-disabled',
-        extra: {
-          'reason':
-              'FFmpeg -icy 0 prevents Icy-MetaData header that triggers Cloudflare 401',
-        },
-      );
-
       // ALWAYS use Direct Stream mode - bypass RAW TCP proxy (Cloudflare blocks it)
       // Direct mode passes headers to media_kit/player directly (normal HTTP)
       final useDirectStream =
@@ -498,10 +469,7 @@ class PlayableResolver {
 
       // CRITICAL: FFmpeg cannot replicate Android HTTP fingerprint
       // Use LocalProxyServer with XtreamRawClient for exact header order
-      // BUT: Disable for portal-iptv.net because Cloudflare blocks raw sockets,
-      // and we want to use WebView cookies instead.
-      final isPortalIptv = base.host.contains('portal-iptv.net');
-      final useRawProxy = _config['useRawProxy'] != 'false' && !isPortalIptv;
+      final useRawProxy = _config['useRawProxy'] != 'false';
 
       if (useRawProxy) {
         PlaybackLogger.videoInfo(
@@ -539,10 +507,7 @@ class PlayableResolver {
       // CLOUDFLARE BYPASS: WebView2 Session Extraction
       // If enabled (or forced for known blocked providers), we spin up a headless WebView to get valid cookies/UA
       // For now, we enable it if the user has set 'useWebView' in config, OR if we are on Windows (implied by platform check elsewhere, but here we rely on config)
-      // We also force it for portal-iptv.net as a known blocked provider
-      final useWebView =
-          _config['useWebView'] == 'true' ||
-          base.host.contains('portal-iptv.net');
+      final useWebView = _config['useWebView'] == 'true';
 
       if (useWebView) {
         try {
@@ -664,9 +629,7 @@ class PlayableResolver {
       );
 
       // CLOUDFLARE BYPASS: WebView2 Session Extraction (VOD)
-      final useWebView =
-          _config['useWebView'] == 'true' ||
-          base.host.contains('portal-iptv.net');
+      final useWebView = _config['useWebView'] == 'true';
 
       if (useWebView) {
         try {
@@ -780,11 +743,9 @@ class PlayableResolver {
       extra: Map<String, String>.from(normalized),
     );
 
-    // Use Mobile Chrome User-Agent - verified to work with API
-    // NOTE: portal-iptv.net blocks TiviMate and OkHttp on some endpoints
+    // Use standard OkHttp User-Agent (common in IPTV apps like TiviMate)
     normalized.clear();
-    normalized['User-Agent'] =
-        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36';
+    normalized['User-Agent'] = 'okhttp/4.9.0';
     normalized['Connection'] =
         'close'; // Use close to avoid max_connections=1 issues
 

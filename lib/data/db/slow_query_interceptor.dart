@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
 import 'slow_query_log_writer.dart' as slow_log;
@@ -245,8 +246,7 @@ class SlowQueryLogger {
       // swallow logging failures silently in production builds
       assert(() {
         // keep signal during development
-        // ignore: avoid_print
-        print('SlowQueryLogger failed: $error');
+        debugPrint('SlowQueryLogger failed: $error');
         return true;
       }());
     }

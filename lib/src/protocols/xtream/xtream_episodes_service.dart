@@ -172,7 +172,7 @@ class XtreamEpisodesService {
     } catch (e) {
       // Log error
       if (kDebugMode) {
-        print('Error fetching episodes: $e');
+        debugPrint('Error fetching episodes: $e');
       }
     }
   }

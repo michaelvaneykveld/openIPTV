@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
 typedef UriRedactor = Uri Function(Uri uri);
@@ -60,8 +61,7 @@ class DiscoveryLogInterceptor extends Interceptor {
   String _formatUri(Uri uri) => _redactor(uri).toString();
 
   void _printMessage(String message) {
-    // ignore: avoid_print
-    print('[$_protocolLabel] $message');
+    debugPrint('[$_protocolLabel] $message');
   }
 }
 

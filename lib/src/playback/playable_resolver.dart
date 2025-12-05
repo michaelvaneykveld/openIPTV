@@ -17,7 +17,6 @@ import 'package:openiptv/src/utils/playback_logger.dart';
 import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/playback/stream_probe.dart';
-import 'package:openiptv/services/webview_session_extractor.dart';
 // DEPRECATED: LocalProxyServer is no longer used (RAW TCP mode disabled)
 // import 'package:openiptv/src/playback/local_proxy_server.dart';
 
@@ -451,49 +450,8 @@ class PlayableResolver {
         forceHttps: base.scheme == 'https',
       );
 
-      // ALWAYS use Direct Stream mode - bypass RAW TCP proxy (Cloudflare blocks it)
+      // ALWAYS use Direct Stream mode
       // Direct mode passes headers to media_kit/player directly (normal HTTP)
-      final useDirectStream =
-          _config['useDirectStream'] != 'false'; // Default: true
-
-      if (!useDirectStream) {
-        PlaybackLogger.videoInfo(
-          'xtream-proxy-mode-deprecated',
-          uri: Uri.parse(manualUrl),
-          extra: {
-            'reason': 'RAW TCP proxy mode is deprecated (Cloudflare blocks it)',
-            'recommendation': 'Remove useDirectStream=false from configuration',
-          },
-        );
-      }
-
-      // CRITICAL: FFmpeg cannot replicate Android HTTP fingerprint
-      // Use LocalProxyServer with XtreamRawClient for exact header order
-      final useRawProxy = _config['useRawProxy'] != 'false';
-
-      if (useRawProxy) {
-        PlaybackLogger.videoInfo(
-          'xtream-raw-proxy-mode',
-          uri: Uri.parse(manualUrl),
-          extra: {
-            'reason':
-                'Use raw socket proxy for Android HTTP fingerprint matching',
-            'headers': headers,
-          },
-        );
-
-        // Return URL with custom scheme that LocalProxyServer recognizes
-        // Headers will be sent via XtreamRawClient with correct Android order
-        return Playable(
-          url: Uri.parse(manualUrl),
-          isLive: isLive,
-          headers: headers, // LocalProxyServer will use XtreamRawClient
-          containerExtension: ext,
-          mimeHint: guessMimeFromUri(Uri.parse(manualUrl)),
-          rawUrl: manualUrl,
-        );
-      }
-
       PlaybackLogger.videoInfo(
         'xtream-direct-stream-mode',
         uri: Uri.parse(manualUrl),
@@ -504,40 +462,8 @@ class PlayableResolver {
         },
       );
 
-      // CLOUDFLARE BYPASS: WebView2 Session Extraction
-      // If enabled (or forced for known blocked providers), we spin up a headless WebView to get valid cookies/UA
-      // For now, we enable it if the user has set 'useWebView' in config, OR if we are on Windows (implied by platform check elsewhere, but here we rely on config)
-      final useWebView = _config['useWebView'] == 'true';
-
-      if (useWebView) {
-        try {
-          // Use the API URL as the target for Cloudflare clearance.
-          // The Root URL returns "Access denied", but API returns 200 OK.
-          // This allows us to capture any session cookies (like __cf_bm) set by Cloudflare/Server.
-          final sessionUrl =
-              '${base.scheme}://${base.host}:${base.port}/player_api.php?username=$username&password=$password';
-
-          PlaybackLogger.videoInfo(
-            'xtream-webview-start',
-            extra: {'url': sessionUrl},
-          );
-          final session = await WebViewSessionExtractor.getSession(sessionUrl);
-
-          // Create a mutable copy of headers
-          final mutableHeaders = Map<String, String>.from(headers);
-          mutableHeaders['User-Agent'] = session['User-Agent']!;
-          mutableHeaders['Cookie'] = session['Cookie']!;
-          headers = Map.unmodifiable(mutableHeaders);
-
-          PlaybackLogger.videoInfo(
-            'xtream-webview-success',
-            extra: {'ua': headers['User-Agent'], 'cookie': headers['Cookie']},
-          );
-        } catch (e) {
-          PlaybackLogger.videoError('xtream-webview-failed', error: e);
-          // Fallback to normal headers (which will likely fail with 401, but we tried)
-        }
-      }
+      // CLOUDFLARE BYPASS: WebView2 Session Extraction REMOVED
+      // We now rely on direct streaming and graceful error handling.
 
       PlaybackLogger.videoInfo(
         'xtream-final-headers',
@@ -602,22 +528,6 @@ class PlayableResolver {
         },
       );
 
-      // ALWAYS use Direct Stream mode - bypass RAW TCP proxy (Cloudflare blocks it)
-      // Direct mode passes headers to media_kit/player directly (normal HTTP)
-      final useDirectStream =
-          _config['useDirectStream'] != 'false'; // Default: true
-
-      if (!useDirectStream) {
-        PlaybackLogger.videoInfo(
-          'xtream-vod-proxy-mode-deprecated',
-          uri: Uri.parse(manualUrl),
-          extra: {
-            'reason': 'RAW TCP proxy mode is deprecated (Cloudflare blocks it)',
-            'recommendation': 'Remove useDirectStream=false from configuration',
-          },
-        );
-      }
-
       PlaybackLogger.videoInfo(
         'xtream-vod-direct-stream-mode',
         uri: Uri.parse(manualUrl),
@@ -627,36 +537,6 @@ class PlayableResolver {
           'proxyDisabled': true,
         },
       );
-
-      // CLOUDFLARE BYPASS: WebView2 Session Extraction (VOD)
-      final useWebView = _config['useWebView'] == 'true';
-
-      if (useWebView) {
-        try {
-          // Use the API URL as the target for Cloudflare clearance.
-          // The Root URL returns "Access denied", but API returns 200 OK.
-          final sessionUrl =
-              '${base.scheme}://${base.host}:${base.port}/player_api.php?username=$username&password=$password';
-
-          PlaybackLogger.videoInfo(
-            'xtream-vod-webview-start',
-            extra: {'url': sessionUrl},
-          );
-          final session = await WebViewSessionExtractor.getSession(sessionUrl);
-
-          final mutableHeaders = Map<String, String>.from(headers);
-          mutableHeaders['User-Agent'] = session['User-Agent']!;
-          mutableHeaders['Cookie'] = session['Cookie']!;
-          headers = Map.unmodifiable(mutableHeaders);
-
-          PlaybackLogger.videoInfo(
-            'xtream-vod-webview-success',
-            extra: {'ua': headers['User-Agent'], 'cookie': headers['Cookie']},
-          );
-        } catch (e) {
-          PlaybackLogger.videoError('xtream-vod-webview-failed', error: e);
-        }
-      }
 
       return Playable(
         url: Uri.parse(manualUrl),

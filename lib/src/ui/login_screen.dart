@@ -77,6 +77,8 @@ import 'package:openiptv/src/ui/widgets/import_progress_banner.dart';
 
 import 'package:openiptv/src/utils/device_identity.dart';
 
+import 'package:openiptv/src/ui/settings/telegram_settings_page.dart';
+
 enum _PasteTarget { stalkerPortal, xtreamBaseUrl, m3uUrl }
 
 enum _ClassificationSource { paste, validation }
@@ -1167,6 +1169,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
 
+          IconButton(
+            tooltip: 'Telegram Settings',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TelegramSettingsPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.priority_high_rounded),
+          ),
           IconButton(
             tooltip: 'Help',
 

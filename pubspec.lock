@@ -217,6 +217,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.6"
+  cryptography:
+    dependency: transitive
+    description:
+      name: cryptography
+      sha256: "3eda3029d34ec9095a27a198ac9785630fe525c0eb6a49f3d575272f8e792ef0"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.0"
   csslib:
     dependency: transitive
     description:
@@ -856,6 +864,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
+  pointycastle:
+    dependency: transitive
+    description:
+      name: pointycastle
+      sha256: "92aa3841d083cc4b0f4709b5c74fd6409a3e6ba833ffc7dc6a8fee096366acf5"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.0"
   pool:
     dependency: transitive
     description:
@@ -1181,6 +1197,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.0"
+  t:
+    dependency: "direct main"
+    description:
+      name: t
+      sha256: "48b884577e6f566f79f00e9f0d68a75c6191af6f07d442969d90e6555aa7d409"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   term_glyph:
     dependency: transitive
     description:
@@ -1197,6 +1221,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.6"
+  tg:
+    dependency: "direct main"
+    description:
+      name: tg
+      sha256: "74f53ce4c9c9241e3bdbaa54cedddb6bca62a89caee73860ebcf59389ac008c6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.16"
   timezone:
     dependency: "direct main"
     description:

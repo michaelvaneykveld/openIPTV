@@ -171,32 +171,11 @@ class PortalInfoCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final fields = data.fields;
 
-    // Prioritize certain fields
-    final priorityKeys = [
-      'Status',
-      'Expires',
-      'Active connections',
-      'Max connections',
-      'Created',
-    ];
-
     final displayItems = <Widget>[];
 
-    for (final key in priorityKeys) {
-      if (fields.containsKey(key)) {
-        displayItems.add(_buildInfoRow(theme, key, fields[key]!));
-      }
-    }
-
-    // Add any other interesting fields that aren't in priority list
-    // but limit total items to avoid overflow
-    int count = displayItems.length;
+    // Display all fields without limit
     for (final entry in fields.entries) {
-      if (count >= 8) break;
-      if (!priorityKeys.contains(entry.key)) {
-        displayItems.add(_buildInfoRow(theme, entry.key, entry.value));
-        count++;
-      }
+      displayItems.add(_buildInfoRow(theme, entry.key, entry.value));
     }
 
     if (displayItems.isEmpty) return const SizedBox.shrink();
@@ -204,13 +183,25 @@ class PortalInfoCard extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'ACCOUNT',
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.primary,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'ACCOUNT',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+            Text(
+              'Updated ${TimeOfDay.fromDateTime(data.fetchedAt.toLocal()).format(context)}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.textTheme.bodySmall?.color?.withValues(alpha: 0.5),
+                fontSize: 10,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         ...displayItems,
@@ -220,6 +211,16 @@ class PortalInfoCard extends ConsumerWidget {
 
   Widget _buildContentCounts(BuildContext context, SummaryData data) {
     final theme = Theme.of(context);
+    
+    final normalizedCounts = <String, int>{};
+    data.counts.forEach((key, value) {
+      final normalized = _normalizeCountLabel(key);
+      normalizedCounts.update(
+        normalized,
+        (prev) => prev + value,
+        ifAbsent: () => value,
+      );
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,14 +234,30 @@ class PortalInfoCard extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 4),
-        ...data.counts.entries.map(
+        ...normalizedCounts.entries.map(
           (e) => _buildInfoRow(theme, e.key, e.value.toString()),
         ),
       ],
     );
   }
 
-  Widget _buildInfoRow(ThemeData theme, String label, String value) {
+  String _normalizeCountLabel(String raw) {
+    final lower = raw.toLowerCase();
+    switch (lower) {
+      case 'live':
+        return 'Live';
+      case 'films':
+      case 'vod':
+      case 'movies':
+        return 'Movies';
+      case 'series':
+        return 'Series';
+      case 'radio':
+        return 'Radio';
+      default:
+        return raw;
+    }
+  }  Widget _buildInfoRow(ThemeData theme, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2.0),
       child: Row(

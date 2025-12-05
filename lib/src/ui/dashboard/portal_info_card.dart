@@ -18,58 +18,50 @@ class PortalInfoCard extends ConsumerWidget {
         ? ref.watch(portalSummarySnapshotProvider(profile.providerDbId!))
         : const AsyncValue.data(null);
 
-    return Container(
-      width: 260, // Slightly wider to accommodate info
-      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 16.0),
-      child: Card(
-        elevation: 2,
-        color: colorScheme.surfaceContainerHighest,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(context, theme, colorScheme),
-              summaryAsync.when(
-                data: (data) {
-                  if (data == null) return const SizedBox.shrink();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Divider(height: 16),
-                      _buildAccountInfo(context, data),
-                      if (data.hasCounts) ...[
-                        const Divider(height: 16),
-                        _buildContentCounts(context, data),
-                      ],
-                    ],
-                  );
-                },
-                loading: () => const Padding(
-                  padding: EdgeInsets.only(top: 16.0),
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
-                ),
-                error: (err, stack) => Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    'Info unavailable',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.error,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(context, theme, colorScheme),
+          summaryAsync.when(
+            data: (data) {
+              if (data == null) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(height: 16),
+                  _buildAccountInfo(context, data),
+                  if (data.hasCounts) ...[
+                    const Divider(height: 16),
+                    _buildContentCounts(context, data),
+                  ],
+                ],
+              );
+            },
+            loading: () => const Padding(
+              padding: EdgeInsets.only(top: 16.0),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               ),
-            ],
+            ),
+            error: (err, stack) => Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Text(
+                'Info unavailable',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.error,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -211,7 +203,7 @@ class PortalInfoCard extends ConsumerWidget {
 
   Widget _buildContentCounts(BuildContext context, SummaryData data) {
     final theme = Theme.of(context);
-    
+
     final normalizedCounts = <String, int>{};
     data.counts.forEach((key, value) {
       final normalized = _normalizeCountLabel(key);
@@ -257,7 +249,9 @@ class PortalInfoCard extends ConsumerWidget {
       default:
         return raw;
     }
-  }  Widget _buildInfoRow(ThemeData theme, String label, String value) {
+  }
+
+  Widget _buildInfoRow(ThemeData theme, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 2.0),
       child: Row(

@@ -55,6 +55,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
+  void _showPortalInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: SingleChildScrollView(
+            child: PortalInfoCard(profile: widget.profile),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -64,11 +78,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             selectedIndex: _selectedIndex,
             onDestinationSelected: (int index) {
               if (index == 5) {
+                // Info button
+                _showPortalInfo();
+                return;
+              }
+              if (index == 6) {
                 // Refresh button
                 _refreshPortal();
                 return;
               }
-              if (index == 6) {
+              if (index == 7) {
                 // Back button
                 Navigator.of(context).pop();
                 return;
@@ -99,6 +118,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 icon: Icon(Icons.settings),
                 label: Text('Settings'),
               ),
+              const NavigationRailDestination(
+                icon: Icon(Icons.info_outline),
+                selectedIcon: Icon(Icons.info),
+                label: Text('Info'),
+              ),
               NavigationRailDestination(
                 icon: _isRefreshing
                     ? const SizedBox(
@@ -114,10 +138,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 label: Text('Back'),
               ),
             ],
-            trailing: Padding(
-              padding: const EdgeInsets.only(top: 20.0, bottom: 20.0),
-              child: PortalInfoCard(profile: widget.profile),
-            ),
           ),
           const VerticalDivider(thickness: 1, width: 1),
           Expanded(child: _buildContent()),

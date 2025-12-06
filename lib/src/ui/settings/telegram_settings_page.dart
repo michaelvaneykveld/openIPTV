@@ -17,7 +17,6 @@ enum AuthState { idle, codeSent, passwordRequired, loggedIn }
 
 class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
   final _formKey = GlobalKey<FormState>();
-  final _channelController = TextEditingController();
   final _messageCountController = TextEditingController(text: '50');
 
   // Auth Controllers
@@ -25,7 +24,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
   final _codeController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  List<String> _channels = [];
+  List<t.ChatBase> _myChats = [];
   bool _isLoading = true;
   bool _isSyncing = false;
 
@@ -51,7 +50,6 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
 
   @override
   void dispose() {
-    _channelController.dispose();
     _messageCountController.dispose();
     _phoneController.dispose();
     _codeController.dispose();
@@ -62,12 +60,10 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final channels = prefs.getStringList('telegram_channels') ?? [];
       final messageCount = prefs.getInt('telegram_message_count') ?? 50;
 
       if (mounted) {
         setState(() {
-          _channels = channels;
           _messageCountController.text = messageCount.toString();
           _isLoading = false;
         });
@@ -109,6 +105,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
           // But if we have a saved session, we might be logged in.
           _authState = AuthState.loggedIn;
         });
+        _fetchDialogs();
       }
     } catch (e) {
       debugPrint('Session check failed: $e');
@@ -133,24 +130,37 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     }
   }
 
-  Future<void> _addChannel() async {
-    final channel = _channelController.text.trim();
-    if (channel.isNotEmpty && !_channels.contains(channel)) {
-      setState(() {
-        _channels.add(channel);
-        _channelController.clear();
-      });
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList('telegram_channels', _channels);
-    }
-  }
+  Future<void> _fetchDialogs() async {
+    if (_client == null) return;
+    // Don't set global loading, just background fetch or local loading
+    try {
+      final res = await _client!.invoke(
+        t.MessagesGetDialogs(
+          offsetDate: DateTime.fromMillisecondsSinceEpoch(0),
+          offsetId: 0,
+          offsetPeer: const t.InputPeerEmpty(),
+          limit: 100,
+          hash: 0,
+          excludePinned: false,
+          folderId: 0,
+        ),
+      );
 
-  Future<void> _removeChannel(String channel) async {
-    setState(() {
-      _channels.remove(channel);
-    });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('telegram_channels', _channels);
+      List<t.ChatBase> chats = [];
+      if (res.result is t.MessagesDialogs) {
+        chats = (res.result as t.MessagesDialogs).chats;
+      } else if (res.result is t.MessagesDialogsSlice) {
+        chats = (res.result as t.MessagesDialogsSlice).chats;
+      }
+
+      if (mounted) {
+        setState(() {
+          _myChats = chats.where((c) => c is t.Chat || c is t.Channel).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching dialogs: $e');
+    }
   }
 
   // --- Auth Methods ---
@@ -249,6 +259,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
           _statusMessage = 'Logged in successfully!';
           _isSyncing = false;
         });
+        _fetchDialogs();
       } else if (authRes is t.AuthAuthorizationSignUpRequired) {
         _setStatus('Sign up required (not supported in this client).');
         setState(() => _isSyncing = false);
@@ -280,6 +291,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         _statusMessage = 'Logged in successfully!';
         _isSyncing = false;
       });
+      _fetchDialogs();
     } catch (e) {
       setState(() {
         _isSyncing = false;
@@ -300,8 +312,8 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
       return;
     }
 
-    if (_channels.isEmpty) {
-      _setStatus('No channels added.');
+    if (_myChats.isEmpty) {
+      _setStatus('No channels found.');
       return;
     }
 
@@ -313,71 +325,29 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
 
-      for (final channelInput in _channels) {
-        String handle = channelInput.trim();
-        // Clean handle
-        if (handle.startsWith('https://t.me/')) {
-          handle = handle.replaceFirst('https://t.me/', '');
-        }
-        if (handle.startsWith('@')) {
-          handle = handle.substring(1);
-        }
-        if (handle.contains('/')) {
-          handle = handle.split('/').first;
-        }
-        if (handle.contains('?')) {
-          handle = handle.split('?').first;
+      for (final chat in _myChats) {
+        t.InputPeerBase? peer;
+        String title = 'Unknown';
+        String handle = 'unknown';
+
+        if (chat is t.Channel) {
+          peer = t.InputPeerChannel(
+            channelId: chat.id,
+            accessHash: chat.accessHash ?? 0,
+          );
+          title = chat.title;
+          handle = chat.username ?? 'channel_${chat.id}';
+        } else if (chat is t.Chat) {
+          peer = t.InputPeerChat(chatId: chat.id);
+          title = chat.title;
+          handle = 'group_${chat.id}';
         }
 
-        _setStatus('Fetching $handle...');
+        if (peer == null) continue;
+
+        _setStatus('Fetching $title...');
 
         try {
-          t.InputPeerBase? peer;
-          String title = handle;
-
-          try {
-            // Resolve username
-            final resolvedRes = await _client!.invoke(
-              t.ContactsResolveUsername(username: handle),
-            );
-
-            if (resolvedRes.error == null) {
-              final resolved = resolvedRes.result;
-              if (resolved is t.ContactsResolvedPeer) {
-                if (resolved.chats.isNotEmpty) {
-                  final chat = resolved.chats.first;
-                  if (chat is t.Channel) {
-                    peer = t.InputPeerChannel(
-                      channelId: chat.id,
-                      accessHash: chat.accessHash ?? 0,
-                    );
-                    title = chat.title;
-                  } else if (chat is t.Chat) {
-                    peer = t.InputPeerChat(chatId: chat.id);
-                    title = chat.title;
-                  }
-                } else if (resolved.users.isNotEmpty) {
-                  final user = resolved.users.first;
-                  if (user is t.User) {
-                    peer = t.InputPeerUser(
-                      userId: user.id,
-                      accessHash: user.accessHash ?? 0,
-                    );
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            debugPrint('Could not resolve $handle as username: $e');
-          }
-
-          if (peer == null) {
-            _setStatus(
-              'Could not resolve $handle. Make sure you are joined if it is private.',
-            );
-            continue;
-          }
-
           // Fetch History
           final historyRes = await _client!.invoke(
             t.MessagesGetHistory(
@@ -427,8 +397,8 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
           await file.writeAsString(sb.toString());
           debugPrint('Saved to ${file.path}');
         } catch (e) {
-          debugPrint('Error fetching $handle: $e');
-          _setStatus('Error fetching $handle: $e');
+          debugPrint('Error fetching $title: $e');
+          _setStatus('Error fetching $title: $e');
         }
       }
 
@@ -585,40 +555,27 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _channelController,
-                            decoration: const InputDecoration(
-                              labelText: 'Add Channel (@username or link)',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed: _addChannel,
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _channels.length,
-                      itemBuilder: (context, index) {
-                        final channel = _channels[index];
-                        return ListTile(
-                          title: Text(channel),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.delete),
-                            onPressed: () => _removeChannel(channel),
-                          ),
-                        );
-                      },
-                    ),
+                    if (_myChats.isEmpty)
+                      const Text('No channels found. Log in to see channels.')
+                    else
+                      ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: _myChats.length,
+                        itemBuilder: (context, index) {
+                          final chat = _myChats[index];
+                          String title = 'Unknown';
+                          if (chat is t.Channel) {
+                            title = chat.title;
+                          } else if (chat is t.Chat) {
+                            title = chat.title;
+                          }
+                          return ListTile(
+                            title: Text(title),
+                            trailing: const Icon(Icons.hourglass_empty),
+                          );
+                        },
+                      ),
 
                     const SizedBox(height: 24),
                     SizedBox(

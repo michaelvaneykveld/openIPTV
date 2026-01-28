@@ -35,7 +35,10 @@ class M3uXmlSession {
   /// a different charset.
   String readPlaylist({Encoding? encoding}) {
     return playlist.decodeBody(
-      encoding: encoding ?? Encoding.getByName(configuration.preferredEncoding) ?? utf8,
+      encoding:
+          encoding ??
+          Encoding.getByName(configuration.preferredEncoding) ??
+          utf8,
     );
   }
 
@@ -63,4 +66,3 @@ class M3uXmlSession {
     return envelope.etag != null || envelope.lastModified != null;
   }
 }
-

@@ -73,16 +73,20 @@ void main() {
 
       await importer.importPrograms(
         providerId: providerId,
-        programsByChannel: {
-          channelId: programs,
-        },
+        programsByChannel: {channelId: programs},
       );
 
-      final row = await (db.select(db.channels)
-            ..where((tbl) => tbl.id.equals(channelId)))
-          .getSingle();
-      expect(row.firstProgramAt?.toUtc(), DateTime.parse('2024-01-01T08:00:00Z'));
-      expect(row.lastProgramAt?.toUtc(), DateTime.parse('2024-01-03T13:30:00Z'));
+      final row = await (db.select(
+        db.channels,
+      )..where((tbl) => tbl.id.equals(channelId))).getSingle();
+      expect(
+        row.firstProgramAt?.toUtc(),
+        DateTime.parse('2024-01-01T08:00:00Z'),
+      );
+      expect(
+        row.lastProgramAt?.toUtc(),
+        DateTime.parse('2024-01-03T13:30:00Z'),
+      );
     });
   });
 }

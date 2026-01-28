@@ -31,7 +31,9 @@ class ImportProgressBanner extends StatelessWidget {
           LinearProgressIndicator(
             value: hasDeterminateProgress ? clampedProgress : null,
             minHeight: 4,
-            backgroundColor: color.withValues(alpha: (color.a * 0.35).clamp(0.0, 1.0)),
+            backgroundColor: color.withValues(
+              alpha: (color.a * 0.35).clamp(0.0, 1.0),
+            ),
             valueColor: AlwaysStoppedAnimation<Color>(onColor),
           ),
           Padding(

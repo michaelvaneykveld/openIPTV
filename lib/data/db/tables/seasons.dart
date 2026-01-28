@@ -13,6 +13,6 @@ class Seasons extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {seriesId, seasonNumber},
-      ];
+    {seriesId, seasonNumber},
+  ];
 }

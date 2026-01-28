@@ -12,29 +12,23 @@ class EpgDao extends DatabaseAccessor<OpenIptvDb> with _$EpgDaoMixin {
     if (programs.isEmpty) return;
     await batch((batch) {
       for (final companion in programs) {
-        batch.insert(
-          epgPrograms,
-          companion,
-          mode: InsertMode.insertOrReplace,
-        );
+        batch.insert(epgPrograms, companion, mode: InsertMode.insertOrReplace);
       }
     });
   }
 
-  Future<int> purgeOlderThan(
-    DateTime thresholdUtc, {
-    int? providerId,
-  }) async {
+  Future<int> purgeOlderThan(DateTime thresholdUtc, {int? providerId}) async {
     if (providerId == null) {
-      return (delete(epgPrograms)
-            ..where((tbl) => tbl.endUtc.isSmallerThanValue(thresholdUtc)))
-          .go();
+      return (delete(
+        epgPrograms,
+      )..where((tbl) => tbl.endUtc.isSmallerThanValue(thresholdUtc))).go();
     }
 
-    final channelIds = await (select(channels)
-          ..where((tbl) => tbl.providerId.equals(providerId)))
-        .map((row) => row.id)
-        .get();
+    final channelIds =
+        await (select(channels)
+              ..where((tbl) => tbl.providerId.equals(providerId)))
+            .map((row) => row.id)
+            .get();
     if (channelIds.isEmpty) return 0;
 
     return (delete(epgPrograms)
@@ -55,9 +49,7 @@ class EpgDao extends DatabaseAccessor<OpenIptvDb> with _$EpgDaoMixin {
       ..where((tbl) => tbl.startUtc.isSmallerOrEqualValue(nowUtc))
       ..where((tbl) => tbl.endUtc.isBiggerThanValue(nowUtc))
       ..where((tbl) => tbl.channelId.isInQuery(channelIdQuery))
-      ..orderBy([
-        (tbl) => OrderingTerm.asc(tbl.startUtc),
-      ]);
+      ..orderBy([(tbl) => OrderingTerm.asc(tbl.startUtc)]);
 
     return query.watch();
   }
@@ -74,14 +66,7 @@ class EpgDao extends DatabaseAccessor<OpenIptvDb> with _$EpgDaoMixin {
             tbl.endUtc.isBiggerThanValue(rangeStart) &
             tbl.startUtc.isSmallerThanValue(rangeEnd),
       )
-      ..orderBy([
-        (tbl) => OrderingTerm.asc(tbl.startUtc),
-      ]);
+      ..orderBy([(tbl) => OrderingTerm.asc(tbl.startUtc)]);
     return query.get();
   }
 }
-
-
-
-
-

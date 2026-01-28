@@ -20,7 +20,9 @@ void main() {
       ProviderKind kind = ProviderKind.xtream,
       String base = 'https://demo.xtream/',
     }) {
-      return db.into(db.providers).insert(
+      return db
+          .into(db.providers)
+          .insert(
             ProvidersCompanion.insert(
               kind: kind,
               lockedBase: base,
@@ -76,14 +78,18 @@ void main() {
 
     test('channel_categories has composite primary key', () async {
       final providerId = await insertProvider();
-      final channelId = await db.into(db.channels).insert(
+      final channelId = await db
+          .into(db.channels)
+          .insert(
             ChannelsCompanion.insert(
               providerId: providerId,
               providerChannelKey: 'stream-002',
               name: 'Another Channel',
             ),
           );
-      final categoryId = await db.into(db.categories).insert(
+      final categoryId = await db
+          .into(db.categories)
+          .insert(
             CategoriesCompanion.insert(
               providerId: providerId,
               kind: CategoryKind.live,
@@ -133,14 +139,18 @@ void main() {
 
     test('foreign keys cascade when provider deleted', () async {
       final providerId = await insertProvider();
-      final channelId = await db.into(db.channels).insert(
+      final channelId = await db
+          .into(db.channels)
+          .insert(
             ChannelsCompanion.insert(
               providerId: providerId,
               providerChannelKey: 'stream-003',
               name: 'Cascade Channel',
             ),
           );
-      final categoryId = await db.into(db.categories).insert(
+      final categoryId = await db
+          .into(db.categories)
+          .insert(
             CategoriesCompanion.insert(
               providerId: providerId,
               kind: CategoryKind.live,
@@ -148,13 +158,17 @@ void main() {
               name: 'Sports',
             ),
           );
-      await db.into(db.channelCategories).insert(
+      await db
+          .into(db.channelCategories)
+          .insert(
             ChannelCategoriesCompanion.insert(
               channelId: channelId,
               categoryId: categoryId,
             ),
           );
-      await db.into(db.summaries).insert(
+      await db
+          .into(db.summaries)
+          .insert(
             SummariesCompanion.insert(
               providerId: providerId,
               kind: CategoryKind.live,
@@ -162,22 +176,22 @@ void main() {
             ),
           );
 
-      await (db.delete(db.providers)
-            ..where((tbl) => tbl.id.equals(providerId)))
-          .go();
+      await (db.delete(
+        db.providers,
+      )..where((tbl) => tbl.id.equals(providerId))).go();
 
-      final remainingChannels = await (db.select(db.channels)
-            ..where((tbl) => tbl.providerId.equals(providerId)))
-          .get();
-      final remainingCategories = await (db.select(db.categories)
-            ..where((tbl) => tbl.providerId.equals(providerId)))
-          .get();
-      final remainingLinks = await (db.select(db.channelCategories)
-            ..where((tbl) => tbl.channelId.equals(channelId)))
-          .get();
-      final remainingSummaries = await (db.select(db.summaries)
-            ..where((tbl) => tbl.providerId.equals(providerId)))
-          .get();
+      final remainingChannels = await (db.select(
+        db.channels,
+      )..where((tbl) => tbl.providerId.equals(providerId))).get();
+      final remainingCategories = await (db.select(
+        db.categories,
+      )..where((tbl) => tbl.providerId.equals(providerId))).get();
+      final remainingLinks = await (db.select(
+        db.channelCategories,
+      )..where((tbl) => tbl.channelId.equals(channelId))).get();
+      final remainingSummaries = await (db.select(
+        db.summaries,
+      )..where((tbl) => tbl.providerId.equals(providerId))).get();
 
       expect(remainingChannels, isEmpty);
       expect(remainingCategories, isEmpty);
@@ -187,7 +201,9 @@ void main() {
 
     test('channels enforce foreign key to providers', () async {
       await expectLater(
-        db.into(db.channels).insert(
+        db
+            .into(db.channels)
+            .insert(
               ChannelsCompanion.insert(
                 providerId: 999,
                 providerChannelKey: 'missing-provider',

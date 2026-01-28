@@ -36,7 +36,6 @@ class ImportRuns extends Table {
 
   @override
   List<String> get customConstraints => [
-        'UNIQUE(provider_id, import_type, started_at)'
-      ];
+    'UNIQUE(provider_id, import_type, started_at)',
+  ];
 }
-

@@ -15,7 +15,9 @@ class PortalSummaryCache {
 
   static Future<PortalSummaryCache> openDefault() async {
     final dbFile = await OpenIptvDb.resolveDatabaseFile();
-    final cacheFile = File(p.join(dbFile.parent.path, 'portal_summary_cache.json'));
+    final cacheFile = File(
+      p.join(dbFile.parent.path, 'portal_summary_cache.json'),
+    );
     return PortalSummaryCache._(cacheFile);
   }
 

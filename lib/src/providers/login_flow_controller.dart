@@ -814,7 +814,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   }
 
   bool _validateM3u() {
-    var form = state.m3u;
+    final form = state.m3u;
     var playlistUrl = form.playlistUrl;
     var playlistFile = form.playlistFilePath;
     var epgUrl = form.epgUrl;
@@ -856,7 +856,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   }
 
   bool _validateXtream() {
-    var form = state.xtream;
+    final form = state.xtream;
     var url = form.serverUrl;
     var username = form.username;
     var password = form.password;
@@ -890,7 +890,7 @@ class LoginFlowController extends StateNotifier<LoginFlowState> {
   }
 
   bool _validateStalker() {
-    var form = state.stalker;
+    final form = state.stalker;
     var portal = form.portalUrl;
     var mac = form.macAddress;
 

@@ -53,8 +53,9 @@ http://example.com/plain
         {'id': '2', 'title': 'Series'},
       ],
     };
-    final normalized =
-        ProviderImportService.normalizePortalCategoryPayload(payload);
+    final normalized = ProviderImportService.normalizePortalCategoryPayload(
+      payload,
+    );
     expect(normalized, hasLength(2));
     expect(normalized.first['id'], 1);
     expect(normalized.last['title'], 'Series');
@@ -68,8 +69,9 @@ http://example.com/plain
         ],
       },
     };
-    final normalized =
-        ProviderImportService.normalizePortalCategoryPayload(payload);
+    final normalized = ProviderImportService.normalizePortalCategoryPayload(
+      payload,
+    );
     expect(normalized, hasLength(1));
     expect(normalized.single['category_id'], 99);
     expect(normalized.single['title'], 'Sports');
@@ -117,7 +119,7 @@ http://example.com/plain
   });
 
   test('ProviderImportEventSerializer round-trips result events', () {
-    final summary = ProviderImportMetricsSummary(
+    final summary = const ProviderImportMetricsSummary(
       channelsUpserted: 12,
       durationMs: 1500,
     );

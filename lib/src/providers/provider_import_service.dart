@@ -720,7 +720,7 @@ class ProviderImportService {
         onPagingModeDetected: notePagingMode,
         module: 'itv',
       );
-      var live = _applyPriorityOrdering(
+      final live = _applyPriorityOrdering(
         categories: liveOutcome.categories,
         providerId: providerId,
         module: 'itv',
@@ -1326,7 +1326,7 @@ class ProviderImportService {
     var attemptedAlternateMode = false;
     for (var page = startPage; page <= maxPages; page += 1) {
       try {
-        var listing = await _requestStalkerListingPage(
+        final listing = await _requestStalkerListingPage(
           configuration: configuration,
           headers: headers,
           session: session,

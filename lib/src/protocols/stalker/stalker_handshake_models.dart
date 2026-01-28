@@ -31,8 +31,20 @@ class StalkerHandshakePayload {
   /// decoded maps because some HTTP clients perform decoding for us.
   factory StalkerHandshakePayload.parse(dynamic raw) {
     // Convert strings into maps when necessary.
-    final dynamic decoded =
-        raw is String ? jsonDecode(raw) : raw;
+    final dynamic decoded;
+    if (raw is String) {
+      try {
+        decoded = jsonDecode(raw);
+      } on FormatException catch (e) {
+        throw FormatException(
+          'Failed to parse handshake response as JSON. The portal may have returned an error page or invalid data.',
+          raw,
+          e.offset,
+        );
+      }
+    } else {
+      decoded = raw;
+    }
 
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException(
@@ -56,8 +68,7 @@ class StalkerHandshakePayload {
 
     // Capture metadata we do not understand yet so we can surface it when
     // debugging troublesome portals.
-    final metadata = Map<String, dynamic>.from(jsSection)
-      ..remove('token');
+    final metadata = Map<String, dynamic>.from(jsSection)..remove('token');
 
     return StalkerHandshakePayload(
       token: tokenValue,
@@ -81,4 +92,3 @@ class StalkerHandshakePayload {
     return null;
   }
 }
-

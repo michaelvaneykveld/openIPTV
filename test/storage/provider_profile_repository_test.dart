@@ -90,9 +90,9 @@ void main() {
     expect(profile, isNotNull);
     expect(profile!.hasSecrets, isTrue);
 
-    final storedRow = await (database.select(database.providerProfiles)
-          ..where((tbl) => tbl.id.equals('prov-test')))
-        .getSingle();
+    final storedRow = await (database.select(
+      database.providerProfiles,
+    )..where((tbl) => tbl.id.equals('prov-test'))).getSingle();
     expect(storedRow.configuration.containsKey('username'), isFalse);
     expect(storedRow.configuration.containsKey('customHeaders'), isFalse);
     expect(storedRow.hints.containsKey('token'), isFalse);

@@ -38,11 +38,29 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
       queryParameters: handshakeQuery,
       headers: handshakeHeaders,
     );
+    if (handshakeResponse.statusCode < 200 ||
+        handshakeResponse.statusCode >= 300) {
+      throw StalkerAuthenticationException(
+        'Failed to connect to the portal (HTTP ${handshakeResponse.statusCode}). '
+        'It may be offline or blocking the connection.',
+      );
+    }
+    if (handshakeResponse.body.isEmpty) {
+      throw const StalkerAuthenticationException(
+        'Portal returned an empty response during handshake. '
+        'It may be offline or misconfigured.',
+      );
+    }
 
     // Parse the handshake payload and build a session skeleton.
-    final handshakePayload = StalkerHandshakePayload.parse(
-      handshakeResponse.body,
-    );
+    final StalkerHandshakePayload handshakePayload;
+    try {
+      handshakePayload = StalkerHandshakePayload.parse(handshakeResponse.body);
+    } on FormatException catch (e) {
+      throw StalkerAuthenticationException(
+        'Failed to parse portal handshake response: ${e.message}',
+      );
+    }
 
     if (_hasHandshakeError(handshakePayload)) {
       throw StalkerAuthenticationException(
@@ -89,7 +107,7 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
       'Referer': configuration.refererUri.toString(),
       'Accept': 'application/json',
       'Connection': 'Keep-Alive',
-      'Accept-Encoding': 'gzip, deflate',
+      // 'Accept-Encoding': 'gzip, deflate',
     };
 
     // Compose the cookie string containing MAC, language, and timezone.
@@ -144,6 +162,16 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
       queryParameters: profileQuery,
       headers: profileHeaders,
     );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StalkerAuthenticationException(
+        'Portal accepted handshake, but failed profile validation (HTTP ${response.statusCode}).',
+      );
+    }
+    if (response.body.isEmpty) {
+      throw const StalkerAuthenticationException(
+        'Portal accepted handshake, but returned an empty profile response.',
+      );
+    }
 
     _validateProfileResponse(response);
   }
@@ -158,9 +186,16 @@ class DefaultStalkerAuthenticator implements StalkerAuthenticator {
     }
 
     // Attempt to decode JSON so we can inspect the `js` section.
-    final dynamic decoded = envelope.body is String
-        ? jsonDecode(envelope.body)
-        : envelope.body;
+    final dynamic decoded;
+    try {
+      decoded = envelope.body is String
+          ? jsonDecode(envelope.body)
+          : envelope.body;
+    } on FormatException catch (e) {
+      throw StalkerAuthenticationException(
+        'Failed to parse profile response: ${e.message}',
+      );
+    }
 
     if (decoded is! Map<String, dynamic>) {
       throw const StalkerAuthenticationException(

@@ -8,4 +8,3 @@ class MaintenanceLog extends Table {
   @override
   Set<Column> get primaryKey => {task};
 }
-

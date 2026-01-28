@@ -131,14 +131,14 @@ class M3uPortalDiscovery implements PortalDiscovery {
   Future<DiscoveryResult> _discoverLocalFile(String path) async {
     final file = File(path);
     if (!await file.exists()) {
-      throw DiscoveryException(
+      throw const DiscoveryException(
         'Playlist file could not be found. Confirm the path and try again.',
       );
     }
 
     final stat = await file.stat();
     if (stat.size <= 0) {
-      throw DiscoveryException(
+      throw const DiscoveryException(
         'Playlist file appears to be empty. Verify the download completed.',
       );
     }
@@ -151,7 +151,7 @@ class M3uPortalDiscovery implements PortalDiscovery {
         .join('\n');
 
     if (!preview.toUpperCase().contains('#EXTM3U')) {
-      throw DiscoveryException(
+      throw const DiscoveryException(
         'Playlist file does not look like an M3U playlist (#EXTM3U missing).',
       );
     }

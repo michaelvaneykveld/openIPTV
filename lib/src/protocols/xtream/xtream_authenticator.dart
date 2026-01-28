@@ -18,7 +18,7 @@ class DefaultXtreamAuthenticator implements XtreamAuthenticator {
   final XtreamHttpClient _httpClient;
 
   DefaultXtreamAuthenticator({XtreamHttpClient? httpClient})
-      : _httpClient = httpClient ?? XtreamHttpClient();
+    : _httpClient = httpClient ?? XtreamHttpClient();
 
   @override
   Future<XtreamSession> authenticate(
@@ -65,4 +65,3 @@ class XtreamAuthenticationException implements Exception {
   @override
   String toString() => 'XtreamAuthenticationException: $message';
 }
-

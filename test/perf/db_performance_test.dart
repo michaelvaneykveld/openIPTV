@@ -71,7 +71,9 @@ void main() {
           displayName: const Value('EPG Provider'),
         ),
       );
-      final channelId = await db.into(db.channels).insert(
+      final channelId = await db
+          .into(db.channels)
+          .insert(
             ChannelsCompanion.insert(
               providerId: providerId,
               providerChannelKey: 'epg-ch',

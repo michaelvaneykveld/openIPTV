@@ -23,23 +23,18 @@ class EpgRepository {
   Stream<List<EpgProgramRecord>> watchNow({
     required int providerId,
     required DateTime nowUtc,
-  }) =>
-      _dao.watchNow(providerId: providerId, nowUtc: nowUtc);
+  }) => _dao.watchNow(providerId: providerId, nowUtc: nowUtc);
 
   Future<List<EpgProgramRecord>> loadRange({
     required int channelId,
     required DateTime startUtc,
     required DateTime endUtc,
-  }) =>
-      _dao.fetchRangeForChannel(
-        channelId: channelId,
-        rangeStart: startUtc,
-        rangeEnd: endUtc,
-      );
+  }) => _dao.fetchRangeForChannel(
+    channelId: channelId,
+    rangeStart: startUtc,
+    rangeEnd: endUtc,
+  );
 
-  Future<int> purgeOlderThan(
-    DateTime thresholdUtc, {
-    int? providerId,
-  }) =>
+  Future<int> purgeOlderThan(DateTime thresholdUtc, {int? providerId}) =>
       _dao.purgeOlderThan(thresholdUtc, providerId: providerId);
 }

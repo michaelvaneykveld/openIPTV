@@ -14,17 +14,14 @@ class PlaybackHistory extends Table {
 
   DateTimeColumn get updatedAt => dateTime()();
 
-  IntColumn get positionSec =>
-      integer().withDefault(const Constant(0))();
+  IntColumn get positionSec => integer().withDefault(const Constant(0))();
 
   IntColumn get durationSec => integer().nullable()();
 
-  BoolColumn get completed =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get completed => boolean().withDefault(const Constant(false))();
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {channelId},
-      ];
+    {channelId},
+  ];
 }
-

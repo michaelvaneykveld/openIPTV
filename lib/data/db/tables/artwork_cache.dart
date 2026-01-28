@@ -26,12 +26,10 @@ class ArtworkCache extends Table {
 
   DateTimeColumn get expiresAt => dateTime().nullable()();
 
-  BoolColumn get needsRefresh =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get needsRefresh => boolean().withDefault(const Constant(false))();
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {url},
-      ];
+    {url},
+  ];
 }
-

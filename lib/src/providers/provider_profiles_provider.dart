@@ -7,13 +7,13 @@ import 'package:openiptv/storage/provider_profile_repository.dart';
 /// Stream of saved provider profiles used by management screens.
 final savedProfilesStreamProvider =
     StreamProvider.autoDispose<List<ProviderProfileRecord>>((ref) {
-  final repository = ref.watch(providerProfileRepositoryProvider);
-  return repository.watchProfiles();
-});
+      final repository = ref.watch(providerProfileRepositoryProvider);
+      return repository.watchProfiles();
+    });
 
 /// Stream of provider records stored in the local database.
 final providerRecordsStreamProvider =
     StreamProvider.autoDispose<List<ProviderRecord>>((ref) {
-  final repository = ref.watch(providerRepositoryProvider);
-  return repository.watchProviders();
-});
+      final repository = ref.watch(providerRepositoryProvider);
+      return repository.watchProviders();
+    });

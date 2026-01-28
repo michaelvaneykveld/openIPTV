@@ -56,11 +56,7 @@ class TelemetryService {
       severity: success ? 'info' : 'warn',
       message: '$source latency ${duration.inMilliseconds}ms',
       duration: duration,
-      metadata: {
-        'source': source,
-        'success': success,
-        ...?metadata,
-      },
+      metadata: {'source': source, 'success': success, ...?metadata},
     );
   }
 
@@ -167,11 +163,11 @@ class TelemetryEvent {
   final Map<String, Object?> metadata;
 
   Map<String, Object?> toJson() => {
-        'timestamp': timestamp.toIso8601String(),
-        'category': category,
-        'severity': severity,
-        'message': message,
-        if (duration != null) 'durationMs': duration!.inMilliseconds,
-        if (metadata.isNotEmpty) 'metadata': metadata,
-      };
+    'timestamp': timestamp.toIso8601String(),
+    'category': category,
+    'severity': severity,
+    'message': message,
+    if (duration != null) 'durationMs': duration!.inMilliseconds,
+    if (metadata.isNotEmpty) 'metadata': metadata,
+  };
 }

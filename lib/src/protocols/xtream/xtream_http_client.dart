@@ -19,9 +19,9 @@ class XtreamHttpClient {
           dio ??
           Dio(
             BaseOptions(
-              connectTimeout: Duration(seconds: 10),
-              receiveTimeout: Duration(seconds: 15),
-              sendTimeout: Duration(seconds: 10),
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 15),
+              sendTimeout: const Duration(seconds: 10),
               responseType: ResponseType.json,
             ),
           );

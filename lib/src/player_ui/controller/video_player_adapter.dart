@@ -147,10 +147,7 @@ class VideoPlayerAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
       final description = value.errorDescription!;
       if (_lastControllerError != description) {
         _lastControllerError = description;
-        PlaybackLogger.videoError(
-          'controller',
-          description: description,
-        );
+        PlaybackLogger.videoError('controller', description: description);
       }
     }
     final bufferedPosition = value.buffered.isEmpty
@@ -398,10 +395,7 @@ class PlaylistVideoPlayerAdapter
       final description = value.errorDescription!;
       if (_lastControllerError != description) {
         _lastControllerError = description;
-        PlaybackLogger.videoError(
-          'controller',
-          description: description,
-        );
+        PlaybackLogger.videoError('controller', description: description);
       }
     }
     final bufferedPosition = value.buffered.isEmpty

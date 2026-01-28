@@ -29,13 +29,13 @@ class ArtworkFetcher {
     int maxEntries = 200,
     int maxBytes = 100 * 1024 * 1024,
     ArtworkTelemetryCallback? onTelemetry,
-  })  : _dao = cacheDao,
-        _client = client,
-        _cacheDir = cacheDirectory,
-        _inlineThresholdBytes = inlineThresholdBytes,
-        _maxEntries = maxEntries,
-        _maxBytes = maxBytes,
-        _onTelemetry = onTelemetry;
+  }) : _dao = cacheDao,
+       _client = client,
+       _cacheDir = cacheDirectory,
+       _inlineThresholdBytes = inlineThresholdBytes,
+       _maxEntries = maxEntries,
+       _maxBytes = maxBytes,
+       _onTelemetry = onTelemetry;
 
   final ArtworkCacheDao _dao;
   final Dio _client;
@@ -74,9 +74,7 @@ class ArtworkFetcher {
         }
       }
 
-      final headers = <String, String>{
-        'Accept': 'image/*',
-      };
+      final headers = <String, String>{'Accept': 'image/*'};
       if (existing?.etag != null) {
         headers['If-None-Match'] = existing!.etag!;
       }
@@ -85,10 +83,7 @@ class ArtworkFetcher {
       try {
         response = await _client.get<List<int>>(
           url,
-          options: Options(
-            responseType: ResponseType.bytes,
-            headers: headers,
-          ),
+          options: Options(responseType: ResponseType.bytes, headers: headers),
         );
       } on DioException catch (error) {
         if (error.response?.statusCode == 304 && existing != null) {
@@ -131,10 +126,7 @@ class ArtworkFetcher {
       final etag = response.headers.value('etag');
       final expiresAt = _deriveExpiry(response.headers, now);
 
-      final storage = await _persistBytes(
-        url: url,
-        bytes: bytes,
-      );
+      final storage = await _persistBytes(url: url, bytes: bytes);
 
       if (existing?.filePath != null &&
           existing!.filePath != storage.filePath) {
@@ -190,11 +182,7 @@ class ArtworkFetcher {
     }
   }
 
-  bool _isExpired(
-    ArtworkCacheRecord record,
-    DateTime now,
-    Duration? maxAge,
-  ) {
+  bool _isExpired(ArtworkCacheRecord record, DateTime now, Duration? maxAge) {
     if (record.needsRefresh) return true;
     if (record.expiresAt != null && !record.expiresAt!.isAfter(now)) {
       return true;

@@ -21,10 +21,7 @@ final providerRepositoryProvider = r.Provider<ProviderRepository>(
 );
 
 class ProviderRepository {
-  ProviderRepository({
-    required this.providerDao,
-    required this.summaryDao,
-  });
+  ProviderRepository({required this.providerDao, required this.summaryDao});
 
   final ProviderDao providerDao;
   final SummaryDao summaryDao;
@@ -44,12 +41,11 @@ class ProviderRepository {
     required int providerId,
     required DateTime at,
     String? etagHash,
-  }) =>
-      providerDao.setLastSyncAt(
-        providerId: providerId,
-        lastSyncAt: at,
-        etagHash: etagHash,
-      );
+  }) => providerDao.setLastSyncAt(
+    providerId: providerId,
+    lastSyncAt: at,
+    etagHash: etagHash,
+  );
 
   Future<Map<CategoryKind, int>> getSummary(int providerId) =>
       summaryDao.mapForProvider(providerId);

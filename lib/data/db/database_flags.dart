@@ -5,10 +5,14 @@
 /// development remains frictionless.
 class DatabaseFlags {
   /// Enables SQLCipher-backed storage when available.
-  static const bool enableSqlCipher =
-      bool.fromEnvironment('DB_ENABLE_SQLCIPHER', defaultValue: false);
+  static const bool enableSqlCipher = bool.fromEnvironment(
+    'DB_ENABLE_SQLCIPHER',
+    defaultValue: false,
+  );
 
   /// Enables FTS-specific features (virtual tables, triggers, etc).
-  static const bool enableFts =
-      bool.fromEnvironment('DB_ENABLE_FTS', defaultValue: false);
+  static const bool enableFts = bool.fromEnvironment(
+    'DB_ENABLE_FTS',
+    defaultValue: false,
+  );
 }

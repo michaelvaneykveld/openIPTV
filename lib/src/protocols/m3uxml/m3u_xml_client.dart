@@ -22,9 +22,9 @@ class M3uXmlClient {
           dio ??
           Dio(
             BaseOptions(
-              connectTimeout: Duration(seconds: 15),
-              receiveTimeout: Duration(minutes: 2),
-              sendTimeout: Duration(seconds: 30),
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(minutes: 2),
+              sendTimeout: const Duration(seconds: 30),
               responseType: ResponseType.bytes,
             ),
           );

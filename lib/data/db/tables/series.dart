@@ -9,9 +9,11 @@ class Series extends Table {
 
   TextColumn get providerSeriesKey => text()();
 
-  IntColumn get categoryId => integer()
-      .nullable()
-      .references(Categories, #id, onDelete: KeyAction.setNull)();
+  IntColumn get categoryId => integer().nullable().references(
+    Categories,
+    #id,
+    onDelete: KeyAction.setNull,
+  )();
 
   TextColumn get title => text()();
 
@@ -25,6 +27,6 @@ class Series extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {providerId, providerSeriesKey},
-      ];
+    {providerId, providerSeriesKey},
+  ];
 }

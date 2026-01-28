@@ -21,6 +21,13 @@ import 'package:openiptv/src/utils/profile_header_utils.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/src/utils/url_redaction.dart';
 
+class PingException implements Exception {
+  final String message;
+  PingException(this.message);
+  @override
+  String toString() => message;
+}
+
 /// Resolves the appropriate summary fetcher based on the provider kind.
 final summaryCoordinatorProvider = Provider<_SummaryCoordinator>((ref) {
   return _SummaryCoordinator(ref);
@@ -297,6 +304,13 @@ class _StalkerSummaryFetcher {
       );
     }
 
+    final pingDuration = await _client.ping(config);
+    if (pingDuration == null) {
+      throw PingException(
+        'Portal at ${config.baseUri} is offline or not responding.',
+      );
+    }
+
     try {
       final sessionLoader = summaryTestStalkerSessionLoader;
       final StalkerSession session = sessionLoader != null
@@ -407,6 +421,7 @@ class _StalkerSummaryFetcher {
         kind: ProviderKind.stalker,
         fields: fields,
         counts: counts,
+        pingLatency: pingDuration,
       );
     } catch (error, stackTrace) {
       if (kDebugMode) {
@@ -417,6 +432,7 @@ class _StalkerSummaryFetcher {
       return SummaryData(
         kind: ProviderKind.stalker,
         fields: {'Error': redactSensitiveText(error.toString())},
+        pingLatency: pingDuration,
       );
     }
   }
@@ -949,7 +965,8 @@ String? _formatSummaryValue(String key, dynamic value) {
   }
   if (lower.contains('date') ||
       lower.contains('expire') ||
-      lower.contains('expiry')) {
+      lower.contains('expiry') ||
+      lower.contains('phone')) {
     return _formatDateValue(value);
   }
   return _stringValue(value);

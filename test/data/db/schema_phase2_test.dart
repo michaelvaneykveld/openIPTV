@@ -25,13 +25,15 @@ void main() {
         displayName: const Value('Demo Provider'),
       ),
     );
-    channelId = await db.into(db.channels).insert(
-      ChannelsCompanion.insert(
-        providerId: providerId,
-        providerChannelKey: 'stream-1',
-        name: 'Demo Channel',
-      ),
-    );
+    channelId = await db
+        .into(db.channels)
+        .insert(
+          ChannelsCompanion.insert(
+            providerId: providerId,
+            providerChannelKey: 'stream-1',
+            name: 'Demo Channel',
+          ),
+        );
   });
 
   tearDown(() async {
@@ -104,4 +106,3 @@ void main() {
     expect(programs.first.title, 'Live Program');
   });
 }
-

@@ -24,17 +24,18 @@ class PlaybackHistoryDao extends DatabaseAccessor<OpenIptvDb>
     bool completed = false,
   }) async {
     final now = DateTime.now().toUtc();
-    final updated = await (update(playbackHistory)
-          ..where((tbl) => tbl.channelId.equals(channelId)))
-        .write(
-      PlaybackHistoryCompanion(
-        providerId: Value(providerId),
-        positionSec: Value(positionSec),
-        durationSec: Value(durationSec),
-        completed: Value(completed),
-        updatedAt: Value(now),
-      ),
-    );
+    final updated =
+        await (update(
+          playbackHistory,
+        )..where((tbl) => tbl.channelId.equals(channelId))).write(
+          PlaybackHistoryCompanion(
+            providerId: Value(providerId),
+            positionSec: Value(positionSec),
+            durationSec: Value(durationSec),
+            completed: Value(completed),
+            updatedAt: Value(now),
+          ),
+        );
 
     if (updated > 0) return;
 
@@ -53,9 +54,9 @@ class PlaybackHistoryDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<void> clearProgress(int channelId) async {
-    await (delete(playbackHistory)
-          ..where((tbl) => tbl.channelId.equals(channelId)))
-        .go();
+    await (delete(
+      playbackHistory,
+    )..where((tbl) => tbl.channelId.equals(channelId))).go();
   }
 
   Future<int> pruneOlderThan(DateTime threshold, {int? providerId}) {
@@ -71,16 +72,17 @@ class PlaybackHistoryDao extends DatabaseAccessor<OpenIptvDb>
     required int providerId,
     int limit = 50,
   }) {
-    final query = (select(playbackHistory)
-          ..where((tbl) => tbl.providerId.equals(providerId))
-          ..orderBy([
-            (tbl) => OrderingTerm(
+    final query =
+        (select(playbackHistory)
+              ..where((tbl) => tbl.providerId.equals(providerId))
+              ..orderBy([
+                (tbl) => OrderingTerm(
                   expression: tbl.updatedAt,
                   mode: OrderingMode.desc,
                 ),
-          ])
-          ..limit(limit))
-        .watch();
+              ])
+              ..limit(limit))
+            .watch();
     return query;
   }
 }

@@ -67,10 +67,7 @@ void main() {
     expect(record, isNotNull);
     expect(record!.isHidden, isTrue);
 
-    await userFlagDao.setFlags(
-      providerId: providerId,
-      channelId: channelId,
-    );
+    await userFlagDao.setFlags(providerId: providerId, channelId: channelId);
 
     record = await userFlagDao.findByChannel(channelId);
     expect(record, isNull);

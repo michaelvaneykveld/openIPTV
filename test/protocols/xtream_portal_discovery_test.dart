@@ -35,7 +35,7 @@ void main() {
         });
 
         final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
-        final discovery = XtreamPortalDiscovery();
+        final discovery = const XtreamPortalDiscovery();
 
         final result = await discovery.discoverFromUri(
           baseUri,
@@ -71,7 +71,7 @@ void main() {
       });
 
       final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
-      final discovery = XtreamPortalDiscovery();
+      final discovery = const XtreamPortalDiscovery();
 
       final result = await discovery.discoverFromUri(
         baseUri,
@@ -113,7 +113,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = XtreamPortalDiscovery();
+      final discovery = const XtreamPortalDiscovery();
       final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
 
       final result = await discovery.discoverFromUri(
@@ -160,7 +160,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = XtreamPortalDiscovery();
+      final discovery = const XtreamPortalDiscovery();
       final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
 
       final result = await discovery.discoverFromUri(

@@ -23,8 +23,6 @@ class EpgPrograms extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {channelId, startUtc},
-      ];
-
+    {channelId, startUtc},
+  ];
 }
-

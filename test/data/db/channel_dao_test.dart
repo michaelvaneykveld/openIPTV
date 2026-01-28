@@ -38,18 +38,22 @@ void main() {
           name: 'Channel $index',
           number: Value(index),
           isRadio: const Value(false),
-          lastSeenAt: Value(DateTime.utc(2024, 1, 1).add(Duration(seconds: index))),
+          lastSeenAt: Value(
+            DateTime.utc(2024, 1, 1).add(Duration(seconds: index)),
+          ),
         );
       });
 
-      final inserted =
-          await channelDao.bulkUpsertChannels(entries, chunkSize: 200);
+      final inserted = await channelDao.bulkUpsertChannels(
+        entries,
+        chunkSize: 200,
+      );
       expect(inserted, entries.length);
 
-      final idMap = await channelDao.fetchIdsForProviderKeys(
-        providerId,
-        ['key-0', 'key-1199'],
-      );
+      final idMap = await channelDao.fetchIdsForProviderKeys(providerId, [
+        'key-0',
+        'key-1199',
+      ]);
       expect(idMap.length, 2);
 
       final updatedEntries = [
@@ -63,10 +67,11 @@ void main() {
       ];
       await channelDao.bulkUpsertChannels(updatedEntries, chunkSize: 200);
 
-      final updatedRow = await (db.select(db.channels)
-            ..where((tbl) => tbl.providerId.equals(providerId))
-            ..where((tbl) => tbl.providerChannelKey.equals('key-0')))
-          .getSingle();
+      final updatedRow =
+          await (db.select(db.channels)
+                ..where((tbl) => tbl.providerId.equals(providerId))
+                ..where((tbl) => tbl.providerChannelKey.equals('key-0')))
+              .getSingle();
       expect(updatedRow.name, 'Updated Channel 0');
     });
 
@@ -86,9 +91,9 @@ void main() {
       );
       expect(secondId, channelId);
 
-      final stored = await (db.select(db.channels)
-            ..where((tbl) => tbl.id.equals(channelId)))
-          .getSingle();
+      final stored = await (db.select(
+        db.channels,
+      )..where((tbl) => tbl.id.equals(channelId))).getSingle();
       expect(stored.name, 'Updated');
       expect(stored.number, 5);
       expect(stored.isRadio, isTrue);
@@ -121,9 +126,9 @@ void main() {
         lastProgramAt: DateTime.utc(2024, 1, 2),
       );
 
-      final row = await (db.select(db.channels)
-            ..where((tbl) => tbl.id.equals(channelId)))
-          .getSingle();
+      final row = await (db.select(
+        db.channels,
+      )..where((tbl) => tbl.id.equals(channelId))).getSingle();
       expect(row.firstProgramAt?.toUtc(), DateTime.utc(2023, 12, 31, 23));
       expect(row.lastProgramAt?.toUtc(), DateTime.utc(2024, 1, 2));
     });

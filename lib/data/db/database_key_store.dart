@@ -37,8 +37,8 @@ class SecureDatabaseKeyStore extends DatabaseKeyStore {
   SecureDatabaseKeyStore({
     FlutterSecureStorage? storage,
     String keyName = _defaultKeyName,
-  })  : _storage = storage ?? const FlutterSecureStorage(),
-        _keyName = keyName;
+  }) : _storage = storage ?? const FlutterSecureStorage(),
+       _keyName = keyName;
 
   final FlutterSecureStorage _storage;
   final String _keyName;
@@ -80,4 +80,3 @@ class MemoryDatabaseKeyStore extends DatabaseKeyStore {
     _key = key;
   }
 }
-

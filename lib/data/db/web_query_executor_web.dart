@@ -4,8 +4,5 @@ import 'package:drift/drift.dart';
 import 'package:drift/web.dart';
 
 QueryExecutor createWebQueryExecutor() {
-  return WebDatabase(
-    'openiptv_web.db',
-    logStatements: false,
-  );
+  return WebDatabase('openiptv_web.db', logStatements: false);
 }

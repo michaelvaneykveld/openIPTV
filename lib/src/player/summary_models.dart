@@ -11,9 +11,7 @@ class ResolvedProviderProfile {
     required this.record,
     Map<String, String>? secrets,
     this.providerDbId,
-  }) : secrets = secrets == null
-           ? const {}
-           : Map.unmodifiable(Map.of(secrets));
+  }) : secrets = secrets == null ? const {} : Map.unmodifiable(Map.of(secrets));
 
   final ProviderProfileRecord record;
   final Map<String, String> secrets;
@@ -51,6 +49,7 @@ class SummaryData {
     Map<String, String>? fields,
     Map<String, int>? counts,
     DateTime? fetchedAt,
+    this.pingLatency,
   }) : fields = fields == null
            ? const {}
            : Map.unmodifiable(
@@ -74,16 +73,18 @@ class SummaryData {
   final Map<String, String> fields;
   final Map<String, int> counts;
   final DateTime fetchedAt;
+  final Duration? pingLatency;
 
   bool get hasFields => fields.isNotEmpty;
   bool get hasCounts => counts.isNotEmpty;
 
   Map<String, dynamic> toJson() => {
-        'kind': kind.index,
-        'fields': fields,
-        'counts': counts,
-        'fetchedAt': fetchedAt.toUtc().toIso8601String(),
-      };
+    'kind': kind.index,
+    'fields': fields,
+    'counts': counts,
+    'fetchedAt': fetchedAt.toUtc().toIso8601String(),
+    if (pingLatency != null) 'pingMs': pingLatency!.inMilliseconds,
+  };
 
   factory SummaryData.fromJson(Map<String, dynamic> json) {
     Map<String, String>? parseFields(dynamic value) {
@@ -98,8 +99,10 @@ class SummaryData {
     Map<String, int>? parseCounts(dynamic value) {
       if (value is Map) {
         return value.map(
-          (key, value) =>
-              MapEntry('$key', value is int ? value : int.tryParse('$value') ?? 0),
+          (key, value) => MapEntry(
+            '$key',
+            value is int ? value : int.tryParse('$value') ?? 0,
+          ),
         );
       }
       return null;
@@ -112,13 +115,17 @@ class SummaryData {
       kindIndex = 0;
     }
     final fetchedAtRaw = json['fetchedAt'] as String?;
+    final pingMs = json['pingMs'] as int?;
+
     return SummaryData(
-      kind: ProviderKind.values[kindIndex.clamp(0, ProviderKind.values.length - 1)],
+      kind: ProviderKind
+          .values[kindIndex.clamp(0, ProviderKind.values.length - 1)],
       fields: parseFields(json['fields']),
       counts: parseCounts(json['counts']),
       fetchedAt: fetchedAtRaw == null
           ? DateTime.now()
           : DateTime.tryParse(fetchedAtRaw)?.toLocal() ?? DateTime.now(),
+      pingLatency: pingMs == null ? null : Duration(milliseconds: pingMs),
     );
   }
 }

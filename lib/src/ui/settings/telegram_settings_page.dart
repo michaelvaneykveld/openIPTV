@@ -1,7 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:openiptv/src/telegram/telegram_service.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:openiptv/src/ui/settings/parsed_credentials_page.dart';
+import 'package:openiptv/src/utils/credential_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:t/t.dart' as t;
 import 'package:tg/tg.dart' as tg;
@@ -320,15 +320,15 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     setState(() => _isSyncing = true);
     _setStatus('Starting fetch...');
 
+    final allStalker = <StalkerCredential>[];
+    final allXtream = <XtreamCredential>[];
+
     try {
       final messageCount = int.tryParse(_messageCountController.text) ?? 50;
-      final tempDir = await getTemporaryDirectory();
-      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
 
       for (final chat in _myChats) {
         t.InputPeerBase? peer;
         String title = 'Unknown';
-        String handle = 'unknown';
 
         if (chat is t.Channel) {
           peer = t.InputPeerChannel(
@@ -336,11 +336,9 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
             accessHash: chat.accessHash ?? 0,
           );
           title = chat.title;
-          handle = chat.username ?? 'channel_${chat.id}';
         } else if (chat is t.Chat) {
           peer = t.InputPeerChat(chatId: chat.id);
           title = chat.title;
-          handle = 'group_${chat.id}';
         }
 
         if (peer == null) continue;
@@ -348,7 +346,6 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         _setStatus('Fetching $title...');
 
         try {
-          // Fetch History
           final historyRes = await _client!.invoke(
             t.MessagesGetHistory(
               peer: peer,
@@ -375,27 +372,13 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
             messages = history.messages;
           }
 
-          final sb = StringBuffer();
-          sb.writeln('Channel: $title ($handle)');
-          sb.writeln('Fetched at: $timestamp');
-          sb.writeln('Messages Found: ${messages.length}');
-          sb.writeln('-------------------');
-
-          int i = 1;
           for (final msg in messages) {
-            if (msg is t.Message) {
-              sb.writeln('[$i] ${msg.message}');
-              sb.writeln('---');
-              i++;
+            if (msg is t.Message && msg.message.isNotEmpty) {
+              final parsed = CredentialParser.parse(msg.message);
+              allStalker.addAll(parsed.stalker);
+              allXtream.addAll(parsed.xtream);
             }
           }
-
-          final safeName = handle.replaceAll(RegExp(r'[^\w\d]'), '_');
-          final file = File(
-            '${tempDir.path}/telegram_${safeName}_$timestamp.txt',
-          );
-          await file.writeAsString(sb.toString());
-          debugPrint('Saved to ${file.path}');
         } catch (e) {
           debugPrint('Error fetching $title: $e');
           _setStatus('Error fetching $title: $e');
@@ -404,8 +387,20 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
 
       setState(() {
         _isSyncing = false;
-        _statusMessage = 'Fetch complete! Check temp folder.';
+        _statusMessage =
+            'Fetch complete! Found ${allStalker.length + allXtream.length} credentials.';
       });
+
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ParsedCredentialsPage(
+              stalkerCredentials: allStalker,
+              xtreamCredentials: allXtream,
+            ),
+          ),
+        );
+      }
     } catch (e) {
       setState(() {
         _isSyncing = false;

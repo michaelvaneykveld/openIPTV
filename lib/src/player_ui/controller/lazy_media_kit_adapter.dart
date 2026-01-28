@@ -30,7 +30,7 @@ class LazyMediaKitAdapter implements PlayerAdapter, PlayerVideoSurfaceProvider {
        ) {
     MediaKit.ensureInitialized();
     _player = Player(
-      configuration: PlayerConfiguration(
+      configuration: const PlayerConfiguration(
         title: 'OpenIPTV',
         // libass: true,
         // protocolWhitelist: const [

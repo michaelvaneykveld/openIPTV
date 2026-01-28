@@ -69,8 +69,9 @@ void main() {
       container.dispose();
     });
 
-    testWidgets('renders favorites and recent playback using seeded DB',
-        (tester) async {
+    testWidgets('renders favorites and recent playback using seeded DB', (
+      tester,
+    ) async {
       await categoryDao.upsertCategory(
         providerId: providerId,
         kind: CategoryKind.live,
@@ -127,8 +128,9 @@ void main() {
       expect(find.text('Seeded Provider'), findsOneWidget);
     });
 
-    testWidgets('shows DB-backed category previews when expanded',
-        (tester) async {
+    testWidgets('shows DB-backed category previews when expanded', (
+      tester,
+    ) async {
       final categoryId = await categoryDao.upsertCategory(
         providerId: providerId,
         kind: CategoryKind.live,
@@ -194,27 +196,25 @@ void main() {
       expect(find.text('Library'), findsOneWidget);
     });
 
-    testWidgets('shows syncing placeholder when database is empty',
-        (tester) async {
+    testWidgets('shows syncing placeholder when database is empty', (
+      tester,
+    ) async {
       final localImportService = _FakeImportService();
       final placeholderContainer = ProviderContainer(
         overrides: [
           openIptvDbProvider.overrideWithValue(db),
           providerImportServiceProvider.overrideWithValue(localImportService),
           dbCategoriesProvider(providerId).overrideWith(
-            (ref) => Stream.value(
-              const <ContentBucket, List<CategoryEntry>>{},
-            ),
+            (ref) => Stream.value(const <ContentBucket, List<CategoryEntry>>{}),
           ),
-          dbSummaryProvider(DbSummaryArgs(providerId, ProviderKind.xtream))
-              .overrideWith(
-            (ref) => Stream.value(
-              SummaryData(kind: ProviderKind.xtream),
-            ),
+          dbSummaryProvider(
+            DbSummaryArgs(providerId, ProviderKind.xtream),
+          ).overrideWith(
+            (ref) => Stream.value(SummaryData(kind: ProviderKind.xtream)),
           ),
-          providerFavoritesProvider(providerId).overrideWith(
-            (ref) => const Stream< List<ChannelWithFlags> >.empty(),
-          ),
+          providerFavoritesProvider(
+            providerId,
+          ).overrideWith((ref) => const Stream<List<ChannelWithFlags>>.empty()),
           providerRecentPlaybackProvider(providerId).overrideWith(
             (ref) => const Stream<List<RecentChannelPlayback>>.empty(),
           ),
@@ -233,8 +233,9 @@ void main() {
       await _unmountShell(tester);
     });
 
-    testWidgets('shows summary syncing placeholder when no counts are ready',
-        (tester) async {
+    testWidgets('shows summary syncing placeholder when no counts are ready', (
+      tester,
+    ) async {
       final localImportService = _FakeImportService();
       final placeholderContainer = ProviderContainer(
         overrides: [
@@ -247,15 +248,14 @@ void main() {
               ],
             }),
           ),
-          dbSummaryProvider(DbSummaryArgs(providerId, ProviderKind.xtream))
-              .overrideWith(
-            (ref) => Stream.value(
-              SummaryData(kind: ProviderKind.xtream),
-            ),
+          dbSummaryProvider(
+            DbSummaryArgs(providerId, ProviderKind.xtream),
+          ).overrideWith(
+            (ref) => Stream.value(SummaryData(kind: ProviderKind.xtream)),
           ),
-          providerFavoritesProvider(providerId).overrideWith(
-            (ref) => const Stream<List<ChannelWithFlags>>.empty(),
-          ),
+          providerFavoritesProvider(
+            providerId,
+          ).overrideWith((ref) => const Stream<List<ChannelWithFlags>>.empty()),
           providerRecentPlaybackProvider(providerId).overrideWith(
             (ref) => const Stream<List<RecentChannelPlayback>>.empty(),
           ),
@@ -287,9 +287,7 @@ Future<void> _pumpShell(
   return tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(
-        home: PlayerShell(profile: profile),
-      ),
+      child: MaterialApp(home: PlayerShell(profile: profile)),
     ),
   );
 }

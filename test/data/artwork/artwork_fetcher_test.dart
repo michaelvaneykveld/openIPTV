@@ -30,7 +30,9 @@ void main() {
   });
 
   test('fetch stores bytes and leverages conditional requests', () async {
-    final server = await _TestServer.start(bytes: Uint8List.fromList([1, 2, 3]));
+    final server = await _TestServer.start(
+      bytes: Uint8List.fromList([1, 2, 3]),
+    );
     addTearDown(server.close);
 
     final fetcher = ArtworkFetcher(
@@ -47,10 +49,7 @@ void main() {
     // Trigger second fetch - server should emit 304 and fetcher should
     // serve cached bytes.
     server.enableConditionalResponses();
-    final second = await fetcher.fetch(
-      url,
-      maxAge: Duration.zero,
-    );
+    final second = await fetcher.fetch(url, maxAge: Duration.zero);
     expect(second.fromCache, isTrue);
     expect(second.bytes, equals([1, 2, 3]));
     expect(server.requestCount, equals(2));
@@ -58,8 +57,10 @@ void main() {
 
   test('fetch stores oversized payloads on disk and prunes extras', () async {
     final largeBytes = Uint8List.fromList(List<int>.filled(512, 7));
-    final server =
-        await _TestServer.start(bytes: largeBytes, etag: '"large-v1"');
+    final server = await _TestServer.start(
+      bytes: largeBytes,
+      etag: '"large-v1"',
+    );
     addTearDown(server.close);
 
     final fetcher = ArtworkFetcher(
@@ -77,8 +78,9 @@ void main() {
     expect(File(resultA.record.filePath!).existsSync(), isTrue);
 
     // Add a second entry to trigger pruning by entry count.
-    final serverB =
-        await _TestServer.start(bytes: Uint8List.fromList([9, 9, 9]));
+    final serverB = await _TestServer.start(
+      bytes: Uint8List.fromList([9, 9, 9]),
+    );
     addTearDown(serverB.close);
 
     await fetcher.fetch(serverB.url);

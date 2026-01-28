@@ -23,14 +23,18 @@ class StalkerHttpClient {
           dio ??
           Dio(
             BaseOptions(
-              connectTimeout: Duration(seconds: 10),
-              receiveTimeout: Duration(seconds: 10),
-              sendTimeout: Duration(seconds: 10),
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 10),
+              sendTimeout: const Duration(seconds: 10),
               // Stalker portals are often self-signed; we will handle TLS
               // overrides in a dedicated adapter later if required.
               responseType: ResponseType.json,
             ),
-          );
+          ) {
+    // Some servers don't handle compression correctly. Disabling it makes the
+    // client more robust.
+    _dio.options.headers['accept-encoding'] = 'identity';
+  }
 
   /// Performs a GET request against `portal.php` with the supplied query
   /// parameters and headers. Returns a lightweight envelope containing the
@@ -59,25 +63,54 @@ class StalkerHttpClient {
 
     // Execute the HTTP call. We request a plain response so we can control
     // JSON decoding manually and surface clearer error messages.
-    final response = await _dio.getUri(
-      uri,
-      options: Options(
-        responseType: ResponseType.plain,
-        headers: normalizedHeaders,
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
+    try {
+      final response = await _dio.getUri(
+        uri,
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: normalizedHeaders,
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
 
-    // Capture all `Set-Cookie` values so the session can rebuild the cookie
-    // header later without hard-coding attribute stripping logic here.
-    final cookies = response.headers.map['set-cookie'] ?? const <String>[];
+      // Capture all `Set-Cookie` values so the session can rebuild the cookie
+      // header later without hard-coding attribute stripping logic here.
+      final cookies = response.headers.map['set-cookie'] ?? const <String>[];
 
-    return PortalResponseEnvelope(
-      body: response.data,
-      statusCode: response.statusCode ?? 0,
-      headers: response.headers.map,
-      cookies: cookies,
-    );
+      return PortalResponseEnvelope(
+        body: response.data,
+        statusCode: response.statusCode ?? 0,
+        headers: response.headers.map,
+        cookies: cookies,
+      );
+    } on DioException catch (e) {
+      // The original exception is often a raw `HttpException` which lacks
+      // context. We'll re-throw a `DioException` with the relevant URI
+      // to make it easier to debug from the logs.
+      throw DioException(
+        requestOptions: e.requestOptions..path = uri.toString(),
+        response: e.response,
+        type: e.type,
+        error: e.error,
+      );
+    }
+  }
+
+  Future<Duration?> ping(StalkerPortalConfiguration configuration) async {
+    _applyTlsOverrides(configuration.allowSelfSignedTls);
+    try {
+      final stopwatch = Stopwatch()..start();
+      await _dio.getUri(
+        configuration.baseUri,
+        options: Options(
+          validateStatus: (status) => status != null && status < 500,
+        ),
+      );
+      stopwatch.stop();
+      return stopwatch.elapsed;
+    } catch (e) {
+      return null;
+    }
   }
 
   Map<String, String> _mergeStbHeaders({
@@ -96,8 +129,11 @@ class StalkerHttpClient {
       }
     }
 
-    ensureHeader('User-Agent', configuration.userAgent);
-    ensureHeader('X-User-Agent', configuration.userAgent);
+    final userAgent = configuration.userAgent.isNotEmpty
+        ? configuration.userAgent
+        : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    ensureHeader('User-Agent', userAgent);
+    ensureHeader('X-User-Agent', userAgent);
     ensureHeader('Referer', configuration.refererUri.toString());
     if (token != null && token.isNotEmpty) {
       ensureHeader('Authorization', 'Bearer $token');

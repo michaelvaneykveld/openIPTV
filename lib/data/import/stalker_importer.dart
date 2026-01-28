@@ -365,7 +365,7 @@ class StalkerImporter {
       );
 
       // Import seasons and episodes if series data contains them
-      var detailsImported = await _upsertSeriesSeasons(
+      final detailsImported = await _upsertSeriesSeasons(
         txn,
         seriesId: seriesId,
         seriesItem: item,

@@ -20,13 +20,10 @@ class XtreamLoginPayload {
 
   /// Parses the raw response, accepting either JSON strings or decoded maps.
   factory XtreamLoginPayload.parse(dynamic raw) {
-    final dynamic decoded =
-        raw is String ? jsonDecode(raw) : raw;
+    final dynamic decoded = raw is String ? jsonDecode(raw) : raw;
 
     if (decoded is! Map<String, dynamic>) {
-      throw const FormatException(
-        'Xtream login payload is not a JSON object.',
-      );
+      throw const FormatException('Xtream login payload is not a JSON object.');
     }
 
     final userSection = decoded['user_info'];
@@ -74,8 +71,9 @@ class XtreamUserInfo {
 
   factory XtreamUserInfo.fromJson(Map<String, dynamic> json) {
     final status = json['status']?.toString() ?? 'Disabled';
-    final auth =
-        json['auth'] is String ? json['auth'] == '1' : json['auth'] == 1 || json['auth'] == true;
+    final auth = json['auth'] is String
+        ? json['auth'] == '1'
+        : json['auth'] == 1 || json['auth'] == true;
     return XtreamUserInfo(
       authenticated: auth,
       status: status,
@@ -120,8 +118,9 @@ class XtreamServerInfo {
 
   factory XtreamServerInfo.fromJson(Map<String, dynamic> json) {
     final timeNow = _parseInt(json['server_time_now']);
-    final serverTime =
-        timeNow != null ? DateTime.fromMillisecondsSinceEpoch(timeNow * 1000, isUtc: true) : null;
+    final serverTime = timeNow != null
+        ? DateTime.fromMillisecondsSinceEpoch(timeNow * 1000, isUtc: true)
+        : null;
     return XtreamServerInfo(
       serverUrl: json['url']?.toString() ?? '',
       serverProtocol: json['server_protocol']?.toString() ?? 'http',
@@ -160,4 +159,3 @@ bool? _parseBool(dynamic value) {
   }
   return null;
 }
-

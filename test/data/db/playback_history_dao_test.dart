@@ -72,7 +72,10 @@ void main() {
     expect(updated.durationSec, 3600);
     expect(updated.completed, isTrue);
     expect(updated.startedAt, equals(startedAt));
-    expect(updated.updatedAt.isAfter(startedAt) || updated.updatedAt == startedAt, isTrue);
+    expect(
+      updated.updatedAt.isAfter(startedAt) || updated.updatedAt == startedAt,
+      isTrue,
+    );
   });
 
   test('pruneOlderThan removes stale entries', () async {
@@ -83,17 +86,13 @@ void main() {
     );
 
     // Force the updatedAt timestamp to be old.
-    await (db.update(db.playbackHistory)
-          ..where((tbl) => tbl.channelId.equals(channelId)))
-        .write(
-      PlaybackHistoryCompanion(
-        updatedAt: Value(DateTime.utc(2020, 1, 1)),
-      ),
+    await (db.update(
+      db.playbackHistory,
+    )..where((tbl) => tbl.channelId.equals(channelId))).write(
+      PlaybackHistoryCompanion(updatedAt: Value(DateTime.utc(2020, 1, 1))),
     );
 
-    final removed = await historyDao.pruneOlderThan(
-      DateTime.utc(2021, 1, 1),
-    );
+    final removed = await historyDao.pruneOlderThan(DateTime.utc(2021, 1, 1));
     expect(removed, 1);
 
     final remaining = await historyDao.findByChannel(channelId);

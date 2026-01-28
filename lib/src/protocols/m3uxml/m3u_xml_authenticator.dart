@@ -21,7 +21,7 @@ class DefaultM3uXmlAuthenticator implements M3uXmlAuthenticator {
   final M3uXmlClient _client;
 
   DefaultM3uXmlAuthenticator({M3uXmlClient? client})
-      : _client = client ?? M3uXmlClient();
+    : _client = client ?? M3uXmlClient();
 
   @override
   Future<M3uXmlSession> authenticate(
@@ -41,8 +41,8 @@ class DefaultM3uXmlAuthenticator implements M3uXmlAuthenticator {
 
     // Decode the playlist text using the preferred encoding and perform a
     // minimal sanity check (presence of #EXTM3U header).
-    final playlistText =
-        playlistEnvelope.decodeBody(); // uses UTF-8 by default.
+    final playlistText = playlistEnvelope
+        .decodeBody(); // uses UTF-8 by default.
     if (!_looksLikeM3u(playlistText)) {
       throw const M3uXmlAuthenticationException(
         'Fetched playlist does not appear to be a valid extended M3U document.',
@@ -92,4 +92,3 @@ class M3uXmlAuthenticationException implements Exception {
   @override
   String toString() => 'M3uXmlAuthenticationException: $message';
 }
-

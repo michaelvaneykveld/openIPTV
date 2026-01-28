@@ -5,8 +5,7 @@ import '../openiptv_db.dart';
 part 'user_flag_dao.g.dart';
 
 @DriftAccessor(tables: [UserFlags])
-class UserFlagDao extends DatabaseAccessor<OpenIptvDb>
-    with _$UserFlagDaoMixin {
+class UserFlagDao extends DatabaseAccessor<OpenIptvDb> with _$UserFlagDaoMixin {
   UserFlagDao(super.db);
 
   Future<UserFlagRecord?> findByChannel(int channelId) {
@@ -24,9 +23,9 @@ class UserFlagDao extends DatabaseAccessor<OpenIptvDb>
     bool isPinned = false,
   }) async {
     if (!isFavorite && !isHidden && !isPinned) {
-      await (delete(userFlags)
-            ..where((tbl) => tbl.channelId.equals(channelId)))
-          .go();
+      await (delete(
+        userFlags,
+      )..where((tbl) => tbl.channelId.equals(channelId))).go();
       return;
     }
 
@@ -45,18 +44,16 @@ class UserFlagDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<void> clearAllForProvider(int providerId) async {
-    await (delete(userFlags)..where((tbl) => tbl.providerId.equals(providerId)))
-        .go();
+    await (delete(
+      userFlags,
+    )..where((tbl) => tbl.providerId.equals(providerId))).go();
   }
 
   Stream<List<UserFlagRecord>> watchForProvider(int providerId) {
-    final query =
-        select(userFlags)..where((tbl) => tbl.providerId.equals(providerId));
+    final query = select(userFlags)
+      ..where((tbl) => tbl.providerId.equals(providerId));
     query.orderBy([
-      (tbl) => OrderingTerm(
-            expression: tbl.updatedAt,
-            mode: OrderingMode.desc,
-          ),
+      (tbl) => OrderingTerm(expression: tbl.updatedAt, mode: OrderingMode.desc),
     ]);
     return query.watch();
   }
@@ -73,9 +70,9 @@ class UserFlagDao extends DatabaseAccessor<OpenIptvDb>
   ) async {
     final ids = channelIds.toSet();
     if (ids.isEmpty) return const {};
-    final rows = await (select(userFlags)
-          ..where((tbl) => tbl.channelId.isIn(ids.toList())))
-        .get();
+    final rows = await (select(
+      userFlags,
+    )..where((tbl) => tbl.channelId.isIn(ids.toList()))).get();
     return {for (final row in rows) row.channelId: row};
   }
 }

@@ -25,10 +25,10 @@ class MediaKitPlaylistAdapter
        _snapshotController = StreamController<PlayerSnapshot>.broadcast() {
     MediaKit.ensureInitialized();
     _player = Player(
-      configuration: PlayerConfiguration(
+      configuration: const PlayerConfiguration(
         title: 'OpenIPTV',
         libass: true,
-        protocolWhitelist: const [
+        protocolWhitelist: [
           'file',
           'http',
           'https',

@@ -8,4 +8,3 @@ class VodSearchFts extends Table {
   TextColumn get itemType => text().named('item_type')();
   TextColumn get itemId => text().named('item_id')();
 }
-

@@ -40,13 +40,15 @@ void main() {
       databaseFile: null,
     );
 
-    providerId = await db.into(db.providers).insert(
-      ProvidersCompanion.insert(
-        kind: ProviderKind.xtream,
-        displayName: const Value('Test'),
-        lockedBase: 'https://example.com',
-      ),
-    );
+    providerId = await db
+        .into(db.providers)
+        .insert(
+          ProvidersCompanion.insert(
+            kind: ProviderKind.xtream,
+            displayName: const Value('Test'),
+            lockedBase: 'https://example.com',
+          ),
+        );
 
     final now = DateTime.now().toUtc();
     await channelDao.upsertChannel(

@@ -67,8 +67,9 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result =
-        await container.read(legacyCategoriesProvider(profile).future);
+    final result = await container.read(
+      legacyCategoriesProvider(profile).future,
+    );
 
     expect(
       seenActions,
@@ -103,8 +104,9 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result =
-        await container.read(legacyCategoriesProvider(profile).future);
+    final result = await container.read(
+      legacyCategoriesProvider(profile).future,
+    );
 
     expect(
       result[ContentBucket.live]!.map((e) => e.name),
@@ -140,8 +142,9 @@ http://example.com/live.m3u8
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    final result =
-        await container.read(legacyCategoriesProvider(profile).future);
+    final result = await container.read(
+      legacyCategoriesProvider(profile).future,
+    );
 
     expect(result[ContentBucket.films]!.single.count, 1);
     expect(result[ContentBucket.series]!.single.name, 'Series');
@@ -153,7 +156,9 @@ http://example.com/live.m3u8
     final db = OpenIptvDb.inMemory();
     addTearDown(db.close);
 
-    final providerId = await db.into(db.providers).insert(
+    final providerId = await db
+        .into(db.providers)
+        .insert(
           ProvidersCompanion.insert(
             kind: ProviderKind.xtream,
             lockedBase: 'https://demo',
@@ -163,7 +168,9 @@ http://example.com/live.m3u8
             legacyProfileId: const Value('legacy-1'),
           ),
         );
-    final liveCategoryId = await db.into(db.categories).insert(
+    final liveCategoryId = await db
+        .into(db.categories)
+        .insert(
           CategoriesCompanion.insert(
             providerId: providerId,
             kind: CategoryKind.live,
@@ -171,7 +178,9 @@ http://example.com/live.m3u8
             name: 'News',
           ),
         );
-    final vodCategoryId = await db.into(db.categories).insert(
+    final vodCategoryId = await db
+        .into(db.categories)
+        .insert(
           CategoriesCompanion.insert(
             providerId: providerId,
             kind: CategoryKind.vod,
@@ -179,20 +188,26 @@ http://example.com/live.m3u8
             name: 'Movies',
           ),
         );
-    final channelId = await db.into(db.channels).insert(
+    final channelId = await db
+        .into(db.channels)
+        .insert(
           ChannelsCompanion.insert(
             providerId: providerId,
             providerChannelKey: 'ch-1',
             name: 'Channel One',
           ),
         );
-    await db.into(db.channelCategories).insert(
+    await db
+        .into(db.channelCategories)
+        .insert(
           ChannelCategoriesCompanion.insert(
             channelId: channelId,
             categoryId: liveCategoryId,
           ),
         );
-    await db.into(db.movies).insert(
+    await db
+        .into(db.movies)
+        .insert(
           MoviesCompanion.insert(
             providerId: providerId,
             providerVodKey: 'vod-1',
@@ -202,14 +217,11 @@ http://example.com/live.m3u8
         );
 
     final container = ProviderContainer(
-      overrides: [
-        openIptvDbProvider.overrideWithValue(db),
-      ],
+      overrides: [openIptvDbProvider.overrideWithValue(db)],
     );
     addTearDown(container.dispose);
 
-    final map =
-        await container.read(dbCategoriesProvider(providerId).future);
+    final map = await container.read(dbCategoriesProvider(providerId).future);
     expect(map[ContentBucket.live], isNotEmpty);
     expect(map[ContentBucket.films], isNotEmpty);
     expect(map[ContentBucket.live]!.first.count, equals(1));

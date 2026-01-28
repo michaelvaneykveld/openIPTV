@@ -983,7 +983,7 @@ class _StalkerCategoriesFetcher {
           break;
         }
         items.addAll(chunk);
-        if (totalItems case int currentTotal
+        if (totalItems case final int currentTotal
             when items.length >= currentTotal) {
           break;
         }

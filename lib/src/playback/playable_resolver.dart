@@ -439,7 +439,7 @@ class PlayableResolver {
       // Probing causes 401 errors because servers require full authentication
       final ext = templateExtension ?? (isLive ? 'ts' : 'm3u8');
 
-      var manualUrl = SmartUrlBuilder.build(
+      final manualUrl = SmartUrlBuilder.build(
         host: base.host,
         port: base.port,
         type: 'live',
@@ -489,7 +489,7 @@ class PlayableResolver {
     };
     // For VOD, ignore template extension and use proper container format
     // Some providers mistakenly set .ts in templates, but VOD requires .mp4/.mkv
-    var ext = (kind == ContentBucket.films || kind == ContentBucket.series)
+    final ext = (kind == ContentBucket.films || kind == ContentBucket.series)
         ? _resolveXtreamExtension(kind: kind, isLive: isLive)
         : (templateExtension ??
               _resolveXtreamExtension(kind: kind, isLive: isLive));
@@ -1140,7 +1140,7 @@ class PlayableResolver {
             freshPlayToken != null &&
             freshPlayToken.isNotEmpty) {
           // DO NOT add play_token to Cookie header. It belongs in URL only.
-          var headers = _mergePlaybackCookies(
+          final headers = _mergePlaybackCookies(
             playbackHeaders,
             response.cookies,
           );
@@ -1818,7 +1818,7 @@ class PlayableResolver {
         data = Map<String, dynamic>.from(data['js']);
       }
 
-      var duration = _parseStalkerDuration(data);
+      final duration = _parseStalkerDuration(data);
       if (duration != null) return duration;
 
       // Fallback to vod get_info with episode ID (common for clones)

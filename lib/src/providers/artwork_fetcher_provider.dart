@@ -41,29 +41,25 @@ final artworkFetcherProvider = FutureProvider<ArtworkFetcher>((ref) async {
         telemetry.logCrashSafeError(
           category: 'artwork',
           message: 'Artwork fetch error',
-          metadata: {
-            'url': event.url,
-            'error': event.error,
-          },
+          metadata: {'url': event.url, 'error': event.error},
         );
       }
     },
   );
 });
 
-final artworkImageProvider =
-    FutureProvider.family<Uint8List?, String>((ref, url) async {
-      if (url.isEmpty) {
-        return null;
-      }
-      final fetcher = await ref.watch(artworkFetcherProvider.future);
-      try {
-        final result = await fetcher.fetch(
-          url,
-          maxAge: const Duration(days: 7),
-        );
-        return result.bytes;
-      } catch (_) {
-        return null;
-      }
-    });
+final artworkImageProvider = FutureProvider.family<Uint8List?, String>((
+  ref,
+  url,
+) async {
+  if (url.isEmpty) {
+    return null;
+  }
+  final fetcher = await ref.watch(artworkFetcherProvider.future);
+  try {
+    final result = await fetcher.fetch(url, maxAge: const Duration(days: 7));
+    return result.bytes;
+  } catch (_) {
+    return null;
+  }
+});

@@ -33,10 +33,7 @@ String canonicalizeScheme(String value, {String defaultScheme = 'https'}) {
 /// Attempts to parse [value] into an HTTP(S) [Uri] even when the scheme is
 /// missing. Returns `null` when the input cannot reasonably be interpreted as
 /// a web URL.
-Uri? tryParseLenientHttpUri(
-  String value, {
-  String defaultScheme = 'https',
-}) {
+Uri? tryParseLenientHttpUri(String value, {String defaultScheme = 'https'}) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) {
     return null;
@@ -51,8 +48,9 @@ Uri? tryParseLenientHttpUri(
     return parsed;
   }
 
-  final withScheme =
-      _schemePattern.hasMatch(trimmed) ? trimmed : '$defaultScheme://$trimmed';
+  final withScheme = _schemePattern.hasMatch(trimmed)
+      ? trimmed
+      : '$defaultScheme://$trimmed';
   parsed = Uri.tryParse(withScheme);
   if (_isHttpUri(parsed)) {
     return parsed;
@@ -100,8 +98,9 @@ String? _ensureBracketedIpv6(String value) {
   final scheme = value.substring(0, schemeBreak);
   final remainder = value.substring(schemeBreak + 3);
   final pathStart = remainder.indexOf('/');
-  final authority =
-      pathStart == -1 ? remainder : remainder.substring(0, pathStart);
+  final authority = pathStart == -1
+      ? remainder
+      : remainder.substring(0, pathStart);
   final tail = pathStart == -1 ? '' : remainder.substring(pathStart);
 
   if (authority.isEmpty ||
@@ -111,10 +110,8 @@ String? _ensureBracketedIpv6(String value) {
   }
 
   final atIndex = authority.lastIndexOf('@');
-  final userInfo =
-      atIndex == -1 ? '' : authority.substring(0, atIndex + 1);
-  final hostPort =
-      atIndex == -1 ? authority : authority.substring(atIndex + 1);
+  final userInfo = atIndex == -1 ? '' : authority.substring(0, atIndex + 1);
+  final hostPort = atIndex == -1 ? authority : authority.substring(atIndex + 1);
 
   var host = hostPort;
   var portSuffix = '';
@@ -141,8 +138,7 @@ bool _looksLikeIpv6Host(String host) {
   if (!plainHost.contains(':')) return false;
 
   final doubleColon = plainHost.indexOf('::');
-  if (doubleColon != -1 &&
-      plainHost.indexOf('::', doubleColon + 1) != -1) {
+  if (doubleColon != -1 && plainHost.indexOf('::', doubleColon + 1) != -1) {
     return false;
   }
 

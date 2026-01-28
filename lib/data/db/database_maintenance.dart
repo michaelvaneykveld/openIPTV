@@ -94,8 +94,7 @@ class DatabaseMaintenance {
     final timestamp = now ?? DateTime.now().toUtc();
     final cutoff = timestamp.subtract(config.tombstoneRetention);
     try {
-      final removed =
-          await channelDao.purgeAllStaleChannels(olderThan: cutoff);
+      final removed = await channelDao.purgeAllStaleChannels(olderThan: cutoff);
       if (removed > 0) {
         debugPrint('Purged $removed stale channel rows.');
       }
@@ -106,10 +105,12 @@ class DatabaseMaintenance {
 
   Future<void> runArtworkPrune({bool force = false}) async {
     try {
-      final removedByCount =
-          await artworkDao.pruneToEntryBudget(config.artworkEntryBudget);
-      final removedBySize = await artworkDao
-          .pruneToSizeBudget(config.artworkSizeBudgetBytes);
+      final removedByCount = await artworkDao.pruneToEntryBudget(
+        config.artworkEntryBudget,
+      );
+      final removedBySize = await artworkDao.pruneToSizeBudget(
+        config.artworkSizeBudgetBytes,
+      );
       final removed = removedByCount.length + removedBySize.length;
       if (removed > 0) {
         debugPrint('Pruned $removed artwork cache entries.');

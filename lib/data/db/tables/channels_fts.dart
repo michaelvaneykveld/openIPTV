@@ -10,4 +10,3 @@ class ChannelSearchFts extends Table {
   @override
   Set<Column> get primaryKey => {channelId};
 }
-

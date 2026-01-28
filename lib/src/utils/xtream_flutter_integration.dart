@@ -171,7 +171,7 @@ class MediaKitManager {
     // The exact API may vary by package version. Adjust if your media_kit version differs.
 
     final player = Player(
-      configuration: PlayerConfiguration(
+      configuration: const PlayerConfiguration(
         title: 'Xtream VOD',
         // httpHeaders: {
         //   'User-Agent': userAgent,
@@ -206,7 +206,7 @@ class MediaKitManager {
     bool autoplay = true,
   }) async {
     final player = Player(
-      configuration: PlayerConfiguration(title: 'Xtream LIVE'),
+      configuration: const PlayerConfiguration(title: 'Xtream LIVE'),
     );
 
     logger.log('PLAYER', 'Opening LIVE $url with UA $userAgent');

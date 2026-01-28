@@ -9,15 +9,12 @@ class Summaries extends Table {
 
   TextColumn get kind => textEnum<CategoryKind>()();
 
-  IntColumn get totalItems =>
-      integer().withDefault(const Constant(0))();
+  IntColumn get totalItems => integer().withDefault(const Constant(0))();
 
-  DateTimeColumn get updatedAt =>
-      dateTime().withDefault(currentDateAndTime)();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {providerId, kind}
-      ];
-
+    {providerId, kind},
+  ];
 }

@@ -50,263 +50,251 @@ void main() {
     await database.close();
   });
 
-  testWidgets(
-    'Advanced sections expose shared controls across providers',
-    (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+  testWidgets('Advanced sections expose shared controls across providers', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            providerProfileRepositoryProvider.overrideWithValue(repository),
-            savedProfilesStreamProvider.overrideWith(
-              (ref) => Stream.value(const <ProviderProfileRecord>[]),
-            ),
-          ],
-          child: const MaterialApp(
-            home: LoginScreen(),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(repository),
+          savedProfilesStreamProvider.overrideWith(
+            (ref) => Stream.value(const <ProviderProfileRecord>[]),
           ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    Future<void> expectCommonAdvancedControls(ValueKey<String> key) async {
+      final tileFinder = find.byKey(key);
+      expect(tileFinder, findsOneWidget);
+      await tester.ensureVisible(tileFinder);
+      await tester.tap(tileFinder);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: tileFinder,
+          matching: find.text('User-Agent override'),
         ),
+        findsOneWidget,
       );
-
-      await tester.pumpAndSettle();
-
-      Future<void> expectCommonAdvancedControls(ValueKey<String> key) async {
-        final tileFinder = find.byKey(key);
-        expect(tileFinder, findsOneWidget);
-        await tester.ensureVisible(tileFinder);
-        await tester.tap(tileFinder);
-        await tester.pumpAndSettle();
-
-        expect(
-          find.descendant(
-            of: tileFinder,
-            matching: find.text('User-Agent override'),
-          ),
-          findsOneWidget,
-        );
-        expect(
-          find.descendant(
-            of: tileFinder,
-            matching: find.text('Custom headers'),
-          ),
-          findsOneWidget,
-        );
-        expect(
-          find.descendant(
-            of: tileFinder,
-            matching: find.text('Allow self-signed TLS'),
-          ),
-          findsOneWidget,
-        );
-      }
-
-      await expectCommonAdvancedControls(
-        const ValueKey<String>('stalkerAdvancedTile'),
-      );
-
-      await tester.tap(find.text('Xtream'));
-      await tester.pumpAndSettle();
-      await expectCommonAdvancedControls(
-        const ValueKey<String>('xtreamAdvancedTile'),
-      );
-
-      await tester.tap(find.text('M3U'));
-      await tester.pumpAndSettle();
-      await expectCommonAdvancedControls(
-        const ValueKey<String>('m3uAdvancedTile'),
+      expect(
+        find.descendant(of: tileFinder, matching: find.text('Custom headers')),
+        findsOneWidget,
       );
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey<String>('m3uAdvancedTile')),
-          matching: find.text('Follow redirects automatically'),
+          of: tileFinder,
+          matching: find.text('Allow self-signed TLS'),
         ),
         findsOneWidget,
       );
-    },
-  );
+    }
 
-  testWidgets(
-    'Save toggle updates flow controller state',
-    (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    await expectCommonAdvancedControls(
+      const ValueKey<String>('stalkerAdvancedTile'),
+    );
 
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await SharedPreferences.getInstance();
-      final draftRepository = _RecordingDraftRepository(
-        preferences: preferences,
-        secureStorage: const FlutterSecureStorage(),
-      );
+    await tester.tap(find.text('Xtream'));
+    await tester.pumpAndSettle();
+    await expectCommonAdvancedControls(
+      const ValueKey<String>('xtreamAdvancedTile'),
+    );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            providerProfileRepositoryProvider.overrideWithValue(repository),
-            loginDraftRepositoryProvider.overrideWith(
-              (ref) => Future.value(draftRepository),
-            ),
-            savedProfilesStreamProvider.overrideWith(
-              (ref) => Stream.value(const <ProviderProfileRecord>[]),
-            ),
-          ],
-          child: const MaterialApp(home: LoginScreen()),
-        ),
-      );
+    await tester.tap(find.text('M3U'));
+    await tester.pumpAndSettle();
+    await expectCommonAdvancedControls(
+      const ValueKey<String>('m3uAdvancedTile'),
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey<String>('m3uAdvancedTile')),
+        matching: find.text('Follow redirects automatically'),
+      ),
+      findsOneWidget,
+    );
+  });
 
-      await tester.pumpAndSettle();
+  testWidgets('Save toggle updates flow controller state', (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final loginScreenContext = tester.element(find.byType(LoginScreen));
-      final container = ProviderScope.containerOf(
-        loginScreenContext,
-        listen: false,
-      );
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final draftRepository = _RecordingDraftRepository(
+      preferences: preferences,
+      secureStorage: const FlutterSecureStorage(),
+    );
 
-      final initialSaveState =
-          container.read(loginFlowControllerProvider).saveForLater;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(repository),
+          loginDraftRepositoryProvider.overrideWith(
+            (ref) => Future.value(draftRepository),
+          ),
+          savedProfilesStreamProvider.overrideWith(
+            (ref) => Stream.value(const <ProviderProfileRecord>[]),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
 
-      final toggleFinder =
-          find.byKey(const ValueKey<String>('stalkerSaveToggle'));
-      expect(toggleFinder, findsOneWidget);
+    await tester.pumpAndSettle();
 
-      await tester.tap(toggleFinder);
-      await tester.pumpAndSettle();
+    final loginScreenContext = tester.element(find.byType(LoginScreen));
+    final container = ProviderScope.containerOf(
+      loginScreenContext,
+      listen: false,
+    );
 
-      final toggledState =
-          container.read(loginFlowControllerProvider).saveForLater;
-      expect(toggledState, isNot(equals(initialSaveState)));
+    final initialSaveState = container
+        .read(loginFlowControllerProvider)
+        .saveForLater;
 
-      await tester.tap(toggleFinder);
-      await tester.pumpAndSettle();
+    final toggleFinder = find.byKey(
+      const ValueKey<String>('stalkerSaveToggle'),
+    );
+    expect(toggleFinder, findsOneWidget);
 
-      expect(
-        container.read(loginFlowControllerProvider).saveForLater,
-        equals(initialSaveState),
-      );
-    },
-  );
+    await tester.tap(toggleFinder);
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'Save toggle state persists across provider tabs',
-    (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    final toggledState = container
+        .read(loginFlowControllerProvider)
+        .saveForLater;
+    expect(toggledState, isNot(equals(initialSaveState)));
 
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await SharedPreferences.getInstance();
-      final draftRepository = _RecordingDraftRepository(
-        preferences: preferences,
-        secureStorage: const FlutterSecureStorage(),
-      );
+    await tester.tap(toggleFinder);
+    await tester.pumpAndSettle();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            providerProfileRepositoryProvider.overrideWithValue(repository),
-            loginDraftRepositoryProvider.overrideWith(
-              (ref) => Future.value(draftRepository),
-            ),
-            savedProfilesStreamProvider.overrideWith(
-              (ref) => Stream.value(const <ProviderProfileRecord>[]),
-            ),
-          ],
-          child: const MaterialApp(home: LoginScreen()),
-        ),
-      );
+    expect(
+      container.read(loginFlowControllerProvider).saveForLater,
+      equals(initialSaveState),
+    );
+  });
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(LoginScreen)),
-        listen: false,
-      );
+  testWidgets('Save toggle state persists across provider tabs', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      final initialSaveState =
-          container.read(loginFlowControllerProvider).saveForLater;
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final draftRepository = _RecordingDraftRepository(
+      preferences: preferences,
+      secureStorage: const FlutterSecureStorage(),
+    );
 
-      await tester.tap(find.byKey(const ValueKey<String>('stalkerSaveToggle')));
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(repository),
+          loginDraftRepositoryProvider.overrideWith(
+            (ref) => Future.value(draftRepository),
+          ),
+          savedProfilesStreamProvider.overrideWith(
+            (ref) => Stream.value(const <ProviderProfileRecord>[]),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
 
-      final toggledState =
-          container.read(loginFlowControllerProvider).saveForLater;
-      expect(toggledState, isNot(equals(initialSaveState)));
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(LoginScreen)),
+      listen: false,
+    );
 
-      await tester.tap(find.text('Xtream'));
-      await tester.pumpAndSettle();
+    final initialSaveState = container
+        .read(loginFlowControllerProvider)
+        .saveForLater;
 
-      final xtreamToggleFinder =
-          find.byKey(const ValueKey<String>('xtreamSaveToggle'));
-      expect(xtreamToggleFinder, findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('stalkerSaveToggle')));
+    await tester.pumpAndSettle();
 
-      final xtreamToggle = tester.widget<CheckboxListTile>(
-        xtreamToggleFinder,
-      );
-      expect(xtreamToggle.value, toggledState);
+    final toggledState = container
+        .read(loginFlowControllerProvider)
+        .saveForLater;
+    expect(toggledState, isNot(equals(initialSaveState)));
 
-      expect(
-        container.read(loginFlowControllerProvider).saveForLater,
-        toggledState,
-      );
-    },
-  );
+    await tester.tap(find.text('Xtream'));
+    await tester.pumpAndSettle();
 
-  testWidgets(
-    'Shows banner when validation fails before probing',
-    (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() {
-        tester.view.resetPhysicalSize();
-        tester.view.resetDevicePixelRatio();
-      });
+    final xtreamToggleFinder = find.byKey(
+      const ValueKey<String>('xtreamSaveToggle'),
+    );
+    expect(xtreamToggleFinder, findsOneWidget);
 
-      SharedPreferences.setMockInitialValues({});
-      final preferences = await SharedPreferences.getInstance();
-      final draftRepository = _RecordingDraftRepository(
-        preferences: preferences,
-        secureStorage: const FlutterSecureStorage(),
-      );
+    final xtreamToggle = tester.widget<CheckboxListTile>(xtreamToggleFinder);
+    expect(xtreamToggle.value, toggledState);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            providerProfileRepositoryProvider.overrideWithValue(repository),
-            loginDraftRepositoryProvider.overrideWith(
-              (ref) => Future.value(draftRepository),
-            ),
-            savedProfilesStreamProvider.overrideWith(
-              (ref) => Stream.value(const <ProviderProfileRecord>[]),
-            ),
-          ],
-          child: const MaterialApp(home: LoginScreen()),
-        ),
-      );
+    expect(
+      container.read(loginFlowControllerProvider).saveForLater,
+      toggledState,
+    );
+  });
 
-      await tester.pumpAndSettle();
+  testWidgets('Shows banner when validation fails before probing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
-      await tester.tap(
-        find.widgetWithText(ElevatedButton, 'Connect'),
-      );
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
+    final draftRepository = _RecordingDraftRepository(
+      preferences: preferences,
+      secureStorage: const FlutterSecureStorage(),
+    );
 
-      expect(
-        find.text('Please review the highlighted fields.'),
-        findsOneWidget,
-      );
-    },
-  );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(repository),
+          loginDraftRepositoryProvider.overrideWith(
+            (ref) => Future.value(draftRepository),
+          ),
+          savedProfilesStreamProvider.overrideWith(
+            (ref) => Stream.value(const <ProviderProfileRecord>[]),
+          ),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Connect'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(find.text('Please review the highlighted fields.'), findsOneWidget);
+  });
 }
 
 class _RecordingDraftRepository extends LoginDraftRepository {

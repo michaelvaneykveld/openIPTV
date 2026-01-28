@@ -102,7 +102,9 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final summary = await container.read(legacySummaryProvider(profile).future);
+      final summary = await container.read(
+        legacySummaryProvider(profile).future,
+      );
 
       expect(attempts, 2);
       expect(summary.fields['Status'], 'Active');
@@ -236,7 +238,9 @@ void main() {
       final container = ProviderContainer();
       addTearDown(container.dispose);
 
-      final summary = await container.read(legacySummaryProvider(profile).future);
+      final summary = await container.read(
+        legacySummaryProvider(profile).future,
+      );
 
       expect(summary.counts['Live'], 120);
       expect(summary.counts['VOD'], 42);
@@ -290,7 +294,9 @@ http://example.com/live1.ts
     final db = OpenIptvDb.inMemory();
     addTearDown(db.close);
 
-    final providerId = await db.into(db.providers).insert(
+    final providerId = await db
+        .into(db.providers)
+        .insert(
           ProvidersCompanion.insert(
             kind: ProviderKind.xtream,
             lockedBase: 'https://demo',
@@ -300,7 +306,9 @@ http://example.com/live1.ts
             legacyProfileId: const Value('legacy-db'),
           ),
         );
-    await db.into(db.summaries).insert(
+    await db
+        .into(db.summaries)
+        .insert(
           SummariesCompanion.insert(
             providerId: providerId,
             kind: CategoryKind.live,
@@ -309,16 +317,12 @@ http://example.com/live1.ts
         );
 
     final container = ProviderContainer(
-      overrides: [
-        openIptvDbProvider.overrideWithValue(db),
-      ],
+      overrides: [openIptvDbProvider.overrideWithValue(db)],
     );
     addTearDown(container.dispose);
 
     final summary = await container.read(
-      dbSummaryProvider(
-        DbSummaryArgs(providerId, ProviderKind.xtream),
-      ).future,
+      dbSummaryProvider(DbSummaryArgs(providerId, ProviderKind.xtream)).future,
     );
     expect(summary.counts['Live'], equals(42));
   });

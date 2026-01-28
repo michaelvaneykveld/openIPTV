@@ -22,16 +22,8 @@ Future<void> main(List<String> arguments) async {
       negatable: false,
       help: 'Run the full maintenance pipeline (default when no flags set).',
     )
-    ..addFlag(
-      'vacuum',
-      negatable: false,
-      help: 'Execute VACUUM if eligible.',
-    )
-    ..addFlag(
-      'analyze',
-      negatable: false,
-      help: 'Execute ANALYZE if eligible.',
-    )
+    ..addFlag('vacuum', negatable: false, help: 'Execute VACUUM if eligible.')
+    ..addFlag('analyze', negatable: false, help: 'Execute ANALYZE if eligible.')
     ..addFlag(
       'sweep',
       negatable: false,
@@ -73,7 +65,8 @@ Future<void> main(List<String> arguments) async {
     return;
   }
 
-  final hasExplicitTask = results['vacuum'] as bool ||
+  final hasExplicitTask =
+      results['vacuum'] as bool ||
       results['analyze'] as bool ||
       results['sweep'] as bool ||
       results['artwork'] as bool;
@@ -135,9 +128,9 @@ Future<void> main(List<String> arguments) async {
     if (exportPath != null) {
       stdout.writeln('Exporting import runs to $exportPath ...');
       final runs = await importRunDao.listRecent(limit: 250);
-      final jsonPayload = const JsonEncoder.withIndent('  ').convert(
-        runs.map((run) => run.toJson()).toList(growable: false),
-      );
+      final jsonPayload = const JsonEncoder.withIndent(
+        '  ',
+      ).convert(runs.map((run) => run.toJson()).toList(growable: false));
       await File(exportPath).writeAsString(jsonPayload);
       stdout.writeln('Import run export complete.');
     }

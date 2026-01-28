@@ -19,8 +19,7 @@ class ProviderSyncService {
     ProviderProfileRecord profile, {
     bool createIfMissing = true,
   }) async {
-    final existing =
-        await _repository.findByLegacyProfileId(profile.id);
+    final existing = await _repository.findByLegacyProfileId(profile.id);
     if (existing != null) {
       if (_needsUpdate(existing, profile)) {
         await _repository.updateProvider(
@@ -55,10 +54,7 @@ class ProviderSyncService {
     return id;
   }
 
-  bool _needsUpdate(
-    ProviderRecord record,
-    ProviderProfileRecord profile,
-  ) {
+  bool _needsUpdate(ProviderRecord record, ProviderProfileRecord profile) {
     return record.displayName != profile.displayName ||
         record.lockedBase != profile.lockedBase.toString() ||
         record.needsUa != profile.needsUserAgent ||

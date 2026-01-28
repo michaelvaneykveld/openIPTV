@@ -19,4 +19,3 @@ void main() {
     expect(third, isNot(equals(first)));
   });
 }
-

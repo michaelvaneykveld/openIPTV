@@ -75,8 +75,7 @@ class EpgImporter {
             earliest = earliest == null || start.isBefore(earliest)
                 ? start
                 : earliest;
-            latest =
-                latest == null || end.isAfter(latest) ? end : latest;
+            latest = latest == null || end.isAfter(latest) ? end : latest;
           }
           if (earliest != null && latest != null) {
             windows[channelId] = _ChannelProgramWindow(
@@ -138,10 +137,7 @@ class EpgImporter {
 }
 
 class _ChannelProgramWindow {
-  _ChannelProgramWindow({
-    required this.first,
-    required this.last,
-  });
+  _ChannelProgramWindow({required this.first, required this.last});
 
   final DateTime first;
   final DateTime last;

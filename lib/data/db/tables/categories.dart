@@ -17,9 +17,8 @@ class Categories extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {providerId, kind, providerCategoryKey}
-      ];
-
+    {providerId, kind, providerCategoryKey},
+  ];
 }
 
 enum CategoryKind { live, vod, series, radio }

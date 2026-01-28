@@ -24,7 +24,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final uri = 'http://127.0.0.1:${server.port}/playlist.m3u8';
 
       final result = await discovery.discover(
@@ -60,7 +60,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final uri = 'http://127.0.0.1:${server.port}/playlist.m3u8';
 
       final result = await discovery.discover(
@@ -96,7 +96,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final uri = 'http://127.0.0.1:${server.port}/secure.m3u';
 
       final result = await discovery.discover(
@@ -126,7 +126,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final result = await discovery.discover(
         'https://127.0.0.1:${server.port}/channels.m3u',
         options: DiscoveryOptions.defaults,
@@ -143,7 +143,7 @@ void main() {
       final file = File('${tempDir.path}${Platform.pathSeparator}list.m3u');
       await file.writeAsString('#EXTM3U\n#EXTINF:-1,Test Channel\nhttp://url');
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final result = await discovery.discover(
         file.path,
         options: DiscoveryOptions.defaults,
@@ -156,7 +156,7 @@ void main() {
     });
 
     test('reclassifies Xtream-style playlists', () async {
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
 
       final result = await discovery.discover(
         'http://example.com/get.php?username=demo&password=demo',
@@ -214,7 +214,7 @@ void main() {
         await request.response.close();
       });
 
-      final discovery = M3uPortalDiscovery();
+      final discovery = const M3uPortalDiscovery();
       final uri = 'http://127.0.0.1:${server.port}/playlist.m3u';
 
       final result = await discovery.discover(

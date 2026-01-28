@@ -5,8 +5,7 @@ import '../openiptv_db.dart';
 part 'provider_dao.g.dart';
 
 @DriftAccessor(tables: [Providers])
-class ProviderDao extends DatabaseAccessor<OpenIptvDb>
-    with _$ProviderDaoMixin {
+class ProviderDao extends DatabaseAccessor<OpenIptvDb> with _$ProviderDaoMixin {
   ProviderDao(super.db);
 
   Future<int> createProvider(ProvidersCompanion companion) {
@@ -35,8 +34,9 @@ class ProviderDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<ProviderRecord?> findById(int providerId) {
-    return (select(providers)..where((tbl) => tbl.id.equals(providerId)))
-        .getSingleOrNull();
+    return (select(
+      providers,
+    )..where((tbl) => tbl.id.equals(providerId))).getSingleOrNull();
   }
 
   Future<ProviderRecord?> findByLegacyProfileId(String legacyProfileId) {

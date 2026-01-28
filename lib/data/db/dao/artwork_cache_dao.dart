@@ -30,23 +30,22 @@ class ArtworkCacheDao extends DatabaseAccessor<OpenIptvDb>
   }) async {
     final now = DateTime.now().toUtc();
 
-    final updated = await (update(artworkCache)
-          ..where((tbl) => tbl.url.equals(url)))
-        .write(
-      ArtworkCacheCompanion(
-        etag: Value(etag),
-        hash: Value(hash),
-        bytes: Value(bytes),
-        filePath: Value(filePath),
-        byteSize: Value(byteSize),
-        width: Value(width),
-        height: Value(height),
-        fetchedAt: Value(now),
-        lastAccessedAt: Value(now),
-        expiresAt: Value(expiresAt),
-        needsRefresh: Value(needsRefresh),
-      ),
-    );
+    final updated =
+        await (update(artworkCache)..where((tbl) => tbl.url.equals(url))).write(
+          ArtworkCacheCompanion(
+            etag: Value(etag),
+            hash: Value(hash),
+            bytes: Value(bytes),
+            filePath: Value(filePath),
+            byteSize: Value(byteSize),
+            width: Value(width),
+            height: Value(height),
+            fetchedAt: Value(now),
+            lastAccessedAt: Value(now),
+            expiresAt: Value(expiresAt),
+            needsRefresh: Value(needsRefresh),
+          ),
+        );
 
     if (updated > 0) {
       final existing = await findByUrl(url);
@@ -83,9 +82,7 @@ class ArtworkCacheDao extends DatabaseAccessor<OpenIptvDb>
 
   Future<int> markForRefresh(String url) {
     return (update(artworkCache)..where((tbl) => tbl.url.equals(url))).write(
-      const ArtworkCacheCompanion(
-        needsRefresh: Value(true),
-      ),
+      const ArtworkCacheCompanion(needsRefresh: Value(true)),
     );
   }
 
@@ -98,14 +95,14 @@ class ArtworkCacheDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Future<List<ArtworkCacheRecord>> pruneToEntryBudget(int maxEntries) async {
-    final ordered = await (select(artworkCache)
-          ..orderBy([
-            (tbl) => OrderingTerm(
-                  expression: tbl.lastAccessedAt,
-                  mode: OrderingMode.asc,
-                ),
-          ]))
-        .get();
+    final ordered =
+        await (select(artworkCache)..orderBy([
+              (tbl) => OrderingTerm(
+                expression: tbl.lastAccessedAt,
+                mode: OrderingMode.asc,
+              ),
+            ]))
+            .get();
 
     if (maxEntries <= 0) {
       if (ordered.isNotEmpty) {
@@ -133,14 +130,14 @@ class ArtworkCacheDao extends DatabaseAccessor<OpenIptvDb>
       return all;
     }
 
-    final ordered = await (select(artworkCache)
-          ..orderBy([
-            (tbl) => OrderingTerm(
-                  expression: tbl.lastAccessedAt,
-                  mode: OrderingMode.asc,
-                ),
-          ]))
-        .get();
+    final ordered =
+        await (select(artworkCache)..orderBy([
+              (tbl) => OrderingTerm(
+                expression: tbl.lastAccessedAt,
+                mode: OrderingMode.asc,
+              ),
+            ]))
+            .get();
     final totalBytes = ordered.fold<int>(
       0,
       (sum, record) => sum + (record.byteSize ?? 0),

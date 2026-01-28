@@ -19,11 +19,7 @@ class MaintenanceLogDao extends DatabaseAccessor<OpenIptvDb>
 
   Future<void> markRun(String task, DateTime timestamp) async {
     await into(maintenanceLog).insertOnConflictUpdate(
-      MaintenanceLogCompanion(
-        task: Value(task),
-        lastRunAt: Value(timestamp),
-      ),
+      MaintenanceLogCompanion(task: Value(task), lastRunAt: Value(timestamp)),
     );
   }
 }
-

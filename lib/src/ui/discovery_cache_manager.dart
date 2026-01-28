@@ -7,11 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:openiptv/src/protocols/discovery/portal_discovery.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 
-typedef DiscoveryCacheErrorLogger = void Function(
-  String message,
-  Object error,
-  StackTrace stackTrace,
-);
+typedef DiscoveryCacheErrorLogger =
+    void Function(String message, Object error, StackTrace stackTrace);
 
 /// Snapshot returned when fetching from the cache.
 @immutable
@@ -47,29 +44,21 @@ class CachedDiscoveryEntry {
     return storedAt.add(ttl).isBefore(now);
   }
 
-  bool shouldRefresh(
-    Duration ttl,
-    DateTime now,
-    Duration refreshLeeway,
-  ) {
+  bool shouldRefresh(Duration ttl, DateTime now, Duration refreshLeeway) {
     final leeway = refreshLeeway > ttl ? ttl : refreshLeeway;
     final refreshPoint = storedAt.add(ttl).subtract(leeway);
     return !refreshPoint.isAfter(now);
   }
 
   Map<String, dynamic> toJson() => {
-        'kind': kind.name,
-        'lockedBase': lockedBase.toString(),
-        'hints': hints,
-        'storedAt': storedAt.toUtc().toIso8601String(),
-      };
+    'kind': kind.name,
+    'lockedBase': lockedBase.toString(),
+    'hints': hints,
+    'storedAt': storedAt.toUtc().toIso8601String(),
+  };
 
   DiscoveryResult toDiscoveryResult() {
-    return DiscoveryResult(
-      kind: kind,
-      lockedBase: lockedBase,
-      hints: hints,
-    );
+    return DiscoveryResult(kind: kind, lockedBase: lockedBase, hints: hints);
   }
 
   static CachedDiscoveryEntry? fromJson(Map<String, dynamic> json) {
@@ -125,10 +114,10 @@ class DiscoveryCacheManager {
     Duration ttl = const Duration(hours: 24),
     String storageKey = 'discovery_cache_v1',
     DiscoveryCacheErrorLogger? errorLogger,
-  })  : _prefsOverride = preferences,
-        _ttl = ttl,
-        _storageKey = storageKey,
-        _errorLogger = errorLogger;
+  }) : _prefsOverride = preferences,
+       _ttl = ttl,
+       _storageKey = storageKey,
+       _errorLogger = errorLogger;
 
   final SharedPreferences? _prefsOverride;
   final Duration _ttl;
@@ -204,8 +193,7 @@ class DiscoveryCacheManager {
       await _persist();
       return null;
     }
-    final shouldRefresh =
-        entry.shouldRefresh(_ttl, currentTime, refreshLeeway);
+    final shouldRefresh = entry.shouldRefresh(_ttl, currentTime, refreshLeeway);
     return DiscoveryCacheHit(
       result: entry.toDiscoveryResult(),
       storedAt: entry.storedAt,

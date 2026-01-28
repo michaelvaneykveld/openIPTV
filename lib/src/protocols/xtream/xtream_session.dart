@@ -22,9 +22,9 @@ class XtreamSession {
 
   /// Base query parameters that must accompany most Xtream endpoints.
   Map<String, String> get credentialQuery => {
-        'username': configuration.username,
-        'password': configuration.password,
-      };
+    'username': configuration.username,
+    'password': configuration.password,
+  };
 
   /// Duration between the device clock and the portal's clock. Useful when
   /// trimming EPG windows or aligning catch-up playback (per docs/notes/REWRITE.md).
@@ -50,21 +50,24 @@ class XtreamSession {
   /// `@iptv/xtream-api`. We keep it simple for now: `/live/<user>/<pass>/<id>.ts`.
   Uri buildLiveStreamUri(String streamId, {String extension = 'ts'}) {
     final base = configuration.baseUri;
-    final path = 'live/${configuration.username}/${configuration.password}/$streamId.$extension';
+    final path =
+        'live/${configuration.username}/${configuration.password}/$streamId.$extension';
     return base.resolve(path);
   }
 
   /// Builds a VOD URL using the `movie` pattern.
   Uri buildVodStreamUri(String streamId, {String extension = 'mp4'}) {
     final base = configuration.baseUri;
-    final path = 'movie/${configuration.username}/${configuration.password}/$streamId.$extension';
+    final path =
+        'movie/${configuration.username}/${configuration.password}/$streamId.$extension';
     return base.resolve(path);
   }
 
   /// Builds a series episode URL using the `series` path.
   Uri buildSeriesStreamUri(String streamId, {String extension = 'ts'}) {
     final base = configuration.baseUri;
-    final path = 'series/${configuration.username}/${configuration.password}/$streamId.$extension';
+    final path =
+        'series/${configuration.username}/${configuration.password}/$streamId.$extension';
     return base.resolve(path);
   }
 }

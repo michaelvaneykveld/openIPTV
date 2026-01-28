@@ -9,7 +9,7 @@ class PlaybackLogger {
   const PlaybackLogger._();
 
   static bool get _enabled =>
-      true; // Always enabled for debugging playback issues
+      !kReleaseMode; // Disable noisy logs in release builds
 
   static void stalker(
     String stage, {

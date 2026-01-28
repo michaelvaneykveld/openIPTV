@@ -18,17 +18,19 @@ class StreamProbe {
     client.badCertificateCallback = (cert, host, port) => true;
 
     try {
-      _logger.d('[StreamProbe] Probing: $initialUrl with headers: ${headers?.keys.join(", ") ?? "none"}');
-      
+      _logger.d(
+        '[StreamProbe] Probing: $initialUrl with headers: ${headers?.keys.join(", ") ?? "none"}',
+      );
+
       String currentUrl = initialUrl;
       int redirectCount = 0;
       const maxRedirects = 10;
-      
+
       // Manually handle redirects to preserve headers
       while (redirectCount < maxRedirects) {
         final request = await client.getUrl(Uri.parse(currentUrl));
         request.followRedirects = false; // Handle manually
-        
+
         if (headers != null) {
           headers.forEach((k, v) {
             if (k.toLowerCase() != 'host') {
@@ -39,9 +41,9 @@ class StreamProbe {
 
         final response = await request.close();
         final statusCode = response.statusCode;
-        
+
         _logger.d('[StreamProbe] Response: $statusCode for $currentUrl');
-        
+
         // Handle redirects
         if (statusCode >= 300 && statusCode < 400) {
           final location = response.headers.value(HttpHeaders.locationHeader);
@@ -53,13 +55,13 @@ class StreamProbe {
             continue;
           }
         }
-        
+
         if (statusCode == 200) {
           await response.drain();
           _logger.i('[StreamProbe] Successfully resolved: $currentUrl');
           return currentUrl;
         }
-        
+
         await response.drain();
         throw StreamProbeException(
           'Stream probe failed with status $statusCode',
@@ -67,7 +69,7 @@ class StreamProbe {
           statusCode: statusCode,
         );
       }
-      
+
       throw StreamProbeException(
         'Too many redirects ($maxRedirects)',
         url: currentUrl,

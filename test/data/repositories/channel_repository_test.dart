@@ -55,10 +55,7 @@ void main() {
     });
 
     test('returns paginated chunks with cursor', () async {
-      expect(
-        (await channelDao.findByProvider(providerId)).length,
-        5,
-      );
+      expect((await channelDao.findByProvider(providerId)).length, 5);
       final firstPage = await repository.fetchChannelPage(
         providerId: providerId,
         limit: 2,
@@ -67,10 +64,10 @@ void main() {
       expect(firstPage.nextCursor, isNotNull);
       expect(firstPage.hasMore, isTrue);
       expect(firstPage.items.first.channel.name, 'Channel 0');
-      expect(
-        firstPage.items.map((c) => c.channel.name).toList(),
-        ['Channel 0', 'Channel 1'],
-      );
+      expect(firstPage.items.map((c) => c.channel.name).toList(), [
+        'Channel 0',
+        'Channel 1',
+      ]);
 
       final secondPage = await repository.fetchChannelPage(
         providerId: providerId,

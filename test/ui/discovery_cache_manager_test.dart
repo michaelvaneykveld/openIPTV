@@ -11,9 +11,7 @@ void main() {
   });
 
   test('returns cached discovery result within TTL', () async {
-    final manager = DiscoveryCacheManager(
-      ttl: const Duration(hours: 24),
-    );
+    final manager = DiscoveryCacheManager(ttl: const Duration(hours: 24));
     final cacheKey = DiscoveryCacheManager.buildKey(
       kind: ProviderKind.xtream,
       identifier: 'https://demo.example.com:8080/get.php?username=u&password=p',
@@ -45,9 +43,7 @@ void main() {
   });
 
   test('evicts expired cache entries based on TTL', () async {
-    final manager = DiscoveryCacheManager(
-      ttl: const Duration(hours: 24),
-    );
+    final manager = DiscoveryCacheManager(ttl: const Duration(hours: 24));
     final cacheKey = DiscoveryCacheManager.buildKey(
       kind: ProviderKind.stalker,
       identifier: 'http://portal.example.com/c/',
@@ -72,9 +68,7 @@ void main() {
   });
 
   test('signals when cached entry should be refreshed', () async {
-    final manager = DiscoveryCacheManager(
-      ttl: const Duration(hours: 24),
-    );
+    final manager = DiscoveryCacheManager(ttl: const Duration(hours: 24));
     final cacheKey = DiscoveryCacheManager.buildKey(
       kind: ProviderKind.m3u,
       identifier: 'https://playlist.example.com/live.m3u8',

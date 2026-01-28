@@ -24,9 +24,9 @@ class _MiniPlayerState extends State<MiniPlayer> {
   void initState() {
     super.initState();
     _player = Player(
-      configuration: PlayerConfiguration(
+      configuration: const PlayerConfiguration(
         title: 'OpenIPTV',
-        protocolWhitelist: const [
+        protocolWhitelist: [
           'file',
           'http',
           'https',

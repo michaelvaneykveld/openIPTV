@@ -17,10 +17,7 @@ class ResolvedPlayback {
 }
 
 class LazyPlaybackEntry {
-  const LazyPlaybackEntry({
-    required this.factory,
-    this.id,
-  });
+  const LazyPlaybackEntry({required this.factory, this.id});
 
   final PlaybackFactory factory;
   final int? id;
@@ -51,19 +48,21 @@ class ResolveScheduler {
       _pending = Future<void>.value();
     }
     final completer = Completer<T>();
-    _pending = _pending.then((_) async {
-      final delta = DateTime.now().difference(_lastStart);
-      if (delta < minGap) {
-        await Future<void>.delayed(minGap - delta);
-      }
-      _lastStart = DateTime.now();
-      final result = await action();
-      completer.complete(result);
-    }).catchError((Object error, StackTrace stackTrace) {
-      if (!completer.isCompleted) {
-        completer.completeError(error, stackTrace);
-      }
-    });
+    _pending = _pending
+        .then((_) async {
+          final delta = DateTime.now().difference(_lastStart);
+          if (delta < minGap) {
+            await Future<void>.delayed(minGap - delta);
+          }
+          _lastStart = DateTime.now();
+          final result = await action();
+          completer.complete(result);
+        })
+        .catchError((Object error, StackTrace stackTrace) {
+          if (!completer.isCompleted) {
+            completer.completeError(error, stackTrace);
+          }
+        });
     return completer.future;
   }
 

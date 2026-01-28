@@ -1733,7 +1733,7 @@ mixin _PlayerPlaybackMixin<T extends ConsumerStatefulWidget>
     // CRITICAL FIX: Always use MediaKit on Windows to avoid video_player 0x0 texture bug
     // video_player creates texture before layout, causing LIVE streams to fail
     final requiresFallback = true; // Force MediaKit for all Windows playback
-    var adjustedSource = source;
+    final adjustedSource = source;
     Future<void> Function()? disposer;
     if (requiresFallback) {
       if (!_windowsWarningShown && mounted) {

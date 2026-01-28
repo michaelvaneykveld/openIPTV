@@ -22,6 +22,6 @@ class Providers extends Table {
 
   @override
   List<Set<Column<Object>>> get uniqueKeys => [
-        {legacyProfileId},
-      ];
+    {legacyProfileId},
+  ];
 }

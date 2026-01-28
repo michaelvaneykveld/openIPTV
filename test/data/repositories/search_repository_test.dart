@@ -22,10 +22,7 @@ void main() {
     db = OpenIptvDb.inMemory();
     providerDao = ProviderDao(db);
     channelDao = ChannelDao(db);
-    repository = SearchRepository(
-      db: db,
-      userFlagDao: UserFlagDao(db),
-    );
+    repository = SearchRepository(db: db, userFlagDao: UserFlagDao(db));
 
     providerId = await providerDao.createProvider(
       ProvidersCompanion.insert(
@@ -62,51 +59,56 @@ void main() {
     );
 
     final now = DateTime.now().toUtc();
-    await db.into(db.epgPrograms).insert(
-      EpgProgramsCompanion.insert(
-        channelId: channelA,
-        startUtc: now,
-        endUtc: now.add(const Duration(hours: 1)),
-        title: const Value('Morning News'),
-        description: const Value('Morning top stories from around the world'),
-      ),
-    );
+    await db
+        .into(db.epgPrograms)
+        .insert(
+          EpgProgramsCompanion.insert(
+            channelId: channelA,
+            startUtc: now,
+            endUtc: now.add(const Duration(hours: 1)),
+            title: const Value('Morning News'),
+            description: const Value(
+              'Morning top stories from around the world',
+            ),
+          ),
+        );
   });
 
   tearDown(() async {
     await db.close();
   });
 
-  test('searchChannels respects favorites, hidden flags, and highlights', () async {
-    final all = await repository.searchChannels(
-      providerId: providerId,
-      query: 'channel',
-    );
-    expect(all, hasLength(2));
-    expect(
-      all.first.highlightedName?.toLowerCase(),
-      contains('<mark>channel</mark>'),
-    );
+  test(
+    'searchChannels respects favorites, hidden flags, and highlights',
+    () async {
+      final all = await repository.searchChannels(
+        providerId: providerId,
+        query: 'channel',
+      );
+      expect(all, hasLength(2));
+      expect(
+        all.first.highlightedName?.toLowerCase(),
+        contains('<mark>channel</mark>'),
+      );
 
-    final favorites = await repository.searchChannels(
-      providerId: providerId,
-      favoritesOnly: true,
-    );
-    expect(favorites, hasLength(1));
-    expect(favorites.single.channel.id, channelB);
+      final favorites = await repository.searchChannels(
+        providerId: providerId,
+        favoritesOnly: true,
+      );
+      expect(favorites, hasLength(1));
+      expect(favorites.single.channel.id, channelB);
 
-    await repository.setChannelFlags(
-      providerId: providerId,
-      channelId: channelB,
-      isFavorite: true,
-      isHidden: true,
-    );
+      await repository.setChannelFlags(
+        providerId: providerId,
+        channelId: channelB,
+        isFavorite: true,
+        isHidden: true,
+      );
 
-    final visible = await repository.searchChannels(
-      providerId: providerId,
-    );
-    expect(visible.any((entry) => entry.channel.id == channelB), isFalse);
-  });
+      final visible = await repository.searchChannels(providerId: providerId);
+      expect(visible.any((entry) => entry.channel.id == channelB), isFalse);
+    },
+  );
 
   test('searchPrograms queries FTS table', () async {
     final results = await repository.searchPrograms(
@@ -132,7 +134,9 @@ void main() {
       name: 'Live - All',
     );
 
-    await db.into(db.channelCategories).insert(
+    await db
+        .into(db.channelCategories)
+        .insert(
           ChannelCategoriesCompanion.insert(
             channelId: channelA,
             categoryId: categoryId,
@@ -140,7 +144,9 @@ void main() {
         );
 
     final now = DateTime.now().toUtc();
-    await db.into(db.playbackHistory).insert(
+    await db
+        .into(db.playbackHistory)
+        .insert(
           PlaybackHistoryCompanion.insert(
             providerId: providerId,
             channelId: channelA,
@@ -163,15 +169,14 @@ void main() {
     final entry = results.single;
     expect(entry.channel.id, channelA);
     expect(entry.hasWatchHistory, isTrue);
-    final deltaMs = entry.lastWatchedAt!
-        .difference(now)
-        .inMilliseconds
-        .abs();
+    final deltaMs = entry.lastWatchedAt!.difference(now).inMilliseconds.abs();
     expect(deltaMs, lessThan(1000));
   });
 
   test('searchVod returns movie and series matches with highlights', () async {
-    final movieCategoryId = await db.into(db.categories).insert(
+    final movieCategoryId = await db
+        .into(db.categories)
+        .insert(
           CategoriesCompanion.insert(
             providerId: providerId,
             kind: CategoryKind.vod,
@@ -180,7 +185,9 @@ void main() {
           ),
         );
 
-    final movieId = await db.into(db.movies).insert(
+    final movieId = await db
+        .into(db.movies)
+        .insert(
           MoviesCompanion.insert(
             providerId: providerId,
             providerVodKey: 'mov-1',
@@ -190,7 +197,9 @@ void main() {
           ),
         );
 
-    final seriesCategoryId = await db.into(db.categories).insert(
+    final seriesCategoryId = await db
+        .into(db.categories)
+        .insert(
           CategoriesCompanion.insert(
             providerId: providerId,
             kind: CategoryKind.series,
@@ -199,7 +208,9 @@ void main() {
           ),
         );
 
-    final seriesId = await db.into(db.series).insert(
+    final seriesId = await db
+        .into(db.series)
+        .insert(
           SeriesCompanion.insert(
             providerId: providerId,
             providerSeriesKey: 'series-1',
@@ -215,10 +226,12 @@ void main() {
     );
 
     expect(results, hasLength(2));
-    final movieResult =
-        results.firstWhere((result) => result.kind == VodItemKind.movie);
-    final seriesResult =
-        results.firstWhere((result) => result.kind == VodItemKind.series);
+    final movieResult = results.firstWhere(
+      (result) => result.kind == VodItemKind.movie,
+    );
+    final seriesResult = results.firstWhere(
+      (result) => result.kind == VodItemKind.series,
+    );
 
     expect(movieResult.movie?.id, movieId);
     expect(
@@ -232,60 +245,73 @@ void main() {
     );
   });
 
-  test('loadDashboardSummary aggregates channel, VOD, and user metrics', () async {
-    await db.into(db.summaries).insert(
-          SummariesCompanion.insert(
-            providerId: providerId,
-            kind: CategoryKind.live,
-            totalItems: const Value(80),
-          ),
-        );
-    await db.into(db.summaries).insert(
-          SummariesCompanion.insert(
-            providerId: providerId,
-            kind: CategoryKind.vod,
-            totalItems: const Value(120),
-          ),
-        );
-    await db.into(db.summaries).insert(
-          SummariesCompanion.insert(
-            providerId: providerId,
-            kind: CategoryKind.series,
-            totalItems: const Value(45),
-          ),
-        );
+  test(
+    'loadDashboardSummary aggregates channel, VOD, and user metrics',
+    () async {
+      await db
+          .into(db.summaries)
+          .insert(
+            SummariesCompanion.insert(
+              providerId: providerId,
+              kind: CategoryKind.live,
+              totalItems: const Value(80),
+            ),
+          );
+      await db
+          .into(db.summaries)
+          .insert(
+            SummariesCompanion.insert(
+              providerId: providerId,
+              kind: CategoryKind.vod,
+              totalItems: const Value(120),
+            ),
+          );
+      await db
+          .into(db.summaries)
+          .insert(
+            SummariesCompanion.insert(
+              providerId: providerId,
+              kind: CategoryKind.series,
+              totalItems: const Value(45),
+            ),
+          );
 
-    await repository.setChannelFlags(
-      providerId: providerId,
-      channelId: channelA,
-      isFavorite: true,
-    );
-    await repository.setChannelFlags(
-      providerId: providerId,
-      channelId: channelB,
-      isFavorite: true,
-      isHidden: true,
-    );
+      await repository.setChannelFlags(
+        providerId: providerId,
+        channelId: channelA,
+        isFavorite: true,
+      );
+      await repository.setChannelFlags(
+        providerId: providerId,
+        channelId: channelB,
+        isFavorite: true,
+        isHidden: true,
+      );
 
-    final now = DateTime.now().toUtc();
-    await db.into(db.playbackHistory).insert(
-          PlaybackHistoryCompanion.insert(
-            providerId: providerId,
-            channelId: channelA,
-            startedAt: now.subtract(const Duration(minutes: 10)),
-            updatedAt: now,
-            positionSec: const Value(30),
-            durationSec: const Value(3600),
-            completed: const Value(false),
-          ),
-        );
+      final now = DateTime.now().toUtc();
+      await db
+          .into(db.playbackHistory)
+          .insert(
+            PlaybackHistoryCompanion.insert(
+              providerId: providerId,
+              channelId: channelA,
+              startedAt: now.subtract(const Duration(minutes: 10)),
+              updatedAt: now,
+              positionSec: const Value(30),
+              durationSec: const Value(3600),
+              completed: const Value(false),
+            ),
+          );
 
-    final summary = await repository.loadDashboardSummary(providerId: providerId);
-    expect(summary.liveChannels, 80);
-    expect(summary.vodItems, 120);
-    expect(summary.seriesItems, 45);
-    expect(summary.favoriteChannels, 2); // channelA + channelB
-    expect(summary.hiddenChannels, 1); // channelB hidden here
-    expect(summary.recentlyWatchedChannels, 1);
-  });
+      final summary = await repository.loadDashboardSummary(
+        providerId: providerId,
+      );
+      expect(summary.liveChannels, 80);
+      expect(summary.vodItems, 120);
+      expect(summary.seriesItems, 45);
+      expect(summary.favoriteChannels, 2); // channelA + channelB
+      expect(summary.hiddenChannels, 1); // channelB hidden here
+      expect(summary.recentlyWatchedChannels, 1);
+    },
+  );
 }

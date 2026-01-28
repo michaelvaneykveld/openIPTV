@@ -4152,15 +4152,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context: context,
 
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
+        return const Padding(
+          padding: EdgeInsets.all(16),
 
           child: Column(
             mainAxisSize: MainAxisSize.min,
 
             crossAxisAlignment: CrossAxisAlignment.start,
 
-            children: const [
+            children: [
               Text(
                 'Where to find your details',
 

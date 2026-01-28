@@ -39,26 +39,25 @@ class ImportRunDao extends DatabaseAccessor<OpenIptvDb>
   }
 
   Stream<List<ImportRunRecord>> watchRecent(int providerId, {int limit = 20}) {
-    final query = (select(importRuns)
-          ..where((tbl) => tbl.providerId.equals(providerId))
-          ..orderBy([
-            (tbl) => OrderingTerm(
+    final query =
+        (select(importRuns)
+              ..where((tbl) => tbl.providerId.equals(providerId))
+              ..orderBy([
+                (tbl) => OrderingTerm(
                   expression: tbl.startedAt,
                   mode: OrderingMode.desc,
                 ),
-          ])
-          ..limit(limit))
-        .watch();
+              ])
+              ..limit(limit))
+            .watch();
     return query;
   }
 
   Future<List<ImportRunRecord>> listRecent({int limit = 100}) {
     final query = select(importRuns)
       ..orderBy([
-        (tbl) => OrderingTerm(
-              expression: tbl.startedAt,
-              mode: OrderingMode.desc,
-            ),
+        (tbl) =>
+            OrderingTerm(expression: tbl.startedAt, mode: OrderingMode.desc),
       ])
       ..limit(limit);
     return query.get();
@@ -75,10 +74,8 @@ class ImportRunDao extends DatabaseAccessor<OpenIptvDb>
             tbl.importType.equals(importType),
       )
       ..orderBy([
-        (tbl) => OrderingTerm(
-              expression: tbl.startedAt,
-              mode: OrderingMode.desc,
-            ),
+        (tbl) =>
+            OrderingTerm(expression: tbl.startedAt, mode: OrderingMode.desc),
       ])
       ..limit(1);
     return query.getSingleOrNull();

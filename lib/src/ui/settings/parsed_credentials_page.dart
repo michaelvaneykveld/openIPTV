@@ -251,13 +251,17 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
         return;
       }
 
-      final categoriesCoordinator = ref.read(categoriesCoordinatorProvider);
-      final categoryMap = await categoriesCoordinator
+        final categoriesCoordinator = ref.read(categoriesCoordinatorProvider);
+        final categoryMap = await categoriesCoordinator
           .fetch(profile)
           .timeout(const Duration(seconds: 10));
-      final liveCategories =
+        final liveCategories =
           categoryMap[ContentBucket.live] ?? const <CategoryEntry>[];
-      final preview = liveCategories.take(_maxCategoryPreviewChips).toList();
+        final preview = liveCategories.take(_maxCategoryPreviewChips).toList();
+        final fallback = _buildFallbackLiveCategory(summary, preview.isEmpty);
+        if (fallback != null) {
+        preview.insert(0, fallback);
+        }
 
       _updateCredentialState(
         credentialKey,
@@ -266,7 +270,9 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
           message: 'Login OK',
           summary: summary,
           liveCategories: preview,
-          liveCategoryTotal: liveCategories.length,
+          liveCategoryTotal: fallback != null && liveCategories.isEmpty
+              ? 1
+              : liveCategories.length,
         ),
       );
     } catch (error) {
@@ -437,6 +443,16 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
       return 'XTREAM @ $host (${credential.xtream!.username})';
     }
     return 'STALKER @ $host (${credential.stalker!.mac})';
+  }
+
+  CategoryEntry? _buildFallbackLiveCategory(
+    SummaryData summary,
+    bool shouldBuild,
+  ) {
+    if (!shouldBuild) return null;
+    final count = summary.counts['Live'] ?? summary.counts['live'];
+    if (count == null || count <= 0) return null;
+    return CategoryEntry(id: '*', name: 'All Live', count: count);
   }
 
   void _updateGroupState(String key, GroupProbeState state) {

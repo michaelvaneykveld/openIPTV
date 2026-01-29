@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:openiptv/src/telegram/telegram_service.dart';
 import 'package:openiptv/src/ui/settings/parsed_credentials_page.dart';
@@ -27,6 +29,8 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
   List<t.ChatBase> _myChats = [];
   bool _isLoading = true;
   bool _isSyncing = false;
+  double? _fetchProgress;
+  String? _fetchProgressLabel;
 
   // Telegram Client State
   tg.Client? get _client => TelegramService.instance.client;
@@ -304,6 +308,21 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     if (mounted) setState(() => _statusMessage = msg);
   }
 
+  void _setFetchProgress({
+    required int processed,
+    required int total,
+    required String phase,
+  }) {
+    final progress = total > 0 ? processed / total : null;
+    if (!mounted) return;
+    setState(() {
+      _fetchProgress = progress;
+      _fetchProgressLabel = total > 0
+          ? '$phase ($processed/$total)'
+          : phase;
+    });
+  }
+
   // --- Fetching ---
 
   Future<void> _fetchMessages() async {
@@ -317,7 +336,11 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
       return;
     }
 
-    setState(() => _isSyncing = true);
+    setState(() {
+      _isSyncing = true;
+      _fetchProgress = 0;
+      _fetchProgressLabel = null;
+    });
     _setStatus('Starting fetch...');
 
     final allStalker = <StalkerCredential>[];
@@ -325,6 +348,13 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
 
     try {
       final messageCount = int.tryParse(_messageCountController.text) ?? 50;
+      final estimatedTotal = max(1, _myChats.length * messageCount);
+      var processedMessages = 0;
+      _setFetchProgress(
+        processed: processedMessages,
+        total: estimatedTotal,
+        phase: 'Preparing',
+      );
 
       for (final chat in _myChats) {
         t.InputPeerBase? peer;
@@ -372,11 +402,21 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
             messages = history.messages;
           }
 
-          for (final msg in messages) {
+          for (var i = 0; i < messages.length; i++) {
+            final msg = messages[i];
             if (msg is t.Message && msg.message.isNotEmpty) {
               final parsed = CredentialParser.parse(msg.message);
               allStalker.addAll(parsed.stalker);
               allXtream.addAll(parsed.xtream);
+            }
+            processedMessages += 1;
+            if (processedMessages % 25 == 0 || i == messages.length - 1) {
+              _setFetchProgress(
+                processed: processedMessages,
+                total: estimatedTotal,
+                phase: 'Parsing $title',
+              );
+              await Future<void>.delayed(const Duration(milliseconds: 1));
             }
           }
         } catch (e) {
@@ -387,8 +427,10 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
 
       setState(() {
         _isSyncing = false;
+        _fetchProgress = null;
+        _fetchProgressLabel = null;
         _statusMessage =
-            'Fetch complete! Found ${allStalker.length + allXtream.length} credentials.';
+        'Fetch complete! Found ${allStalker.length + allXtream.length} credentials.';
       });
 
       if (mounted) {
@@ -404,6 +446,8 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     } catch (e) {
       setState(() {
         _isSyncing = false;
+        _fetchProgress = null;
+        _fetchProgressLabel = null;
         _statusMessage = 'Global error: $e';
       });
     }
@@ -432,6 +476,23 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
                         child: Text(
                           _statusMessage!,
                           style: const TextStyle(color: Colors.blue),
+                        ),
+                      ),
+                    if (_isSyncing)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            LinearProgressIndicator(value: _fetchProgress),
+                            if (_fetchProgressLabel != null) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                _fetchProgressLabel!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ],
                         ),
                       ),
 

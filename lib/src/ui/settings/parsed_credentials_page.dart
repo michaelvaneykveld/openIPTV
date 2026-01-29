@@ -251,17 +251,22 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
         return;
       }
 
+        List<CategoryEntry> liveCategories = const <CategoryEntry>[];
+        try {
         final categoriesCoordinator = ref.read(categoriesCoordinatorProvider);
         final categoryMap = await categoriesCoordinator
           .fetch(profile)
           .timeout(const Duration(seconds: 10));
-        final liveCategories =
+        liveCategories =
           categoryMap[ContentBucket.live] ?? const <CategoryEntry>[];
+        } catch (_) {
+        liveCategories = const <CategoryEntry>[];
+        }
         final preview = liveCategories.take(_maxCategoryPreviewChips).toList();
         final fallback = _buildFallbackLiveCategory(summary, preview.isEmpty);
-        if (fallback != null) {
+      if (fallback != null) {
         preview.insert(0, fallback);
-        }
+      }
 
       _updateCredentialState(
         credentialKey,

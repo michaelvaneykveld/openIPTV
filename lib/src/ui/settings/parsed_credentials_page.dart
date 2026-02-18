@@ -15,6 +15,7 @@ import 'package:openiptv/src/providers/provider_import_service.dart';
 import 'package:openiptv/src/providers/provider_sync_service.dart';
 import 'package:openiptv/src/ui/settings/transient_portal_info.dart';
 import 'package:openiptv/src/utils/credential_parser.dart';
+import 'package:openiptv/src/utils/telegram_scrape_logger.dart';
 import 'package:openiptv/src/utils/url_normalization.dart';
 import 'package:openiptv/storage/provider_profile_repository.dart';
 
@@ -37,6 +38,7 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
   static const int _maxConcurrentGroupProbes = 3;
   static const int _maxConcurrentCredentialProbes = 4;
   static const int _maxCategoryPreviewChips = 8;
+  static const int _maxCredentialProbesPerPortal = 2;
 
   static const String _xtreamFallbackUserAgent =
       'Hypnotix/2.0 (Linux; IPTV) Flutter/OpenIPTV XtreamProbe';
@@ -129,6 +131,7 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
   Future<void> _probeAllGroups() async {
     if (_isProbingAll) return;
     setState(() => _isProbingAll = true);
+    TelegramScrapeLogger.log('Probe all portals: count=${_groups.length}');
     await _runWithConcurrency<PortalGroup>(
       _groups,
       _maxConcurrentGroupProbes,
@@ -136,6 +139,7 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
     );
     if (!mounted) return;
     setState(() => _isProbingAll = false);
+    TelegramScrapeLogger.log('Probe all portals complete');
   }
 
   Future<void> _probeGroup(
@@ -150,6 +154,10 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
         message: 'Discovering portal…',
       ),
     );
+    TelegramScrapeLogger.log(
+      'Probe portal start: key=$key url=${group.displayUrl}',
+      tag: 'tg-probe',
+    );
 
     if (group.normalizedUri == null) {
       _updateGroupState(
@@ -158,6 +166,10 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
           status: GroupProbeStatus.error,
           message: 'Invalid portal URL.',
         ),
+      );
+      TelegramScrapeLogger.log(
+        'Probe portal invalid URL: key=$key',
+        tag: 'tg-probe',
       );
       return;
     }
@@ -186,6 +198,11 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
           message: error.toString(),
         ),
       );
+      TelegramScrapeLogger.error(
+        'Probe portal failed: key=$key',
+        error,
+        tag: 'tg-probe',
+      );
       return;
     }
 
@@ -200,11 +217,23 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
         message: 'Portal discovered',
       ),
     );
+    TelegramScrapeLogger.log(
+      'Probe portal success: key=$key lockedBase=${discovery.lockedBase}',
+      tag: 'tg-probe',
+    );
 
     if (!probeAllCredentials) return;
 
+    final candidates = group.credentials;
+    final sample = candidates.take(_maxCredentialProbesPerPortal).toList();
+    if (candidates.length > sample.length) {
+      TelegramScrapeLogger.log(
+        'Probe portal throttled: key=$key tested=${sample.length} total=${candidates.length}',
+        tag: 'tg-probe',
+      );
+    }
     await _runWithConcurrency<TransientCredential>(
-      group.credentials,
+      sample,
       _maxConcurrentCredentialProbes,
       (credential) => _probeCredential(group, credential, discovery, needsUa),
     );
@@ -223,6 +252,10 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
         status: CredentialProbeStatus.probing,
         message: 'Checking login…',
       ),
+    );
+    TelegramScrapeLogger.log(
+      'Probe login start: key=$credentialKey portal=${group.displayUrl}',
+      tag: 'tg-probe',
     );
 
     final profile = _buildTransientProfile(
@@ -248,22 +281,28 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
             summary: summary,
           ),
         );
+        TelegramScrapeLogger.log(
+          'Probe login summary error: key=$credentialKey error=$summaryError',
+          tag: 'tg-probe',
+        );
         return;
       }
 
-        List<CategoryEntry> liveCategories = const <CategoryEntry>[];
-        try {
+      List<CategoryEntry> liveCategories = const <CategoryEntry>[];
+      String? categoryError;
+      try {
         final categoriesCoordinator = ref.read(categoriesCoordinatorProvider);
         final categoryMap = await categoriesCoordinator
-          .fetch(profile)
-          .timeout(const Duration(seconds: 10));
+            .fetch(profile)
+            .timeout(const Duration(seconds: 10));
         liveCategories =
-          categoryMap[ContentBucket.live] ?? const <CategoryEntry>[];
-        } catch (_) {
+            categoryMap[ContentBucket.live] ?? const <CategoryEntry>[];
+      } catch (_) {
         liveCategories = const <CategoryEntry>[];
-        }
-        final preview = liveCategories.take(_maxCategoryPreviewChips).toList();
-        final fallback = _buildFallbackLiveCategory(summary, preview.isEmpty);
+        categoryError = 'Live category fetch failed';
+      }
+      final preview = liveCategories.take(_maxCategoryPreviewChips).toList();
+      final fallback = _buildFallbackLiveCategory(summary, preview.isEmpty);
       if (fallback != null) {
         preview.insert(0, fallback);
       }
@@ -278,7 +317,12 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
           liveCategoryTotal: fallback != null && liveCategories.isEmpty
               ? 1
               : liveCategories.length,
+          categoryError: categoryError,
         ),
+      );
+      TelegramScrapeLogger.log(
+        'Probe login success: key=$credentialKey liveCategories=${liveCategories.length} fallback=${fallback != null}',
+        tag: 'tg-probe',
       );
     } catch (error) {
       _updateCredentialState(
@@ -287,6 +331,11 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
           status: CredentialProbeStatus.failure,
           message: error.toString(),
         ),
+      );
+      TelegramScrapeLogger.error(
+        'Probe login failed: key=$credentialKey',
+        error,
+        tag: 'tg-probe',
       );
     }
   }
@@ -795,6 +844,14 @@ class _ParsedCredentialsPageState extends ConsumerState<ParsedCredentialsPage> {
                 const SizedBox(height: 4),
                 _buildCategoryChips(state),
               ],
+              if (state.status == CredentialProbeStatus.success &&
+                  state.liveCategories.isEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  state.categoryError ?? 'Live categories unavailable',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
               if (state.status == CredentialProbeStatus.failure &&
                   state.message?.isNotEmpty == true) ...[
                 const SizedBox(height: 8),
@@ -1033,6 +1090,7 @@ class CredentialProbeState {
     this.summary,
     this.liveCategories = const [],
     this.liveCategoryTotal,
+    this.categoryError,
   });
 
   final CredentialProbeStatus status;
@@ -1040,4 +1098,5 @@ class CredentialProbeState {
   final SummaryData? summary;
   final List<CategoryEntry> liveCategories;
   final int? liveCategoryTotal;
+  final String? categoryError;
 }

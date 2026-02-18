@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:openiptv/src/telegram/telegram_service.dart';
 import 'package:openiptv/src/ui/settings/parsed_credentials_page.dart';
 import 'package:openiptv/src/utils/credential_parser.dart';
+import 'package:openiptv/src/utils/telegram_scrape_logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:t/t.dart' as t;
 import 'package:tg/tg.dart' as tg;
@@ -31,6 +32,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
   bool _isSyncing = false;
   double? _fetchProgress;
   String? _fetchProgressLabel;
+  String? _logPath;
 
   // Telegram Client State
   tg.Client? get _client => TelegramService.instance.client;
@@ -46,10 +48,10 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     // Listen to logs
     TelegramService.instance.logs.listen((log) {
       if (mounted) {
-        // Optional: show logs in UI or console
-        debugPrint(log);
+        TelegramScrapeLogger.log(log, tag: 'tg-client');
       }
     });
+    _loadLogPath();
   }
 
   @override
@@ -83,8 +85,17 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     }
   }
 
+  Future<void> _loadLogPath() async {
+    final path = await TelegramScrapeLogger.logPath;
+    if (!mounted) return;
+    setState(() {
+      _logPath = path;
+    });
+  }
+
   Future<void> _checkSession() async {
     try {
+      TelegramScrapeLogger.log('Checking Telegram session');
       await TelegramService.instance.connect();
       if (_client != null) {
         // Check if authorized by making a simple call, e.g. getMe (users.getFullUser is complex, maybe help.getConfig)
@@ -109,9 +120,11 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
           // But if we have a saved session, we might be logged in.
           _authState = AuthState.loggedIn;
         });
+        TelegramScrapeLogger.log('Session connected, fetching dialogs');
         _fetchDialogs();
       }
     } catch (e) {
+      TelegramScrapeLogger.error('Session check failed', e);
       debugPrint('Session check failed: $e');
     }
   }
@@ -130,6 +143,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         ).showSnackBar(const SnackBar(content: Text('Settings saved')));
       }
     } catch (e) {
+      TelegramScrapeLogger.error('Error saving settings', e);
       debugPrint('Error saving settings: $e');
     }
   }
@@ -138,6 +152,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     if (_client == null) return;
     // Don't set global loading, just background fetch or local loading
     try {
+      TelegramScrapeLogger.log('Fetching dialogs list');
       final res = await _client!.invoke(
         t.MessagesGetDialogs(
           offsetDate: DateTime.fromMillisecondsSinceEpoch(0),
@@ -162,7 +177,9 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
           _myChats = chats.where((c) => c is t.Chat || c is t.Channel).toList();
         });
       }
+      TelegramScrapeLogger.log('Dialogs loaded: ${_myChats.length}');
     } catch (e) {
+      TelegramScrapeLogger.error('Error fetching dialogs', e);
       debugPrint('Error fetching dialogs: $e');
     }
   }
@@ -180,6 +197,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     _setStatus('Connecting...');
 
     try {
+      TelegramScrapeLogger.log('Login started');
       final client = await TelegramService.instance.connect();
 
       _setStatus('Sending code...');
@@ -215,7 +233,9 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         _statusMessage = 'Code sent to Telegram app.';
         _isSyncing = false;
       });
+      TelegramScrapeLogger.log('Code sent to Telegram');
     } catch (e) {
+      TelegramScrapeLogger.error('Error sending code', e);
       setState(() {
         _isSyncing = false;
         _statusMessage = 'Error sending code: $e';
@@ -233,6 +253,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     _setStatus('Verifying code...');
 
     try {
+      TelegramScrapeLogger.log('Submitting login code');
       final client = TelegramService.instance.client!;
       final res = await client.auth.signIn(
         phoneNumber: phone,
@@ -269,6 +290,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         setState(() => _isSyncing = false);
       }
     } catch (e) {
+      TelegramScrapeLogger.error('Error signing in', e);
       setState(() {
         _isSyncing = false;
         _statusMessage = 'Error signing in: $e';
@@ -284,6 +306,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     _setStatus('Verifying password...');
 
     try {
+      TelegramScrapeLogger.log('Submitting 2FA password');
       final client = TelegramService.instance.client!;
       final passwordInput = await tg.check2FA(_accountPassword!, password);
       final res = await client.auth.checkPassword(password: passwordInput);
@@ -297,6 +320,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
       });
       _fetchDialogs();
     } catch (e) {
+      TelegramScrapeLogger.error('Error verifying password', e);
       setState(() {
         _isSyncing = false;
         _statusMessage = 'Error verifying password: $e';
@@ -317,9 +341,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
     if (!mounted) return;
     setState(() {
       _fetchProgress = progress;
-      _fetchProgressLabel = total > 0
-          ? '$phase ($processed/$total)'
-          : phase;
+      _fetchProgressLabel = total > 0 ? '$phase ($processed/$total)' : phase;
     });
   }
 
@@ -342,6 +364,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
       _fetchProgressLabel = null;
     });
     _setStatus('Starting fetch...');
+    TelegramScrapeLogger.log('Fetch messages started');
 
     final allStalker = <StalkerCredential>[];
     final allXtream = <XtreamCredential>[];
@@ -354,6 +377,9 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         processed: processedMessages,
         total: estimatedTotal,
         phase: 'Preparing',
+      );
+      TelegramScrapeLogger.log(
+        'Scrape config: chats=${_myChats.length}, perChat=$messageCount, estimatedTotal=$estimatedTotal',
       );
 
       for (final chat in _myChats) {
@@ -374,6 +400,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         if (peer == null) continue;
 
         _setStatus('Fetching $title...');
+        TelegramScrapeLogger.log('Fetching history for $title');
 
         try {
           final historyRes = await _client!.invoke(
@@ -402,6 +429,9 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
             messages = history.messages;
           }
 
+          TelegramScrapeLogger.log(
+            'Messages loaded for $title: ${messages.length}',
+          );
           for (var i = 0; i < messages.length; i++) {
             final msg = messages[i];
             if (msg is t.Message && msg.message.isNotEmpty) {
@@ -419,7 +449,11 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
               await Future<void>.delayed(const Duration(milliseconds: 1));
             }
           }
+          TelegramScrapeLogger.log(
+            'Parsed $title -> stalker=${allStalker.length}, xtream=${allXtream.length}',
+          );
         } catch (e) {
+          TelegramScrapeLogger.error('Error fetching $title', e);
           debugPrint('Error fetching $title: $e');
           _setStatus('Error fetching $title: $e');
         }
@@ -430,8 +464,11 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         _fetchProgress = null;
         _fetchProgressLabel = null;
         _statusMessage =
-        'Fetch complete! Found ${allStalker.length + allXtream.length} credentials.';
+            'Fetch complete! Found ${allStalker.length + allXtream.length} credentials.';
       });
+      TelegramScrapeLogger.log(
+        'Fetch complete: stalker=${allStalker.length}, xtream=${allXtream.length}',
+      );
 
       if (mounted) {
         Navigator.of(context).push(
@@ -450,6 +487,7 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
         _fetchProgressLabel = null;
         _statusMessage = 'Global error: $e';
       });
+      TelegramScrapeLogger.error('Global fetch error', e);
     }
   }
 
@@ -493,6 +531,14 @@ class _TelegramSettingsPageState extends State<TelegramSettingsPage> {
                               ),
                             ],
                           ],
+                        ),
+                      ),
+                    if (_logPath != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SelectableText(
+                          'Telegram log: $_logPath',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ),
 
